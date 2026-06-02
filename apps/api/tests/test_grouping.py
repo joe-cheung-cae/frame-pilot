@@ -1,0 +1,25 @@
+from app.services.grouping import group_similar_photos
+
+
+def test_grouping_uses_similarity_and_time_window():
+    photos = [
+        {"id": "a", "filename": "IMG_0001.jpg", "capture_time": "2026-01-01T10:00:00", "embedding": [1.0, 0.0]},
+        {"id": "b", "filename": "IMG_0002.jpg", "capture_time": "2026-01-01T10:00:02", "embedding": [0.99, 0.01]},
+        {"id": "c", "filename": "IMG_0100.jpg", "capture_time": "2026-01-01T11:00:00", "embedding": [1.0, 0.0]},
+        {"id": "d", "filename": "IMG_0200.jpg", "capture_time": "2026-01-01T11:00:03", "embedding": [0.0, 1.0]},
+    ]
+
+    groups = group_similar_photos(photos, similarity_threshold=0.95, max_time_gap_seconds=10)
+
+    assert [group.photo_ids for group in groups] == [["a", "b"], ["c"], ["d"]]
+
+
+def test_grouping_falls_back_to_filename_order_without_capture_time():
+    photos = [
+        {"id": "2", "filename": "B.jpg", "embedding": [1.0, 0.0]},
+        {"id": "1", "filename": "A.jpg", "embedding": [1.0, 0.0]},
+    ]
+
+    groups = group_similar_photos(photos, similarity_threshold=0.95)
+
+    assert groups[0].photo_ids == ["1", "2"]

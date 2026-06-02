@@ -1,0 +1,101 @@
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+
+export type Project = {
+  id: string;
+  name: string;
+  root_path: string;
+  total_images: number;
+  processed_images: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Photo = {
+  id: string;
+  project_id: string;
+  filename: string;
+  file_size: number;
+  width: number;
+  height: number;
+  thumbnail_path: string | null;
+  preview_path: string | null;
+  sharpness_score: number;
+  blur_score: number;
+  exposure_score: number;
+  contrast_score: number;
+  noise_score: number;
+  face_presence: boolean;
+  face_quality_score: number;
+  aesthetic_score: number;
+  overall_score: number;
+  ai_recommendation: string;
+  recommendation_explanation: string;
+  user_status: "Pick" | "Maybe" | "Reject" | "Unreviewed";
+  star_rating: number;
+  group_id: string | null;
+};
+
+export type PhotoGroup = {
+  id: string;
+  project_id: string;
+  group_type: string;
+  representative_photo_id: string | null;
+  photo_count: number;
+};
+
+export type ProcessingJob = {
+  id: string;
+  project_id: string;
+  status: string;
+  current_step: string;
+  total_items: number;
+  processed_items: number;
+  error_message: string | null;
+};
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: init?.body instanceof FormData ? init.headers : { "Content-Type": "application/json", ...init?.headers },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || response.statusText);
+  }
+  return response.json() as Promise<T>;
+}
+
+export const api = {
+  listProjects: () => request<Project[]>("/api/projects"),
+  createProject: (name: string) => request<Project>("/api/projects", { method: "POST", body: JSON.stringify({ name }) }),
+  getProject: (id: string) => request<Project>(`/api/projects/${id}`),
+  importPhotos: (projectId: string, files: FileList) => {
+    const body = new FormData();
+    Array.from(files).forEach((file) => body.append("files", file));
+    return request<Photo[]>(`/api/projects/${projectId}/import`, { method: "POST", body });
+  },
+  processProject: (projectId: string) => request<ProcessingJob>(`/api/projects/${projectId}/process`, { method: "POST" }),
+  listPhotos: (projectId: string) => request<Photo[]>(`/api/projects/${projectId}/photos`),
+  updatePhoto: (projectId: string, photoId: string, patch: Partial<Pick<Photo, "user_status" | "star_rating">>) =>
+    request<Photo>(`/api/projects/${projectId}/photos/${photoId}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  listGroups: (projectId: string) => request<PhotoGroup[]>(`/api/projects/${projectId}/groups`),
+  exportSelection: (projectId: string, mode: "csv" | "folder" | "zip", statuses: string[]) =>
+    request<{ id: string; output_path: string; mode: string; status: string }>(`/api/projects/${projectId}/export`, {
+      method: "POST",
+      body: JSON.stringify({ mode, statuses }),
+    }),
+};
+
+export function assetUrl(projectId: string, path: string | null): string | null {
+  if (!path) {
+    return null;
+  }
+  const parts = path.split("/");
+  const filename = parts.at(-1);
+  const kind = parts.at(-2);
+  if (!filename || !kind) {
+    return null;
+  }
+  return `${API_BASE}/api/assets/${projectId}/${kind}/${filename}`;
+}
+

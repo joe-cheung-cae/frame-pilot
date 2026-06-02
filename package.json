@@ -1,0 +1,18 @@
+{
+  "name": "frame-pilot",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": ".venv/bin/uvicorn app.main:app --app-dir apps/api --reload --reload-dir apps/api --port 8000",
+    "dev:web": "npm --prefix apps/web run dev",
+    "test": "npm run test:api && npm run test:web",
+    "test:api": ".venv/bin/pytest apps/api/tests",
+    "test:web": "npm --prefix apps/web run build",
+    "install:all": "python3 -m venv .venv && .venv/bin/python -m pip install -e 'apps/api[dev]' && npm install && npm --prefix apps/web install",
+    "build": "npm --prefix apps/web run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
