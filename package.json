@@ -9,10 +9,12 @@
     "test": "npm run test:api && npm run test:web",
     "test:api": ".venv/bin/pytest apps/api/tests",
     "test:web": "npm --prefix apps/web run test:unit && npm --prefix apps/web run build",
+    "test:e2e": "bash scripts/run-e2e.sh",
     "install:all": "python3 -m venv .venv && .venv/bin/python -m pip install -e 'apps/api[dev]' && npm install && npm --prefix apps/web install",
     "build": "npm --prefix apps/web run build"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "concurrently": "^9.1.0"
   }
 }

@@ -1,14 +1,17 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { ChangeEvent, useState } from "react";
 import { FileImage, Loader2, Play } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, assetUrl, Photo } from "@/lib/api";
 
 export function ImportPanel({ projectId }: { projectId: string }) {
   const [message, setMessage] = useState("");
   const [skipped, setSkipped] = useState<{ filename: string; reason: string }[]>([]);
+  const [recentImports, setRecentImports] = useState<Photo[]>([]);
   const queryClient = useQueryClient();
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
   const mutation = useMutation({
@@ -16,6 +19,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     onSuccess: async (result) => {
       setMessage(`${result.imported.length} images imported and previewed.`);
       setSkipped(result.skipped);
+      setRecentImports(result.imported);
       await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
@@ -69,6 +73,27 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             ))}
           </ul>
           {skipped.length > 5 ? <p className="mt-2 text-neutral-600">Only the first 5 skipped files are shown.</p> : null}
+        </div>
+      ) : null}
+      {recentImports.length ? (
+        <div className="grid gap-3 rounded border border-line bg-white p-4">
+          <h2 className="text-sm font-semibold">Recently Imported</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {recentImports.slice(0, 12).map((photo) => {
+              const thumbnail = assetUrl(projectId, photo.thumbnail_path);
+              return (
+                <div className="overflow-hidden rounded border border-line bg-mist" key={photo.id}>
+                  {thumbnail ? (
+                    <img className="aspect-[4/3] w-full object-cover" src={thumbnail} alt={`Thumbnail for ${photo.filename}`} />
+                  ) : (
+                    <div className="grid aspect-[4/3] place-items-center text-xs text-neutral-600">No preview</div>
+                  )}
+                  <p className="truncate px-2 py-1 text-xs text-neutral-700">{photo.filename}</p>
+                </div>
+              );
+            })}
+          </div>
+          {recentImports.length > 12 ? <p className="text-sm text-neutral-600">Showing the first 12 imported images.</p> : null}
         </div>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
