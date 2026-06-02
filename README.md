@@ -11,9 +11,10 @@ FramePilot is a local-first AI-assisted photo culling web app. The MVP keeps ori
 - Deterministic thumbnail and preview generation.
 - Basic metadata extraction and explainable image quality scoring.
 - Lightweight embedding approximation for near-duplicate grouping.
+- Group-focused culling with recommendation-first review ordering.
 - Pick, Maybe, Reject, and Unreviewed statuses.
 - Keyboard review shortcuts: arrows, P, M, X, U, 1-5, Space, and G.
-- CSV, folder, and ZIP export modes.
+- CSV, folder, and ZIP export modes with unique local export outputs.
 
 ## Setup
 
@@ -31,6 +32,14 @@ The web app runs at `http://localhost:3000`. The local API runs at `http://127.0
 
 Backend data is written to `.framepilot-data` by default. Set `FRAMEPILOT_DATA_DIR` to use another local project data location.
 
+Typical workflow:
+
+1. Create a project.
+2. Import JPEG, PNG, or WebP files. Valid files are imported even if some selected files are skipped.
+3. Run processing to rebuild groups and recommendations.
+4. Review photos by group and mark Pick, Maybe, Reject, or Unreviewed.
+5. Export one or more selected statuses to CSV, folder, or ZIP.
+
 ## Verify
 
 ```bash
@@ -42,4 +51,3 @@ This runs backend unit/API tests and a frontend production build.
 ## Privacy
 
 The MVP does not upload originals or generated previews to any remote service. Imported images are copied into the local project directory so originals are never modified.
-

@@ -39,16 +39,41 @@ def _unique_archive_name(used_names: set[str], filename: str) -> str:
 def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["filename", "status", "star_rating", "group_id", "score"])
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "filename",
+                "original_path",
+                "status",
+                "star_rating",
+                "group_id",
+                "ai_recommendation",
+                "score",
+                "sharpness_score",
+                "exposure_score",
+                "contrast_score",
+                "width",
+                "height",
+                "recommendation_explanation",
+            ],
+        )
         writer.writeheader()
         for photo in photos:
             writer.writerow(
                 {
                     "filename": photo.get("filename", ""),
+                    "original_path": photo.get("original_path", ""),
                     "status": photo.get("user_status", "Unreviewed"),
                     "star_rating": photo.get("star_rating", 0),
                     "group_id": photo.get("group_id") or "",
+                    "ai_recommendation": photo.get("ai_recommendation", "Unreviewed"),
                     "score": f"{float(photo.get('overall_score', 0.0) or 0.0):.3f}",
+                    "sharpness_score": f"{float(photo.get('sharpness_score', 0.0) or 0.0):.3f}",
+                    "exposure_score": f"{float(photo.get('exposure_score', 0.0) or 0.0):.3f}",
+                    "contrast_score": f"{float(photo.get('contrast_score', 0.0) or 0.0):.3f}",
+                    "width": photo.get("width", 0),
+                    "height": photo.get("height", 0),
+                    "recommendation_explanation": photo.get("recommendation_explanation", ""),
                 }
             )
     return target

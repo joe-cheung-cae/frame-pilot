@@ -10,6 +10,13 @@ WEIGHTS = {
     "duplicate_penalty": -0.10,
 }
 
+QUALITY_LABELS = {
+    "sharpness_score": "sharpness",
+    "exposure_score": "exposure",
+    "face_quality_score": "face quality",
+    "aesthetic_score": "aesthetic balance",
+}
+
 
 @dataclass(frozen=True)
 class RankedPhoto:
@@ -24,20 +31,44 @@ def final_score(photo: dict[str, Any]) -> float:
     return round(max(0.0, min(1.0, score)), 4)
 
 
+def _metric_value(photo: dict[str, Any], field: str) -> float:
+    return float(photo.get(field, 0.0) or 0.0)
+
+
+def _strongest_metric(photo: dict[str, Any]) -> str:
+    return max(QUALITY_LABELS, key=lambda field: _metric_value(photo, field))
+
+
+def _weakest_metric(photo: dict[str, Any]) -> str:
+    return min(QUALITY_LABELS, key=lambda field: _metric_value(photo, field))
+
+
+def _pick_explanation(photo: dict[str, Any], group_size: int) -> str:
+    strongest = QUALITY_LABELS[_strongest_metric(photo)]
+    if group_size <= 1:
+        return f"Recommended because it has the strongest {strongest} score among the available quality signals."
+    return f"Recommended because it has the highest overall score in this group, led by its {strongest} score."
+
+
+def _secondary_explanation(photo: dict[str, Any], recommendation: str, score_gap: float) -> str:
+    weakest = QUALITY_LABELS[_weakest_metric(photo)]
+    if recommendation == "Reject":
+        return f"Rejected because it trails the strongest image by {score_gap:.2f}, with weaker {weakest}."
+    return f"Marked as Maybe because it is within {score_gap:.2f} of the strongest image, though {weakest} is weaker."
+
+
 def rank_group(photos: list[dict[str, Any]]) -> list[RankedPhoto]:
-    ranked = sorted(
-        [
-            RankedPhoto(
-                photo_id=str(photo["id"]),
-                score=final_score(photo),
-                recommendation="Pick",
-                explanation="Recommended because it has the highest overall technical score in this similar-photo group.",
-            )
-            for photo in photos
-        ],
-        key=lambda item: item.score,
-        reverse=True,
-    )
+    scored = [(photo, final_score(photo)) for photo in photos]
+    scored.sort(key=lambda item: item[1], reverse=True)
+    ranked = [
+        RankedPhoto(
+            photo_id=str(photo["id"]),
+            score=score,
+            recommendation="Pick",
+            explanation=_pick_explanation(photo, len(scored)),
+        )
+        for photo, score in scored
+    ]
 
     if len(ranked) <= 1:
         return ranked
@@ -48,13 +79,12 @@ def rank_group(photos: list[dict[str, Any]]) -> list[RankedPhoto]:
             photo_id=item.photo_id,
             score=item.score,
             recommendation="Reject" if item.score < best.score - 0.1 else "Maybe",
-            explanation=(
-                "Rejected because it is visually similar to a stronger image."
-                if item.score < best.score - 0.1
-                else "Marked as Maybe because it is close to the strongest image in this group."
+            explanation=_secondary_explanation(
+                scored[index][0],
+                "Reject" if item.score < best.score - 0.1 else "Maybe",
+                best.score - item.score,
             ),
         )
-        for item in ranked[1:]
+        for index, item in enumerate(ranked[1:], start=1)
     ]
     return [best, *rest]
-

@@ -5,7 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
-import { ArrowLeft, ArrowRight, Check, Eye, ImageOff, Star, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Eye, ImageOff, Loader2, Play, Star, Upload, X } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import { useReviewStore } from "@/store/reviewStore";
 
@@ -29,18 +29,26 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
   const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listPhotos(projectId) });
   const groupsQuery = useQuery({ queryKey: ["groups", projectId], queryFn: () => api.listGroups(projectId) });
-  const { activePhotoId, filter, largePreview, setActivePhotoId, setFilter, toggleLargePreview } = useReviewStore();
+  const { activeGroupId, activePhotoId, filter, largePreview, setActiveGroupId, setActivePhotoId, setFilter, toggleLargePreview } = useReviewStore();
   const photos = useMemo(() => photosQuery.data ?? [], [photosQuery.data]);
+  const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
   const duplicateGroupIds = useMemo(
-    () => new Set((groupsQuery.data ?? []).filter((group) => group.photo_count > 1).map((group) => group.id)),
-    [groupsQuery.data],
+    () => new Set(groups.filter((group) => group.photo_count > 1).map((group) => group.id)),
+    [groups],
   );
   const filteredPhotos = useMemo(
     () => photos.filter((photo) => statusForFilter(photo, filter, duplicateGroupIds)),
     [duplicateGroupIds, filter, photos],
   );
-  const activeIndex = Math.max(0, filteredPhotos.findIndex((photo) => photo.id === activePhotoId));
-  const activePhoto = filteredPhotos[activeIndex] ?? filteredPhotos[0] ?? null;
+  const visiblePhotos = useMemo(() => {
+    if (!activeGroupId) {
+      return filteredPhotos;
+    }
+    return filteredPhotos.filter((photo) => photo.group_id === activeGroupId);
+  }, [activeGroupId, filteredPhotos]);
+  const activeIndex = Math.max(0, visiblePhotos.findIndex((photo) => photo.id === activePhotoId));
+  const activePhoto = visiblePhotos[activeIndex] ?? visiblePhotos[0] ?? null;
+  const activeGroupIndex = activeGroupId ? groups.findIndex((group) => group.id === activeGroupId) : -1;
 
   const updateMutation = useMutation({
     mutationFn: ({ photo, patch }: { photo: Photo; patch: Partial<Pick<Photo, "user_status" | "star_rating">> }) =>
@@ -56,10 +64,30 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     }
   }, [activePhoto, activePhotoId, setActivePhotoId]);
 
+  useEffect(() => {
+    if (activePhoto && activePhoto.id !== activePhotoId) {
+      setActivePhotoId(activePhoto.id);
+    }
+  }, [activePhoto, activePhotoId, setActivePhotoId]);
+
   function move(delta: number) {
-    if (!filteredPhotos.length) return;
-    const next = Math.min(Math.max(activeIndex + delta, 0), filteredPhotos.length - 1);
-    setActivePhotoId(filteredPhotos[next].id);
+    if (!visiblePhotos.length) return;
+    const next = Math.min(Math.max(activeIndex + delta, 0), visiblePhotos.length - 1);
+    setActivePhotoId(visiblePhotos[next].id);
+  }
+
+  function selectGroup(groupId: string | null, representativePhotoId?: string | null) {
+    setActiveGroupId(groupId);
+    if (representativePhotoId) {
+      setActivePhotoId(representativePhotoId);
+    }
+  }
+
+  function cycleGroup() {
+    if (!groups.length) return;
+    const nextIndex = activeGroupIndex >= 0 ? (activeGroupIndex + 1) % groups.length : 0;
+    const nextGroup = groups[nextIndex];
+    selectGroup(nextGroup.id, nextGroup.representative_photo_id);
   }
 
   function mark(status: Photo["user_status"]) {
@@ -87,7 +115,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         event.preventDefault();
         toggleLargePreview();
       }
-      if (event.key.toLowerCase() === "g") setFilter("Duplicate groups");
+      if (event.key.toLowerCase() === "g") cycleGroup();
       const numeric = Number(event.key);
       if (numeric >= 1 && numeric <= 5) rate(numeric);
     }
@@ -98,13 +126,70 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const preview = activePhoto ? assetUrl(projectId, activePhoto.preview_path) : null;
   const picks = photos.filter((photo) => photo.user_status === "Pick").length;
   const reviewed = photos.filter((photo) => photo.user_status !== "Unreviewed").length;
+  const isLoading = project.isLoading || photosQuery.isLoading || groupsQuery.isLoading;
+  const loadError = project.error ?? photosQuery.error ?? groupsQuery.error;
+
+  if (isLoading) {
+    return (
+      <section className="grid min-h-[calc(100vh-73px)] place-items-center px-5">
+        <div className="inline-flex items-center gap-2 text-sm text-neutral-700">
+          <Loader2 className="animate-spin text-leaf" size={18} />
+          Loading culling workspace...
+        </div>
+      </section>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
+        <h1 className="text-2xl font-semibold">Culling Workspace</h1>
+        <p className="text-sm text-coral">Could not load this project. Start the local API and try again.</p>
+      </section>
+    );
+  }
+
+  if (!photos.length) {
+    return (
+      <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
+        <div>
+          <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
+          <h1 className="mt-1 text-2xl font-semibold">No Photos Imported</h1>
+        </div>
+        <p className="text-sm text-neutral-700">Import JPEG, PNG, or WebP images before opening the culling workspace.</p>
+        <Link className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white" href={`/projects/${projectId}/import`}>
+          <Upload size={18} />
+          Import Images
+        </Link>
+      </section>
+    );
+  }
+
+  if (!groups.length && (project.data?.processed_images ?? 0) === 0) {
+    return (
+      <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
+        <div>
+          <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
+          <h1 className="mt-1 text-2xl font-semibold">Processing Needed</h1>
+        </div>
+        <p className="text-sm text-neutral-700">Run grouping and ranking before reviewing recommendations.</p>
+        <Link className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white" href={`/projects/${projectId}/process`}>
+          <Play size={18} />
+          Process Project
+        </Link>
+      </section>
+    );
+  }
 
   return (
     <section className="grid min-h-[calc(100vh-73px)] grid-rows-[auto_1fr_auto]">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-3">
         <div>
           <h1 className="text-lg font-semibold">{project.data?.name ?? "Culling Workspace"}</h1>
-          <p className="text-sm text-neutral-600">{reviewed}/{photos.length} reviewed · {picks} picks</p>
+          <p className="text-sm text-neutral-600">
+            {reviewed}/{photos.length} reviewed · {picks} picks
+            {activeGroupIndex >= 0 ? ` · Group ${activeGroupIndex + 1} of ${groups.length}` : ""}
+          </p>
         </div>
         <Link className="focus-ring rounded bg-ink px-4 py-2 text-sm font-medium text-white" href={`/projects/${projectId}/export`}>
           Export
@@ -126,11 +211,16 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           </div>
           <h2 className="mb-3 mt-6 text-sm font-semibold">Groups</h2>
           <div className="grid gap-2 text-sm text-neutral-700">
-            {(groupsQuery.data ?? []).map((group, index) => (
+            {activeGroupId ? (
+              <button className="focus-ring rounded border border-line bg-white px-3 py-2 text-left" onClick={() => selectGroup(null)}>
+                Show filtered photos
+              </button>
+            ) : null}
+            {groups.map((group, index) => (
               <button
-                className="focus-ring flex justify-between rounded border border-line bg-white px-3 py-2 text-left"
+                className={`focus-ring flex justify-between rounded border px-3 py-2 text-left ${activeGroupId === group.id ? "border-leaf bg-mist" : "border-line bg-white"}`}
                 key={group.id}
-                onClick={() => group.representative_photo_id && setActivePhotoId(group.representative_photo_id)}
+                onClick={() => selectGroup(group.id, group.representative_photo_id)}
               >
                 <span>Group {index + 1}</span>
                 <span>{group.photo_count}</span>
@@ -144,7 +234,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           ) : (
             <div className="grid place-items-center gap-3 text-center text-white">
               <ImageOff size={38} />
-              <p>No photos match this filter.</p>
+              <p>{activeGroupId ? "No photos in this group match the current filter." : "No photos match this filter."}</p>
             </div>
           )}
         </div>
@@ -194,7 +284,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         <button className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line" onClick={() => move(-1)} aria-label="Previous photo">
           <ArrowLeft size={18} />
         </button>
-        {filteredPhotos.map((photo) => {
+        {visiblePhotos.map((photo) => {
           const thumbnail = assetUrl(projectId, photo.thumbnail_path);
           return (
             <button

@@ -20,3 +20,6 @@ The browser talks only to the local API. Original files are copied into the loca
 
 Processing is synchronous in this first MVP scaffold. The API still creates `ProcessingJob` records so the workflow can be moved to background workers later without changing the UI contract.
 
+Import is tolerant of mixed file selections: supported images are copied into `originals/`, derivatives are generated in `thumbnails/` and `previews/`, and unsupported or unreadable files are reported as skipped. Adding new imports invalidates existing grouping and recommendation metadata because the review set has changed.
+
+Exports are local artifacts written under `exports/`. Each export record has a unique output path and records the selected statuses plus selected photo count. Empty exports are rejected before an artifact is written.

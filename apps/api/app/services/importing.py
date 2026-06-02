@@ -5,11 +5,11 @@ from typing import BinaryIO
 
 from PIL import Image, ExifTags, ImageOps, UnidentifiedImageError
 import numpy as np
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.ai.embeddings import image_embedding
 from app.image.scoring import compute_quality_scores
-from app.models.entities import Photo, Project, utc_now
+from app.models.entities import Photo, PhotoGroup, Project, utc_now
 
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -82,6 +82,21 @@ def _save_derivatives(project_root: Path, source: Path, image: Image.Image) -> t
     return thumbnail_path, preview_path
 
 
+def _invalidate_project_processing(session: Session, project: Project) -> None:
+    for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
+        session.delete(group)
+
+    photos = session.exec(select(Photo).where(Photo.project_id == project.id)).all()
+    for photo in photos:
+        photo.group_id = None
+        photo.ai_recommendation = "Unreviewed"
+        photo.recommendation_explanation = "Processing should be run again after the latest import."
+        photo.updated_at = utc_now()
+        session.add(photo)
+
+    project.processed_images = 0
+
+
 def import_image_file(session: Session, project: Project, filename: str, file: BinaryIO) -> Photo:
     if not is_supported_image(filename):
         raise ValueError("Only JPEG, PNG, and WebP files are supported")
@@ -127,8 +142,8 @@ def import_image_file(session: Session, project: Project, filename: str, file: B
         **metadata,
     )
     session.add(photo)
+    _invalidate_project_processing(session, project)
     project.total_images += 1
-    project.processed_images += 1
     project.updated_at = utc_now()
     session.add(project)
     session.commit()

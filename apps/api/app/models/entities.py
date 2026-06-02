@@ -88,6 +88,7 @@ class ExportRecord(SQLModel, table=True):
     project_id: str = Field(index=True, foreign_key="project.id")
     mode: str
     status: str = "complete"
+    selected_count: int = 0
+    statuses: str = "[]"
     output_path: str
     created_at: datetime = Field(default_factory=utc_now)
-

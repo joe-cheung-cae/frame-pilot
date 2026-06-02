@@ -1,7 +1,9 @@
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
+from sqlalchemy import case
 from sqlmodel import Session, select
 
 from app.db.session import get_session
@@ -10,6 +12,7 @@ from app.schemas.api import (
     ExportCreate,
     ExportRead,
     GroupRead,
+    ImportResult,
     JobRead,
     PhotoRead,
     PhotoUpdate,
@@ -39,6 +42,14 @@ def _get_photo(session: Session, project_id: str, photo_id: str) -> Photo:
     return photo
 
 
+def _export_target(export_root: Path, export_id: str, mode: str) -> Path:
+    if mode == "csv":
+        return export_root / f"selection-{export_id}.csv"
+    if mode == "folder":
+        return export_root / f"selected-{export_id}"
+    return export_root / f"selected-{export_id}.zip"
+
+
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 def create_project_endpoint(payload: ProjectCreate, session: Session = Depends(get_session)):
     return create_project(session, payload.name, payload.root_path)
@@ -62,7 +73,7 @@ def delete_project_endpoint(project_id: str, session: Session = Depends(get_sess
     return None
 
 
-@router.post("/projects/{project_id}/import", response_model=list[PhotoRead], status_code=status.HTTP_201_CREATED)
+@router.post("/projects/{project_id}/import", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
 async def import_photos_endpoint(
     project_id: str,
     files: list[UploadFile] = File(...),
@@ -70,12 +81,17 @@ async def import_photos_endpoint(
 ):
     project = _get_project(session, project_id)
     imported: list[Photo] = []
+    skipped: list[dict[str, str]] = []
     for upload in files:
+        filename = upload.filename or "image"
         try:
-            imported.append(import_image_file(session, project, upload.filename or "image", upload.file))
+            imported.append(import_image_file(session, project, filename, upload.file))
         except ValueError as error:
-            raise HTTPException(status_code=422, detail=str(error)) from error
-    return imported
+            skipped.append({"filename": filename, "reason": str(error)})
+    if not imported and skipped:
+        details = "; ".join(f"{item['filename']}: {item['reason']}" for item in skipped)
+        raise HTTPException(status_code=422, detail=details)
+    return {"imported": imported, "skipped": skipped}
 
 
 @router.post("/projects/{project_id}/process", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)
@@ -95,7 +111,19 @@ def get_job_endpoint(project_id: str, job_id: str, session: Session = Depends(ge
 @router.get("/projects/{project_id}/photos", response_model=list[PhotoRead])
 def list_photos_endpoint(project_id: str, session: Session = Depends(get_session)):
     _get_project(session, project_id)
-    return list(session.exec(select(Photo).where(Photo.project_id == project_id).order_by(Photo.filename)).all())
+    recommendation_order = case(
+        (Photo.ai_recommendation == "Pick", 0),
+        (Photo.ai_recommendation == "Maybe", 1),
+        (Photo.ai_recommendation == "Unreviewed", 2),
+        else_=3,
+    )
+    return list(
+        session.exec(
+            select(Photo)
+            .where(Photo.project_id == project_id)
+            .order_by(Photo.group_id, recommendation_order, Photo.overall_score.desc(), Photo.filename)
+        ).all()
+    )
 
 
 @router.get("/projects/{project_id}/photos/{photo_id}", response_model=PhotoRead)
@@ -124,7 +152,7 @@ def update_photo_endpoint(
 @router.get("/projects/{project_id}/groups", response_model=list[GroupRead])
 def list_groups_endpoint(project_id: str, session: Session = Depends(get_session)):
     _get_project(session, project_id)
-    return list(session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project_id)).all())
+    return list(session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project_id).order_by(PhotoGroup.created_at, PhotoGroup.id)).all())
 
 
 @router.get("/projects/{project_id}/groups/{group_id}", response_model=GroupRead)
@@ -147,16 +175,30 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
         ).all()
     )
     photo_dicts = [photo.model_dump() for photo in photos]
+    if not photo_dicts:
+        raise HTTPException(status_code=422, detail="No photos match the selected export statuses")
+
     export_root = project_export_root(project)
+    record = ExportRecord(
+        project_id=project_id,
+        mode=payload.mode,
+        selected_count=len(photo_dicts),
+        statuses=json.dumps(payload.statuses),
+        output_path="",
+    )
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    target = _export_target(export_root, record.id, payload.mode)
 
     if payload.mode == "csv":
-        output_path = write_selection_csv(export_root / "selection.csv", photo_dicts)
+        output_path = write_selection_csv(target, photo_dicts)
     elif payload.mode == "folder":
-        output_path = copy_selected_files(export_root / "selected", photo_dicts)
+        output_path = copy_selected_files(target, photo_dicts)
     else:
-        output_path = zip_selected_files(export_root / "selected.zip", photo_dicts)
+        output_path = zip_selected_files(target, photo_dicts)
 
-    record = ExportRecord(project_id=project_id, mode=payload.mode, output_path=str(output_path))
+    record.output_path = str(output_path)
     session.add(record)
     session.commit()
     session.refresh(record)

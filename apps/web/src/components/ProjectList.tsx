@@ -25,7 +25,7 @@ export function ProjectList() {
       {data.map((project) => (
         <Link
           className="focus-ring grid gap-2 rounded border border-line bg-white p-4 transition hover:border-leaf"
-          href={`/projects/${project.id}/cull`}
+          href={project.processed_images > 0 ? `/projects/${project.id}/cull` : `/projects/${project.id}/process`}
           key={project.id}
         >
           <span className="flex items-center justify-between gap-4">
@@ -40,4 +40,3 @@ export function ProjectList() {
     </div>
   );
 }
-

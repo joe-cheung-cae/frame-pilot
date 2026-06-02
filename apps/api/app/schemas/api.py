@@ -61,6 +61,16 @@ class PhotoRead(BaseModel):
     group_id: Optional[str]
 
 
+class ImportSkippedFile(BaseModel):
+    filename: str
+    reason: str
+
+
+class ImportResult(BaseModel):
+    imported: list[PhotoRead]
+    skipped: list[ImportSkippedFile]
+
+
 class PhotoUpdate(BaseModel):
     user_status: Optional[str] = None
     star_rating: Optional[int] = Field(default=None, ge=0, le=5)
@@ -123,5 +133,7 @@ class ExportRead(BaseModel):
     project_id: str
     mode: str
     status: str
+    selected_count: int
+    statuses: str
     output_path: str
     created_at: datetime

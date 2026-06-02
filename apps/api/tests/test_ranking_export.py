@@ -28,14 +28,81 @@ def test_rank_group_selects_highest_explainable_score():
     ranked = rank_group(photos)
 
     assert ranked[0].photo_id == "high"
-    assert "highest overall technical score" in ranked[0].explanation
+    assert "highest overall score" in ranked[0].explanation
+    assert "sharpness" in ranked[0].explanation
+
+
+def test_rank_group_explains_maybe_and_reject_with_metric_context():
+    photos = [
+        {
+            "id": "best",
+            "sharpness_score": 0.9,
+            "exposure_score": 0.9,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.9,
+            "duplicate_penalty": 0.0,
+        },
+        {
+            "id": "close",
+            "sharpness_score": 0.8,
+            "exposure_score": 0.85,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.85,
+            "duplicate_penalty": 0.0,
+        },
+        {
+            "id": "weak",
+            "sharpness_score": 0.1,
+            "exposure_score": 0.2,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.2,
+            "duplicate_penalty": 0.0,
+        },
+    ]
+
+    ranked = rank_group(photos)
+
+    assert ranked[1].recommendation == "Maybe"
+    assert "within" in ranked[1].explanation
+    assert "weaker" in ranked[1].explanation
+    assert ranked[2].recommendation == "Reject"
+    assert "trails the strongest image" in ranked[2].explanation
+    assert "weaker" in ranked[2].explanation
 
 
 def test_write_selection_csv_contains_user_decisions(tmp_path):
     target = tmp_path / "selection.csv"
     photos = [
-        {"filename": "a.jpg", "user_status": "Pick", "star_rating": 5, "group_id": "g1", "overall_score": 0.9},
-        {"filename": "b.jpg", "user_status": "Reject", "star_rating": 1, "group_id": "g1", "overall_score": 0.2},
+        {
+            "filename": "a.jpg",
+            "original_path": "/shoot/a.jpg",
+            "user_status": "Pick",
+            "star_rating": 5,
+            "group_id": "g1",
+            "ai_recommendation": "Pick",
+            "overall_score": 0.9,
+            "sharpness_score": 0.8,
+            "exposure_score": 0.7,
+            "contrast_score": 0.6,
+            "width": 4000,
+            "height": 3000,
+            "recommendation_explanation": "Recommended because it is sharp.",
+        },
+        {
+            "filename": "b.jpg",
+            "original_path": "/shoot/b.jpg",
+            "user_status": "Reject",
+            "star_rating": 1,
+            "group_id": "g1",
+            "ai_recommendation": "Reject",
+            "overall_score": 0.2,
+            "sharpness_score": 0.1,
+            "exposure_score": 0.3,
+            "contrast_score": 0.4,
+            "width": 4000,
+            "height": 3000,
+            "recommendation_explanation": "Rejected because it is weaker.",
+        },
     ]
 
     write_selection_csv(target, photos)
@@ -44,8 +111,36 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
         rows = list(csv.DictReader(handle))
 
     assert rows == [
-        {"filename": "a.jpg", "status": "Pick", "star_rating": "5", "group_id": "g1", "score": "0.900"},
-        {"filename": "b.jpg", "status": "Reject", "star_rating": "1", "group_id": "g1", "score": "0.200"},
+        {
+            "filename": "a.jpg",
+            "original_path": "/shoot/a.jpg",
+            "status": "Pick",
+            "star_rating": "5",
+            "group_id": "g1",
+            "ai_recommendation": "Pick",
+            "score": "0.900",
+            "sharpness_score": "0.800",
+            "exposure_score": "0.700",
+            "contrast_score": "0.600",
+            "width": "4000",
+            "height": "3000",
+            "recommendation_explanation": "Recommended because it is sharp.",
+        },
+        {
+            "filename": "b.jpg",
+            "original_path": "/shoot/b.jpg",
+            "status": "Reject",
+            "star_rating": "1",
+            "group_id": "g1",
+            "ai_recommendation": "Reject",
+            "score": "0.200",
+            "sharpness_score": "0.100",
+            "exposure_score": "0.300",
+            "contrast_score": "0.400",
+            "width": "4000",
+            "height": "3000",
+            "recommendation_explanation": "Rejected because it is weaker.",
+        },
     ]
 
 
