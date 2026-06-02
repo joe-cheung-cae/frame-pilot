@@ -55,6 +55,8 @@ def process_project(session: Session, project: Project) -> ProcessingJob:
                         "id": photo.id,
                         "sharpness_score": photo.sharpness_score,
                         "exposure_score": photo.exposure_score,
+                        "face_presence": photo.face_presence,
+                        "eye_open_confidence": photo.eye_open_confidence,
                         "face_quality_score": photo.face_quality_score,
                         "aesthetic_score": photo.aesthetic_score,
                         "duplicate_penalty": 0.0 if len(grouped.photo_ids) == 1 else 0.1,

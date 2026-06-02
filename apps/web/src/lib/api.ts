@@ -25,6 +25,8 @@ export type Photo = {
   contrast_score: number;
   noise_score: number;
   face_presence: boolean;
+  face_sharpness_score: number;
+  eye_open_confidence: number | null;
   face_quality_score: number;
   aesthetic_score: number;
   overall_score: number;

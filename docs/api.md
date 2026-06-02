@@ -98,4 +98,4 @@ The response includes the number of exported photos and the local output path:
 
 Exports are written under the local project `exports/` directory. Repeated exports use unique paths. Requests with no matching photos return `422` and do not write an export artifact.
 
-CSV exports include filename, original path, user status, star rating, group id, AI recommendation, overall and technical scores, image dimensions, and the recommendation explanation.
+CSV exports include filename, original path, user status, star rating, group id, AI recommendation, overall and technical scores, face and eye-open signals, image dimensions, and the recommendation explanation.

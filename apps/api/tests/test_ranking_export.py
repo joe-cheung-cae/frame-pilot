@@ -32,6 +32,33 @@ def test_rank_group_selects_highest_explainable_score():
     assert "sharpness" in ranked[0].explanation
 
 
+def test_rank_group_explains_face_and_eye_quality_when_it_leads():
+    photos = [
+        {
+            "id": "face",
+            "sharpness_score": 0.4,
+            "exposure_score": 0.4,
+            "face_quality_score": 1.0,
+            "eye_open_confidence": 0.8,
+            "aesthetic_score": 0.4,
+            "duplicate_penalty": 0.0,
+        },
+        {
+            "id": "plain",
+            "sharpness_score": 0.45,
+            "exposure_score": 0.45,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.45,
+            "duplicate_penalty": 0.0,
+        },
+    ]
+
+    ranked = rank_group(photos)
+
+    assert ranked[0].photo_id == "face"
+    assert "open-eye confidence" in ranked[0].explanation
+
+
 def test_rank_group_explains_maybe_and_reject_with_metric_context():
     photos = [
         {
@@ -84,6 +111,10 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "sharpness_score": 0.8,
             "exposure_score": 0.7,
             "contrast_score": 0.6,
+            "face_presence": True,
+            "face_sharpness_score": 0.55,
+            "eye_open_confidence": 0.75,
+            "face_quality_score": 0.65,
             "width": 4000,
             "height": 3000,
             "recommendation_explanation": "Recommended because it is sharp.",
@@ -99,6 +130,10 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "sharpness_score": 0.1,
             "exposure_score": 0.3,
             "contrast_score": 0.4,
+            "face_presence": False,
+            "face_sharpness_score": 0.0,
+            "eye_open_confidence": None,
+            "face_quality_score": 0.0,
             "width": 4000,
             "height": 3000,
             "recommendation_explanation": "Rejected because it is weaker.",
@@ -122,6 +157,10 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "sharpness_score": "0.800",
             "exposure_score": "0.700",
             "contrast_score": "0.600",
+            "face_presence": "true",
+            "face_sharpness_score": "0.550",
+            "eye_open_confidence": "0.750",
+            "face_quality_score": "0.650",
             "width": "4000",
             "height": "3000",
             "recommendation_explanation": "Recommended because it is sharp.",
@@ -137,6 +176,10 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "sharpness_score": "0.100",
             "exposure_score": "0.300",
             "contrast_score": "0.400",
+            "face_presence": "false",
+            "face_sharpness_score": "0.000",
+            "eye_open_confidence": "",
+            "face_quality_score": "0.000",
             "width": "4000",
             "height": "3000",
             "recommendation_explanation": "Rejected because it is weaker.",

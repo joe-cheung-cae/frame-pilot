@@ -257,6 +257,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     ["Exposure", activePhoto.exposure_score],
                     ["Contrast", activePhoto.contrast_score],
                     ["Blur risk", activePhoto.blur_score],
+                    ["Face sharpness", activePhoto.face_sharpness_score],
+                    ["Eye open", activePhoto.eye_open_confidence ?? 0],
+                    ["Face quality", activePhoto.face_quality_score],
                     ["Aesthetic", activePhoto.aesthetic_score],
                     ["Overall", activePhoto.overall_score],
                   ].map(([label, value]) => (
@@ -266,6 +269,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     </div>
                   ))}
                 </div>
+                <p className="text-sm text-neutral-600">
+                  {activePhoto.face_presence ? "Face signals detected for this frame." : "No face signals detected."}
+                </p>
                 <p className="rounded border border-line bg-mist p-3 text-sm">{activePhoto.recommendation_explanation}</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button className="focus-ring rounded bg-leaf px-3 py-2 text-sm font-medium text-white" onClick={() => mark("Pick")}>Pick</button>

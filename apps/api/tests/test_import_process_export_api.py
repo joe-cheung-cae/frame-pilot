@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 
 from app.db.session import get_engine
 from app.main import create_app
-from app.models.entities import Photo, PhotoGroup, ProcessingJob
+from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project
 
 
 def _image_bytes() -> bytes:
@@ -198,6 +198,52 @@ def test_photo_list_prioritizes_recommended_and_high_scoring_photos(tmp_path, mo
 
     assert response.status_code == 200
     assert [photo["filename"] for photo in response.json()] == ["pick.jpg", "maybe.jpg", "reject.jpg"]
+
+
+def test_processing_recommendation_explains_face_and_eye_quality(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Face ranking"}).json()
+
+    with Session(get_engine()) as session:
+        photos = [
+            Photo(
+                project_id=project["id"],
+                original_path="/tmp/face.jpg",
+                filename="face.jpg",
+                sharpness_score=0.4,
+                exposure_score=0.4,
+                face_presence=True,
+                face_quality_score=1.0,
+                eye_open_confidence=0.85,
+                aesthetic_score=0.4,
+                embedding="[1, 0]",
+            ),
+            Photo(
+                project_id=project["id"],
+                original_path="/tmp/plain.jpg",
+                filename="plain.jpg",
+                sharpness_score=0.45,
+                exposure_score=0.45,
+                face_quality_score=0.0,
+                aesthetic_score=0.45,
+                embedding="[0, 1]",
+            ),
+        ]
+        session.add_all(photos)
+        project_model = session.get(Project, project["id"])
+        assert project_model is not None
+        project_model.total_images = 2
+        session.add(project_model)
+        session.commit()
+
+    response = client.post(f"/api/projects/{project['id']}/process")
+
+    assert response.status_code == 202
+    processed = client.get(f"/api/projects/{project['id']}/photos").json()
+    face_photo = next(photo for photo in processed if photo["filename"] == "face.jpg")
+    assert face_photo["ai_recommendation"] == "Pick"
+    assert "open-eye confidence" in face_photo["recommendation_explanation"]
 
 
 def test_import_rejects_invalid_image_and_cleans_written_file(tmp_path, monkeypatch):

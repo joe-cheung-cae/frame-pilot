@@ -10,6 +10,9 @@ class QualityScores:
     exposure_score: float
     contrast_score: float
     noise_score: float
+    face_presence: bool
+    face_sharpness_score: float
+    eye_open_confidence: float | None
     face_quality_score: float
     aesthetic_score: float
     overall_score: float
@@ -40,6 +43,68 @@ def _laplacian_variance(gray: np.ndarray) -> float:
     return float(laplacian.var())
 
 
+def _detect_face_signals(image: np.ndarray, gray: np.ndarray, sharpness_score: float) -> tuple[bool, float, float | None, float]:
+    if image.ndim < 3:
+        return False, 0.0, None, 0.0
+
+    rgb = image[..., :3].astype(np.float32)
+    red = rgb[..., 0]
+    green = rgb[..., 1]
+    blue = rgb[..., 2]
+    skin_mask = (
+        (red > 95)
+        & (green > 70)
+        & (blue > 45)
+        & ((np.maximum.reduce([red, green, blue]) - np.minimum.reduce([red, green, blue])) > 15)
+        & (red > green)
+        & (green >= blue * 0.75)
+    )
+    ys, xs = np.where(skin_mask)
+    skin_ratio = float(skin_mask.mean())
+    if skin_ratio < 0.015 or len(xs) < 32:
+        return False, 0.0, None, 0.0
+
+    height, width = gray.shape
+    left, right = int(xs.min()), int(xs.max())
+    top, bottom = int(ys.min()), int(ys.max())
+    box_width = max(1, right - left + 1)
+    box_height = max(1, bottom - top + 1)
+    aspect = box_width / box_height
+    box_area_ratio = (box_width * box_height) / float(width * height)
+    fill_ratio = len(xs) / float(box_width * box_height)
+    looks_like_face = 0.45 <= aspect <= 1.45 and 0.03 <= box_area_ratio <= 0.75 and fill_ratio >= 0.35
+    if not looks_like_face:
+        return False, 0.0, None, 0.0
+
+    eye_top = top + int(box_height * 0.18)
+    eye_bottom = top + int(box_height * 0.55)
+    eye_left = left + int(box_width * 0.15)
+    eye_right = left + int(box_width * 0.85)
+    eye_region = gray[eye_top:eye_bottom, eye_left:eye_right]
+    if eye_region.size:
+        dark_threshold = max(20.0, float(np.percentile(eye_region, 30)) * 0.75)
+        dark_ratio = float((eye_region < dark_threshold).mean())
+        eye_open_confidence = round(float(np.clip(dark_ratio * 8.0, 0.0, 1.0)), 4)
+    else:
+        eye_open_confidence = None
+
+    face_region = gray[top : bottom + 1, left : right + 1]
+    face_sharpness_score = normalize_score(_laplacian_variance(face_region), 800.0) if face_region.size else 0.0
+    face_quality_score = round(
+        float(
+            np.clip(
+                0.45 * face_sharpness_score
+                + 0.30 * (eye_open_confidence or 0.0)
+                + 0.25 * sharpness_score,
+                0.0,
+                1.0,
+            )
+        ),
+        4,
+    )
+    return True, face_sharpness_score, eye_open_confidence, face_quality_score
+
+
 def compute_quality_scores(image: np.ndarray) -> QualityScores:
     gray = _to_luminance(image)
     sharpness_score = normalize_score(_laplacian_variance(gray), 1200.0)
@@ -51,7 +116,7 @@ def compute_quality_scores(image: np.ndarray) -> QualityScores:
 
     high_freq = np.abs(gray - gray.mean())
     noise_score = normalize_score(float(np.percentile(high_freq, 95)), 130.0)
-    face_quality_score = 0.0
+    face_presence, face_sharpness_score, eye_open_confidence, face_quality_score = _detect_face_signals(image, gray, sharpness_score)
     aesthetic_score = round((contrast_score + exposure_score) / 2.0, 4)
     overall_score = round(
         0.35 * sharpness_score
@@ -69,8 +134,10 @@ def compute_quality_scores(image: np.ndarray) -> QualityScores:
         exposure_score=exposure_score,
         contrast_score=contrast_score,
         noise_score=noise_score,
+        face_presence=face_presence,
+        face_sharpness_score=face_sharpness_score,
+        eye_open_confidence=eye_open_confidence,
         face_quality_score=face_quality_score,
         aesthetic_score=aesthetic_score,
         overall_score=overall_score,
     )
-
