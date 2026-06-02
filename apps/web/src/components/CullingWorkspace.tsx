@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useMemo } from "react";
 import { ArrowLeft, ArrowRight, Check, Eye, ImageOff, Loader2, Play, Star, Upload, X } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
+import { nextPhotoIdAfterMark } from "@/lib/reviewNavigation";
 import { useReviewStore } from "@/store/reviewStore";
 
 const FILTERS = ["All", "Picks", "Maybes", "Rejects", "Unreviewed", "AI recommended", "Blurry photos", "Duplicate groups", "Photos with faces"];
@@ -92,6 +93,10 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
 
   function mark(status: Photo["user_status"]) {
     if (activePhoto) {
+      const nextPhotoId = nextPhotoIdAfterMark(visiblePhotos, activePhoto.id);
+      if (nextPhotoId) {
+        setActivePhotoId(nextPhotoId);
+      }
       updateMutation.mutate({ photo: activePhoto, patch: { user_status: status } });
     }
   }
