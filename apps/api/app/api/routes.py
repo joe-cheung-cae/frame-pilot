@@ -97,6 +97,8 @@ async def import_photos_endpoint(
 @router.post("/projects/{project_id}/process", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)
 def process_project_endpoint(project_id: str, session: Session = Depends(get_session)):
     project = _get_project(session, project_id)
+    if project.total_images <= 0:
+        raise HTTPException(status_code=422, detail="Import photos before processing this project")
     return process_project(session, project)
 
 

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Loader2, Play, Rows3 } from "lucide-react";
+import { Loader2, Play, Rows3, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 
 export function ProcessingPanel({ projectId }: { projectId: string }) {
@@ -19,6 +19,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   });
   const job = mutation.data;
   const progress = job?.total_items ? Math.round((job.processed_items / job.total_items) * 100) : 0;
+  const hasImportedPhotos = Boolean(project.data?.total_images);
   const canOpenCulling = job?.status === "complete" || Boolean(project.data?.processed_images);
 
   return (
@@ -44,12 +45,18 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
       <div className="flex flex-wrap gap-3">
         <button
           className="focus-ring inline-flex items-center gap-2 rounded bg-leaf px-4 py-3 font-medium text-white disabled:opacity-50"
-          disabled={mutation.isPending}
+          disabled={mutation.isPending || !hasImportedPhotos}
           onClick={() => mutation.mutate()}
         >
           {mutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
           Run Grouping and Ranking
         </button>
+        {!hasImportedPhotos ? (
+          <Link className="focus-ring inline-flex items-center gap-2 rounded border border-line bg-white px-4 py-3 font-medium" href={`/projects/${projectId}/import`}>
+            <Upload size={18} />
+            Import Images
+          </Link>
+        ) : null}
         {canOpenCulling ? (
           <Link className="focus-ring inline-flex items-center gap-2 rounded border border-line bg-white px-4 py-3 font-medium" href={`/projects/${projectId}/cull`}>
             <Rows3 size={18} />
@@ -57,6 +64,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           </Link>
         ) : null}
       </div>
+      {!hasImportedPhotos ? <p className="text-sm text-neutral-600">Import JPEG, PNG, or WebP images before running grouping and ranking.</p> : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
     </section>
   );

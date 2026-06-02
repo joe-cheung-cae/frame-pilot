@@ -3,11 +3,11 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 from PIL import Image
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.db.session import get_engine
 from app.main import create_app
-from app.models.entities import Photo, PhotoGroup
+from app.models.entities import Photo, PhotoGroup, ProcessingJob
 
 
 def _image_bytes() -> bytes:
@@ -64,6 +64,21 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     assert export_record["output_path"].endswith(".csv")
     assert export_record["selected_count"] == 1
     assert export_record["statuses"] == '["Pick"]'
+
+
+def test_process_rejects_project_with_no_imported_photos(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Empty process"}).json()
+
+    response = client.post(f"/api/projects/{project['id']}/process")
+
+    assert response.status_code == 422
+    assert "Import photos before processing" in response.text
+    with Session(get_engine()) as session:
+        jobs = list(session.exec(select(ProcessingJob).where(ProcessingJob.project_id == project["id"])).all())
+    assert jobs == []
+    assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 0
 
 
 def test_import_renames_duplicate_filenames_without_overwriting(tmp_path, monkeypatch):
@@ -197,6 +212,30 @@ def test_import_rejects_invalid_image_and_cleans_written_file(tmp_path, monkeypa
 
     assert response.status_code == 422
     assert not (Path(project["root_path"]) / "originals" / "broken.jpg").exists()
+
+
+def test_import_cleans_original_and_derivatives_when_processing_fails(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Derivative cleanup"}).json()
+
+    def fail_scoring(_image):
+        raise RuntimeError("scoring failed")
+
+    monkeypatch.setattr("app.services.importing.compute_quality_scores", fail_scoring)
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+
+    assert response.status_code == 422
+    root = Path(project["root_path"])
+    assert list((root / "originals").iterdir()) == []
+    assert list((root / "thumbnails").iterdir()) == []
+    assert list((root / "previews").iterdir()) == []
+    assert client.get(f"/api/projects/{project['id']}").json()["total_images"] == 0
+    assert client.get(f"/api/projects/{project['id']}/photos").json() == []
 
 
 def test_import_skips_invalid_files_when_other_images_import_successfully(tmp_path, monkeypatch):

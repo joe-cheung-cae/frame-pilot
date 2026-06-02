@@ -82,6 +82,12 @@ def _save_derivatives(project_root: Path, source: Path, image: Image.Image) -> t
     return thumbnail_path, preview_path
 
 
+def _cleanup_paths(*paths: Path | None) -> None:
+    for path in paths:
+        if path is not None:
+            path.unlink(missing_ok=True)
+
+
 def _invalidate_project_processing(session: Session, project: Project) -> None:
     for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
         session.delete(group)
@@ -109,6 +115,8 @@ def import_image_file(session: Session, project: Project, filename: str, file: B
     with source_path.open("wb") as handle:
         handle.write(file.read())
 
+    thumbnail_path: Path | None = None
+    preview_path: Path | None = None
     try:
         with Image.open(source_path) as opened:
             metadata = _extract_metadata(opened)
@@ -118,8 +126,11 @@ def import_image_file(session: Session, project: Project, filename: str, file: B
             scores = compute_quality_scores(np.asarray(image))
             embedding = image_embedding(image)
     except (UnidentifiedImageError, OSError) as error:
-        source_path.unlink(missing_ok=True)
+        _cleanup_paths(source_path, thumbnail_path, preview_path)
         raise ValueError("Uploaded file could not be opened as a supported image") from error
+    except Exception as error:
+        _cleanup_paths(source_path, thumbnail_path, preview_path)
+        raise ValueError("Uploaded image could not be processed") from error
 
     photo = Photo(
         project_id=project.id,
