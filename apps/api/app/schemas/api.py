@@ -98,6 +98,25 @@ class ExportCreate(BaseModel):
     mode: str = "csv"
     statuses: list[str] = ["Pick"]
 
+    @field_validator("mode")
+    @classmethod
+    def mode_must_be_valid(cls, value: str) -> str:
+        allowed = {"csv", "folder", "zip"}
+        if value not in allowed:
+            raise ValueError(f"Export mode must be one of {sorted(allowed)}")
+        return value
+
+    @field_validator("statuses")
+    @classmethod
+    def statuses_must_be_valid(cls, value: list[str]) -> list[str]:
+        allowed = {"Pick", "Maybe", "Reject", "Unreviewed"}
+        if not value:
+            raise ValueError("At least one status is required")
+        invalid = sorted(set(value) - allowed)
+        if invalid:
+            raise ValueError(f"Statuses must be one of {sorted(allowed)}")
+        return value
+
 
 class ExportRead(BaseModel):
     id: str
@@ -106,4 +125,3 @@ class ExportRead(BaseModel):
     status: str
     output_path: str
     created_at: datetime
-

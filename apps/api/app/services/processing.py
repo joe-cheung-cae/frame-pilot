@@ -21,66 +21,76 @@ def process_project(session: Session, project: Project) -> ProcessingJob:
     session.commit()
     session.refresh(job)
 
-    for existing in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
-        session.delete(existing)
-    session.commit()
-
-    group_inputs = [
-        {
-            "id": photo.id,
-            "filename": photo.filename,
-            "capture_time": photo.capture_time,
-            "embedding": json.loads(photo.embedding or "[]"),
-        }
-        for photo in photos
-    ]
-    photo_map = {photo.id: photo for photo in photos}
-
-    for grouped in group_similar_photos(group_inputs):
-        group = PhotoGroup(project_id=project.id, group_type=grouped.group_type, photo_count=len(grouped.photo_ids))
-        session.add(group)
-        session.commit()
-        session.refresh(group)
-
-        ranking_input = []
-        for photo_id in grouped.photo_ids:
-            photo = photo_map[photo_id]
-            photo.group_id = group.id
-            ranking_input.append(
-                {
-                    "id": photo.id,
-                    "sharpness_score": photo.sharpness_score,
-                    "exposure_score": photo.exposure_score,
-                    "face_quality_score": photo.face_quality_score,
-                    "aesthetic_score": photo.aesthetic_score,
-                    "duplicate_penalty": 0.0 if len(grouped.photo_ids) == 1 else 0.1,
-                }
-            )
-
-        ranked = rank_group(ranking_input)
-        group.representative_photo_id = ranked[0].photo_id if ranked else None
-        for item in ranked:
-            photo = photo_map[item.photo_id]
-            photo.ai_recommendation = item.recommendation
-            photo.recommendation_explanation = item.explanation
-            photo.overall_score = max(photo.overall_score, item.score)
-            photo.updated_at = utc_now()
+    try:
+        for existing in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
+            session.delete(existing)
+        for photo in photos:
+            photo.group_id = None
             session.add(photo)
-
-        group.updated_at = utc_now()
-        session.add(group)
-        job.processed_items += len(grouped.photo_ids)
-        session.add(job)
         session.commit()
 
-    job.status = "complete"
-    job.current_step = "complete"
-    job.processed_items = len(photos)
+        group_inputs = [
+            {
+                "id": photo.id,
+                "filename": photo.filename,
+                "capture_time": photo.capture_time,
+                "embedding": json.loads(photo.embedding or "[]"),
+            }
+            for photo in photos
+        ]
+        photo_map = {photo.id: photo for photo in photos}
+
+        for grouped in group_similar_photos(group_inputs):
+            group = PhotoGroup(project_id=project.id, group_type=grouped.group_type, photo_count=len(grouped.photo_ids))
+            session.add(group)
+            session.commit()
+            session.refresh(group)
+
+            ranking_input = []
+            for photo_id in grouped.photo_ids:
+                photo = photo_map[photo_id]
+                photo.group_id = group.id
+                ranking_input.append(
+                    {
+                        "id": photo.id,
+                        "sharpness_score": photo.sharpness_score,
+                        "exposure_score": photo.exposure_score,
+                        "face_quality_score": photo.face_quality_score,
+                        "aesthetic_score": photo.aesthetic_score,
+                        "duplicate_penalty": 0.0 if len(grouped.photo_ids) == 1 else 0.1,
+                    }
+                )
+
+            ranked = rank_group(ranking_input)
+            group.representative_photo_id = ranked[0].photo_id if ranked else None
+            for item in ranked:
+                photo = photo_map[item.photo_id]
+                photo.ai_recommendation = item.recommendation
+                photo.recommendation_explanation = item.explanation
+                photo.overall_score = max(photo.overall_score, item.score)
+                photo.updated_at = utc_now()
+                session.add(photo)
+
+            group.updated_at = utc_now()
+            session.add(group)
+            job.processed_items += len(grouped.photo_ids)
+            session.add(job)
+            session.commit()
+
+        job.status = "complete"
+        job.current_step = "complete"
+        job.processed_items = len(photos)
+        project.processed_images = len(photos)
+        project.updated_at = utc_now()
+        session.add(project)
+    except Exception as error:
+        session.rollback()
+        job.status = "failed"
+        job.current_step = "failed"
+        job.error_message = str(error)
+
     job.updated_at = utc_now()
-    project.processed_images = len(photos)
-    project.updated_at = utc_now()
     session.add(job)
-    session.add(project)
     session.commit()
     session.refresh(job)
     return job

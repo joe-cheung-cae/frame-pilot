@@ -1,6 +1,7 @@
 import csv
+import zipfile
 
-from app.services.exporting import write_selection_csv
+from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
 from app.services.ranking import rank_group
 
 
@@ -46,3 +47,37 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
         {"filename": "a.jpg", "status": "Pick", "star_rating": "5", "group_id": "g1", "score": "0.900"},
         {"filename": "b.jpg", "status": "Reject", "star_rating": "1", "group_id": "g1", "score": "0.200"},
     ]
+
+
+def test_folder_export_preserves_files_with_duplicate_names(tmp_path):
+    first_dir = tmp_path / "first"
+    second_dir = tmp_path / "second"
+    first_dir.mkdir()
+    second_dir.mkdir()
+    first = first_dir / "frame.jpg"
+    second = second_dir / "frame.jpg"
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+
+    copy_selected_files(tmp_path / "selected", [{"original_path": str(first)}, {"original_path": str(second)}])
+
+    assert (tmp_path / "selected" / "frame.jpg").read_bytes() == b"first"
+    assert (tmp_path / "selected" / "frame-1.jpg").read_bytes() == b"second"
+
+
+def test_zip_export_preserves_files_with_duplicate_names(tmp_path):
+    first_dir = tmp_path / "first"
+    second_dir = tmp_path / "second"
+    first_dir.mkdir()
+    second_dir.mkdir()
+    first = first_dir / "frame.jpg"
+    second = second_dir / "frame.jpg"
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+
+    target = zip_selected_files(tmp_path / "selected.zip", [{"original_path": str(first)}, {"original_path": str(second)}])
+
+    with zipfile.ZipFile(target) as archive:
+        assert sorted(archive.namelist()) == ["frame-1.jpg", "frame.jpg"]
+        assert archive.read("frame.jpg") == b"first"
+        assert archive.read("frame-1.jpg") == b"second"

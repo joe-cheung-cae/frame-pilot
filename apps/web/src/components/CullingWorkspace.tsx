@@ -11,7 +11,7 @@ import { useReviewStore } from "@/store/reviewStore";
 
 const FILTERS = ["All", "Picks", "Maybes", "Rejects", "Unreviewed", "AI recommended", "Blurry photos", "Duplicate groups", "Photos with faces"];
 
-function statusForFilter(photo: Photo, filter: string) {
+function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<string>) {
   if (filter === "All") return true;
   if (filter === "Picks") return photo.user_status === "Pick";
   if (filter === "Maybes") return photo.user_status === "Maybe";
@@ -19,7 +19,7 @@ function statusForFilter(photo: Photo, filter: string) {
   if (filter === "Unreviewed") return photo.user_status === "Unreviewed";
   if (filter === "AI recommended") return photo.ai_recommendation === "Pick";
   if (filter === "Blurry photos") return photo.blur_score >= 0.55;
-  if (filter === "Duplicate groups") return Boolean(photo.group_id);
+  if (filter === "Duplicate groups") return Boolean(photo.group_id && duplicateGroupIds.has(photo.group_id));
   if (filter === "Photos with faces") return photo.face_presence;
   return true;
 }
@@ -31,7 +31,14 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const groupsQuery = useQuery({ queryKey: ["groups", projectId], queryFn: () => api.listGroups(projectId) });
   const { activePhotoId, filter, largePreview, setActivePhotoId, setFilter, toggleLargePreview } = useReviewStore();
   const photos = useMemo(() => photosQuery.data ?? [], [photosQuery.data]);
-  const filteredPhotos = useMemo(() => photos.filter((photo) => statusForFilter(photo, filter)), [filter, photos]);
+  const duplicateGroupIds = useMemo(
+    () => new Set((groupsQuery.data ?? []).filter((group) => group.photo_count > 1).map((group) => group.id)),
+    [groupsQuery.data],
+  );
+  const filteredPhotos = useMemo(
+    () => photos.filter((photo) => statusForFilter(photo, filter, duplicateGroupIds)),
+    [duplicateGroupIds, filter, photos],
+  );
   const activeIndex = Math.max(0, filteredPhotos.findIndex((photo) => photo.id === activePhotoId));
   const activePhoto = filteredPhotos[activeIndex] ?? filteredPhotos[0] ?? null;
 

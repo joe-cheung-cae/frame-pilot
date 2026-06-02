@@ -1,8 +1,9 @@
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO
 
-from PIL import Image, ExifTags
+from PIL import Image, ExifTags, ImageOps, UnidentifiedImageError
 import numpy as np
 from sqlmodel import Session
 
@@ -12,10 +13,36 @@ from app.models.entities import Photo, Project, utc_now
 
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 
 
 def is_supported_image(filename: str) -> bool:
     return Path(filename).suffix.lower() in SUPPORTED_EXTENSIONS
+
+
+def _unique_path(directory: Path, filename: str) -> Path:
+    candidate = directory / Path(filename).name
+    if not candidate.exists():
+        return candidate
+
+    stem = candidate.stem
+    suffix = candidate.suffix
+    index = 1
+    while True:
+        next_candidate = directory / f"{stem}-{index}{suffix}"
+        if not next_candidate.exists():
+            return next_candidate
+        index += 1
+
+
+def _parse_capture_time(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+
+    try:
+        return datetime.strptime(value, EXIF_DATETIME_FORMAT)
+    except ValueError:
+        return None
 
 
 def _extract_metadata(image: Image.Image) -> dict:
@@ -24,7 +51,9 @@ def _extract_metadata(image: Image.Image) -> dict:
         return {}
 
     named = {ExifTags.TAGS.get(key, key): value for key, value in raw_exif.items()}
+    capture_time = _parse_capture_time(named.get("DateTimeOriginal")) or _parse_capture_time(named.get("DateTime"))
     return {
+        "capture_time": capture_time,
         "camera_model": named.get("Model"),
         "lens_model": named.get("LensModel"),
         "focal_length": str(named.get("FocalLength")) if named.get("FocalLength") else None,
@@ -35,8 +64,13 @@ def _extract_metadata(image: Image.Image) -> dict:
 
 
 def _save_derivatives(project_root: Path, source: Path, image: Image.Image) -> tuple[Path, Path]:
-    thumbnail_path = project_root / "thumbnails" / f"{source.stem}.webp"
-    preview_path = project_root / "previews" / f"{source.stem}.webp"
+    thumbnail_dir = project_root / "thumbnails"
+    preview_dir = project_root / "previews"
+    thumbnail_dir.mkdir(parents=True, exist_ok=True)
+    preview_dir.mkdir(parents=True, exist_ok=True)
+
+    thumbnail_path = _unique_path(thumbnail_dir, f"{source.stem}.webp")
+    preview_path = _unique_path(preview_dir, f"{source.stem}.webp")
 
     thumb = image.copy()
     thumb.thumbnail((320, 320))
@@ -54,23 +88,28 @@ def import_image_file(session: Session, project: Project, filename: str, file: B
 
     project_root = Path(project.root_path)
     safe_name = Path(filename).name
-    source_path = project_root / "originals" / safe_name
-    source_path.parent.mkdir(parents=True, exist_ok=True)
+    originals_dir = project_root / "originals"
+    originals_dir.mkdir(parents=True, exist_ok=True)
+    source_path = _unique_path(originals_dir, safe_name)
     with source_path.open("wb") as handle:
         handle.write(file.read())
 
-    with Image.open(source_path) as opened:
-        image = opened.convert("RGB")
-        width, height = image.size
-        thumbnail_path, preview_path = _save_derivatives(project_root, source_path, image)
-        scores = compute_quality_scores(np.asarray(image))
-        metadata = _extract_metadata(opened)
-        embedding = image_embedding(image)
+    try:
+        with Image.open(source_path) as opened:
+            metadata = _extract_metadata(opened)
+            image = ImageOps.exif_transpose(opened).convert("RGB")
+            width, height = image.size
+            thumbnail_path, preview_path = _save_derivatives(project_root, source_path, image)
+            scores = compute_quality_scores(np.asarray(image))
+            embedding = image_embedding(image)
+    except (UnidentifiedImageError, OSError) as error:
+        source_path.unlink(missing_ok=True)
+        raise ValueError("Uploaded file could not be opened as a supported image") from error
 
     photo = Photo(
         project_id=project.id,
         original_path=str(source_path),
-        filename=safe_name,
+        filename=source_path.name,
         file_size=source_path.stat().st_size,
         width=width,
         height=height,
@@ -95,4 +134,3 @@ def import_image_file(session: Session, project: Project, filename: str, file: B
     session.commit()
     session.refresh(photo)
     return photo
-

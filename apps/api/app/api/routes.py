@@ -153,10 +153,8 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
         output_path = write_selection_csv(export_root / "selection.csv", photo_dicts)
     elif payload.mode == "folder":
         output_path = copy_selected_files(export_root / "selected", photo_dicts)
-    elif payload.mode == "zip":
-        output_path = zip_selected_files(export_root / "selected.zip", photo_dicts)
     else:
-        raise HTTPException(status_code=422, detail="Export mode must be csv, folder, or zip")
+        output_path = zip_selected_files(export_root / "selected.zip", photo_dicts)
 
     record = ExportRecord(project_id=project_id, mode=payload.mode, output_path=str(output_path))
     session.add(record)
@@ -182,4 +180,3 @@ def get_generated_asset(project_id: str, kind: str, filename: str, session: Sess
     if not path.exists():
         raise HTTPException(status_code=404, detail="Asset not found")
     return FileResponse(path)
-
