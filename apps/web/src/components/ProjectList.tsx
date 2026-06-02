@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Images, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { projectNextHref } from "@/lib/projectRouting";
 
 export function ProjectList() {
   const { data, isLoading, error } = useQuery({ queryKey: ["projects"], queryFn: api.listProjects });
@@ -25,7 +26,7 @@ export function ProjectList() {
       {data.map((project) => (
         <Link
           className="focus-ring grid gap-2 rounded border border-line bg-white p-4 transition hover:border-leaf"
-          href={project.processed_images > 0 ? `/projects/${project.id}/cull` : `/projects/${project.id}/process`}
+          href={projectNextHref(project)}
           key={project.id}
         >
           <span className="flex items-center justify-between gap-4">

@@ -3,25 +3,17 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, FileArchive, FileSpreadsheet, FolderOutput, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { api, Photo } from "@/lib/api";
+import { api } from "@/lib/api";
+import { countPhotosByStatus, EXPORT_STATUSES, selectedPhotoCount, type ExportStatus } from "@/lib/exportSelection";
 
 type Mode = "csv" | "folder" | "zip";
-type ExportStatus = Photo["user_status"];
-
-const STATUS_OPTIONS: ExportStatus[] = ["Pick", "Maybe", "Reject", "Unreviewed"];
 
 export function ExportPanel({ projectId }: { projectId: string }) {
   const [mode, setMode] = useState<Mode>("csv");
   const [statuses, setStatuses] = useState<ExportStatus[]>(["Pick", "Maybe"]);
   const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listPhotos(projectId) });
-  const statusCounts = useMemo(() => {
-    const counts: Record<ExportStatus, number> = { Pick: 0, Maybe: 0, Reject: 0, Unreviewed: 0 };
-    for (const photo of photosQuery.data ?? []) {
-      counts[photo.user_status] += 1;
-    }
-    return counts;
-  }, [photosQuery.data]);
-  const selectedCount = statuses.reduce((total, status) => total + statusCounts[status], 0);
+  const statusCounts = useMemo(() => countPhotosByStatus(photosQuery.data ?? []), [photosQuery.data]);
+  const selectedCount = selectedPhotoCount(statusCounts, statuses);
   const mutation = useMutation({ mutationFn: () => api.exportSelection(projectId, mode, statuses) });
 
   function toggleStatus(status: ExportStatus) {
@@ -42,7 +34,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       <div className="grid gap-2 rounded border border-line bg-white p-4">
         <h2 className="text-sm font-semibold">Statuses</h2>
         <div className="grid gap-2 sm:grid-cols-4">
-          {STATUS_OPTIONS.map((status) => (
+          {EXPORT_STATUSES.map((status) => (
             <label className="focus-within:ring-2 focus-within:ring-leaf flex cursor-pointer items-center justify-between gap-3 rounded border border-line px-3 py-2 text-sm" key={status}>
               <span className="flex items-center gap-2">
                 <input checked={statuses.includes(status)} className="h-4 w-4 accent-leaf" onChange={() => toggleStatus(status)} type="checkbox" />
