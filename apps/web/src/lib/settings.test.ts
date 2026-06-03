@@ -1,0 +1,47 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  DEFAULT_EXPORT_STATUS_PREFERENCE,
+  EXPORT_STATUS_PREFERENCE_KEY,
+  loadExportStatusPreference,
+  normalizeExportStatusPreference,
+  saveExportStatusPreference,
+} from "./settings.ts";
+
+function memoryStorage(initial: Record<string, string> = {}) {
+  const values = { ...initial };
+  return {
+    getItem: (key: string) => values[key] ?? null,
+    setItem: (key: string, value: string) => {
+      values[key] = value;
+    },
+    values,
+  };
+}
+
+test("normalizes export status preferences to supported order", () => {
+  assert.deepEqual(normalizeExportStatusPreference(["Reject", "Pick", "Missing"]), ["Pick", "Reject"]);
+});
+
+test("falls back to default export statuses for empty or invalid preferences", () => {
+  assert.deepEqual(normalizeExportStatusPreference([]), DEFAULT_EXPORT_STATUS_PREFERENCE);
+  assert.deepEqual(normalizeExportStatusPreference("Pick"), DEFAULT_EXPORT_STATUS_PREFERENCE);
+});
+
+test("loads default export statuses when storage is missing or malformed", () => {
+  assert.deepEqual(loadExportStatusPreference(undefined), DEFAULT_EXPORT_STATUS_PREFERENCE);
+  assert.deepEqual(
+    loadExportStatusPreference(memoryStorage({ [EXPORT_STATUS_PREFERENCE_KEY]: "not json" })),
+    DEFAULT_EXPORT_STATUS_PREFERENCE,
+  );
+});
+
+test("saves normalized export status preferences locally", () => {
+  const storage = memoryStorage();
+
+  const saved = saveExportStatusPreference(["Maybe", "Pick"], storage);
+
+  assert.deepEqual(saved, ["Pick", "Maybe"]);
+  assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick","Maybe"]');
+});

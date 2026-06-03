@@ -434,6 +434,23 @@ test("opens keyboard shortcuts help from the shell", async ({ page }) => {
   await expect(page.getByText("Open export")).toBeVisible();
 });
 
+test("uses local settings for default export statuses", async ({ page }) => {
+  await page.goto("/settings");
+
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByLabel("Pick")).toBeChecked();
+  await expect(page.getByLabel("Maybe")).toBeChecked();
+
+  await page.getByLabel("Maybe").uncheck();
+
+  await expect(page.getByText("Saved locally.")).toBeVisible();
+
+  await page.goto(`/projects/${project.id}/export`);
+
+  await expect(page.getByLabel("Pick")).toBeChecked();
+  await expect(page.getByLabel("Maybe")).not.toBeChecked();
+});
+
 test("shows culling workspace load errors", async ({ page }) => {
   failProjectDetail = true;
 

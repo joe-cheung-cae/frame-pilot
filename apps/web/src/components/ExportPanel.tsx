@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ClipboardCopy, Download, FileArchive, FileSpreadsheet, FolderOutput, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, exportDownloadUrl } from "@/lib/api";
 import {
   EXPORT_STATUSES,
@@ -11,6 +11,7 @@ import {
   selectedPhotoCount,
   type ExportStatus,
 } from "@/lib/exportSelection";
+import { DEFAULT_EXPORT_STATUS_PREFERENCE, loadExportStatusPreference } from "@/lib/settings";
 
 type Mode = "csv" | "folder" | "zip";
 
@@ -27,7 +28,7 @@ function photoCountLabel(count: number) {
 export function ExportPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
-  const [statuses, setStatuses] = useState<ExportStatus[]>(["Pick", "Maybe"]);
+  const [statuses, setStatuses] = useState<ExportStatus[]>(DEFAULT_EXPORT_STATUS_PREFERENCE);
   const [exportLimit, setExportLimit] = useState(RECENT_EXPORT_LIMIT);
   const [copiedPath, setCopiedPath] = useState("");
   const [copyError, setCopyError] = useState("");
@@ -50,6 +51,11 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const statusCounts = statusCountsQuery.data ?? { Pick: 0, Maybe: 0, Reject: 0, Unreviewed: 0 };
   const selectedCount = selectedPhotoCount(statusCounts, statuses);
   const canLoadMoreExports = (exportsQuery.data?.length ?? 0) >= exportLimit;
+
+  useEffect(() => {
+    setStatuses(loadExportStatusPreference());
+  }, []);
+
   const mutation = useMutation({
     mutationFn: () => {
       if (!statuses.length || selectedCount === 0) {
