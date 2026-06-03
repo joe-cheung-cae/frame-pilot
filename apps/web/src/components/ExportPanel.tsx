@@ -19,7 +19,11 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
   const [statuses, setStatuses] = useState<ExportStatus[]>(["Pick", "Maybe"]);
-  const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listPhotos(projectId) });
+  const photosQuery = useQuery({
+    queryKey: ["photos", projectId],
+    queryFn: () => api.listPhotos(projectId),
+    retry: false,
+  });
   const exportsQuery = useQuery({
     queryKey: ["exports", projectId],
     queryFn: () => api.listExports(projectId),
@@ -106,7 +110,8 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         Export
       </button>
       {!statuses.length ? <p className="text-sm text-coral">Choose at least one status to export.</p> : null}
-      {statuses.length > 0 && selectedCount === 0 && !photosQuery.isLoading ? (
+      {photosQuery.isError ? <p className="text-sm text-coral">{photosQuery.error.message}</p> : null}
+      {statuses.length > 0 && selectedCount === 0 && !photosQuery.isLoading && !photosQuery.isError ? (
         <p className="text-sm text-neutral-600">No photos match the selected statuses.</p>
       ) : null}
       {mutation.data ? (
