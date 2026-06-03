@@ -366,16 +366,23 @@ test.beforeEach(async ({ page }) => {
       await route.fulfill({ json: { detail: "Export failed" }, status: 500 });
       return;
     }
+    const payload = route.request().postDataJSON() as { mode?: "csv" | "folder" | "zip"; statuses?: string[] };
+    const exportMode = payload.mode ?? "csv";
+    const exportOutputPath =
+      exportMode === "folder"
+        ? `${currentProject.root_path}/exports/folders/selected-export-1`
+        : `${currentProject.root_path}/exports/${exportMode}/selection-export-1.${exportMode}`;
+    const selectedStatuses = payload.statuses ?? ["Pick"];
 
     await route.fulfill({
       json: {
         id: "export-1",
         project_id: project.id,
-        mode: "csv",
+        mode: exportMode,
         status: "complete",
-        selected_count: currentPhotos.filter((photo) => photo.user_status === "Pick").length,
-        statuses: '["Pick"]',
-        output_path: "/tmp/framepilot/e2e/exports/selection-export-1.csv",
+        selected_count: currentPhotos.filter((photo) => selectedStatuses.includes(photo.user_status)).length,
+        statuses: JSON.stringify(selectedStatuses),
+        output_path: exportOutputPath,
         created_at: "2026-06-02T00:00:00Z",
       },
       status: 201,
@@ -512,6 +519,36 @@ test("shows export creation errors", async ({ page }) => {
   await page.getByRole("button", { name: "Export" }).click();
 
   await expect(page.getByText("Export failed")).toBeVisible();
+});
+
+test("copies folder export output paths", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          window.localStorage.setItem("copied-export-path", text);
+        },
+      },
+    });
+  });
+  const folderPath = `${project.root_path}/exports/folders/selected-export-1`;
+
+  await page.goto(`/projects/${project.id}/cull`);
+  await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toBeVisible();
+  await page.keyboard.press("p");
+  await expect.poll(() => photoPatches.length).toBe(1);
+
+  await page.goto(`/projects/${project.id}/export`);
+  await page.getByLabel("Maybe").uncheck();
+  await page.getByRole("button", { name: "Folder" }).click();
+  await page.getByRole("button", { name: "Export" }).click();
+
+  await expect(page.getByText(`1 photo exported to ${folderPath}`)).toBeVisible();
+  await page.getByRole("button", { name: "Copy Path" }).first().click();
+
+  await expect(page.getByRole("button", { name: "Path Copied" }).first()).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("copied-export-path"))).toBe(folderPath);
 });
 
 test("shows processing job list load errors", async ({ page }) => {

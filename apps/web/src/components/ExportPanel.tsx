@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileArchive, FileSpreadsheet, FolderOutput, Loader2 } from "lucide-react";
+import { Check, ClipboardCopy, Download, FileArchive, FileSpreadsheet, FolderOutput, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { api, exportDownloadUrl } from "@/lib/api";
 import {
@@ -29,6 +29,8 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const [mode, setMode] = useState<Mode>("csv");
   const [statuses, setStatuses] = useState<ExportStatus[]>(["Pick", "Maybe"]);
   const [exportLimit, setExportLimit] = useState(RECENT_EXPORT_LIMIT);
+  const [copiedPath, setCopiedPath] = useState("");
+  const [copyError, setCopyError] = useState("");
   const exportHistoryQueryKey = ["exports", projectId, exportLimit];
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
@@ -69,6 +71,30 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       }
       return [...current, status];
     });
+  }
+
+  async function copyPath(path: string) {
+    try {
+      await navigator.clipboard.writeText(path);
+      setCopiedPath(path);
+      setCopyError("");
+    } catch {
+      setCopyError("Could not copy export path.");
+    }
+  }
+
+  function copyPathButton(path: string) {
+    const isCopied = copiedPath === path;
+    return (
+      <button
+        className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line px-3 py-2 font-medium"
+        onClick={() => void copyPath(path)}
+        type="button"
+      >
+        {isCopied ? <Check size={16} /> : <ClipboardCopy size={16} />}
+        {isCopied ? "Path Copied" : "Copy Path"}
+      </button>
+    );
   }
 
   return (
@@ -144,6 +170,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
             {mutation.data.mode === "folder" ? ` to ${mutation.data.output_path}` : "."}
           </p>
           <p className="text-neutral-600">Statuses: {formatExportStatusSummary(mutation.data.statuses)}</p>
+          {copyPathButton(mutation.data.output_path)}
           {isExportDownloadable(mutation.data) ? (
             <a
               className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-4 py-2 font-medium text-white"
@@ -155,6 +182,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           ) : null}
         </div>
       ) : null}
+      {copyError ? <p className="text-sm text-coral">{copyError}</p> : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
       <div className="grid gap-3">
         <h2 className="text-sm font-semibold">Export History</h2>
@@ -182,15 +210,18 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                     <p className="text-coral">{record.error_message}</p>
                   ) : null}
                 </div>
-                {isExportDownloadable(record) ? (
-                  <a
-                    className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-3 py-2 font-medium text-white"
-                    href={exportDownloadUrl(projectId, record.id)}
-                  >
-                    <Download size={16} />
-                    Download
-                  </a>
-                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {copyPathButton(record.output_path)}
+                  {isExportDownloadable(record) ? (
+                    <a
+                      className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-3 py-2 font-medium text-white"
+                      href={exportDownloadUrl(projectId, record.id)}
+                    >
+                      <Download size={16} />
+                      Download
+                    </a>
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>
