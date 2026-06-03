@@ -160,6 +160,7 @@ let failNextPhotoPatch = false;
 let failExportHistory = false;
 let failPhotoList = false;
 let failJobList = false;
+let failProjectDetail = false;
 let photoListRequests = 0;
 
 test.beforeEach(async ({ page }) => {
@@ -169,6 +170,7 @@ test.beforeEach(async ({ page }) => {
   failExportHistory = false;
   failPhotoList = false;
   failJobList = false;
+  failProjectDetail = false;
   photoListRequests = 0;
   let currentProject = { ...project };
   let currentPhotos = photos.map((photo) => ({ ...photo }));
@@ -184,6 +186,10 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.route(`**/api/projects/${project.id}`, async (route) => {
+    if (failProjectDetail) {
+      await route.fulfill({ json: { detail: "Could not load project details" }, status: 500 });
+      return;
+    }
     await route.fulfill({ json: currentProject });
   });
 
@@ -482,6 +488,14 @@ test("shows imported thumbnails before processing", async ({ page }) => {
   await expect(page.getByText("1 images imported and previewed.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recently Imported" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Thumbnail for uploaded-frame.jpg" })).toBeVisible();
+});
+
+test("shows import project load errors", async ({ page }) => {
+  failProjectDetail = true;
+
+  await page.goto(`/projects/${project.id}/import`);
+
+  await expect(page.getByText("Could not load project details")).toBeVisible();
 });
 
 test("opens empty projects at the import step", async ({ page }) => {

@@ -13,7 +13,11 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   const [skipped, setSkipped] = useState<{ filename: string; reason: string }[]>([]);
   const [recentImports, setRecentImports] = useState<Photo[]>([]);
   const queryClient = useQueryClient();
-  const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
+  const project = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => api.getProject(projectId),
+    retry: false,
+  });
   const mutation = useMutation({
     mutationFn: (files: FileList) => api.importPhotos(projectId, files),
     onSuccess: async (result) => {
@@ -115,6 +119,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
         </div>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
+      {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
       <Link
         className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
         href={`/projects/${projectId}/process`}
