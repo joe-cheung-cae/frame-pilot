@@ -166,6 +166,7 @@ let failExportHistory = false;
 let failPhotoStatusCounts = false;
 let failJobList = false;
 let failProjectDetail = false;
+let skipNextImport = false;
 let photoListRequests = 0;
 let photoListRequestUrls: string[] = [];
 
@@ -193,6 +194,7 @@ test.beforeEach(async ({ page }) => {
   failPhotoStatusCounts = false;
   failJobList = false;
   failProjectDetail = false;
+  skipNextImport = false;
   photoListRequests = 0;
   photoListRequestUrls = [];
   let currentProject = { ...project };
@@ -260,7 +262,11 @@ test.beforeEach(async ({ page }) => {
       preview_path: "previews/uploaded-frame.webp",
     };
     currentPhotos = [imported, ...currentPhotos];
-    await route.fulfill({ json: { imported: [imported], skipped: [] }, status: 201 });
+    const skipped = skipNextImport
+      ? [{ filename: "notes.txt", reason: "Only JPEG, PNG, and WebP files are supported" }]
+      : [];
+    skipNextImport = false;
+    await route.fulfill({ json: { imported: [imported], skipped }, status: 201 });
   });
 
   await page.route(projectListRoute("photos"), async (route) => {
@@ -631,6 +637,21 @@ test("shows imported thumbnails before processing", async ({ page }) => {
   await expect(page.getByText("1 images imported and previewed.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recently Imported" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Thumbnail for uploaded-frame.jpg" })).toBeVisible();
+});
+
+test("shows skipped files after a mixed import", async ({ page }) => {
+  skipNextImport = true;
+  await page.goto(`/projects/${project.id}/import`);
+
+  await page.getByLabel("Choose image files").setInputFiles({
+    name: "uploaded-frame.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([255, 216, 255, 217]),
+  });
+
+  await expect(page.getByText("1 images imported and previewed.")).toBeVisible();
+  await expect(page.getByText("1 files skipped.")).toBeVisible();
+  await expect(page.getByText("notes.txt: Only JPEG, PNG, and WebP files are supported")).toBeVisible();
 });
 
 test("shows import project load errors", async ({ page }) => {
