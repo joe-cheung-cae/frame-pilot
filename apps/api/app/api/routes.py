@@ -62,11 +62,20 @@ def _export_target(export_root: Path, export_id: str, mode: str) -> Path:
     return export_root / "zip" / f"selected-{export_id}.zip"
 
 
-def _remove_partial_export(target: Path) -> None:
-    if target.is_dir() and not target.is_symlink():
-        shutil.rmtree(target)
-    elif target.exists():
+def _remove_partial_export(target: Path, export_root: Path) -> None:
+    try:
+        resolved_target = target.resolve(strict=True)
+        resolved_export_root = export_root.resolve(strict=True)
+    except FileNotFoundError:
+        return
+    if not resolved_target.is_relative_to(resolved_export_root):
+        return
+    if target.is_symlink():
         target.unlink()
+    elif resolved_target.is_dir():
+        shutil.rmtree(resolved_target)
+    else:
+        resolved_target.unlink()
 
 
 def _get_export(session: Session, project_id: str, export_id: str) -> ExportRecord:
@@ -330,7 +339,7 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
             output_path = zip_selected_files(target, photo_dicts)
     except Exception as error:
         session.rollback()
-        _remove_partial_export(target)
+        _remove_partial_export(target, export_root)
         record.status = "failed"
         record.output_path = str(target)
         record.error_message = "Export failed"

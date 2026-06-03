@@ -1311,6 +1311,39 @@ def test_failed_export_records_failed_history_and_removes_partial_artifact(tmp_p
     assert not Path(record["output_path"]).exists()
 
 
+def test_failed_export_cleanup_does_not_remove_artifact_outside_export_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Failed outside cleanup"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    photo = import_response.json()["imported"][0]
+    client.patch(
+        f"/api/projects/{project['id']}/photos/{photo['id']}",
+        json={"user_status": "Pick"},
+    )
+    outside_artifact = tmp_path / "outside.csv"
+
+    def outside_export_target(_export_root: Path, _export_id: str, _mode: str) -> Path:
+        return outside_artifact
+
+    def fail_after_outside_partial_write(target: Path, photos: list[dict]) -> Path:
+        assert target == outside_artifact
+        assert len(photos) == 1
+        target.write_text("outside partial export")
+        raise RuntimeError("simulated export failure")
+
+    monkeypatch.setattr(routes, "_export_target", outside_export_target)
+    monkeypatch.setattr(routes, "write_selection_csv", fail_after_outside_partial_write)
+
+    response = client.post(f"/api/projects/{project['id']}/export", json={"mode": "csv", "statuses": ["Pick"]})
+
+    assert response.status_code == 500
+    assert outside_artifact.read_text() == "outside partial export"
+
+
 def test_file_export_fails_when_selected_original_is_missing(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
