@@ -25,6 +25,11 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   });
   const mutation = useMutation({
     mutationFn: (files: FileList) => api.importPhotos(projectId, files),
+    onMutate: () => {
+      setMessage("");
+      setSkipped([]);
+      setRecentImports([]);
+    },
     onSuccess: async (result) => {
       setMessage(`${result.imported.length} ${pluralize(result.imported.length, "image")} imported and previewed.`);
       setSkipped(result.skipped);

@@ -166,6 +166,7 @@ let failExportHistory = false;
 let failPhotoStatusCounts = false;
 let failJobList = false;
 let failProjectDetail = false;
+let failNextImport = false;
 let skipNextImport = false;
 let photoListRequests = 0;
 let photoListRequestUrls: string[] = [];
@@ -194,6 +195,7 @@ test.beforeEach(async ({ page }) => {
   failPhotoStatusCounts = false;
   failJobList = false;
   failProjectDetail = false;
+  failNextImport = false;
   skipNextImport = false;
   photoListRequests = 0;
   photoListRequestUrls = [];
@@ -253,6 +255,11 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.route(`**/api/projects/${project.id}/imports`, async (route) => {
+    if (failNextImport) {
+      failNextImport = false;
+      await route.fulfill({ json: { detail: "Every selected file was skipped" }, status: 422 });
+      return;
+    }
     currentProject = { ...currentProject, total_images: currentProject.total_images + 1, processed_images: 0 };
     const imported = {
       ...photos[0],
@@ -652,6 +659,27 @@ test("shows skipped files after a mixed import", async ({ page }) => {
   await expect(page.getByText("1 image imported and previewed.")).toBeVisible();
   await expect(page.getByText("1 file skipped.")).toBeVisible();
   await expect(page.getByText("notes.txt: Only JPEG, PNG, and WebP files are supported")).toBeVisible();
+});
+
+test("clears stale import results when a later import fails", async ({ page }) => {
+  await page.goto(`/projects/${project.id}/import`);
+  await page.getByLabel("Choose image files").setInputFiles({
+    name: "uploaded-frame.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([255, 216, 255, 217]),
+  });
+  await expect(page.getByRole("heading", { name: "Recently Imported" })).toBeVisible();
+
+  failNextImport = true;
+  await page.getByLabel("Choose image files").setInputFiles({
+    name: "unsupported.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("not an image"),
+  });
+
+  await expect(page.getByText("Every selected file was skipped")).toBeVisible();
+  await expect(page.getByText("1 image imported and previewed.")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Recently Imported" })).toHaveCount(0);
 });
 
 test("shows import project load errors", async ({ page }) => {
