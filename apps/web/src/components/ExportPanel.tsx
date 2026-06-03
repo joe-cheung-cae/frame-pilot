@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileArchive, FileSpreadsheet, FolderOutput, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { api, exportDownloadUrl } from "@/lib/api";
@@ -9,9 +9,11 @@ import { countPhotosByStatus, EXPORT_STATUSES, selectedPhotoCount, type ExportSt
 type Mode = "csv" | "folder" | "zip";
 
 export function ExportPanel({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
   const [statuses, setStatuses] = useState<ExportStatus[]>(["Pick", "Maybe"]);
   const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listPhotos(projectId) });
+  const exportsQuery = useQuery({ queryKey: ["exports", projectId], queryFn: () => api.listExports(projectId) });
   const statusCounts = useMemo(() => countPhotosByStatus(photosQuery.data ?? []), [photosQuery.data]);
   const selectedCount = selectedPhotoCount(statusCounts, statuses);
   const mutation = useMutation({
@@ -20,6 +22,11 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         throw new Error("Choose at least one non-empty status before exporting.");
       }
       return api.exportSelection(projectId, mode, statuses);
+    },
+    onSuccess: (record) => {
+      queryClient.setQueryData(["exports", projectId], (current: unknown) =>
+        Array.isArray(current) ? [record, ...current] : [record],
+      );
     },
   });
 
@@ -109,6 +116,41 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         </div>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
+      <div className="grid gap-3">
+        <h2 className="text-sm font-semibold">Export History</h2>
+        {exportsQuery.isLoading ? (
+          <p className="text-sm text-neutral-600">Loading export history...</p>
+        ) : null}
+        {exportsQuery.data?.length ? (
+          <div className="grid gap-2">
+            {exportsQuery.data.map((record) => (
+              <div
+                className="grid gap-1 rounded border border-line bg-white p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
+                key={record.id}
+              >
+                <div>
+                  <p className="font-medium">
+                    {record.mode.toUpperCase()} · {record.selected_count} photos
+                  </p>
+                  <p className="text-neutral-600">{record.output_path}</p>
+                </div>
+                {record.mode === "folder" ? null : (
+                  <a
+                    className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-3 py-2 font-medium text-white"
+                    href={exportDownloadUrl(projectId, record.id)}
+                  >
+                    <Download size={16} />
+                    Download
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {!exportsQuery.isLoading && !exportsQuery.data?.length ? (
+          <p className="text-sm text-neutral-600">No exports yet.</p>
+        ) : null}
+      </div>
     </section>
   );
 }

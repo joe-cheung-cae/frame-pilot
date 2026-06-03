@@ -156,6 +156,7 @@ export const api = {
       body: JSON.stringify({ photo_ids: photoIds, ...patch }),
     }),
   listGroups: (projectId: string) => request<PhotoGroup[]>(`/api/projects/${projectId}/groups`),
+  listExports: (projectId: string) => request<ExportRecord[]>(`/api/projects/${projectId}/export`),
   exportSelection: (projectId: string, mode: "csv" | "folder" | "zip", statuses: string[]) =>
     request<ExportRecord>(`/api/projects/${projectId}/export`, {
       method: "POST",

@@ -267,6 +267,16 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
     return record
 
 
+@router.get("/projects/{project_id}/export", response_model=list[ExportRead])
+def list_exports_endpoint(project_id: str, session: Session = Depends(get_session)):
+    _get_project(session, project_id)
+    return list(
+        session.exec(
+            select(ExportRecord).where(ExportRecord.project_id == project_id).order_by(ExportRecord.created_at.desc())
+        ).all()
+    )
+
+
 @router.get("/projects/{project_id}/export/{export_id}", response_model=ExportRead)
 def get_export_endpoint(project_id: str, export_id: str, session: Session = Depends(get_session)):
     return _get_export(session, project_id, export_id)

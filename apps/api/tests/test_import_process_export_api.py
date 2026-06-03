@@ -116,6 +116,9 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     assert export_record["output_path"].endswith(".csv")
     assert export_record["selected_count"] == 1
     assert export_record["statuses"] == '["Pick"]'
+    export_history = client.get(f"/api/projects/{project['id']}/export")
+    assert export_history.status_code == 200
+    assert [record["id"] for record in export_history.json()] == [export_record["id"]]
 
 
 def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, monkeypatch):

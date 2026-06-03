@@ -223,6 +223,11 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.route(`**/api/projects/${project.id}/export`, async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: [] });
+      return;
+    }
+
     await route.fulfill({
       json: {
         id: "export-1",
@@ -312,6 +317,7 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await page.getByRole("button", { name: "Export" }).click();
   await expect(page.getByText("1 photos exported.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Download CSV" })).toBeVisible();
+  await expect(page.getByText("CSV · 1 photos")).toBeVisible();
 });
 
 test("creates a project and opens the import step", async ({ page }) => {
