@@ -72,11 +72,19 @@ def test_large_list_pagination_rejects_invalid_query_values(tmp_path, monkeypatc
     photo_offset_response = client.get(f"/api/projects/{project['id']}/photos?offset=-1")
     group_limit_response = client.get(f"/api/projects/{project['id']}/groups?limit=0")
     group_offset_response = client.get(f"/api/projects/{project['id']}/groups?offset=-1")
+    job_limit_response = client.get(f"/api/projects/{project['id']}/jobs?limit=0")
+    job_offset_response = client.get(f"/api/projects/{project['id']}/jobs?offset=-1")
+    export_limit_response = client.get(f"/api/projects/{project['id']}/exports?limit=0")
+    export_offset_response = client.get(f"/api/projects/{project['id']}/exports?offset=-1")
 
     assert photo_limit_response.status_code == 422
     assert photo_offset_response.status_code == 422
     assert group_limit_response.status_code == 422
     assert group_offset_response.status_code == 422
+    assert job_limit_response.status_code == 422
+    assert job_offset_response.status_code == 422
+    assert export_limit_response.status_code == 422
+    assert export_offset_response.status_code == 422
 
 
 def test_100_synthetic_image_workflow_imports_and_processes(tmp_path, monkeypatch):
