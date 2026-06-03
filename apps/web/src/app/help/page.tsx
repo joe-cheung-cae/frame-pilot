@@ -1,38 +1,5 @@
 import { Shell } from "@/components/Shell";
-
-const shortcutSections = [
-  {
-    title: "Navigation",
-    shortcuts: [
-      ["Left Arrow", "Previous photo"],
-      ["Right Arrow", "Next photo"],
-      ["Up Arrow", "Previous group"],
-      ["Down Arrow", "Next group"],
-    ],
-  },
-  {
-    title: "Review",
-    shortcuts: [
-      ["P", "Mark Pick"],
-      ["M", "Mark Maybe"],
-      ["X", "Mark Reject"],
-      ["U", "Mark Unreviewed"],
-      ["1 to 5", "Set star rating"],
-      ["0", "Clear star rating"],
-    ],
-  },
-  {
-    title: "Workspace",
-    shortcuts: [
-      ["Space", "Toggle large preview"],
-      ["Z", "Toggle zoom"],
-      ["C", "Toggle compare"],
-      ["G", "Focus group view"],
-      ["F", "Focus filter menu"],
-      ["E", "Open export"],
-    ],
-  },
-];
+import { REVIEW_SHORTCUT_HELP_SECTIONS } from "@/lib/reviewShortcuts";
 
 export default function HelpPage() {
   return (
@@ -46,18 +13,18 @@ export default function HelpPage() {
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
-          {shortcutSections.map((section) => (
+          {REVIEW_SHORTCUT_HELP_SECTIONS.map((section) => (
             <section key={section.title} className="rounded border border-line bg-white p-5">
               <h2 className="text-sm font-semibold text-neutral-600">{section.title}</h2>
               <dl className="mt-4 grid gap-3">
-                {section.shortcuts.map(([keys, action]) => (
-                  <div key={keys} className="grid grid-cols-[7rem_1fr] items-center gap-3">
+                {section.shortcuts.map((shortcut) => (
+                  <div key={shortcut.keys} className="grid grid-cols-[7rem_1fr] items-center gap-3">
                     <dt>
                       <kbd className="inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-line bg-mist px-2 text-sm font-semibold text-ink">
-                        {keys}
+                        {shortcut.keys}
                       </kbd>
                     </dt>
-                    <dd className="text-sm text-neutral-700">{action}</dd>
+                    <dd className="text-sm text-neutral-700">{shortcut.action}</dd>
                   </div>
                 ))}
               </dl>

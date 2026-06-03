@@ -10,6 +10,45 @@ export type ReviewShortcutCommand =
   | { type: "focus_filters" }
   | { type: "export" };
 
+export type ReviewShortcutHelpSection = {
+  title: string;
+  shortcuts: { keys: string; action: string }[];
+};
+
+export const REVIEW_SHORTCUT_HELP_SECTIONS: ReviewShortcutHelpSection[] = [
+  {
+    title: "Navigation",
+    shortcuts: [
+      { keys: "Left Arrow", action: "Previous photo" },
+      { keys: "Right Arrow", action: "Next photo" },
+      { keys: "Up Arrow", action: "Previous group" },
+      { keys: "Down Arrow", action: "Next group" },
+    ],
+  },
+  {
+    title: "Review",
+    shortcuts: [
+      { keys: "P", action: "Mark Pick" },
+      { keys: "M", action: "Mark Maybe" },
+      { keys: "X", action: "Mark Reject" },
+      { keys: "U", action: "Mark Unreviewed" },
+      { keys: "1 to 5", action: "Set star rating" },
+      { keys: "0", action: "Clear star rating" },
+    ],
+  },
+  {
+    title: "Workspace",
+    shortcuts: [
+      { keys: "Space", action: "Toggle large preview" },
+      { keys: "Z", action: "Toggle zoom" },
+      { keys: "C", action: "Toggle compare" },
+      { keys: "G", action: "Cycle group selection" },
+      { keys: "F", action: "Focus filter menu" },
+      { keys: "E", action: "Open export" },
+    ],
+  },
+];
+
 export function reviewShortcutCommandForKey(key: string): ReviewShortcutCommand | null {
   if (key === "ArrowLeft") return { type: "move_photo", delta: -1 };
   if (key === "ArrowRight") return { type: "move_photo", delta: 1 };
