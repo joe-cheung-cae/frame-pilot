@@ -20,18 +20,21 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
   const [statuses, setStatuses] = useState<ExportStatus[]>(["Pick", "Maybe"]);
+  const [exportLimit, setExportLimit] = useState(RECENT_EXPORT_LIMIT);
+  const exportHistoryQueryKey = ["exports", projectId, exportLimit];
   const statusCountsQuery = useQuery({
     queryKey: ["photo-status-counts", projectId],
     queryFn: () => api.getPhotoStatusCounts(projectId),
     retry: false,
   });
   const exportsQuery = useQuery({
-    queryKey: ["exports", projectId],
-    queryFn: () => api.listExports(projectId, { limit: RECENT_EXPORT_LIMIT, offset: 0 }),
+    queryKey: exportHistoryQueryKey,
+    queryFn: () => api.listExports(projectId, { limit: exportLimit, offset: 0 }),
     retry: false,
   });
   const statusCounts = statusCountsQuery.data ?? { Pick: 0, Maybe: 0, Reject: 0, Unreviewed: 0 };
   const selectedCount = selectedPhotoCount(statusCounts, statuses);
+  const canLoadMoreExports = (exportsQuery.data?.length ?? 0) >= exportLimit;
   const mutation = useMutation({
     mutationFn: () => {
       if (!statuses.length || selectedCount === 0) {
@@ -40,7 +43,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       return api.exportSelection(projectId, mode, statuses);
     },
     onSuccess: (record) => {
-      queryClient.setQueryData(["exports", projectId], (current: unknown) =>
+      queryClient.setQueryData(exportHistoryQueryKey, (current: unknown) =>
         Array.isArray(current) ? [record, ...current] : [record],
       );
     },
@@ -172,6 +175,15 @@ export function ExportPanel({ projectId }: { projectId: string }) {
               </div>
             ))}
           </div>
+        ) : null}
+        {canLoadMoreExports ? (
+          <button
+            className="focus-ring w-fit rounded border border-line bg-white px-3 py-2 text-sm font-medium disabled:opacity-50"
+            disabled={exportsQuery.isFetching}
+            onClick={() => setExportLimit((current) => current + RECENT_EXPORT_LIMIT)}
+          >
+            {exportsQuery.isFetching ? "Loading..." : "Load more exports"}
+          </button>
         ) : null}
         {!exportsQuery.isLoading && !exportsQuery.isError && !exportsQuery.data?.length ? (
           <p className="text-sm text-neutral-600">No exports yet.</p>

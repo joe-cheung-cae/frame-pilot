@@ -365,6 +365,45 @@ test("shows export history load errors", async ({ page }) => {
   await expect(page.getByText("No exports yet.")).toHaveCount(0);
 });
 
+test("loads more export history on request", async ({ page }) => {
+  const requestedLimits: number[] = [];
+  const exportHistory = Array.from({ length: 51 }, (_, index) => {
+    const exportNumber = String(index + 1).padStart(3, "0");
+    return {
+      id: `export-${exportNumber}`,
+      project_id: project.id,
+      mode: "csv",
+      status: "complete",
+      selected_count: 1,
+      statuses: '["Pick"]',
+      output_path: `/tmp/framepilot/e2e/exports/history-${exportNumber}.csv`,
+      error_message: null,
+      completed_at: "2026-06-02T00:00:00Z",
+      created_at: "2026-06-02T00:00:00Z",
+    };
+  });
+
+  await page.unroute(projectListRoute("exports"));
+  await page.route(projectListRoute("exports"), async (route) => {
+    const url = new URL(route.request().url());
+    const limit = Number(url.searchParams.get("limit") ?? exportHistory.length);
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    requestedLimits.push(limit);
+    await route.fulfill({ json: exportHistory.slice(offset, offset + limit) });
+  });
+
+  await page.goto(`/projects/${project.id}/export`);
+
+  await expect(page.getByText("/tmp/framepilot/e2e/exports/history-050.csv")).toBeVisible();
+  await expect(page.getByText("/tmp/framepilot/e2e/exports/history-051.csv")).toHaveCount(0);
+  expect(requestedLimits[0]).toBe(50);
+
+  await page.getByRole("button", { name: "Load more exports" }).click();
+
+  await expect.poll(() => requestedLimits.includes(100)).toBe(true);
+  await expect(page.getByText("/tmp/framepilot/e2e/exports/history-051.csv")).toBeVisible();
+});
+
 test("shows export photo count load errors", async ({ page }) => {
   failPhotoStatusCounts = true;
 
