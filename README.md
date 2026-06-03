@@ -63,6 +63,14 @@ npm run generate:synthetic -- --output /tmp/framepilot-500 --count 500
 
 Generated files are local test fixtures and should not be committed.
 
+Run a local synthetic import/process performance smoke:
+
+```bash
+npm run perf:api -- --output /tmp/framepilot-perf-500 --count 500
+```
+
+The smoke command reports generation, import, processing time, and peak memory for the local process.
+
 ## Privacy
 
 The MVP does not upload originals or generated previews to any remote service. Imported images are copied into the local project directory so originals are never modified.
