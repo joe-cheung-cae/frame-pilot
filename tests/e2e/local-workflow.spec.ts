@@ -421,6 +421,38 @@ test("shows processing job list load errors", async ({ page }) => {
   await expect(page.getByText("Could not load processing jobs")).toBeVisible();
 });
 
+test("loads more processing history on request", async ({ page }) => {
+  const requestedLimits: number[] = [];
+  const jobHistory = Array.from({ length: 51 }, (_, index) => {
+    const jobNumber = String(index + 1).padStart(3, "0");
+    return {
+      ...completedJob,
+      id: `history-job-${jobNumber}`,
+      current_step: `history-step-${jobNumber}`,
+    };
+  });
+
+  await page.unroute(projectListRoute("jobs"));
+  await page.route(projectListRoute("jobs"), async (route) => {
+    const url = new URL(route.request().url());
+    const limit = Number(url.searchParams.get("limit") ?? jobHistory.length);
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    requestedLimits.push(limit);
+    await route.fulfill({ json: jobHistory.slice(offset, offset + limit) });
+  });
+
+  await page.goto(`/projects/${project.id}/process`);
+
+  await expect(page.getByText("history-step-050")).toBeVisible();
+  await expect(page.getByText("history-step-051")).toHaveCount(0);
+  expect(requestedLimits[0]).toBe(50);
+
+  await page.getByRole("button", { name: "Load more jobs" }).click();
+
+  await expect.poll(() => requestedLimits.includes(100)).toBe(true);
+  await expect(page.getByText("history-step-051")).toBeVisible();
+});
+
 test("walks the local project review and export flow in a browser", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Recent Projects" })).toBeVisible();
@@ -429,8 +461,8 @@ test("walks the local project review and export flow in a browser", async ({ pag
 
   await page.goto(`/projects/${project.id}/process`);
   await page.getByRole("button", { name: "Run Grouping and Ranking" }).click();
-  await expect(page.getByText("3 of 3 photos · 0 failed · 100%")).toBeVisible();
-  await expect(page.locator("p").filter({ hasText: /^complete$/ })).toBeVisible();
+  await expect(page.getByText("3 of 3 photos · 0 failed · 100%").first()).toBeVisible();
+  await expect(page.locator("p").filter({ hasText: /^complete$/ }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Open Culling Workspace" })).toBeVisible();
 
   await page.getByRole("link", { name: "Open Culling Workspace" }).click();
@@ -566,8 +598,8 @@ test("resumes polling an active processing job on the processing page", async ({
 
   await page.goto(`/projects/${project.id}/process`);
 
-  await expect(page.getByText("1 of 3 photos · 0 failed · 33%")).toBeVisible();
-  await expect(page.locator("p").filter({ hasText: /^hash\/scoring$/ })).toBeVisible();
+  await expect(page.getByText("1 of 3 photos · 0 failed · 33%").first()).toBeVisible();
+  await expect(page.locator("p").filter({ hasText: /^hash\/scoring$/ }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Run Grouping and Ranking" })).toBeDisabled();
 });
 

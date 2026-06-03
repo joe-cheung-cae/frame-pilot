@@ -34,7 +34,7 @@ The Next.js frontend owns:
 
 - project creation and workflow routing
 - import, processing, culling, and export screens
-- job polling and processing progress display
+- job polling, processing progress display, and paged local processing history
 - keyboard-first review state
 - optimistic status and rating updates
 - bounded first-page loading plus bounded rendering for large photo, group, filmstrip, and compare views

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Loader2, Play, Rows3, Upload } from "lucide-react";
@@ -16,6 +16,7 @@ const RECENT_JOB_LIMIT = 50;
 
 export function ProcessingPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
+  const [jobLimit, setJobLimit] = useState(RECENT_JOB_LIMIT);
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
   const mutation = useMutation({
     mutationFn: () => api.processProject(projectId),
@@ -26,8 +27,8 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
     },
   });
   const jobsQuery = useQuery({
-    queryKey: ["jobs", projectId],
-    queryFn: () => api.listJobs(projectId, { limit: RECENT_JOB_LIMIT, offset: 0 }),
+    queryKey: ["jobs", projectId, jobLimit],
+    queryFn: () => api.listJobs(projectId, { limit: jobLimit, offset: 0 }),
     retry: false,
   });
   const startedJob = mutation.data;
@@ -48,6 +49,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   const canOpenCulling = job?.status === "complete" || Boolean(project.data?.processed_images);
   const statusLabel = processingStatusLabel(job?.status);
   const isProcessing = job?.status === "queued" || job?.status === "running" || mutation.isPending;
+  const canLoadMoreJobs = (jobsQuery.data?.length ?? 0) >= jobLimit;
 
   useEffect(() => {
     if (job?.status !== "complete") {
@@ -122,7 +124,45 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
         </p>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
-      {jobsQuery.isError ? <p className="text-sm text-coral">{jobsQuery.error.message}</p> : null}
+      <div className="grid gap-3">
+        <h2 className="text-sm font-semibold">Processing History</h2>
+        {jobsQuery.isLoading ? <p className="text-sm text-neutral-600">Loading processing history...</p> : null}
+        {jobsQuery.isError ? <p className="text-sm text-coral">{jobsQuery.error.message}</p> : null}
+        {jobsQuery.data?.length ? (
+          <div className="grid gap-2">
+            {jobsQuery.data.map((record) => (
+              <div
+                className="grid gap-1 rounded border border-line bg-white p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
+                key={record.id}
+              >
+                <div>
+                  <p className="font-medium">
+                    {record.job_type}
+                    <span className={record.status === "failed" ? "ml-2 text-coral" : "ml-2 text-neutral-500"}>
+                      {record.status}
+                    </span>
+                  </p>
+                  <p className="text-neutral-600">{record.current_step}</p>
+                  {record.error_message ? <p className="text-coral">{record.error_message}</p> : null}
+                </div>
+                <p className="text-neutral-600">{processingProgressSummary(record, project.data)}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {canLoadMoreJobs ? (
+          <button
+            className="focus-ring w-fit rounded border border-line bg-white px-3 py-2 text-sm font-medium disabled:opacity-50"
+            disabled={jobsQuery.isFetching}
+            onClick={() => setJobLimit((current) => current + RECENT_JOB_LIMIT)}
+          >
+            {jobsQuery.isFetching ? "Loading..." : "Load more jobs"}
+          </button>
+        ) : null}
+        {!jobsQuery.isLoading && !jobsQuery.isError && !jobsQuery.data?.length ? (
+          <p className="text-sm text-neutral-600">No processing jobs yet.</p>
+        ) : null}
+      </div>
     </section>
   );
 }

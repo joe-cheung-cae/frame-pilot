@@ -52,4 +52,6 @@ SQLite initialization also creates indexes for large-project review and export q
 
 The culling workspace keeps large projects responsive by requesting bounded first pages for photos and groups, then rendering bounded windows for the group sidebar, filmstrip, and compare-mode candidates instead of mounting every matching thumbnail or preview at once. Users can explicitly load the full photo or group list when a review task needs complete in-browser context.
 
+The processing page shows recent local job history from a bounded newest-first query and can increase that limit when the user requests older jobs.
+
 The export page keeps status totals lightweight through the status-count API and keeps export history bounded by loading the most recent records first, with an explicit load-more action for older local export records.
