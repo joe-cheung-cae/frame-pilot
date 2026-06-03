@@ -133,10 +133,12 @@ const groups = [
 ];
 
 let photoPatches: { patch: { star_rating?: number; user_status?: string }; photoId: string | undefined }[] = [];
+let batchPhotoPatches: { patch: { star_rating?: number; user_status?: string }; photoIds: string[] }[] = [];
 let photoListRequests = 0;
 
 test.beforeEach(async ({ page }) => {
   photoPatches = [];
+  batchPhotoPatches = [];
   photoListRequests = 0;
   let currentProject = { ...project };
   let currentPhotos = photos.map((photo) => ({ ...photo }));
@@ -193,11 +195,27 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.route(`**/api/projects/${project.id}/photos/*`, async (route) => {
+    if (route.request().url().endsWith("/photos/batch")) {
+      await route.fallback();
+      return;
+    }
     const photoId = route.request().url().split("/").at(-1);
     const patch = route.request().postDataJSON() as { user_status?: string; star_rating?: number };
     photoPatches.push({ patch, photoId });
     currentPhotos = currentPhotos.map((photo) => (photo.id === photoId ? { ...photo, ...patch } : photo));
     await route.fulfill({ json: currentPhotos.find((photo) => photo.id === photoId) });
+  });
+
+  await page.route(`**/api/projects/${project.id}/photos/batch`, async (route) => {
+    const payload = route.request().postDataJSON() as {
+      photo_ids: string[];
+      star_rating?: number;
+      user_status?: string;
+    };
+    const { photo_ids, ...patch } = payload;
+    batchPhotoPatches.push({ patch, photoIds: photo_ids });
+    currentPhotos = currentPhotos.map((photo) => (photo_ids.includes(photo.id) ? { ...photo, ...patch } : photo));
+    await route.fulfill({ json: currentPhotos.filter((photo) => photo_ids.includes(photo.id)) });
   });
 
   await page.route(`**/api/projects/${project.id}/groups`, async (route) => {
@@ -272,6 +290,13 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await page.keyboard.press("0");
   await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 2);
   expect(photoPatches.at(-1)).toEqual({ patch: { star_rating: 0 }, photoId: "photo-1" });
+  const initialBatchPatchCount = batchPhotoPatches.length;
+  await page.getByRole("button", { name: "Set visible photos to rejected", exact: true }).click();
+  await expect.poll(() => batchPhotoPatches.length).toBe(initialBatchPatchCount + 1);
+  expect(batchPhotoPatches.at(-1)).toEqual({
+    patch: { user_status: "Reject" },
+    photoIds: ["photo-1", "photo-2"],
+  });
   await page.keyboard.press("p");
   await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 3);
   expect(photoPatches.at(-1)).toEqual({ patch: { user_status: "Pick" }, photoId: "photo-1" });

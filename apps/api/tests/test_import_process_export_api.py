@@ -555,6 +555,56 @@ def test_photo_list_prioritizes_recommended_and_high_scoring_photos(tmp_path, mo
     assert [photo["filename"] for photo in response.json()] == ["pick.jpg", "maybe.jpg", "reject.jpg"]
 
 
+def test_batch_photo_update_changes_requested_project_photos(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Batch status"}).json()
+
+    with Session(get_engine()) as session:
+        photos = [
+            Photo(project_id=project["id"], original_path="/tmp/first.jpg", filename="first.jpg"),
+            Photo(project_id=project["id"], original_path="/tmp/second.jpg", filename="second.jpg"),
+        ]
+        session.add_all(photos)
+        session.commit()
+        photo_ids = [photo.id for photo in photos]
+
+    response = client.patch(
+        f"/api/projects/{project['id']}/photos/batch",
+        json={"photo_ids": photo_ids, "user_status": "Reject", "star_rating": 2},
+    )
+
+    assert response.status_code == 200
+    updated = response.json()
+    assert [photo["id"] for photo in updated] == photo_ids
+    assert {photo["user_status"] for photo in updated} == {"Reject"}
+    assert {photo["star_rating"] for photo in updated} == {2}
+
+
+def test_batch_photo_update_rejects_missing_project_photo_without_partial_update(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Batch source"}).json()
+    other_project = client.post("/api/projects", json={"name": "Batch other"}).json()
+
+    with Session(get_engine()) as session:
+        project_photo = Photo(project_id=project["id"], original_path="/tmp/project.jpg", filename="project.jpg")
+        other_photo = Photo(project_id=other_project["id"], original_path="/tmp/other.jpg", filename="other.jpg")
+        session.add_all([project_photo, other_photo])
+        session.commit()
+        project_photo_id = project_photo.id
+        other_photo_id = other_photo.id
+
+    response = client.patch(
+        f"/api/projects/{project['id']}/photos/batch",
+        json={"photo_ids": [project_photo_id, other_photo_id], "user_status": "Pick"},
+    )
+
+    assert response.status_code == 404
+    assert "Photo not found" in response.text
+    assert client.get(f"/api/projects/{project['id']}/photos/{project_photo_id}").json()["user_status"] == "Unreviewed"
+
+
 def test_processing_recommendation_explains_face_and_eye_quality(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())

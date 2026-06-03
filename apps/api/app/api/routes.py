@@ -14,6 +14,7 @@ from app.schemas.api import (
     GroupRead,
     ImportResult,
     JobRead,
+    PhotoBatchUpdate,
     PhotoRead,
     PhotoUpdate,
     ProjectCreate,
@@ -156,6 +157,36 @@ def list_photos_endpoint(project_id: str, session: Session = Depends(get_session
 @router.get("/projects/{project_id}/photos/{photo_id}", response_model=PhotoRead)
 def get_photo_endpoint(project_id: str, photo_id: str, session: Session = Depends(get_session)):
     return _get_photo(session, project_id, photo_id)
+
+
+@router.patch("/projects/{project_id}/photos/batch", response_model=list[PhotoRead])
+def batch_update_photos_endpoint(
+    project_id: str,
+    payload: PhotoBatchUpdate,
+    session: Session = Depends(get_session),
+):
+    _get_project(session, project_id)
+    requested_ids = list(dict.fromkeys(payload.photo_ids))
+    photos = list(
+        session.exec(select(Photo).where(Photo.project_id == project_id).where(Photo.id.in_(requested_ids))).all()
+    )
+    photo_by_id = {photo.id: photo for photo in photos}
+    missing_ids = [photo_id for photo_id in requested_ids if photo_id not in photo_by_id]
+    if missing_ids:
+        raise HTTPException(status_code=404, detail=f"Photo not found: {missing_ids[0]}")
+
+    update = payload.model_dump(exclude={"photo_ids"}, exclude_unset=True)
+    now = utc_now()
+    for photo_id in requested_ids:
+        photo = photo_by_id[photo_id]
+        for key, value in update.items():
+            setattr(photo, key, value)
+        photo.updated_at = now
+        session.add(photo)
+    session.commit()
+    for photo in photos:
+        session.refresh(photo)
+    return [photo_by_id[photo_id] for photo_id in requested_ids]
 
 
 @router.patch("/projects/{project_id}/photos/{photo_id}", response_model=PhotoRead)

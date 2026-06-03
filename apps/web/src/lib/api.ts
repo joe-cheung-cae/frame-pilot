@@ -89,6 +89,8 @@ export type ExportRecord = {
   created_at: string;
 };
 
+export type PhotoPatch = Partial<Pick<Photo, "user_status" | "star_rating">>;
+
 function formatErrorDetail(detail: unknown): string | null {
   if (typeof detail === "string") {
     return detail;
@@ -146,8 +148,13 @@ export const api = {
   getJob: (projectId: string, jobId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}`),
   listPhotos: (projectId: string) => request<Photo[]>(`/api/projects/${projectId}/photos`),
-  updatePhoto: (projectId: string, photoId: string, patch: Partial<Pick<Photo, "user_status" | "star_rating">>) =>
+  updatePhoto: (projectId: string, photoId: string, patch: PhotoPatch) =>
     request<Photo>(`/api/projects/${projectId}/photos/${photoId}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  batchUpdatePhotos: (projectId: string, photoIds: string[], patch: PhotoPatch) =>
+    request<Photo[]>(`/api/projects/${projectId}/photos/batch`, {
+      method: "PATCH",
+      body: JSON.stringify({ photo_ids: photoIds, ...patch }),
+    }),
   listGroups: (projectId: string) => request<PhotoGroup[]>(`/api/projects/${projectId}/groups`),
   exportSelection: (projectId: string, mode: "csv" | "folder" | "zip", statuses: string[]) =>
     request<ExportRecord>(`/api/projects/${projectId}/export`, {

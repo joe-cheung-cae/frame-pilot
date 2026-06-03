@@ -21,7 +21,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { api, assetUrl, Photo } from "@/lib/api";
+import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
 import { groupAfterMove, nextPhotoIdAfterMark, windowedPhotoRefs } from "@/lib/reviewNavigation";
 import { useReviewStore } from "@/store/reviewStore";
@@ -39,8 +39,6 @@ const FILTERS = [
 ];
 
 const FILMSTRIP_WINDOW_SIZE = 80;
-
-type PhotoPatch = Partial<Pick<Photo, "user_status" | "star_rating">>;
 
 function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<string>) {
   if (filter === "All") return true;
@@ -116,6 +114,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     () => windowedPhotoRefs(visiblePhotos, activePhoto?.id ?? null, FILMSTRIP_WINDOW_SIZE),
     [activePhoto?.id, visiblePhotos],
   );
+  const visiblePhotoIds = useMemo(() => visiblePhotos.map((photo) => photo.id), [visiblePhotos]);
 
   const updateMutation = useMutation({
     mutationFn: ({ photo, patch }: { photo: Photo; patch: PhotoPatch }) => api.updatePhoto(projectId, photo.id, patch),
@@ -136,6 +135,32 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     onSuccess: (updatedPhoto) => {
       queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) =>
         currentPhotos?.map((item) => (item.id === updatedPhoto.id ? updatedPhoto : item)),
+      );
+    },
+  });
+
+  const batchUpdateMutation = useMutation({
+    mutationFn: ({ photoIds, patch }: { photoIds: string[]; patch: PhotoPatch }) =>
+      api.batchUpdatePhotos(projectId, photoIds, patch),
+    onMutate: async ({ photoIds, patch }) => {
+      const queryKey = ["photos", projectId];
+      const targetIds = new Set(photoIds);
+      await queryClient.cancelQueries({ queryKey });
+      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey);
+      queryClient.setQueryData<Photo[]>(queryKey, (currentPhotos) =>
+        currentPhotos?.map((item) => (targetIds.has(item.id) ? { ...item, ...patch } : item)),
+      );
+      return { previousPhotos };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousPhotos) {
+        queryClient.setQueryData(["photos", projectId], context.previousPhotos);
+      }
+    },
+    onSuccess: (updatedPhotos) => {
+      const updatedById = new Map(updatedPhotos.map((photo) => [photo.id, photo]));
+      queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) =>
+        currentPhotos?.map((item) => updatedById.get(item.id) ?? item),
       );
     },
   });
@@ -186,6 +211,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         setActivePhotoId(nextPhotoId);
       }
       updateMutation.mutate({ photo: activePhoto, patch: { user_status: status } });
+    }
+  }
+
+  function batchMark(status: Photo["user_status"]) {
+    if (visiblePhotoIds.length) {
+      batchUpdateMutation.mutate({ photoIds: visiblePhotoIds, patch: { user_status: status } });
     }
   }
 
@@ -469,6 +500,38 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 <p className="rounded border border-line bg-mist p-3 text-sm">
                   {activePhoto.recommendation_explanation}
                 </p>
+                <div className="rounded border border-line p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold">Batch visible</p>
+                    <p className="text-xs text-neutral-600">{visiblePhotos.length} photos</p>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <button
+                      className="focus-ring rounded bg-leaf px-2 py-2 text-xs font-medium text-white disabled:opacity-50"
+                      disabled={!visiblePhotos.length || batchUpdateMutation.isPending}
+                      onClick={() => batchMark("Pick")}
+                      aria-label="Set visible photos to selected"
+                    >
+                      Pick
+                    </button>
+                    <button
+                      className="focus-ring rounded bg-gold px-2 py-2 text-xs font-medium text-white disabled:opacity-50"
+                      disabled={!visiblePhotos.length || batchUpdateMutation.isPending}
+                      onClick={() => batchMark("Maybe")}
+                      aria-label="Set visible photos to tentative"
+                    >
+                      Maybe
+                    </button>
+                    <button
+                      className="focus-ring rounded bg-coral px-2 py-2 text-xs font-medium text-white disabled:opacity-50"
+                      disabled={!visiblePhotos.length || batchUpdateMutation.isPending}
+                      onClick={() => batchMark("Reject")}
+                      aria-label="Set visible photos to rejected"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     className="focus-ring rounded bg-leaf px-3 py-2 text-sm font-medium text-white"
