@@ -11,6 +11,22 @@ WEIGHTS = {
     "duplicate_penalty": -0.10,
 }
 
+LANDSCAPE_WEIGHTS = {
+    **WEIGHTS,
+    "sharpness_score": 0.32,
+    "exposure_score": 0.23,
+    "contrast_score": 0.17,
+    "face_quality_score": 0.08,
+}
+
+PORTRAIT_WEIGHTS = {
+    **WEIGHTS,
+    "sharpness_score": 0.28,
+    "exposure_score": 0.18,
+    "contrast_score": 0.14,
+    "face_quality_score": 0.20,
+}
+
 QUALITY_LABELS = {
     "sharpness_score": "sharpness",
     "exposure_score": "exposure",
@@ -30,7 +46,8 @@ class RankedPhoto:
 
 
 def final_score(photo: dict[str, Any]) -> float:
-    score = sum(_metric_value(photo, field) * weight for field, weight in WEIGHTS.items())
+    weights = _weights_for_photo(photo)
+    score = sum(_metric_value(photo, field) * weight for field, weight in weights.items())
     return round(max(0.0, min(1.0, score)), 4)
 
 
@@ -42,14 +59,26 @@ def _metric_value(photo: dict[str, Any], field: str) -> float:
     return float(photo.get(field, 0.0) or 0.0)
 
 
+def _weights_for_photo(photo: dict[str, Any]) -> dict[str, float]:
+    if photo.get("face_presence") or _metric_value(photo, "face_quality_score") > 0:
+        return PORTRAIT_WEIGHTS
+    width = int(photo.get("width", 0) or 0)
+    height = int(photo.get("height", 0) or 0)
+    if width >= height and width > 0 and height > 0:
+        return LANDSCAPE_WEIGHTS
+    return WEIGHTS
+
+
 def _strongest_metric(photo: dict[str, Any]) -> str:
-    return max(QUALITY_LABELS, key=lambda field: _metric_value(photo, field) * WEIGHTS[field])
+    weights = _weights_for_photo(photo)
+    return max(QUALITY_LABELS, key=lambda field: _metric_value(photo, field) * weights[field])
 
 
 def _top_metric_labels(photo: dict[str, Any], limit: int = 3) -> list[str]:
+    weights = _weights_for_photo(photo)
     ranked_fields = sorted(
         QUALITY_LABELS,
-        key=lambda field: _metric_value(photo, field) * WEIGHTS[field],
+        key=lambda field: _metric_value(photo, field) * weights[field],
         reverse=True,
     )
     labels = []
@@ -66,13 +95,15 @@ def _top_metric_labels(photo: dict[str, Any], limit: int = 3) -> list[str]:
 
 
 def _weakest_metric(photo: dict[str, Any]) -> str:
-    return min(QUALITY_LABELS, key=lambda field: _metric_value(photo, field) * WEIGHTS[field])
+    weights = _weights_for_photo(photo)
+    return min(QUALITY_LABELS, key=lambda field: _metric_value(photo, field) * weights[field])
 
 
 def _largest_metric_gap(photo: dict[str, Any], best_photo: dict[str, Any]) -> str:
+    weights = _weights_for_photo(best_photo)
     return max(
         QUALITY_LABELS,
-        key=lambda field: max(0.0, _metric_value(best_photo, field) - _metric_value(photo, field)) * WEIGHTS[field],
+        key=lambda field: max(0.0, _metric_value(best_photo, field) - _metric_value(photo, field)) * weights[field],
     )
 
 

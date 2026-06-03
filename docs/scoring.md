@@ -29,7 +29,7 @@ These experimental signals are useful as weak MVP ranking hints. They can miss f
 
 ## Group Ranking
 
-The group ranking formula is:
+The baseline group ranking formula is:
 
 ```text
 final_score =
@@ -43,5 +43,10 @@ final_score =
 ```
 
 `noise_quality_score` is computed as the inverse of local noise risk. The top-ranked photo receives a Pick recommendation. Other photos in the same group receive Maybe or Reject based on their distance from the best score. User decisions always override recommendations.
+
+Ranking applies small deterministic weight adjustments by photo context:
+
+- Portrait-like photos with detected experimental face signals raise `experimental_face_quality_score` to `0.20` and slightly reduce sharpness, exposure, and contrast weights.
+- Landscape-like photos without face signals raise sharpness, exposure, and contrast weights while reducing the experimental face signal weight.
 
 Each processed group also stores a deterministic JSON `score_summary`. Single-image groups receive low confidence because there is no similar alternative to compare. Duplicate groups receive high confidence when the best photo leads the next candidate by at least `0.15`, medium confidence at `0.05`, and low confidence below that gap.

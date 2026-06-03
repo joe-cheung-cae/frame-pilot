@@ -2,7 +2,7 @@ import csv
 import zipfile
 
 from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
-from app.services.ranking import rank_group
+from app.services.ranking import final_score, rank_group
 
 
 def test_rank_group_selects_highest_explainable_score():
@@ -30,6 +30,39 @@ def test_rank_group_selects_highest_explainable_score():
     assert ranked[0].photo_id == "high"
     assert "highest overall score" in ranked[0].explanation
     assert "sharpness" in ranked[0].explanation
+
+
+def test_final_score_adjusts_weights_for_landscape_like_photos():
+    photo = {
+        "id": "landscape",
+        "width": 6000,
+        "height": 4000,
+        "sharpness_score": 0.8,
+        "exposure_score": 0.7,
+        "contrast_score": 0.6,
+        "noise_score": 0.2,
+        "face_quality_score": 0.0,
+        "aesthetic_score": 0.5,
+        "duplicate_penalty": 0.0,
+    }
+
+    assert final_score(photo) == 0.649
+
+
+def test_final_score_adjusts_weights_for_portrait_like_photos():
+    photo = {
+        "id": "portrait",
+        "face_presence": True,
+        "sharpness_score": 0.8,
+        "exposure_score": 0.7,
+        "contrast_score": 0.6,
+        "noise_score": 0.2,
+        "face_quality_score": 0.8,
+        "aesthetic_score": 0.5,
+        "duplicate_penalty": 0.0,
+    }
+
+    assert final_score(photo) == 0.724
 
 
 def test_rank_group_prefers_sharp_well_exposed_photo_over_blurry_or_badly_exposed_similar_photo():
