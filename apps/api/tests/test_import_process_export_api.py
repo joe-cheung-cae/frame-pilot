@@ -366,7 +366,7 @@ def test_processing_skips_photo_with_invalid_similarity_data(tmp_path, monkeypat
     assert "stored similarity data is invalid" in invalid_after_processing["recommendation_explanation"]
 
 
-def test_processing_skips_photo_with_missing_generated_derivative(tmp_path, monkeypatch):
+def test_processing_regenerates_missing_generated_derivative(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
     project = client.post("/api/projects", json={"name": "Missing derivative"}).json()
@@ -377,7 +377,41 @@ def test_processing_skips_photo_with_missing_generated_derivative(tmp_path, monk
     )
     assert import_response.status_code == 201
     photo = import_response.json()["imported"][0]
+    old_thumbnail_path = Path(photo["thumbnail_path"])
+    old_preview_path = Path(photo["preview_path"])
     Path(photo["thumbnail_path"]).unlink()
+
+    process_response = client.post(f"/api/projects/{project['id']}/process")
+    assert process_response.status_code == 202
+    job = _wait_for_job(client, project["id"], process_response.json())
+
+    assert job["status"] == "complete"
+    assert job["processed_items"] == 1
+    assert job["failed_items"] == 0
+    assert job["progress_percent"] == 100.0
+    assert job["error_message"] is None
+    assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 1
+    processed_photo = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
+    assert processed_photo["processing_state"] == "processed"
+    assert processed_photo["processing_error"] is None
+    assert Path(processed_photo["thumbnail_path"]).exists()
+    assert Path(processed_photo["thumbnail_path"]) == old_thumbnail_path
+    assert Path(processed_photo["preview_path"]) == old_preview_path
+
+
+def test_processing_records_missing_derivative_when_original_copy_is_missing(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Missing original copy"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    photo = import_response.json()["imported"][0]
+    Path(photo["thumbnail_path"]).unlink()
+    Path(photo["project_copy_path"]).unlink()
 
     process_response = client.post(f"/api/projects/{project['id']}/process")
     assert process_response.status_code == 202
@@ -386,13 +420,11 @@ def test_processing_skips_photo_with_missing_generated_derivative(tmp_path, monk
     assert job["status"] == "complete"
     assert job["processed_items"] == 0
     assert job["failed_items"] == 1
-    assert job["progress_percent"] == 100.0
     assert "1 photo could not be processed" in job["error_message"]
-    assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 0
     failed_photo = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
     assert failed_photo["processing_state"] == "failed"
     assert failed_photo["processing_error"] == "Missing generated thumbnail"
-    assert "generated thumbnail is missing" in failed_photo["recommendation_explanation"]
+    assert "generated files could not be rebuilt" in failed_photo["recommendation_explanation"]
 
 
 def test_import_renames_duplicate_filenames_without_overwriting(tmp_path, monkeypatch):

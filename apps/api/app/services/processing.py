@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 from app.db.session import get_engine
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.services.grouping import group_similar_photos
+from app.services.importing import ensure_photo_derivatives
 from app.services.ranking import rank_group
 
 
@@ -185,16 +186,20 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
             missing_derivatives = _missing_derivative_paths(photo)
             if not missing_derivatives:
                 continue
-            derivative_failed_photos.append(photo)
-            derivative_failed_ids.add(photo.id)
-            reason = f"Missing generated {' and '.join(missing_derivatives)}"
-            _mark_photo_failed(
-                session,
-                photo,
-                reason,
-                f"Processing skipped this photo because its generated {' and '.join(missing_derivatives)} is missing. "
-                "Reimport the photo to rebuild local derived files.",
-            )
+            try:
+                ensure_photo_derivatives(project, photo)
+                session.add(photo)
+            except (OSError, ValueError):
+                derivative_failed_photos.append(photo)
+                derivative_failed_ids.add(photo.id)
+                reason = f"Missing generated {' and '.join(missing_derivatives)}"
+                _mark_photo_failed(
+                    session,
+                    photo,
+                    reason,
+                    "Processing skipped this photo because its generated files could not be rebuilt from the local "
+                    "copied original. Reimport the photo to rebuild local derived files.",
+                )
         session.commit()
 
         _save_job(session, job, "validating similarity data", 0, len(derivative_failed_photos))

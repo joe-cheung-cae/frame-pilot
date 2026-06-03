@@ -26,7 +26,7 @@ Processing is idempotent for unchanged completed projects: if all photos are alr
 
 Photos keep their own local `processing_state` and `processing_error` fields so incomplete or skipped items can be inspected without modifying original files. Import creates photos in the `imported` state, processing moves them through `processing`, and the job records each photo as `processed` or `failed`.
 
-The processing validation stage checks that generated thumbnails and previews still exist before grouping. Missing derived files are recorded on the affected photo and counted as failed items; original copied photos remain untouched.
+The processing validation stage checks that generated thumbnails and previews still exist before grouping. Missing derived files are regenerated from the local copied original when possible. If the copied original is unavailable or regeneration fails, the error is recorded on the affected photo and counted as a failed item.
 
 Import is tolerant of mixed file selections: supported images are copied into `originals/`, derivatives are generated in `thumbnails/` and `previews/`, and unsupported or unreadable files are reported as skipped. Adding new imports invalidates existing grouping and recommendation metadata because the review set has changed.
 

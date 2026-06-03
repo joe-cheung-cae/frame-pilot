@@ -124,7 +124,7 @@ Each photo also exposes local processing state:
 - `processed`: grouping/ranking completed for the photo.
 - `failed`: the job skipped the photo and recorded `processing_error`.
 
-Processing validates generated thumbnail and preview files before grouping. Missing derivatives are recorded as failed photo items instead of failing the whole job.
+Processing validates generated thumbnail and preview files before grouping. Missing derivatives are regenerated from the local copied original when possible; unrecoverable derivative failures are recorded as failed photo items instead of failing the whole job.
 
 `GET /api/projects/{project_id}/photos` returns photos ordered for review by group, AI recommendation priority, score, and filename.
 

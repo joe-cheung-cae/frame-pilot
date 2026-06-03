@@ -83,6 +83,38 @@ def _save_derivatives(project_root: Path, source: Path, image: Image.Image) -> t
     return thumbnail_path, preview_path
 
 
+def ensure_photo_derivatives(project: Project, photo: Photo) -> list[str]:
+    missing = []
+    if not photo.thumbnail_path or not Path(photo.thumbnail_path).is_file():
+        missing.append("thumbnail")
+    if not photo.preview_path or not Path(photo.preview_path).is_file():
+        missing.append("preview")
+    if not missing:
+        return []
+
+    source_path = Path(photo.project_copy_path or photo.original_path)
+    if not source_path.is_file():
+        raise ValueError("Copied original file is missing")
+
+    project_root = Path(project.root_path)
+    with Image.open(source_path) as opened:
+        image = ImageOps.exif_transpose(opened).convert("RGB")
+        regenerated_thumbnail, regenerated_preview = _save_derivatives(project_root, source_path, image)
+
+    if "thumbnail" in missing:
+        photo.thumbnail_path = str(regenerated_thumbnail)
+    else:
+        regenerated_thumbnail.unlink(missing_ok=True)
+
+    if "preview" in missing:
+        photo.preview_path = str(regenerated_preview)
+    else:
+        regenerated_preview.unlink(missing_ok=True)
+
+    photo.updated_at = utc_now()
+    return missing
+
+
 def _cleanup_paths(*paths: Path | None) -> None:
     for path in paths:
         if path is not None:
