@@ -7,7 +7,7 @@ from io import BytesIO
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import ExifTags, Image, ImageDraw, ImageFilter
 from sqlmodel import Session, select
 
 from app.api import routes
@@ -37,6 +37,21 @@ def _image_bytes(color: tuple[int, int, int] = (120, 150, 90), blur: bool = Fals
     if blur:
         image = image.filter(ImageFilter.GaussianBlur(radius=4))
     image.save(buffer, format="JPEG")
+    return buffer.getvalue()
+
+
+def _image_bytes_with_exif() -> bytes:
+    buffer = BytesIO()
+    image = Image.new("RGB", (96, 72), color=(120, 150, 90))
+    exif = Image.Exif()
+    exif[ExifTags.Base.DateTimeOriginal] = "2026:01:02 03:04:05"
+    exif[ExifTags.Base.Model] = "FramePilotCam"
+    exif[ExifTags.Base.LensModel] = "FramePilot 35mm"
+    exif[ExifTags.Base.FocalLength] = (35, 1)
+    exif[ExifTags.Base.FNumber] = (28, 10)
+    exif[ExifTags.Base.ExposureTime] = (1, 125)
+    exif[ExifTags.Base.ISOSpeedRatings] = 400
+    image.save(buffer, format="JPEG", exif=exif)
     return buffer.getvalue()
 
 
@@ -123,6 +138,27 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     export_history = client.get(f"/api/projects/{project['id']}/export")
     assert export_history.status_code == 200
     assert [record["id"] for record in export_history.json()] == [export_record["id"]]
+
+
+def test_import_extracts_basic_exif_metadata(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Metadata import"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("metadata.jpg", _image_bytes_with_exif(), "image/jpeg"))],
+    )
+
+    assert import_response.status_code == 201
+    photo = import_response.json()["imported"][0]
+    assert photo["capture_time"] == "2026-01-02T03:04:05"
+    assert photo["camera_model"] == "FramePilotCam"
+    assert photo["lens_model"] == "FramePilot 35mm"
+    assert photo["focal_length"] == "35"
+    assert photo["aperture"] == "2.8"
+    assert photo["shutter_speed"] == "1/125"
+    assert photo["iso"] == 400
 
 
 def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, monkeypatch):

@@ -57,6 +57,37 @@ def _parse_capture_time(value: object) -> datetime | None:
         return None
 
 
+def _rational_parts(value: object) -> tuple[float, float] | None:
+    if isinstance(value, tuple) and len(value) == 2:
+        numerator, denominator = value
+        if isinstance(numerator, int | float) and isinstance(denominator, int | float) and denominator:
+            return float(numerator), float(denominator)
+
+    numerator = getattr(value, "numerator", None)
+    denominator = getattr(value, "denominator", None)
+    if isinstance(numerator, int | float) and isinstance(denominator, int | float) and denominator:
+        return float(numerator), float(denominator)
+
+    return None
+
+
+def _format_exif_number(value: object, prefer_fraction: bool = False) -> str | None:
+    if value is None:
+        return None
+
+    parts = _rational_parts(value)
+    if parts is not None:
+        numerator, denominator = parts
+        if prefer_fraction:
+            return f"{int(numerator)}/{int(denominator)}"
+        number = numerator / denominator
+        if number.is_integer():
+            return str(int(number))
+        return f"{number:.3f}".rstrip("0").rstrip(".")
+
+    return str(value)
+
+
 def _extract_metadata(image: Image.Image) -> dict:
     raw_exif = image.getexif()
     if not raw_exif:
@@ -68,9 +99,9 @@ def _extract_metadata(image: Image.Image) -> dict:
         "capture_time": capture_time,
         "camera_model": named.get("Model"),
         "lens_model": named.get("LensModel"),
-        "focal_length": str(named.get("FocalLength")) if named.get("FocalLength") else None,
-        "aperture": str(named.get("FNumber")) if named.get("FNumber") else None,
-        "shutter_speed": str(named.get("ExposureTime")) if named.get("ExposureTime") else None,
+        "focal_length": _format_exif_number(named.get("FocalLength")),
+        "aperture": _format_exif_number(named.get("FNumber")),
+        "shutter_speed": _format_exif_number(named.get("ExposureTime"), prefer_fraction=True),
         "iso": int(named["ISOSpeedRatings"]) if isinstance(named.get("ISOSpeedRatings"), int) else None,
     }
 
