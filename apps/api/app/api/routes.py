@@ -56,6 +56,16 @@ def _get_export(session: Session, project_id: str, export_id: str) -> ExportReco
     return export
 
 
+def _get_active_processing_job(session: Session, project_id: str) -> ProcessingJob | None:
+    return session.exec(
+        select(ProcessingJob)
+        .where(ProcessingJob.project_id == project_id)
+        .where(ProcessingJob.job_type == "processing")
+        .where(ProcessingJob.status.in_(["queued", "running"]))
+        .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
+    ).first()
+
+
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 def create_project_endpoint(payload: ProjectCreate, session: Session = Depends(get_session)):
     return create_project(session, payload.name, payload.root_path)
@@ -109,6 +119,9 @@ def process_project_endpoint(
     project = _get_project(session, project_id)
     if project.total_images <= 0:
         raise HTTPException(status_code=422, detail="Import photos before processing this project")
+    active_job = _get_active_processing_job(session, project_id)
+    if active_job is not None:
+        return active_job
     job = create_processing_job(session, project)
     background_tasks.add_task(run_processing_job, job.id)
     return job

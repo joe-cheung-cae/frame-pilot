@@ -233,6 +233,38 @@ def test_process_rejects_project_with_no_imported_photos(tmp_path, monkeypatch):
     assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 0
 
 
+def test_process_returns_existing_active_job_without_creating_duplicate(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Active job"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+
+    with Session(get_engine()) as session:
+        active_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="running",
+            current_step="grouping photos",
+            total_items=1,
+        )
+        session.add(active_job)
+        session.commit()
+        active_job_id = active_job.id
+
+    response = client.post(f"/api/projects/{project['id']}/process")
+
+    assert response.status_code == 202
+    assert response.json()["id"] == active_job_id
+    with Session(get_engine()) as session:
+        jobs = list(session.exec(select(ProcessingJob).where(ProcessingJob.project_id == project["id"])).all())
+    assert len(jobs) == 1
+
+
 def test_processing_skips_photo_with_invalid_similarity_data(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
