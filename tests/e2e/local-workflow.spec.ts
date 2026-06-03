@@ -255,6 +255,8 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page.getByRole("img", { name: "Compare frame-002.jpg" })).toBeVisible();
   await page.keyboard.press("c");
   await expect(page.getByRole("button", { name: "Toggle compare" })).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("f");
+  await expect(page.getByRole("button", { name: "All" })).toBeFocused();
   await expect(page.getByText("High confidence").first()).toBeVisible();
   await expect(page.getByText("High confidence because the top photo leads the next candidate by 0.23.")).toBeVisible();
   await page.keyboard.press("ArrowDown");
@@ -276,7 +278,8 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page.getByRole("heading", { name: "frame-002.jpg" })).toBeVisible();
   expect(photoListRequests).toBe(initialPhotoListRequests);
 
-  await page.getByRole("link", { name: "Export" }).click();
+  await page.keyboard.press("e");
+  await expect(page).toHaveURL(/\/projects\/project-1\/export$/);
   await expect(page.getByRole("heading", { name: "Export Selection" })).toBeVisible();
   await page.getByLabel("Maybe").uncheck();
   await page.getByRole("button", { name: "Export" }).click();

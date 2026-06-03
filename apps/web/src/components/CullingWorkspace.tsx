@@ -4,7 +4,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -56,6 +57,8 @@ function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<st
 
 export function CullingWorkspace({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const filterButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
   const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listPhotos(projectId) });
   const groupsQuery = useQuery({ queryKey: ["groups", projectId], queryFn: () => api.listGroups(projectId) });
@@ -192,6 +195,11 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     }
   }
 
+  function focusFilterControls() {
+    const activeFilterIndex = Math.max(FILTERS.indexOf(filter), 0);
+    filterButtonRefs.current[activeFilterIndex]?.focus();
+  }
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
@@ -216,6 +224,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       if (event.key.toLowerCase() === "z") toggleZoomPreview();
       if (event.key.toLowerCase() === "c") toggleCompareMode();
       if (event.key.toLowerCase() === "g") cycleGroup();
+      if (event.key.toLowerCase() === "f") focusFilterControls();
+      if (event.key.toLowerCase() === "e") router.push(`/projects/${projectId}/export`);
       const numeric = Number(event.key);
       if (numeric === 0) rate(0);
       if (numeric >= 1 && numeric <= 5) rate(numeric);
@@ -311,11 +321,14 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         <aside className="border-b border-line bg-white p-4 lg:border-b-0 lg:border-r">
           <h2 className="mb-3 text-sm font-semibold">Filters</h2>
           <div className="grid gap-1">
-            {FILTERS.map((item) => (
+            {FILTERS.map((item, index) => (
               <button
                 className={`focus-ring rounded px-3 py-2 text-left text-sm ${filter === item ? "bg-leaf text-white" : "hover:bg-mist"}`}
                 key={item}
                 onClick={() => setFilter(item)}
+                ref={(node) => {
+                  filterButtonRefs.current[index] = node;
+                }}
               >
                 {item}
               </button>
