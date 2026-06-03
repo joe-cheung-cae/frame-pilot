@@ -5,6 +5,8 @@ Base URL during development: `http://127.0.0.1:8000`.
 Implemented endpoints:
 
 ```text
+GET    /api/health
+
 POST   /api/projects
 GET    /api/projects
 GET    /api/projects/{project_id}

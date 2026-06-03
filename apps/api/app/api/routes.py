@@ -35,6 +35,11 @@ from app.services.projects import create_project, list_projects
 router = APIRouter(prefix="/api")
 
 
+@router.get("/health")
+def api_health_endpoint() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 def _get_project(session: Session, project_id: str) -> Project:
     project = session.get(Project, project_id)
     if project is None:

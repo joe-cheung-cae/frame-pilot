@@ -8,6 +8,16 @@ from app.main import create_app
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob
 
 
+def test_api_health_returns_ok(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+
+    response = client.get("/api/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 def test_create_and_list_projects(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
