@@ -9,6 +9,10 @@ import { FileImage, Loader2, Play } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import { invalidateProjectWorkflowQueries } from "@/lib/queryInvalidation";
 
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return count === 1 ? singular : plural;
+}
+
 export function ImportPanel({ projectId }: { projectId: string }) {
   const [message, setMessage] = useState("");
   const [skipped, setSkipped] = useState<{ filename: string; reason: string }[]>([]);
@@ -22,7 +26,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   const mutation = useMutation({
     mutationFn: (files: FileList) => api.importPhotos(projectId, files),
     onSuccess: async (result) => {
-      setMessage(`${result.imported.length} images imported and previewed.`);
+      setMessage(`${result.imported.length} ${pluralize(result.imported.length, "image")} imported and previewed.`);
       setSkipped(result.skipped);
       setRecentImports(result.imported);
       await invalidateProjectWorkflowQueries(queryClient, projectId);
@@ -78,7 +82,9 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       {message ? <p className="text-sm text-leaf">{message}</p> : null}
       {skipped.length ? (
         <div className="rounded border border-line bg-white p-3 text-sm text-neutral-700">
-          <p className="font-medium text-coral">{skipped.length} files skipped.</p>
+          <p className="font-medium text-coral">
+            {skipped.length} {pluralize(skipped.length, "file")} skipped.
+          </p>
           <ul className="mt-2 grid gap-1">
             {skipped.slice(0, 5).map((item) => (
               <li key={`${item.filename}-${item.reason}`}>

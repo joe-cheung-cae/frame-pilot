@@ -634,7 +634,7 @@ test("shows imported thumbnails before processing", async ({ page }) => {
     buffer: Buffer.from([255, 216, 255, 217]),
   });
 
-  await expect(page.getByText("1 images imported and previewed.")).toBeVisible();
+  await expect(page.getByText("1 image imported and previewed.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recently Imported" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Thumbnail for uploaded-frame.jpg" })).toBeVisible();
 });
@@ -649,8 +649,8 @@ test("shows skipped files after a mixed import", async ({ page }) => {
     buffer: Buffer.from([255, 216, 255, 217]),
   });
 
-  await expect(page.getByText("1 images imported and previewed.")).toBeVisible();
-  await expect(page.getByText("1 files skipped.")).toBeVisible();
+  await expect(page.getByText("1 image imported and previewed.")).toBeVisible();
+  await expect(page.getByText("1 file skipped.")).toBeVisible();
   await expect(page.getByText("notes.txt: Only JPEG, PNG, and WebP files are supported")).toBeVisible();
 });
 
