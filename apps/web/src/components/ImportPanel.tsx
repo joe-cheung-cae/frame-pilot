@@ -16,6 +16,7 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
 export function ImportPanel({ projectId }: { projectId: string }) {
   const [message, setMessage] = useState("");
   const [skipped, setSkipped] = useState<{ filename: string; reason: string }[]>([]);
+  const [showAllSkipped, setShowAllSkipped] = useState(false);
   const [recentImports, setRecentImports] = useState<Photo[]>([]);
   const queryClient = useQueryClient();
   const project = useQuery({
@@ -28,6 +29,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     onMutate: () => {
       setMessage("");
       setSkipped([]);
+      setShowAllSkipped(false);
       setRecentImports([]);
     },
     onSuccess: async (result) => {
@@ -43,6 +45,8 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       mutation.mutate(event.target.files);
     }
   }
+
+  const visibleSkipped = showAllSkipped ? skipped : skipped.slice(0, 5);
 
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
@@ -92,14 +96,20 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             {skipped.length} {pluralize(skipped.length, "file")} skipped.
           </p>
           <ul className="mt-2 grid gap-1">
-            {skipped.slice(0, 5).map((item) => (
+            {visibleSkipped.map((item) => (
               <li key={`${item.filename}-${item.reason}`}>
                 {item.filename}: {item.reason}
               </li>
             ))}
           </ul>
           {skipped.length > 5 ? (
-            <p className="mt-2 text-neutral-600">Only the first 5 skipped files are shown.</p>
+            <button
+              className="focus-ring mt-3 rounded border border-line bg-white px-3 py-2 text-xs font-medium"
+              onClick={() => setShowAllSkipped((current) => !current)}
+              aria-expanded={showAllSkipped}
+            >
+              {showAllSkipped ? "Show first 5 skipped files" : `Show all ${skipped.length} skipped files`}
+            </button>
           ) : null}
         </div>
       ) : null}

@@ -171,6 +171,7 @@ let failProjectList = false;
 let failProjectDetail = false;
 let failNextImport = false;
 let skipNextImport = false;
+let skipManyNextImport = false;
 let failPreviewAssets = false;
 let photoListRequests = 0;
 let photoListRequestUrls: string[] = [];
@@ -205,6 +206,7 @@ test.beforeEach(async ({ page }) => {
   failProjectDetail = false;
   failNextImport = false;
   skipNextImport = false;
+  skipManyNextImport = false;
   failPreviewAssets = false;
   photoListRequests = 0;
   photoListRequestUrls = [];
@@ -297,9 +299,15 @@ test.beforeEach(async ({ page }) => {
     };
     currentPhotos = [imported, ...currentPhotos];
     const skipped = skipNextImport
-      ? [{ filename: "notes.txt", reason: "Only JPEG, PNG, and WebP files are supported" }]
+      ? skipManyNextImport
+        ? Array.from({ length: 7 }, (_value, index) => ({
+            filename: `unsupported-${index + 1}.txt`,
+            reason: "Only JPEG, PNG, and WebP files are supported",
+          }))
+        : [{ filename: "notes.txt", reason: "Only JPEG, PNG, and WebP files are supported" }]
       : [];
     skipNextImport = false;
+    skipManyNextImport = false;
     await route.fulfill({ json: { imported: [imported], skipped }, status: 201 });
   });
 
@@ -885,6 +893,30 @@ test("shows skipped files after a mixed import", async ({ page }) => {
   await expect(page.getByText("1 image imported and previewed.")).toBeVisible();
   await expect(page.getByText("1 file skipped.")).toBeVisible();
   await expect(page.getByText("notes.txt: Only JPEG, PNG, and WebP files are supported")).toBeVisible();
+});
+
+test("expands long skipped file lists after import", async ({ page }) => {
+  skipNextImport = true;
+  skipManyNextImport = true;
+  await page.goto(`/projects/${project.id}/import`);
+
+  await page.getByLabel("Choose image files").setInputFiles({
+    name: "uploaded-frame.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([255, 216, 255, 217]),
+  });
+
+  await expect(page.getByText("7 files skipped.")).toBeVisible();
+  await expect(page.getByText("unsupported-1.txt: Only JPEG, PNG, and WebP files are supported")).toBeVisible();
+  await expect(page.getByText("unsupported-6.txt: Only JPEG, PNG, and WebP files are supported")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Show all 7 skipped files" }).click();
+
+  await expect(page.getByText("unsupported-6.txt: Only JPEG, PNG, and WebP files are supported")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show first 5 skipped files" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
 });
 
 test("clears stale import results when a later import fails", async ({ page }) => {
