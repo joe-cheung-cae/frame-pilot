@@ -80,6 +80,14 @@ const groups = [
     group_type: "duplicate",
     representative_photo_id: "photo-1",
     photo_count: 2,
+    score_summary: JSON.stringify({
+      best_score: 0.78,
+      confidence: "high",
+      explanation: "High confidence because the top photo leads the next candidate by 0.23.",
+      recommendation_counts: { Maybe: 1, Pick: 1, Reject: 0, Unreviewed: 0 },
+      score_gap: 0.23,
+      top_photo_id: "photo-1",
+    }),
   },
 ];
 
@@ -187,6 +195,8 @@ test("walks the local project review and export flow in a browser", async ({ pag
 
   await page.getByRole("link", { name: "Open Culling Workspace" }).click();
   await expect(page.getByRole("heading", { name: "E2E Shoot" })).toBeVisible();
+  await expect(page.getByText("High confidence").first()).toBeVisible();
+  await expect(page.getByText("High confidence because the top photo leads the next candidate by 0.23.")).toBeVisible();
   await page.keyboard.press("p");
   await expect(page.getByRole("heading", { name: "frame-002.jpg" })).toBeVisible();
 

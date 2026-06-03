@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useMemo } from "react";
 import { ArrowLeft, ArrowRight, Check, Eye, ImageOff, Loader2, Play, Star, Upload, X } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
+import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
 import { nextPhotoIdAfterMark } from "@/lib/reviewNavigation";
 import { useReviewStore } from "@/store/reviewStore";
 
@@ -72,6 +73,14 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   );
   const activePhoto = visiblePhotos[activeIndex] ?? visiblePhotos[0] ?? null;
   const activeGroupIndex = activeGroupId ? groups.findIndex((group) => group.id === activeGroupId) : -1;
+  const activeGroup = useMemo(() => {
+    const groupId = activePhoto?.group_id ?? activeGroupId;
+    return groupId ? (groups.find((group) => group.id === groupId) ?? null) : null;
+  }, [activeGroupId, activePhoto?.group_id, groups]);
+  const activeGroupSummary = useMemo(
+    () => parseGroupScoreSummary(activeGroup?.score_summary),
+    [activeGroup?.score_summary],
+  );
 
   const updateMutation = useMutation({
     mutationFn: ({ photo, patch }: { photo: Photo; patch: Partial<Pick<Photo, "user_status" | "star_rating">> }) =>
@@ -257,16 +266,22 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 Show filtered photos
               </button>
             ) : null}
-            {groups.map((group, index) => (
-              <button
-                className={`focus-ring flex justify-between rounded border px-3 py-2 text-left ${activeGroupId === group.id ? "border-leaf bg-mist" : "border-line bg-white"}`}
-                key={group.id}
-                onClick={() => selectGroup(group.id, group.representative_photo_id)}
-              >
-                <span>Group {index + 1}</span>
-                <span>{group.photo_count}</span>
-              </button>
-            ))}
+            {groups.map((group, index) => {
+              const summary = parseGroupScoreSummary(group.score_summary);
+              return (
+                <button
+                  className={`focus-ring rounded border px-3 py-2 text-left ${activeGroupId === group.id ? "border-leaf bg-mist" : "border-line bg-white"}`}
+                  key={group.id}
+                  onClick={() => selectGroup(group.id, group.representative_photo_id)}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span>Group {index + 1}</span>
+                    <span>{group.photo_count}</span>
+                  </span>
+                  <span className="mt-1 block text-xs text-neutral-500">{groupConfidenceLabel(summary)}</span>
+                </button>
+              );
+            })}
           </div>
         </aside>
         <div
@@ -297,6 +312,25 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     {activePhoto.width} x {activePhoto.height}
                   </p>
                 </div>
+                {activeGroup ? (
+                  <div className="rounded border border-line bg-mist p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-semibold">{groupConfidenceLabel(activeGroupSummary)}</p>
+                      <p className="text-neutral-600">{activeGroup.photo_count} photos</p>
+                    </div>
+                    {activeGroupSummary ? (
+                      <>
+                        <p className="mt-2 text-neutral-700">{activeGroupSummary.explanation}</p>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-neutral-700">
+                          <span>Best {activeGroupSummary.best_score.toFixed(2)}</span>
+                          <span>Gap {activeGroupSummary.score_gap.toFixed(2)}</span>
+                          <span>Pick {activeGroupSummary.recommendation_counts.Pick ?? 0}</span>
+                          <span>Reject {activeGroupSummary.recommendation_counts.Reject ?? 0}</span>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   {[
                     ["Sharpness", activePhoto.sharpness_score],
