@@ -732,7 +732,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         <button
           className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line"
           onClick={toggleLargePreview}
-          aria-label="Toggle preview"
+          aria-label="Toggle large preview"
+          aria-pressed={largePreview}
         >
           {largePreview ? <X size={18} /> : <Eye size={18} />}
         </button>
