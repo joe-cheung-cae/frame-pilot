@@ -196,7 +196,7 @@ The response includes the number of exported photos and the local output path:
 
 Exports are written under the local project `exports/` directory. Repeated exports use unique paths. Requests with no matching photos return `422` and do not write an export artifact. If artifact creation fails, the API returns `500`, removes partial output when possible, and keeps a local export history record with `status` set to `failed` and `error_message` set.
 
-CSV exports include filename, original path, user status, star rating, group id, AI recommendation, overall and technical scores, face and eye-open signals, image dimensions, and the recommendation explanation.
+CSV exports include filename, original path, capture and camera metadata, user status, star rating, group id, AI recommendation, overall and technical scores, face and eye-open signals, image dimensions, and the recommendation explanation.
 
 Export records can be listed newest-first:
 
