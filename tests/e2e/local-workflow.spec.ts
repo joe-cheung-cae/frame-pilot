@@ -133,9 +133,11 @@ const groups = [
 ];
 
 let photoPatches: { patch: { star_rating?: number; user_status?: string }; photoId: string | undefined }[] = [];
+let photoListRequests = 0;
 
 test.beforeEach(async ({ page }) => {
   photoPatches = [];
+  photoListRequests = 0;
   let currentProject = { ...project };
   let currentPhotos = photos.map((photo) => ({ ...photo }));
 
@@ -186,6 +188,7 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.route(`**/api/projects/${project.id}/photos`, async (route) => {
+    photoListRequests += 1;
     await route.fulfill({ json: currentPhotos });
   });
 
@@ -248,6 +251,7 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await page.keyboard.press("ArrowUp");
   await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toBeVisible();
   const initialPatchCount = photoPatches.length;
+  const initialPhotoListRequests = photoListRequests;
   await page.keyboard.press("5");
   await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 1);
   expect(photoPatches.at(-1)).toEqual({ patch: { star_rating: 5 }, photoId: "photo-1" });
@@ -255,7 +259,10 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 2);
   expect(photoPatches.at(-1)).toEqual({ patch: { star_rating: 0 }, photoId: "photo-1" });
   await page.keyboard.press("p");
+  await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 3);
+  expect(photoPatches.at(-1)).toEqual({ patch: { user_status: "Pick" }, photoId: "photo-1" });
   await expect(page.getByRole("heading", { name: "frame-002.jpg" })).toBeVisible();
+  expect(photoListRequests).toBe(initialPhotoListRequests);
 
   await page.getByRole("link", { name: "Export" }).click();
   await expect(page.getByRole("heading", { name: "Export Selection" })).toBeVisible();

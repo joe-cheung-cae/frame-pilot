@@ -23,6 +23,8 @@ const FILTERS = [
   "Photos with faces",
 ];
 
+type PhotoPatch = Partial<Pick<Photo, "user_status" | "star_rating">>;
+
 function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<string>) {
   if (filter === "All") return true;
   if (filter === "Picks") return photo.user_status === "Pick";
@@ -83,10 +85,25 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   );
 
   const updateMutation = useMutation({
-    mutationFn: ({ photo, patch }: { photo: Photo; patch: Partial<Pick<Photo, "user_status" | "star_rating">> }) =>
-      api.updatePhoto(projectId, photo.id, patch),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
+    mutationFn: ({ photo, patch }: { photo: Photo; patch: PhotoPatch }) => api.updatePhoto(projectId, photo.id, patch),
+    onMutate: async ({ photo, patch }) => {
+      const queryKey = ["photos", projectId];
+      await queryClient.cancelQueries({ queryKey });
+      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey);
+      queryClient.setQueryData<Photo[]>(queryKey, (currentPhotos) =>
+        currentPhotos?.map((item) => (item.id === photo.id ? { ...item, ...patch } : item)),
+      );
+      return { previousPhotos };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousPhotos) {
+        queryClient.setQueryData(["photos", projectId], context.previousPhotos);
+      }
+    },
+    onSuccess: (updatedPhoto) => {
+      queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) =>
+        currentPhotos?.map((item) => (item.id === updatedPhoto.id ? updatedPhoto : item)),
+      );
     },
   });
 
