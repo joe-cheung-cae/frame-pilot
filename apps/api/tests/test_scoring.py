@@ -22,6 +22,19 @@ def test_sharp_image_scores_higher_than_blurry_image():
     assert sharp_scores.overall_score > blurry_scores.overall_score
 
 
+def test_exposure_penalizes_clipped_highlights_and_shadows():
+    balanced = compute_quality_scores(np.full((96, 96), 128, dtype=np.uint8))
+    blown = compute_quality_scores(np.full((96, 96), 252, dtype=np.uint8))
+    crushed = compute_quality_scores(np.full((96, 96), 2, dtype=np.uint8))
+    high_contrast = np.zeros((96, 96), dtype=np.uint8)
+    high_contrast[:, ::2] = 255
+    high_contrast_scores = compute_quality_scores(high_contrast)
+
+    assert balanced.exposure_score > high_contrast_scores.exposure_score
+    assert high_contrast_scores.exposure_score > blown.exposure_score
+    assert high_contrast_scores.exposure_score > crushed.exposure_score
+
+
 def test_detects_simple_face_and_eye_signals():
     image = np.full((128, 128, 3), 245, dtype=np.uint8)
     yy, xx = np.ogrid[:128, :128]

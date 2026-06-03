@@ -37,6 +37,14 @@ def _laplacian_variance(gray: np.ndarray) -> float:
     return float(laplacian.var())
 
 
+def _exposure_score(gray: np.ndarray) -> float:
+    mean_luma = float(gray.mean()) / 255.0
+    mean_balance = 1.0 - min(abs(mean_luma - 0.5) * 2.0, 1.0)
+    clipped_ratio = float(((gray <= 5.0) | (gray >= 250.0)).mean())
+    clipping_quality = 1.0 - min(clipped_ratio, 1.0)
+    return round(float(np.clip(0.75 * mean_balance + 0.25 * clipping_quality, 0.0, 1.0)), 4)
+
+
 def _detect_face_signals(
     image: np.ndarray, gray: np.ndarray, sharpness_score: float
 ) -> tuple[bool, float, float | None, float]:
@@ -104,8 +112,7 @@ def compute_quality_scores(image: np.ndarray) -> QualityScores:
     sharpness_score = normalize_score(_laplacian_variance(gray), 1200.0)
     blur_score = round(1.0 - sharpness_score, 4)
 
-    mean_luma = float(gray.mean()) / 255.0
-    exposure_score = round(1.0 - min(abs(mean_luma - 0.5) * 2.0, 1.0), 4)
+    exposure_score = _exposure_score(gray)
     contrast_score = normalize_score(float(gray.std()), 80.0)
 
     high_freq = np.abs(gray - gray.mean())
