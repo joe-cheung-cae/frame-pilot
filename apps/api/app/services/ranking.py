@@ -69,6 +69,13 @@ def _weakest_metric(photo: dict[str, Any]) -> str:
     return min(QUALITY_LABELS, key=lambda field: _metric_value(photo, field) * WEIGHTS[field])
 
 
+def _largest_metric_gap(photo: dict[str, Any], best_photo: dict[str, Any]) -> str:
+    return max(
+        QUALITY_LABELS,
+        key=lambda field: max(0.0, _metric_value(best_photo, field) - _metric_value(photo, field)) * WEIGHTS[field],
+    )
+
+
 def _pick_explanation(photo: dict[str, Any], group_size: int) -> str:
     strongest = _top_metric_labels(photo, limit=3)
     strongest_text = " and ".join(strongest) if strongest else QUALITY_LABELS[_strongest_metric(photo)]
@@ -77,9 +84,18 @@ def _pick_explanation(photo: dict[str, Any], group_size: int) -> str:
     return f"Recommended because it has the highest overall score in this group, led by its {strongest_text} scores."
 
 
-def _secondary_explanation(photo: dict[str, Any], recommendation: str, score_gap: float) -> str:
-    weakest = QUALITY_LABELS[_weakest_metric(photo)]
-    if weakest == "experimental face signal quality" and photo.get("face_presence"):
+def _secondary_explanation(
+    photo: dict[str, Any],
+    best_photo: dict[str, Any],
+    recommendation: str,
+    score_gap: float,
+) -> str:
+    weakest_field = _largest_metric_gap(photo, best_photo)
+    if _metric_value(best_photo, weakest_field) <= _metric_value(photo, weakest_field):
+        weakest_field = _weakest_metric(photo)
+    weakest = QUALITY_LABELS[weakest_field]
+    has_face_context = photo.get("face_presence") or best_photo.get("face_presence")
+    if weakest == "experimental face signal quality" and has_face_context:
         weakest = "experimental face or eye signals"
     if recommendation == "Reject":
         return f"Rejected because it trails the strongest image by {score_gap:.2f}, with weaker {weakest}."
@@ -103,6 +119,7 @@ def rank_group(photos: list[dict[str, Any]]) -> list[RankedPhoto]:
         return ranked
 
     best = ranked[0]
+    best_photo = scored[0][0]
     rest = [
         RankedPhoto(
             photo_id=item.photo_id,
@@ -110,6 +127,7 @@ def rank_group(photos: list[dict[str, Any]]) -> list[RankedPhoto]:
             recommendation="Reject" if item.score < best.score - 0.1 else "Maybe",
             explanation=_secondary_explanation(
                 scored[index][0],
+                best_photo,
                 "Reject" if item.score < best.score - 0.1 else "Maybe",
                 best.score - item.score,
             ),

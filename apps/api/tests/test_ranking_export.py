@@ -66,6 +66,9 @@ def test_rank_group_prefers_sharp_well_exposed_photo_over_blurry_or_badly_expose
     assert ranked[0].recommendation == "Pick"
     assert {ranked[1].photo_id, ranked[2].photo_id} == {"blurry", "underexposed"}
     assert all(item.recommendation == "Reject" for item in ranked[1:])
+    explanations = {item.photo_id: item.explanation for item in ranked}
+    assert "weaker sharpness" in explanations["blurry"]
+    assert "weaker exposure" in explanations["underexposed"]
 
 
 def test_rank_group_rewards_contrast_and_penalizes_noise_risk():
