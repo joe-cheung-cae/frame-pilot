@@ -51,6 +51,11 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
             fieldnames=[
                 "filename",
                 "original_path",
+                "project_copy_path",
+                "source_identity",
+                "content_hash",
+                "file_size",
+                "file_mtime",
                 "capture_time",
                 "camera_model",
                 "lens_model",
@@ -83,6 +88,11 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
                 {
                     "filename": photo.get("filename", ""),
                     "original_path": photo.get("original_path", ""),
+                    "project_copy_path": photo.get("project_copy_path") or "",
+                    "source_identity": photo.get("source_identity") or "",
+                    "content_hash": photo.get("content_hash") or "",
+                    "file_size": photo.get("file_size", 0),
+                    "file_mtime": "" if photo.get("file_mtime") is None else photo.get("file_mtime"),
                     "capture_time": photo.get("capture_time") or "",
                     "camera_model": photo.get("camera_model") or "",
                     "lens_model": photo.get("lens_model") or "",

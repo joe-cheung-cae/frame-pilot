@@ -293,7 +293,10 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
     csv_download_response = client.get(f"/api/projects/{project['id']}/export/{csv_export['id']}/download")
     assert csv_download_response.status_code == 200
     assert "filename" in csv_download_response.headers["content-disposition"]
-    assert b"filename,original_path,capture_time,camera_model,lens_model" in csv_download_response.content
+    assert (
+        b"filename,original_path,project_copy_path,source_identity,content_hash,file_size,file_mtime"
+        in csv_download_response.content
+    )
 
     zip_export_response = client.post(
         f"/api/projects/{project['id']}/export",
@@ -365,7 +368,10 @@ def test_plural_export_routes_create_list_get_and_download(tmp_path, monkeypatch
     assert get_response.json()["id"] == export_record["id"]
     download_response = client.get(f"/api/projects/{project['id']}/exports/{export_record['id']}/download")
     assert download_response.status_code == 200
-    assert b"filename,original_path,capture_time,camera_model,lens_model" in download_response.content
+    assert (
+        b"filename,original_path,project_copy_path,source_identity,content_hash,file_size,file_mtime"
+        in download_response.content
+    )
 
 
 def test_export_history_supports_newest_first_pagination(tmp_path, monkeypatch):
