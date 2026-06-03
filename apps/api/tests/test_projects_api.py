@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -159,3 +160,19 @@ def test_generated_assets_cannot_escape_project_asset_directories(tmp_path, monk
     assert valid_response.content == b"thumbnail"
     assert escape_response.status_code == 404
     assert invalid_kind_response.status_code == 404
+
+
+def test_generated_asset_directory_symlinks_cannot_escape_project_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Asset root safety"}).json()
+    thumbnail_dir = Path(project["root_path"]) / "thumbnails"
+    outside_dir = tmp_path / "outside-thumbnails"
+    outside_dir.mkdir()
+    (outside_dir / "frame.webp").write_bytes(b"outside")
+    shutil.rmtree(thumbnail_dir)
+    thumbnail_dir.symlink_to(outside_dir, target_is_directory=True)
+
+    response = client.get(f"/api/assets/{project['id']}/thumbnails/frame.webp")
+
+    assert response.status_code == 404
