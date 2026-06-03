@@ -16,6 +16,7 @@ import {
   Loader2,
   Play,
   Star,
+  StarOff,
   Upload,
   X,
   ZoomIn,
@@ -624,6 +625,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   </button>
                 </div>
                 <div className="flex gap-1">
+                  <button
+                    className="focus-ring rounded p-2 text-neutral-600"
+                    onClick={() => rate(0)}
+                    aria-label="Clear rating"
+                  >
+                    <StarOff size={20} />
+                  </button>
                   {[1, 2, 3, 4, 5].map((rating) => (
                     <button
                       className="focus-ring rounded p-2 text-gold"

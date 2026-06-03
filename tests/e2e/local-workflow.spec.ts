@@ -320,8 +320,11 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await page.keyboard.press("5");
   await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 1);
   expect(photoPatches.at(-1)).toEqual({ patch: { star_rating: 5 }, photoId: "photo-1" });
-  await page.keyboard.press("0");
+  await page.getByRole("button", { name: "Clear rating" }).click();
   await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 2);
+  expect(photoPatches.at(-1)).toEqual({ patch: { star_rating: 0 }, photoId: "photo-1" });
+  await page.keyboard.press("0");
+  await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 3);
   expect(photoPatches.at(-1)).toEqual({ patch: { star_rating: 0 }, photoId: "photo-1" });
   const initialBatchPatchCount = batchPhotoPatches.length;
   await page.getByRole("button", { name: "Set visible photos to rejected", exact: true }).click();
@@ -331,7 +334,7 @@ test("walks the local project review and export flow in a browser", async ({ pag
     photoIds: ["photo-1", "photo-2"],
   });
   await page.keyboard.press("p");
-  await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 3);
+  await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 4);
   expect(photoPatches.at(-1)).toEqual({ patch: { user_status: "Pick" }, photoId: "photo-1" });
   await expect(page.getByRole("heading", { name: "frame-002.jpg" })).toBeVisible();
   expect(photoListRequests).toBe(initialPhotoListRequests);
