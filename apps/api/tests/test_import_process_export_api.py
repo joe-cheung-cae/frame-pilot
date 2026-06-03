@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw, ImageFilter
 from sqlmodel import Session, select
 
+from app.api import routes
 from app.db.session import get_engine
 from app.main import create_app
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project
@@ -907,3 +908,39 @@ def test_repeated_exports_write_unique_records_and_paths(tmp_path, monkeypatch):
     assert second_record["selected_count"] == 1
     assert Path(first_record["output_path"]).exists()
     assert Path(second_record["output_path"]).exists()
+
+
+def test_failed_export_records_failed_history_and_removes_partial_artifact(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Failed export"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    photo = import_response.json()["imported"][0]
+    client.patch(
+        f"/api/projects/{project['id']}/photos/{photo['id']}",
+        json={"user_status": "Pick"},
+    )
+
+    def fail_after_partial_write(target: Path, photos: list[dict]) -> Path:
+        assert len(photos) == 1
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("partial export")
+        raise RuntimeError("simulated export failure")
+
+    monkeypatch.setattr(routes, "write_selection_csv", fail_after_partial_write)
+
+    response = client.post(f"/api/projects/{project['id']}/export", json={"mode": "csv", "statuses": ["Pick"]})
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Export failed"
+    history = client.get(f"/api/projects/{project['id']}/export").json()
+    assert len(history) == 1
+    record = history[0]
+    assert record["mode"] == "csv"
+    assert record["status"] == "failed"
+    assert record["selected_count"] == 1
+    assert record["output_path"].endswith(".csv")
+    assert not Path(record["output_path"]).exists()

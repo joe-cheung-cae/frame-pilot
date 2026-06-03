@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
@@ -48,6 +49,13 @@ def _export_target(export_root: Path, export_id: str, mode: str) -> Path:
     if mode == "folder":
         return export_root / f"selected-{export_id}"
     return export_root / f"selected-{export_id}.zip"
+
+
+def _remove_partial_export(target: Path) -> None:
+    if target.is_dir() and not target.is_symlink():
+        shutil.rmtree(target)
+    elif target.exists():
+        target.unlink()
 
 
 def _get_export(session: Session, project_id: str, export_id: str) -> ExportRecord:
@@ -247,22 +255,34 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
     record = ExportRecord(
         project_id=project_id,
         mode=payload.mode,
+        status="running",
         selected_count=len(photo_dicts),
         statuses=json.dumps(payload.statuses),
-        output_path="",
+        output_path="pending",
     )
+    target = _export_target(export_root, record.id, payload.mode)
+    record.output_path = str(target)
     session.add(record)
     session.commit()
     session.refresh(record)
-    target = _export_target(export_root, record.id, payload.mode)
 
-    if payload.mode == "csv":
-        output_path = write_selection_csv(target, photo_dicts)
-    elif payload.mode == "folder":
-        output_path = copy_selected_files(target, photo_dicts)
-    else:
-        output_path = zip_selected_files(target, photo_dicts)
+    try:
+        if payload.mode == "csv":
+            output_path = write_selection_csv(target, photo_dicts)
+        elif payload.mode == "folder":
+            output_path = copy_selected_files(target, photo_dicts)
+        else:
+            output_path = zip_selected_files(target, photo_dicts)
+    except Exception as error:
+        session.rollback()
+        _remove_partial_export(target)
+        record.status = "failed"
+        record.output_path = str(target)
+        session.add(record)
+        session.commit()
+        raise HTTPException(status_code=500, detail="Export failed") from error
 
+    record.status = "complete"
     record.output_path = str(output_path)
     session.add(record)
     session.commit()
