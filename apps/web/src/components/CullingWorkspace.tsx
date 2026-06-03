@@ -571,7 +571,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     <p className="text-sm font-semibold">Batch visible</p>
                     <p className="text-xs text-neutral-600">{visiblePhotos.length} photos</p>
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="mt-3 grid grid-cols-2 gap-2">
                     <button
                       className="focus-ring rounded bg-leaf px-2 py-2 text-xs font-medium text-white disabled:opacity-50"
                       disabled={!visiblePhotos.length || batchUpdateMutation.isPending}
@@ -595,6 +595,14 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                       aria-label="Set visible photos to rejected"
                     >
                       Reject
+                    </button>
+                    <button
+                      className="focus-ring rounded border border-line px-2 py-2 text-xs font-medium disabled:opacity-50"
+                      disabled={!visiblePhotos.length || batchUpdateMutation.isPending}
+                      onClick={() => batchMark("Unreviewed")}
+                      aria-label="Set visible photos to unreviewed"
+                    >
+                      Unreviewed
                     </button>
                   </div>
                 </div>

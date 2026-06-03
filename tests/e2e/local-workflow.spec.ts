@@ -333,6 +333,12 @@ test("walks the local project review and export flow in a browser", async ({ pag
     patch: { user_status: "Reject" },
     photoIds: ["photo-1", "photo-2"],
   });
+  await page.getByRole("button", { name: "Set visible photos to unreviewed", exact: true }).click();
+  await expect.poll(() => batchPhotoPatches.length).toBe(initialBatchPatchCount + 2);
+  expect(batchPhotoPatches.at(-1)).toEqual({
+    patch: { user_status: "Unreviewed" },
+    photoIds: ["photo-1", "photo-2"],
+  });
   await page.keyboard.press("p");
   await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 4);
   expect(photoPatches.at(-1)).toEqual({ patch: { user_status: "Pick" }, photoId: "photo-1" });
