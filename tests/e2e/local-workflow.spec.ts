@@ -171,6 +171,7 @@ let failProjectList = false;
 let failProjectDetail = false;
 let failNextImport = false;
 let skipNextImport = false;
+let failPreviewAssets = false;
 let photoListRequests = 0;
 let photoListRequestUrls: string[] = [];
 let projectCreatePayloads: { name?: string; root_path?: string }[] = [];
@@ -204,6 +205,7 @@ test.beforeEach(async ({ page }) => {
   failProjectDetail = false;
   failNextImport = false;
   skipNextImport = false;
+  failPreviewAssets = false;
   photoListRequests = 0;
   photoListRequestUrls = [];
   projectCreatePayloads = [];
@@ -390,6 +392,10 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.route("**/api/assets/**", async (route) => {
+    if (failPreviewAssets && route.request().url().includes("/previews/frame-001.webp")) {
+      await route.fulfill({ json: { detail: "Asset not found" }, status: 404 });
+      return;
+    }
     await route.fulfill({
       body: Buffer.from(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lK3wLwAAAABJRU5ErkJggg==",
@@ -457,6 +463,15 @@ test("shows culling workspace load errors", async ({ page }) => {
   await page.goto(`/projects/${project.id}/cull`);
 
   await expect(page.getByText("Could not load this project: Could not load project details")).toBeVisible();
+});
+
+test("shows culling preview asset load errors", async ({ page }) => {
+  failPreviewAssets = true;
+
+  await page.goto(`/projects/${project.id}/cull`);
+
+  await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toBeVisible();
+  await expect(page.getByText("Preview failed to load.")).toBeVisible();
 });
 
 test("shows export history load errors", async ({ page }) => {

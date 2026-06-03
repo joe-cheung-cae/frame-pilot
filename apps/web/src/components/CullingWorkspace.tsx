@@ -77,6 +77,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const skipNextProgressSave = useRef<string | null>(null);
   const [allPhotosLoaded, setAllPhotosLoaded] = useState(false);
   const [allGroupsLoaded, setAllGroupsLoaded] = useState(false);
+  const [failedAssetUrls, setFailedAssetUrls] = useState<Set<string>>(() => new Set());
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
   const photosQuery = useQuery({
     queryKey: ["photos", projectId],
@@ -370,6 +371,21 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     filterButtonRefs.current[activeFilterIndex]?.focus();
   }
 
+  function assetHasFailed(url: string | null): boolean {
+    return Boolean(url && failedAssetUrls.has(url));
+  }
+
+  function markAssetFailed(url: string) {
+    setFailedAssetUrls((current) => {
+      if (current.has(url)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(url);
+      return next;
+    });
+  }
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
@@ -582,16 +598,19 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     key={photo.id}
                     onClick={() => setActivePhotoId(photo.id)}
                   >
-                    {comparePreview ? (
+                    {comparePreview && !assetHasFailed(comparePreview) ? (
                       <img
                         className="max-h-[56vh] max-w-full object-contain"
                         src={comparePreview}
                         alt={`Compare ${photo.filename}`}
                         loading="lazy"
                         decoding="async"
+                        onError={() => markAssetFailed(comparePreview)}
                       />
                     ) : (
-                      <span className="text-sm text-white">No preview</span>
+                      <span className="text-sm text-white">
+                        {comparePreview ? "Preview failed to load" : "No preview"}
+                      </span>
                     )}
                     <span className="mt-2 justify-self-start rounded bg-white/90 px-2 py-1 text-xs text-ink">
                       {photo.filename} · {photo.ai_recommendation}
@@ -600,7 +619,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 );
               })}
             </div>
-          ) : preview ? (
+          ) : preview && !assetHasFailed(preview) ? (
             <img
               className={
                 zoomPreview
@@ -610,7 +629,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               src={preview}
               alt={activePhoto?.filename ?? "Preview"}
               decoding="async"
+              onError={() => markAssetFailed(preview)}
             />
+          ) : preview ? (
+            <div className="grid place-items-center gap-3 text-center text-white">
+              <ImageOff size={38} />
+              <p>Preview failed to load.</p>
+            </div>
           ) : (
             <div className="grid place-items-center gap-3 text-center text-white">
               <ImageOff size={38} />
@@ -800,16 +825,19 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               key={photo.id}
               onClick={() => setActivePhotoId(photo.id)}
             >
-              {thumbnail ? (
+              {thumbnail && !assetHasFailed(thumbnail) ? (
                 <img
                   className="h-full w-full object-cover"
                   src={thumbnail}
                   alt={photo.filename}
                   loading="lazy"
                   decoding="async"
+                  onError={() => markAssetFailed(thumbnail)}
                 />
               ) : (
-                <span className="grid h-full place-items-center text-xs">No preview</span>
+                <span className="grid h-full place-items-center text-xs">
+                  {thumbnail ? "Preview failed" : "No preview"}
+                </span>
               )}
               <span className="absolute bottom-1 left-1 rounded bg-white/90 px-1 text-xs">{photo.user_status}</span>
               {photo.ai_recommendation === "Pick" ? (
