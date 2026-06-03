@@ -56,3 +56,5 @@ The culling workspace keeps large projects responsive by requesting bounded firs
 The processing page shows recent local job history from a bounded newest-first query and can increase that limit when the user requests older jobs.
 
 The export page shows the local exports folder before export, keeps status totals lightweight through the status-count API, and keeps export history bounded by loading the most recent records first, with an explicit load-more action for older local export records.
+
+The shell links to a local help page that lists the keyboard shortcuts supported by the culling workspace.

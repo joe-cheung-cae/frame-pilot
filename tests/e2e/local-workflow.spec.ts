@@ -412,6 +412,21 @@ test("shows project list load errors", async ({ page }) => {
   await expect(page.getByText("Could not load projects: Could not read local project database")).toBeVisible();
 });
 
+test("opens keyboard shortcuts help from the shell", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Help" }).click();
+
+  await expect(page).toHaveURL(/\/help$/);
+  await expect(page.getByRole("heading", { name: "Keyboard Shortcuts" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Navigation" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspace" })).toBeVisible();
+  await expect(page.getByText("Left Arrow")).toBeVisible();
+  await expect(page.getByText("Mark Pick")).toBeVisible();
+  await expect(page.getByText("Toggle compare")).toBeVisible();
+  await expect(page.getByText("Open export")).toBeVisible();
+});
+
 test("shows culling workspace load errors", async ({ page }) => {
   failProjectDetail = true;
 
