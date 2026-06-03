@@ -56,6 +56,8 @@ class Photo(SQLModel, table=True):
     user_status: str = "Unreviewed"
     star_rating: int = 0
     group_id: str | None = Field(default=None, foreign_key="photogroup.id")
+    processing_state: str = "imported"
+    processing_error: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 

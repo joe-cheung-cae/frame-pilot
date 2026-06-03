@@ -52,6 +52,8 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     assert photo["filename"] == "frame.jpg"
     assert photo["thumbnail_path"]
     assert photo["preview_path"]
+    assert photo["processing_state"] == "imported"
+    assert photo["processing_error"] is None
     imported_project = client.get(f"/api/projects/{project['id']}").json()
     assert imported_project["total_images"] == 1
     assert imported_project["processed_images"] == 0
@@ -69,6 +71,9 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     assert job["completed_at"] is not None
     processed_project = client.get(f"/api/projects/{project['id']}").json()
     assert processed_project["processed_images"] == 1
+    processed_photo = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
+    assert processed_photo["processing_state"] == "processed"
+    assert processed_photo["processing_error"] is None
 
     groups = client.get(f"/api/projects/{project['id']}/groups").json()
     assert len(groups) == 1
@@ -163,6 +168,8 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
     photos = client.get(f"/api/projects/{project['id']}/photos").json()
     assert len(photos) == 2
     assert all(photo["group_id"] for photo in photos)
+    assert all(photo["processing_state"] == "processed" for photo in photos)
+    assert all(photo["processing_error"] is None for photo in photos)
     groups = client.get(f"/api/projects/{project['id']}/groups").json()
     assert groups
     assert sum(group["photo_count"] for group in groups) == 2
@@ -304,6 +311,8 @@ def test_processing_skips_photo_with_invalid_similarity_data(tmp_path, monkeypat
     groups = client.get(f"/api/projects/{project['id']}/groups").json()
     assert sum(group["photo_count"] for group in groups) == 1
     invalid_after_processing = client.get(f"/api/projects/{project['id']}/photos/{invalid_photo_id}").json()
+    assert invalid_after_processing["processing_state"] == "failed"
+    assert invalid_after_processing["processing_error"] == "Stored similarity data is invalid"
     assert "stored similarity data is invalid" in invalid_after_processing["recommendation_explanation"]
 
 

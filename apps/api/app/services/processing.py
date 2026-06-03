@@ -126,6 +126,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
             session.delete(existing)
         for photo in photos:
             photo.group_id = None
+            photo.processing_state = "processing"
+            photo.processing_error = None
             session.add(photo)
         session.commit()
 
@@ -137,6 +139,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
                 "Processing skipped this photo because its stored similarity data is invalid. Reimport the photo "
                 "to rebuild local analysis data."
             )
+            photo.processing_state = "failed"
+            photo.processing_error = "Stored similarity data is invalid"
             photo.updated_at = utc_now()
             session.add(photo)
         session.commit()
@@ -176,6 +180,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
                 photo.ai_recommendation = item.recommendation
                 photo.recommendation_explanation = item.explanation
                 photo.overall_score = max(photo.overall_score, item.score)
+                photo.processing_state = "processed"
+                photo.processing_error = None
                 photo.updated_at = utc_now()
                 session.add(photo)
 

@@ -58,6 +58,8 @@ class PhotoRead(BaseModel):
     user_status: str
     star_rating: int
     group_id: str | None
+    processing_state: str
+    processing_error: str | None
 
 
 class ImportSkippedFile(BaseModel):

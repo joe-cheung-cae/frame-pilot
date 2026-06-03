@@ -46,6 +46,8 @@ The response contains both imported photos and skipped files:
       "filename": "frame.jpg",
       "thumbnail_path": ".../thumbnails/frame.webp",
       "preview_path": ".../previews/frame.webp",
+      "processing_state": "imported",
+      "processing_error": null,
       "user_status": "Unreviewed",
       "ai_recommendation": "Unreviewed"
     }
@@ -85,6 +87,13 @@ A processing job includes:
 ```
 
 A completed job means grouping, ranking, and recommendation explanations have been rebuilt for the current imported photo set.
+
+Each photo also exposes local processing state:
+
+- `imported`: the photo has been imported and is waiting for grouping/ranking.
+- `processing`: a current processing job is working on the photo.
+- `processed`: grouping/ranking completed for the photo.
+- `failed`: the job skipped the photo and recorded `processing_error`.
 
 `GET /api/projects/{project_id}/photos` returns photos ordered for review by group, AI recommendation priority, score, and filename.
 

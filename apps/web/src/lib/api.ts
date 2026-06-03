@@ -35,6 +35,8 @@ export type Photo = {
   user_status: "Pick" | "Maybe" | "Reject" | "Unreviewed";
   star_rating: number;
   group_id: string | null;
+  processing_state: "imported" | "processing" | "processed" | "failed";
+  processing_error: string | null;
 };
 
 export type ImportResult = {
