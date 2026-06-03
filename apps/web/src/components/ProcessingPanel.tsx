@@ -17,7 +17,7 @@ const RECENT_JOB_LIMIT = 50;
 export function ProcessingPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [jobLimit, setJobLimit] = useState(RECENT_JOB_LIMIT);
-  const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
+  const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
   const mutation = useMutation({
     mutationFn: () => api.processProject(projectId),
     onSuccess: async () => {
@@ -123,6 +123,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           Import JPEG, PNG, or WebP images before running grouping and ranking.
         </p>
       ) : null}
+      {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
       <div className="grid gap-3">
         <h2 className="text-sm font-semibold">Processing History</h2>

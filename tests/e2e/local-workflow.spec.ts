@@ -447,6 +447,14 @@ test("shows processing job list load errors", async ({ page }) => {
   await expect(page.getByText("Could not load processing jobs")).toBeVisible();
 });
 
+test("shows processing project load errors", async ({ page }) => {
+  failProjectDetail = true;
+
+  await page.goto(`/projects/${project.id}/process`);
+
+  await expect(page.getByText("Could not load project details")).toBeVisible();
+});
+
 test("loads more processing history on request", async ({ page }) => {
   const requestedLimits: number[] = [];
   const jobHistory = Array.from({ length: 51 }, (_, index) => {
