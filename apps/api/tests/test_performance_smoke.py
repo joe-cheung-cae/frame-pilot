@@ -1,4 +1,11 @@
-from app.devtools.performance_smoke import PerformanceSmokeConfig, run_performance_smoke
+from pathlib import Path
+
+from app.devtools.performance_smoke import (
+    PerformanceSmokeConfig,
+    PerformanceSmokeSuiteConfig,
+    run_performance_smoke,
+    run_performance_smoke_suite,
+)
 
 
 def test_performance_smoke_reports_local_workflow_metrics(tmp_path):
@@ -21,3 +28,27 @@ def test_performance_smoke_reports_local_workflow_metrics(tmp_path):
     assert result["timings"]["import_seconds"] >= 0
     assert result["timings"]["process_seconds"] >= 0
     assert result["timings"]["export_seconds"] >= 0
+
+
+def test_performance_smoke_suite_reports_multiple_counts(tmp_path):
+    result = run_performance_smoke_suite(
+        PerformanceSmokeSuiteConfig(
+            output_dir=tmp_path,
+            counts=(1, 2),
+            width=64,
+            height=48,
+            import_batch_size=1,
+            export_modes=("csv",),
+        )
+    )
+
+    assert result["counts"] == [1, 2]
+    assert result["status"] == "complete"
+    assert [item["count"] for item in result["results"]] == [1, 2]
+
+    for item in result["results"]:
+        assert item["exports"]["csv"]["bytes"] > 0
+        assert item["failed_items"] == 0
+        assert item["imported_count"] == item["count"]
+        assert item["processed_images"] == item["count"]
+        assert Path(item["output_dir"]).parent == tmp_path

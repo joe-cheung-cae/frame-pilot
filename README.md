@@ -72,6 +72,14 @@ npm run perf:api -- --output /tmp/framepilot-perf-500 --count 500
 The smoke command reports generation, import, processing time, and peak memory for the local process.
 It also marks the synthetic photos as Pick and records CSV, ZIP, and folder export timings by default.
 
+Run the v2.5 large-batch targets as an explicit local validation step:
+
+```bash
+npm run perf:api -- --output /tmp/framepilot-perf-targets --counts 100 500 2000
+```
+
+Each count writes generated sources, local metadata, and exports under a separate `count-*` subdirectory.
+
 ## Privacy
 
 The MVP does not upload originals or generated previews to any remote service. Imported images are copied into the local project directory so originals are never modified.

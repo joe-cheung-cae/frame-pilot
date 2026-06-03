@@ -28,6 +28,16 @@ class PerformanceSmokeConfig:
     export_modes: tuple[str, ...] = DEFAULT_EXPORT_MODES
 
 
+@dataclass(frozen=True)
+class PerformanceSmokeSuiteConfig:
+    output_dir: Path
+    counts: tuple[int, ...]
+    width: int = 96
+    height: int = 72
+    import_batch_size: int = 100
+    export_modes: tuple[str, ...] = DEFAULT_EXPORT_MODES
+
+
 def _max_rss_mb() -> float:
     rss = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
     if platform.system() == "Darwin":
@@ -166,10 +176,48 @@ def run_performance_smoke(config: PerformanceSmokeConfig) -> dict:
             os.environ["FRAMEPILOT_DATA_DIR"] = previous_data_dir
 
 
+def run_performance_smoke_suite(config: PerformanceSmokeSuiteConfig) -> dict:
+    if not config.counts:
+        raise ValueError("counts must include at least one image count")
+    invalid_counts = [count for count in config.counts if count <= 0]
+    if invalid_counts:
+        raise ValueError("counts must be greater than zero")
+    if len(set(config.counts)) != len(config.counts):
+        raise ValueError("counts must not contain duplicates")
+
+    results = []
+    for count in config.counts:
+        result = run_performance_smoke(
+            PerformanceSmokeConfig(
+                output_dir=config.output_dir / f"count-{count:06d}",
+                count=count,
+                width=config.width,
+                height=config.height,
+                import_batch_size=config.import_batch_size,
+                export_modes=config.export_modes,
+            )
+        )
+        results.append(result)
+
+    return {
+        "counts": list(config.counts),
+        "output_dir": str(config.output_dir),
+        "results": results,
+        "status": "complete" if all(result["status"] == "complete" for result in results) else "failed",
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a local synthetic import/process performance smoke.")
     parser.add_argument("--output", type=Path, help="Directory for generated images and local FramePilot data.")
-    parser.add_argument("--count", required=True, type=int, help="Number of synthetic images to import and process.")
+    count_group = parser.add_mutually_exclusive_group(required=True)
+    count_group.add_argument("--count", type=int, help="Number of synthetic images to import and process.")
+    count_group.add_argument(
+        "--counts",
+        nargs="+",
+        type=int,
+        help="Run multiple image counts in sequence, for example: --counts 100 500 2000.",
+    )
     parser.add_argument("--width", default=96, type=int, help="Synthetic image width in pixels.")
     parser.add_argument("--height", default=72, type=int, help="Synthetic image height in pixels.")
     parser.add_argument("--import-batch-size", default=100, type=int, help="Files to upload per import request.")
@@ -187,16 +235,28 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     with tempfile.TemporaryDirectory(prefix="framepilot-perf-") as temp_dir:
         output_dir = args.output or Path(temp_dir)
-        result = run_performance_smoke(
-            PerformanceSmokeConfig(
-                output_dir=output_dir,
-                count=args.count,
-                width=args.width,
-                height=args.height,
-                import_batch_size=args.import_batch_size,
-                export_modes=tuple(args.export_modes),
+        if args.counts:
+            result = run_performance_smoke_suite(
+                PerformanceSmokeSuiteConfig(
+                    output_dir=output_dir,
+                    counts=tuple(args.counts),
+                    width=args.width,
+                    height=args.height,
+                    import_batch_size=args.import_batch_size,
+                    export_modes=tuple(args.export_modes),
+                )
             )
-        )
+        else:
+            result = run_performance_smoke(
+                PerformanceSmokeConfig(
+                    output_dir=output_dir,
+                    count=args.count,
+                    width=args.width,
+                    height=args.height,
+                    import_batch_size=args.import_batch_size,
+                    export_modes=tuple(args.export_modes),
+                )
+            )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
