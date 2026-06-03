@@ -840,6 +840,12 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page).toHaveURL(/\/projects\/project-1\/export$/);
   await expect(page.getByRole("heading", { name: "Export Selection" })).toBeVisible();
   await expect(page.getByText(`Exports folder: ${project.root_path}/exports`)).toBeVisible();
+  await expect(page.getByRole("button", { name: "CSV" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Folder" })).toHaveAttribute("aria-pressed", "false");
+  await page.getByRole("button", { name: "Folder" }).click();
+  await expect(page.getByRole("button", { name: "CSV" })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", { name: "Folder" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "CSV" }).click();
   await page.getByLabel("Maybe").uncheck();
   await page.getByRole("button", { name: "Export" }).click();
   await expect(page.getByText("1 photo exported.")).toBeVisible();

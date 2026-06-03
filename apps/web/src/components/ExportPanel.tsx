@@ -145,9 +145,11 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           const Icon = item.icon;
           return (
             <button
+              aria-pressed={mode === item.mode}
               className={`focus-ring flex min-h-24 items-center justify-center gap-3 rounded border px-4 font-medium ${mode === item.mode ? "border-leaf bg-white text-leaf" : "border-line bg-white"}`}
               key={item.mode}
               onClick={() => setMode(item.mode)}
+              type="button"
             >
               <Icon size={22} />
               {item.label}
