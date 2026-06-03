@@ -328,6 +328,42 @@ def test_process_skips_unchanged_project_without_rebuilding_groups(tmp_path, mon
     assert client.get(f"/api/projects/{project['id']}").json()["last_processed_at"] == first_last_processed_at
 
 
+def test_processing_can_recover_after_failed_job(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Recover processing"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    photo_id = import_response.json()["imported"][0]["id"]
+
+    def fail_grouping(_inputs):
+        raise RuntimeError("grouping interrupted")
+
+    with monkeypatch.context() as failure_patch:
+        failure_patch.setattr("app.services.processing.group_similar_photos", fail_grouping)
+        failed_job = _wait_for_job(client, project["id"], client.post(f"/api/projects/{project['id']}/process").json())
+
+    assert failed_job["status"] == "failed"
+    assert failed_job["current_step"] == "failed"
+    assert "grouping interrupted" in failed_job["error_message"]
+    interrupted_photo = client.get(f"/api/projects/{project['id']}/photos/{photo_id}").json()
+    assert interrupted_photo["processing_state"] == "processing"
+
+    recovered_job = _wait_for_job(client, project["id"], client.post(f"/api/projects/{project['id']}/process").json())
+
+    assert recovered_job["status"] == "complete"
+    assert recovered_job["processed_items"] == 1
+    assert recovered_job["failed_items"] == 0
+    recovered_photo = client.get(f"/api/projects/{project['id']}/photos/{photo_id}").json()
+    assert recovered_photo["processing_state"] == "processed"
+    assert recovered_photo["processing_error"] is None
+    assert len(client.get(f"/api/projects/{project['id']}/groups").json()) == 1
+
+
 def test_processing_skips_photo_with_invalid_similarity_data(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
