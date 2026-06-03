@@ -58,3 +58,5 @@ The processing page shows recent local job history from a bounded newest-first q
 The export page shows the local exports folder before export, keeps status totals lightweight through the status-count API, and keeps export history bounded by loading the most recent records first, with an explicit load-more action for older local export records.
 
 The shell links to a local help page that lists the keyboard shortcuts supported by the culling workspace.
+
+Recent project cards link to the next resumable workflow step and show whether the project should continue with import, processing, or culling.

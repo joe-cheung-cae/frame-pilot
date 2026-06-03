@@ -9,3 +9,16 @@ export function projectNextHref(project: Pick<Project, "id" | "total_images" | "
   }
   return `/projects/${project.id}/process`;
 }
+
+export function projectNextActionLabel(project: Pick<Project, "total_images" | "processed_images">): string {
+  if (project.total_images <= 0) {
+    return "Import images";
+  }
+  if (project.processed_images <= 0) {
+    return "Process photos";
+  }
+  if (project.processed_images < project.total_images) {
+    return "Continue culling";
+  }
+  return "Review culling";
+}

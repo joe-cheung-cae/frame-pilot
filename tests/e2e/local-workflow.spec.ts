@@ -577,6 +577,8 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Recent Projects" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Project data: \/tmp\/framepilot\/e2e/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Next: Process photos/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Next: Import images/ })).toBeVisible();
   await page.getByRole("link", { name: /E2E Shoot/ }).click();
   await expect(page).toHaveURL(/\/projects\/project-1\/process$/);
 
