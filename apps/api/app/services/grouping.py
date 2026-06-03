@@ -62,6 +62,15 @@ def _metadata_is_compatible(left: dict[str, Any], right: dict[str, Any]) -> bool
     return True
 
 
+def _hash_distance(left_hash: str | None, right_hash: str | None) -> int | None:
+    if not left_hash or not right_hash:
+        return None
+    try:
+        return (int(left_hash, 16) ^ int(right_hash, 16)).bit_count()
+    except ValueError:
+        return None
+
+
 def _is_candidate_pair(
     left: dict[str, Any],
     right: dict[str, Any],
@@ -102,6 +111,7 @@ def group_similar_photos(
     max_time_gap_seconds: int = 30,
     max_filename_gap: int = 3,
     candidate_window_size: int = 8,
+    max_hash_distance: int = 8,
 ) -> list[SimilarPhotoGroup]:
     if not photos:
         return []
@@ -115,8 +125,13 @@ def group_similar_photos(
             right_photo = sorted_photos[right_index]
             if not _is_candidate_pair(left_photo, right_photo, max_time_gap_seconds, max_filename_gap):
                 continue
-            similarity = cosine_similarity(left_photo.get("embedding") or [], right_photo.get("embedding") or [])
-            if similarity >= similarity_threshold:
+            hash_distance = _hash_distance(left_photo.get("perceptual_hash"), right_photo.get("perceptual_hash"))
+            if hash_distance is not None:
+                is_similar = hash_distance <= max_hash_distance
+            else:
+                similarity = cosine_similarity(left_photo.get("embedding") or [], right_photo.get("embedding") or [])
+                is_similar = similarity >= similarity_threshold
+            if is_similar:
                 _union(parent, left_index, right_index)
 
     grouped_by_root: dict[int, list[dict[str, Any]]] = {}

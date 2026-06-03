@@ -48,6 +48,7 @@ class Photo(SQLModel, table=True):
     iso: int | None = None
     thumbnail_path: str | None = None
     preview_path: str | None = None
+    perceptual_hash: str | None = None
     sharpness_score: float = 0.0
     blur_score: float = 1.0
     exposure_score: float = 0.0

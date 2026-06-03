@@ -72,6 +72,7 @@ The response contains both imported photos and skipped files:
       "content_hash": "sha256-hex",
       "project_copy_path": ".../originals/frame.jpg",
       "source_identity": "sha256:sha256-hex",
+      "perceptual_hash": "ff00ff00ff00ff00",
       "thumbnail_path": ".../thumbnails/frame.webp",
       "preview_path": ".../previews/frame.webp",
       "processing_state": "imported",

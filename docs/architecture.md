@@ -32,6 +32,6 @@ Import is tolerant of mixed file selections: supported images are copied into `o
 
 Imported photos record deterministic local file identity metadata for the copied original: extension, file size, copy modification time, SHA-256 content hash, project copy path, and source identity. This supports future resumable processing without changing or deleting original photo files.
 
-Grouping uses deterministic candidate windows and union-find. Candidate pairs are limited by capture-time or filename proximity, checked for compatible dimensions, camera model, and focal length when those fields are available, then merged when their local embedding similarity meets the grouping threshold.
+Grouping uses deterministic candidate windows and union-find. Candidate pairs are limited by capture-time or filename proximity, checked for compatible dimensions, camera model, and focal length when those fields are available, then merged when their stored perceptual hashes are close enough or, when hashes are unavailable, their local embedding similarity meets the grouping threshold.
 
 Exports are local artifacts written under `exports/`. Each export record has a unique output path and records the selected statuses plus selected photo count. Empty exports are rejected before an artifact is written. CSV and ZIP artifacts can be downloaded through the local API; folder exports expose the local output path.

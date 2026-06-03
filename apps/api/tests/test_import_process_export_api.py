@@ -64,6 +64,7 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     assert photo["content_hash"] == hashlib.sha256(_image_bytes()).hexdigest()
     assert photo["source_identity"] == f"sha256:{photo['content_hash']}"
     assert photo["project_copy_path"]
+    assert len(photo["perceptual_hash"]) == 16
     assert photo["thumbnail_path"]
     assert photo["preview_path"]
     assert photo["processing_state"] == "imported"

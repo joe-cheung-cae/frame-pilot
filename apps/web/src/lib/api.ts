@@ -28,6 +28,7 @@ export type Photo = {
   height: number;
   thumbnail_path: string | null;
   preview_path: string | null;
+  perceptual_hash: string | null;
   sharpness_score: number;
   blur_score: number;
   exposure_score: number;

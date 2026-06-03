@@ -8,7 +8,7 @@ import numpy as np
 from PIL import ExifTags, Image, ImageOps, UnidentifiedImageError
 from sqlmodel import Session, select
 
-from app.ai.embeddings import image_embedding
+from app.ai.embeddings import image_embedding, perceptual_hash
 from app.image.scoring import compute_quality_scores
 from app.models.entities import Photo, PhotoGroup, Project, utc_now
 
@@ -166,6 +166,7 @@ def import_image_file(session: Session, project: Project, filename: str, file: B
             thumbnail_path, preview_path = _save_derivatives(project_root, source_path, image)
             scores = compute_quality_scores(np.asarray(image))
             embedding = image_embedding(image)
+            p_hash = perceptual_hash(image)
     except (UnidentifiedImageError, OSError) as error:
         _cleanup_paths(source_path, thumbnail_path, preview_path)
         raise ValueError("Uploaded file could not be opened as a supported image") from error
@@ -190,6 +191,7 @@ def import_image_file(session: Session, project: Project, filename: str, file: B
         height=height,
         thumbnail_path=str(thumbnail_path),
         preview_path=str(preview_path),
+        perceptual_hash=p_hash,
         sharpness_score=scores.sharpness_score,
         blur_score=scores.blur_score,
         exposure_score=scores.exposure_score,

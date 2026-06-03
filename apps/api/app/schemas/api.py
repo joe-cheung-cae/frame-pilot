@@ -51,6 +51,7 @@ class PhotoRead(BaseModel):
     iso: int | None
     thumbnail_path: str | None
     preview_path: str | None
+    perceptual_hash: str | None
     sharpness_score: float
     blur_score: float
     exposure_score: float

@@ -62,6 +62,7 @@ def _build_group_inputs(photos: list[Photo]) -> tuple[list[dict], list[Photo]]:
                 "filename": photo.filename,
                 "capture_time": photo.capture_time,
                 "embedding": embedding,
+                "perceptual_hash": photo.perceptual_hash,
                 "width": photo.width,
                 "height": photo.height,
                 "camera_model": photo.camera_model,
