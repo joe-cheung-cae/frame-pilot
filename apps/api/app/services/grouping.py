@@ -54,7 +54,7 @@ def _filename_gap(left: dict[str, Any], right: dict[str, Any]) -> int | None:
 
 
 def _metadata_is_compatible(left: dict[str, Any], right: dict[str, Any]) -> bool:
-    for key in ("width", "height", "camera_model", "focal_length"):
+    for key in ("width", "height", "camera_model", "lens_model", "focal_length"):
         left_value = left.get(key)
         right_value = right.get(key)
         if left_value is not None and right_value is not None and left_value != right_value:

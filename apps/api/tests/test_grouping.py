@@ -103,6 +103,37 @@ def test_grouping_avoids_over_merging_across_metadata_mismatch():
     assert [group.photo_ids for group in groups] == [["wide"], ["tele"], ["other-camera"]]
 
 
+def test_grouping_avoids_over_merging_across_lens_mismatch():
+    photos = [
+        {
+            "id": "prime",
+            "filename": "IMG_0001.jpg",
+            "capture_time": "2026-01-01T10:00:00",
+            "embedding": [1.0, 0.0],
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "lens_model": "Prime 35mm",
+            "focal_length": "35",
+        },
+        {
+            "id": "zoom",
+            "filename": "IMG_0002.jpg",
+            "capture_time": "2026-01-01T10:00:01",
+            "embedding": [1.0, 0.0],
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "lens_model": "Zoom 24-70mm",
+            "focal_length": "35",
+        },
+    ]
+
+    groups = group_similar_photos(photos, similarity_threshold=0.95, max_time_gap_seconds=10)
+
+    assert [group.photo_ids for group in groups] == [["prime"], ["zoom"]]
+
+
 def test_grouping_uses_filename_proximity_without_capture_time():
     photos = [
         {"id": "a", "filename": "IMG_0001.jpg", "embedding": [1.0, 0.0]},
