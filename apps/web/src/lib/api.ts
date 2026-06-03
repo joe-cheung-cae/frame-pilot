@@ -171,7 +171,8 @@ export const api = {
   },
   processProject: (projectId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/process`, { method: "POST" }),
-  listJobs: (projectId: string) => request<ProcessingJob[]>(`/api/projects/${projectId}/jobs`),
+  listJobs: (projectId: string, options?: ListPageOptions) =>
+    request<ProcessingJob[]>(`/api/projects/${projectId}/jobs${listPageQuery(options)}`),
   getJob: (projectId: string, jobId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}`),
   listPhotos: (projectId: string, options?: ListPageOptions) =>
