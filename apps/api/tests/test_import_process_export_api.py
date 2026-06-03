@@ -256,6 +256,48 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
     assert folder_download_response.status_code == 422
 
 
+def test_failed_export_records_error_and_removes_partial_artifact(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Failed export"}).json()
+    original = tmp_path / "selected.jpg"
+    original.write_bytes(b"original")
+
+    with Session(get_engine()) as session:
+        session.add(
+            Photo(
+                project_id=project["id"],
+                original_path=str(original),
+                filename="selected.jpg",
+                user_status="Pick",
+            )
+        )
+        session.commit()
+
+    def fail_after_partial_write(target: Path, _photos: list[dict]) -> Path:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("partial")
+        raise RuntimeError("csv writer failed")
+
+    monkeypatch.setattr(routes, "write_selection_csv", fail_after_partial_write)
+
+    response = client.post(
+        f"/api/projects/{project['id']}/export",
+        json={"mode": "csv", "statuses": ["Pick"]},
+    )
+
+    assert response.status_code == 500
+    history = client.get(f"/api/projects/{project['id']}/export").json()
+    assert len(history) == 1
+    failed_export = history[0]
+    assert failed_export["status"] == "failed"
+    assert failed_export["selected_count"] == 1
+    assert failed_export["error_message"] == "Export failed"
+    assert not Path(failed_export["output_path"]).exists()
+    download_response = client.get(f"/api/projects/{project['id']}/export/{failed_export['id']}/download")
+    assert download_response.status_code == 409
+
+
 def test_multi_file_import_invalidates_processing_once(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     invalidate_calls = 0

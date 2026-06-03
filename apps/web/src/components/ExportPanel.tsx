@@ -145,6 +145,9 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                   </p>
                   <p className="text-neutral-600">Statuses: {formatExportStatusSummary(record.statuses)}</p>
                   <p className="text-neutral-600">{record.output_path}</p>
+                  {record.status === "failed" && record.error_message ? (
+                    <p className="text-coral">{record.error_message}</p>
+                  ) : null}
                 </div>
                 {isExportDownloadable(record) ? (
                   <a

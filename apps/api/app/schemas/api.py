@@ -163,4 +163,5 @@ class ExportRead(BaseModel):
     selected_count: int
     statuses: str
     output_path: str
+    error_message: str | None
     created_at: datetime

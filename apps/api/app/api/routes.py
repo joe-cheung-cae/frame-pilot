@@ -299,6 +299,7 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
         _remove_partial_export(target)
         record.status = "failed"
         record.output_path = str(target)
+        record.error_message = "Export failed"
         session.add(record)
         session.commit()
         raise HTTPException(status_code=500, detail="Export failed") from error

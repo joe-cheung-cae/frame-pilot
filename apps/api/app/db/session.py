@@ -34,6 +34,8 @@ def _ensure_export_record_columns(engine) -> None:
         statements.append("ALTER TABLE exportrecord ADD COLUMN selected_count INTEGER NOT NULL DEFAULT 0")
     if "statuses" not in existing:
         statements.append("ALTER TABLE exportrecord ADD COLUMN statuses VARCHAR NOT NULL DEFAULT '[]'")
+    if "error_message" not in existing:
+        statements.append("ALTER TABLE exportrecord ADD COLUMN error_message VARCHAR")
 
     if not statements:
         return

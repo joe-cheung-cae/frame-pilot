@@ -108,4 +108,5 @@ class ExportRecord(SQLModel, table=True):
     selected_count: int = 0
     statuses: str = "[]"
     output_path: str
+    error_message: str | None = None
     created_at: datetime = Field(default_factory=utc_now)

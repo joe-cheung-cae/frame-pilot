@@ -86,6 +86,7 @@ export type ExportRecord = {
   selected_count: number;
   statuses: string;
   output_path: string;
+  error_message: string | null;
   created_at: string;
 };
 
