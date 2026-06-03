@@ -862,6 +862,33 @@ def test_photo_list_prioritizes_recommended_and_high_scoring_photos(tmp_path, mo
     assert [photo["filename"] for photo in response.json()] == ["pick.jpg", "maybe.jpg", "reject.jpg"]
 
 
+def test_photo_status_counts_include_zeroes_and_exclude_other_projects(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Status counts"}).json()
+    other_project = client.post("/api/projects", json={"name": "Other status counts"}).json()
+
+    with Session(get_engine()) as session:
+        photos = [
+            Photo(project_id=project["id"], original_path="/tmp/pick-a.jpg", filename="pick-a.jpg", user_status="Pick"),
+            Photo(project_id=project["id"], original_path="/tmp/pick-b.jpg", filename="pick-b.jpg", user_status="Pick"),
+            Photo(project_id=project["id"], original_path="/tmp/maybe.jpg", filename="maybe.jpg", user_status="Maybe"),
+            Photo(
+                project_id=other_project["id"],
+                original_path="/tmp/other-reject.jpg",
+                filename="other-reject.jpg",
+                user_status="Reject",
+            ),
+        ]
+        session.add_all(photos)
+        session.commit()
+
+    response = client.get(f"/api/projects/{project['id']}/photos/status-counts")
+
+    assert response.status_code == 200
+    assert response.json() == {"Pick": 2, "Maybe": 1, "Reject": 0, "Unreviewed": 0}
+
+
 def test_photo_update_rejects_empty_patch(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())

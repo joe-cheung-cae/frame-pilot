@@ -2,10 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileArchive, FileSpreadsheet, FolderOutput, Loader2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { api, exportDownloadUrl } from "@/lib/api";
 import {
-  countPhotosByStatus,
   EXPORT_STATUSES,
   formatExportStatusSummary,
   isExportDownloadable,
@@ -19,9 +18,9 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
   const [statuses, setStatuses] = useState<ExportStatus[]>(["Pick", "Maybe"]);
-  const photosQuery = useQuery({
-    queryKey: ["photos", projectId],
-    queryFn: () => api.listAllPhotos(projectId),
+  const statusCountsQuery = useQuery({
+    queryKey: ["photo-status-counts", projectId],
+    queryFn: () => api.getPhotoStatusCounts(projectId),
     retry: false,
   });
   const exportsQuery = useQuery({
@@ -29,7 +28,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
     queryFn: () => api.listAllExports(projectId),
     retry: false,
   });
-  const statusCounts = useMemo(() => countPhotosByStatus(photosQuery.data ?? []), [photosQuery.data]);
+  const statusCounts = statusCountsQuery.data ?? { Pick: 0, Maybe: 0, Reject: 0, Unreviewed: 0 };
   const selectedCount = selectedPhotoCount(statusCounts, statuses);
   const mutation = useMutation({
     mutationFn: () => {
@@ -103,15 +102,15 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       </div>
       <button
         className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white disabled:opacity-50"
-        disabled={mutation.isPending || photosQuery.isLoading || !statuses.length || selectedCount === 0}
+        disabled={mutation.isPending || statusCountsQuery.isLoading || !statuses.length || selectedCount === 0}
         onClick={() => mutation.mutate()}
       >
         {mutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
         Export
       </button>
       {!statuses.length ? <p className="text-sm text-coral">Choose at least one status to export.</p> : null}
-      {photosQuery.isError ? <p className="text-sm text-coral">{photosQuery.error.message}</p> : null}
-      {statuses.length > 0 && selectedCount === 0 && !photosQuery.isLoading && !photosQuery.isError ? (
+      {statusCountsQuery.isError ? <p className="text-sm text-coral">{statusCountsQuery.error.message}</p> : null}
+      {statuses.length > 0 && selectedCount === 0 && !statusCountsQuery.isLoading && !statusCountsQuery.isError ? (
         <p className="text-sm text-neutral-600">No photos match the selected statuses.</p>
       ) : null}
       {mutation.data ? (

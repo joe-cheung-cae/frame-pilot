@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import case
+from sqlalchemy import case, func
 from sqlmodel import Session, select
 
 from app.db.session import get_session
@@ -17,6 +17,7 @@ from app.schemas.api import (
     JobRead,
     PhotoBatchUpdate,
     PhotoRead,
+    PhotoStatusCountsRead,
     PhotoUpdate,
     ProjectCreate,
     ProjectRead,
@@ -218,6 +219,22 @@ def list_photos_endpoint(
     if limit is not None:
         statement = statement.limit(limit)
     return list(session.exec(statement).all())
+
+
+@router.get("/projects/{project_id}/photos/status-counts", response_model=PhotoStatusCountsRead)
+def get_photo_status_counts_endpoint(project_id: str, session: Session = Depends(get_session)):
+    _get_project(session, project_id)
+    statuses = ["Pick", "Maybe", "Reject", "Unreviewed"]
+    counts = {status: 0 for status in statuses}
+    rows = session.exec(
+        select(Photo.user_status, func.count())
+        .where(Photo.project_id == project_id)
+        .where(Photo.user_status.in_(statuses))
+        .group_by(Photo.user_status)
+    ).all()
+    for user_status, count in rows:
+        counts[user_status] = count
+    return counts
 
 
 @router.get("/projects/{project_id}/photos/{photo_id}", response_model=PhotoRead)

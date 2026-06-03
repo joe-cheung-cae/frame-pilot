@@ -158,7 +158,7 @@ let photoPatches: { patch: { star_rating?: number; user_status?: string }; photo
 let batchPhotoPatches: { patch: { star_rating?: number; user_status?: string }; photoIds: string[] }[] = [];
 let failNextPhotoPatch = false;
 let failExportHistory = false;
-let failPhotoList = false;
+let failPhotoStatusCounts = false;
 let failJobList = false;
 let failProjectDetail = false;
 let photoListRequests = 0;
@@ -167,12 +167,24 @@ function projectListRoute(resource: "exports" | "groups" | "jobs" | "photos") {
   return new RegExp(`/api/projects/${project.id}/${resource}(?:\\?.*)?$`);
 }
 
+function photoStatusCounts(currentPhotos: readonly { user_status: string }[]) {
+  return currentPhotos.reduce(
+    (counts, photo) => {
+      if (photo.user_status in counts) {
+        counts[photo.user_status as keyof typeof counts] += 1;
+      }
+      return counts;
+    },
+    { Pick: 0, Maybe: 0, Reject: 0, Unreviewed: 0 },
+  );
+}
+
 test.beforeEach(async ({ page }) => {
   photoPatches = [];
   batchPhotoPatches = [];
   failNextPhotoPatch = false;
   failExportHistory = false;
-  failPhotoList = false;
+  failPhotoStatusCounts = false;
   failJobList = false;
   failProjectDetail = false;
   photoListRequests = 0;
@@ -246,15 +258,19 @@ test.beforeEach(async ({ page }) => {
 
   await page.route(projectListRoute("photos"), async (route) => {
     photoListRequests += 1;
-    if (failPhotoList) {
-      await route.fulfill({ json: { detail: "Could not load exportable photos" }, status: 500 });
-      return;
-    }
     await route.fulfill({ json: currentPhotos });
   });
 
+  await page.route(`**/api/projects/${project.id}/photos/status-counts`, async (route) => {
+    if (failPhotoStatusCounts) {
+      await route.fulfill({ json: { detail: "Could not load exportable photos" }, status: 500 });
+      return;
+    }
+    await route.fulfill({ json: photoStatusCounts(currentPhotos) });
+  });
+
   await page.route(`**/api/projects/${project.id}/photos/*`, async (route) => {
-    if (route.request().url().endsWith("/photos/batch")) {
+    if (route.request().url().endsWith("/photos/batch") || route.request().url().endsWith("/photos/status-counts")) {
       await route.fallback();
       return;
     }
@@ -342,8 +358,8 @@ test("shows export history load errors", async ({ page }) => {
   await expect(page.getByText("No exports yet.")).toHaveCount(0);
 });
 
-test("shows export photo list load errors", async ({ page }) => {
-  failPhotoList = true;
+test("shows export photo count load errors", async ({ page }) => {
+  failPhotoStatusCounts = true;
 
   await page.goto(`/projects/${project.id}/export`);
 

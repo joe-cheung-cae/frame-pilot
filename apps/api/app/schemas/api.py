@@ -72,6 +72,13 @@ class PhotoRead(BaseModel):
     processing_error: str | None
 
 
+class PhotoStatusCountsRead(BaseModel):
+    Pick: int = 0
+    Maybe: int = 0
+    Reject: int = 0
+    Unreviewed: int = 0
+
+
 class ImportSkippedFile(BaseModel):
     filename: str
     reason: str

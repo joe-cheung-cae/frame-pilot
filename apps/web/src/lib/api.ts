@@ -56,6 +56,13 @@ export type Photo = {
   processing_error: string | null;
 };
 
+export type PhotoStatusCounts = {
+  Pick: number;
+  Maybe: number;
+  Reject: number;
+  Unreviewed: number;
+};
+
 export type ImportResult = {
   imported: Photo[];
   skipped: { filename: string; reason: string }[];
@@ -193,6 +200,10 @@ function listPhotos(projectId: string, options?: ListPageOptions) {
   return request<Photo[]>(`/api/projects/${projectId}/photos${listPageQuery(options)}`);
 }
 
+function getPhotoStatusCounts(projectId: string) {
+  return request<PhotoStatusCounts>(`/api/projects/${projectId}/photos/status-counts`);
+}
+
 function listAllPhotos(projectId: string, pageLimit?: number) {
   return collectPagedList((options) => listPhotos(projectId, options), pageLimit);
 }
@@ -230,6 +241,7 @@ export const api = {
   getJob: (projectId: string, jobId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}`),
   listPhotos,
+  getPhotoStatusCounts,
   listAllPhotos,
   updatePhoto: (projectId: string, photoId: string, patch: PhotoPatch) =>
     request<Photo>(`/api/projects/${projectId}/photos/${photoId}`, { method: "PATCH", body: JSON.stringify(patch) }),
