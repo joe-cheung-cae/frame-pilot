@@ -96,15 +96,15 @@ class PhotoUpdate(BaseModel):
             raise ValueError(f"Status must be one of {sorted(allowed)}")
         return value
 
-
-class PhotoBatchUpdate(PhotoUpdate):
-    photo_ids: list[str] = Field(min_length=1)
-
     @model_validator(mode="after")
-    def must_include_an_update(self) -> "PhotoBatchUpdate":
+    def must_include_an_update(self) -> "PhotoUpdate":
         if self.user_status is None and self.star_rating is None:
             raise ValueError("At least one photo update field is required")
         return self
+
+
+class PhotoBatchUpdate(PhotoUpdate):
+    photo_ids: list[str] = Field(min_length=1)
 
 
 class GroupRead(BaseModel):

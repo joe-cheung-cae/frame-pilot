@@ -149,6 +149,8 @@ If a whole processing job fails before individual photos complete, photos still 
 
 `GET /api/projects/{project_id}/photos` returns photos ordered for review by group, AI recommendation priority, score, and filename.
 
+`PATCH /api/projects/{project_id}/photos/{photo_id}` and `PATCH /api/projects/{project_id}/photos/batch` update review status and star rating. Requests must include at least one of `user_status` or `star_rating`.
+
 `GET /api/projects/{project_id}/groups` returns groups in stable creation order for group-by-group review. Each group includes a JSON `score_summary` string with the top photo id, best score, score gap, confidence label, recommendation counts, and a short deterministic explanation.
 
 Example group response:

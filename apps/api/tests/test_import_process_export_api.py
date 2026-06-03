@@ -806,6 +806,25 @@ def test_photo_list_prioritizes_recommended_and_high_scoring_photos(tmp_path, mo
     assert [photo["filename"] for photo in response.json()] == ["pick.jpg", "maybe.jpg", "reject.jpg"]
 
 
+def test_photo_update_rejects_empty_patch(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Empty patch"}).json()
+
+    with Session(get_engine()) as session:
+        photo = Photo(project_id=project["id"], original_path="/tmp/frame.jpg", filename="frame.jpg")
+        session.add(photo)
+        session.commit()
+        photo_id = photo.id
+
+    response = client.patch(f"/api/projects/{project['id']}/photos/{photo_id}", json={})
+
+    assert response.status_code == 422
+    unchanged = client.get(f"/api/projects/{project['id']}/photos/{photo_id}").json()
+    assert unchanged["user_status"] == "Unreviewed"
+    assert unchanged["star_rating"] == 0
+
+
 def test_batch_photo_update_changes_requested_project_photos(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
