@@ -311,6 +311,8 @@ def download_export_endpoint(project_id: str, export_id: str, session: Session =
     export = _get_export(session, project_id, export_id)
     if export.mode not in {"csv", "zip"}:
         raise HTTPException(status_code=422, detail="Folder exports are available at their local output path")
+    if export.status != "complete":
+        raise HTTPException(status_code=409, detail="Export artifact is not ready for download")
 
     export_path = Path(export.output_path)
     export_root = project_export_root(project).resolve()

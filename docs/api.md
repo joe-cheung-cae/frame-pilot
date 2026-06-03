@@ -186,13 +186,14 @@ GET /api/projects/{project_id}/export
 
 The response is an array of export records with the same shape as the creation response. The web export page uses this endpoint to show local export history, selected counts, status summaries, output paths, and download links for CSV and ZIP records.
 
-CSV and ZIP exports can be downloaded from:
+Completed CSV and ZIP exports can be downloaded from:
 
 ```text
 GET /api/projects/{project_id}/export/{export_id}/download
 ```
 
 Folder exports are available at their local output path and are not downloaded as a single artifact.
+Failed or still-running export records return `409` from the download endpoint.
 
 XMP sidecar export is not implemented in v2.0. The planned approach is documented in [Export Interoperability](export_interoperability.md).
 

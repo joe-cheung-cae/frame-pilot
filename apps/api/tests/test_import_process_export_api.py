@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 from app.api import routes
 from app.db.session import get_engine
 from app.main import create_app
-from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project
+from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project
 from app.services.importing import invalidate_project_processing
 
 
@@ -977,3 +977,31 @@ def test_failed_export_records_failed_history_and_removes_partial_artifact(tmp_p
     assert record["selected_count"] == 1
     assert record["output_path"].endswith(".csv")
     assert not Path(record["output_path"]).exists()
+
+
+def test_download_rejects_incomplete_export_records_even_when_artifact_exists(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Incomplete export"}).json()
+    export_path = Path(project["root_path"]) / "exports" / "failed.csv"
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+    export_path.write_text("partial export")
+
+    with Session(get_engine()) as session:
+        record = ExportRecord(
+            project_id=project["id"],
+            mode="csv",
+            status="failed",
+            selected_count=1,
+            statuses='["Pick"]',
+            output_path=str(export_path),
+        )
+        session.add(record)
+        session.commit()
+        session.refresh(record)
+        export_id = record.id
+
+    response = client.get(f"/api/projects/{project['id']}/export/{export_id}/download")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Export artifact is not ready for download"
