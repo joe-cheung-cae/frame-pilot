@@ -24,10 +24,10 @@ PATCH  /api/projects/{project_id}/photos/{photo_id}
 GET    /api/projects/{project_id}/groups
 GET    /api/projects/{project_id}/groups/{group_id}
 
-POST   /api/projects/{project_id}/export
-GET    /api/projects/{project_id}/export
-GET    /api/projects/{project_id}/export/{export_id}
-GET    /api/projects/{project_id}/export/{export_id}/download
+POST   /api/projects/{project_id}/exports
+GET    /api/projects/{project_id}/exports
+GET    /api/projects/{project_id}/exports/{export_id}
+GET    /api/projects/{project_id}/exports/{export_id}/download
 ```
 
 Generated thumbnails and previews are served from:
@@ -165,7 +165,7 @@ Example group response:
 
 ## Export
 
-`POST /api/projects/{project_id}/export` accepts:
+`POST /api/projects/{project_id}/exports` accepts:
 
 ```json
 {
@@ -200,7 +200,7 @@ CSV exports include filename, original path, user status, star rating, group id,
 Export records can be listed newest-first:
 
 ```text
-GET /api/projects/{project_id}/export
+GET /api/projects/{project_id}/exports
 ```
 
 The response is an array of export records with the same shape as the creation response. The web export page uses this endpoint to show local export history, selected counts, status summaries, output paths, and download links for CSV and ZIP records.
@@ -208,11 +208,12 @@ The response is an array of export records with the same shape as the creation r
 Completed CSV and ZIP exports can be downloaded from:
 
 ```text
-GET /api/projects/{project_id}/export/{export_id}/download
+GET /api/projects/{project_id}/exports/{export_id}/download
 ```
 
 Folder exports are available at their local output path and are not downloaded as a single artifact.
 Failed or still-running export records return `409` from the download endpoint.
+The singular `/api/projects/{project_id}/export` routes remain available as backward-compatible aliases.
 
 XMP sidecar export is not implemented in v2.0. The planned approach is documented in [Export Interoperability](export_interoperability.md).
 

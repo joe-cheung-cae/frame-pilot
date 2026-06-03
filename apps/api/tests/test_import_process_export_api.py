@@ -293,6 +293,35 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
     assert folder_download_response.status_code == 422
 
 
+def test_plural_export_routes_create_list_get_and_download(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Plural exports"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    photo = import_response.json()["imported"][0]
+    client.patch(
+        f"/api/projects/{project['id']}/photos/{photo['id']}",
+        json={"user_status": "Pick"},
+    )
+
+    create_response = client.post(f"/api/projects/{project['id']}/exports", json={"mode": "csv", "statuses": ["Pick"]})
+
+    assert create_response.status_code == 201
+    export_record = create_response.json()
+    list_response = client.get(f"/api/projects/{project['id']}/exports")
+    assert list_response.status_code == 200
+    assert [record["id"] for record in list_response.json()] == [export_record["id"]]
+    get_response = client.get(f"/api/projects/{project['id']}/exports/{export_record['id']}")
+    assert get_response.status_code == 200
+    assert get_response.json()["id"] == export_record["id"]
+    download_response = client.get(f"/api/projects/{project['id']}/exports/{export_record['id']}/download")
+    assert download_response.status_code == 200
+    assert b"filename,original_path,status" in download_response.content
+
+
 def test_multi_file_import_invalidates_processing_once(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     invalidate_calls = 0

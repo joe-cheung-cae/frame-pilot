@@ -265,6 +265,7 @@ def get_group_endpoint(project_id: str, group_id: str, session: Session = Depend
     return group
 
 
+@router.post("/projects/{project_id}/exports", response_model=ExportRead, status_code=status.HTTP_201_CREATED)
 @router.post("/projects/{project_id}/export", response_model=ExportRead, status_code=status.HTTP_201_CREATED)
 def create_export_endpoint(project_id: str, payload: ExportCreate, session: Session = Depends(get_session)):
     project = _get_project(session, project_id)
@@ -322,6 +323,7 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
     return record
 
 
+@router.get("/projects/{project_id}/exports", response_model=list[ExportRead])
 @router.get("/projects/{project_id}/export", response_model=list[ExportRead])
 def list_exports_endpoint(project_id: str, session: Session = Depends(get_session)):
     _get_project(session, project_id)
@@ -332,11 +334,13 @@ def list_exports_endpoint(project_id: str, session: Session = Depends(get_sessio
     )
 
 
+@router.get("/projects/{project_id}/exports/{export_id}", response_model=ExportRead)
 @router.get("/projects/{project_id}/export/{export_id}", response_model=ExportRead)
 def get_export_endpoint(project_id: str, export_id: str, session: Session = Depends(get_session)):
     return _get_export(session, project_id, export_id)
 
 
+@router.get("/projects/{project_id}/exports/{export_id}/download")
 @router.get("/projects/{project_id}/export/{export_id}/download")
 def download_export_endpoint(project_id: str, export_id: str, session: Session = Depends(get_session)):
     project = _get_project(session, project_id)

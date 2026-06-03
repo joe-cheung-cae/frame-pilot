@@ -166,16 +166,16 @@ export const api = {
       body: JSON.stringify({ photo_ids: photoIds, ...patch }),
     }),
   listGroups: (projectId: string) => request<PhotoGroup[]>(`/api/projects/${projectId}/groups`),
-  listExports: (projectId: string) => request<ExportRecord[]>(`/api/projects/${projectId}/export`),
+  listExports: (projectId: string) => request<ExportRecord[]>(`/api/projects/${projectId}/exports`),
   exportSelection: (projectId: string, mode: "csv" | "folder" | "zip", statuses: string[]) =>
-    request<ExportRecord>(`/api/projects/${projectId}/export`, {
+    request<ExportRecord>(`/api/projects/${projectId}/exports`, {
       method: "POST",
       body: JSON.stringify({ mode, statuses }),
     }),
 };
 
 export function exportDownloadUrl(projectId: string, exportId: string): string {
-  return `${API_BASE}/api/projects/${projectId}/export/${exportId}/download`;
+  return `${API_BASE}/api/projects/${projectId}/exports/${exportId}/download`;
 }
 
 export function assetUrl(projectId: string, path: string | null): string | null {

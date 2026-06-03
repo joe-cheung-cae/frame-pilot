@@ -262,7 +262,7 @@ test.beforeEach(async ({ page }) => {
     await route.fulfill({ json: groups });
   });
 
-  await page.route(`**/api/projects/${project.id}/export`, async (route) => {
+  await page.route(`**/api/projects/${project.id}/exports`, async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({ json: [] });
       return;
