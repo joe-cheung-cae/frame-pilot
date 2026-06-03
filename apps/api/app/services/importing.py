@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ from app.models.entities import Photo, PhotoGroup, Project, utc_now
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"
+CONTENT_HASH_CHUNK_SIZE = 1024 * 1024
 
 
 def is_supported_image(filename: str) -> bool:
@@ -87,6 +89,14 @@ def _cleanup_paths(*paths: Path | None) -> None:
             path.unlink(missing_ok=True)
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(CONTENT_HASH_CHUNK_SIZE):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _invalidate_project_processing(session: Session, project: Project) -> None:
     for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
         session.delete(group)
@@ -131,11 +141,19 @@ def import_image_file(session: Session, project: Project, filename: str, file: B
         _cleanup_paths(source_path, thumbnail_path, preview_path)
         raise ValueError("Uploaded image could not be processed") from error
 
+    source_stat = source_path.stat()
+    content_hash = _file_sha256(source_path)
+
     photo = Photo(
         project_id=project.id,
         original_path=str(source_path),
+        project_copy_path=str(source_path),
+        source_identity=f"sha256:{content_hash}",
         filename=source_path.name,
-        file_size=source_path.stat().st_size,
+        file_ext=source_path.suffix.lower(),
+        file_size=source_stat.st_size,
+        file_mtime=source_stat.st_mtime,
+        content_hash=content_hash,
         width=width,
         height=height,
         thumbnail_path=str(thumbnail_path),

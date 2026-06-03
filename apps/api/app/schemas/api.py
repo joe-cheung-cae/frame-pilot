@@ -31,7 +31,12 @@ class PhotoRead(BaseModel):
     id: str
     project_id: str
     filename: str
+    file_ext: str | None
     file_size: int
+    file_mtime: float | None
+    content_hash: str | None
+    project_copy_path: str | None
+    source_identity: str | None
     width: int
     height: int
     capture_time: datetime | None

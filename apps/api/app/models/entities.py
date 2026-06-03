@@ -27,8 +27,13 @@ class Photo(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     project_id: str = Field(index=True, foreign_key="project.id")
     original_path: str
+    project_copy_path: str | None = None
+    source_identity: str | None = None
     filename: str
+    file_ext: str | None = None
     file_size: int = 0
+    file_mtime: float | None = None
+    content_hash: str | None = None
     width: int = 0
     height: int = 0
     capture_time: datetime | None = None

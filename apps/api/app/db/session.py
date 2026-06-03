@@ -66,6 +66,16 @@ def _ensure_photo_columns(engine) -> None:
 
     existing = {column["name"] for column in inspector.get_columns("photo")}
     statements = []
+    if "project_copy_path" not in existing:
+        statements.append("ALTER TABLE photo ADD COLUMN project_copy_path VARCHAR")
+    if "source_identity" not in existing:
+        statements.append("ALTER TABLE photo ADD COLUMN source_identity VARCHAR")
+    if "file_ext" not in existing:
+        statements.append("ALTER TABLE photo ADD COLUMN file_ext VARCHAR")
+    if "file_mtime" not in existing:
+        statements.append("ALTER TABLE photo ADD COLUMN file_mtime FLOAT")
+    if "content_hash" not in existing:
+        statements.append("ALTER TABLE photo ADD COLUMN content_hash VARCHAR")
     if "processing_state" not in existing:
         statements.append("ALTER TABLE photo ADD COLUMN processing_state VARCHAR NOT NULL DEFAULT 'imported'")
     if "processing_error" not in existing:

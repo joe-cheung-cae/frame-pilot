@@ -63,6 +63,12 @@ The response contains both imported photos and skipped files:
     {
       "id": "photo-id",
       "filename": "frame.jpg",
+      "file_ext": ".jpg",
+      "file_size": 2481203,
+      "file_mtime": 1780411200.0,
+      "content_hash": "sha256-hex",
+      "project_copy_path": ".../originals/frame.jpg",
+      "source_identity": "sha256:sha256-hex",
       "thumbnail_path": ".../thumbnails/frame.webp",
       "preview_path": ".../previews/frame.webp",
       "processing_state": "imported",

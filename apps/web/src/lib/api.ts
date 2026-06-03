@@ -15,7 +15,12 @@ export type Photo = {
   id: string;
   project_id: string;
   filename: string;
+  file_ext: string | null;
   file_size: number;
+  file_mtime: number | null;
+  content_hash: string | null;
+  project_copy_path: string | null;
+  source_identity: string | null;
   width: number;
   height: number;
   thumbnail_path: string | null;

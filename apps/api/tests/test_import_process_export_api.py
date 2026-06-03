@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -50,6 +51,11 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     assert import_result["skipped"] == []
     photo = import_result["imported"][0]
     assert photo["filename"] == "frame.jpg"
+    assert photo["file_ext"] == ".jpg"
+    assert photo["file_mtime"] is not None
+    assert photo["content_hash"] == hashlib.sha256(_image_bytes()).hexdigest()
+    assert photo["source_identity"] == f"sha256:{photo['content_hash']}"
+    assert photo["project_copy_path"]
     assert photo["thumbnail_path"]
     assert photo["preview_path"]
     assert photo["processing_state"] == "imported"
@@ -150,8 +156,12 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
         stored_photo = session.get(Photo, imported_photo["id"])
         assert stored_photo is not None
         imported_original = Path(stored_photo.original_path)
+        imported_copy_path = Path(stored_photo.project_copy_path)
     assert imported_original != sharp_source
+    assert imported_copy_path == imported_original
     assert imported_original.read_bytes() == sharp_bytes
+    assert imported_photo["content_hash"] == hashlib.sha256(sharp_bytes).hexdigest()
+    assert imported_photo["source_identity"] == f"sha256:{imported_photo['content_hash']}"
     assert Path(imported_photo["thumbnail_path"]).exists()
     assert Path(imported_photo["preview_path"]).exists()
 
