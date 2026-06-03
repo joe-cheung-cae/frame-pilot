@@ -16,6 +16,21 @@ export function selectedPhotoCount(counts: Record<ExportStatus, number>, statuse
   return statuses.reduce((total, status) => total + counts[status], 0);
 }
 
+export function applyStatusCountChange(
+  counts: Record<ExportStatus, number>,
+  previousStatus: ExportStatus,
+  nextStatus: ExportStatus,
+): Record<ExportStatus, number> {
+  if (previousStatus === nextStatus) {
+    return { ...counts };
+  }
+  return {
+    ...counts,
+    [previousStatus]: Math.max(0, counts[previousStatus] - 1),
+    [nextStatus]: counts[nextStatus] + 1,
+  };
+}
+
 export function formatExportStatusSummary(rawStatuses: string): string {
   let parsed: unknown;
   try {

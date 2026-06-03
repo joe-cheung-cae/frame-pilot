@@ -23,6 +23,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
+import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
 import { parseReviewProgress, reviewProgressStorageKey } from "@/lib/reviewProgress";
 import {
@@ -155,6 +156,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       ["ISO", activePhoto.iso ? String(activePhoto.iso) : null],
     ].filter((row): row is [string, string] => Boolean(row[1]));
   }, [activePhoto]);
+  const photoStatusCountsQueryKey = useMemo(() => ["photo-status-counts", projectId], [projectId]);
 
   useEffect(() => {
     let stored: string | null = null;
@@ -196,14 +198,25 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       const queryKey = ["photos", projectId];
       await queryClient.cancelQueries({ queryKey });
       const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey);
+      const previousStatusCounts =
+        queryClient.getQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey);
       queryClient.setQueryData<Photo[]>(queryKey, (currentPhotos) =>
         currentPhotos?.map((item) => (item.id === photo.id ? { ...item, ...patch } : item)),
       );
-      return { previousPhotos };
+      if (patch.user_status) {
+        const nextStatus = patch.user_status;
+        queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
+          currentCounts ? applyStatusCountChange(currentCounts, photo.user_status, nextStatus) : currentCounts,
+        );
+      }
+      return { previousPhotos, previousStatusCounts };
     },
     onError: (_error, _variables, context) => {
       if (context?.previousPhotos) {
         queryClient.setQueryData(["photos", projectId], context.previousPhotos);
+      }
+      if (context?.previousStatusCounts) {
+        queryClient.setQueryData(photoStatusCountsQueryKey, context.previousStatusCounts);
       }
     },
     onSuccess: (updatedPhoto) => {
@@ -221,14 +234,31 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       const targetIds = new Set(photoIds);
       await queryClient.cancelQueries({ queryKey });
       const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey);
+      const previousStatusCounts =
+        queryClient.getQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey);
       queryClient.setQueryData<Photo[]>(queryKey, (currentPhotos) =>
         currentPhotos?.map((item) => (targetIds.has(item.id) ? { ...item, ...patch } : item)),
       );
-      return { previousPhotos };
+      if (patch.user_status && previousPhotos) {
+        const nextStatus = patch.user_status;
+        const targetPhotos = previousPhotos.filter((photo) => targetIds.has(photo.id));
+        queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
+          currentCounts
+            ? targetPhotos.reduce(
+                (counts, photo) => applyStatusCountChange(counts, photo.user_status, nextStatus),
+                currentCounts,
+              )
+            : currentCounts,
+        );
+      }
+      return { previousPhotos, previousStatusCounts };
     },
     onError: (_error, _variables, context) => {
       if (context?.previousPhotos) {
         queryClient.setQueryData(["photos", projectId], context.previousPhotos);
+      }
+      if (context?.previousStatusCounts) {
+        queryClient.setQueryData(photoStatusCountsQueryKey, context.previousStatusCounts);
       }
     },
     onSuccess: (updatedPhotos) => {
