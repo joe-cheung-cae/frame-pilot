@@ -159,6 +159,7 @@ let batchPhotoPatches: { patch: { star_rating?: number; user_status?: string }; 
 let failNextPhotoPatch = false;
 let failExportHistory = false;
 let failPhotoList = false;
+let failJobList = false;
 let photoListRequests = 0;
 
 test.beforeEach(async ({ page }) => {
@@ -167,6 +168,7 @@ test.beforeEach(async ({ page }) => {
   failNextPhotoPatch = false;
   failExportHistory = false;
   failPhotoList = false;
+  failJobList = false;
   photoListRequests = 0;
   let currentProject = { ...project };
   let currentPhotos = photos.map((photo) => ({ ...photo }));
@@ -203,6 +205,10 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.route(`**/api/projects/${project.id}/jobs`, async (route) => {
+    if (failJobList) {
+      await route.fulfill({ json: { detail: "Could not load processing jobs" }, status: 500 });
+      return;
+    }
     await route.fulfill({ json: currentJob ? [currentJob] : [] });
   });
 
@@ -333,6 +339,14 @@ test("shows export photo list load errors", async ({ page }) => {
 
   await expect(page.getByText("Could not load exportable photos")).toBeVisible();
   await expect(page.getByText("No photos match the selected statuses.")).toHaveCount(0);
+});
+
+test("shows processing job list load errors", async ({ page }) => {
+  failJobList = true;
+
+  await page.goto(`/projects/${project.id}/process`);
+
+  await expect(page.getByText("Could not load processing jobs")).toBeVisible();
 });
 
 test("walks the local project review and export flow in a browser", async ({ page }) => {

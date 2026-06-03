@@ -23,7 +23,11 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
       await queryClient.invalidateQueries({ queryKey: ["jobs", projectId] });
     },
   });
-  const jobsQuery = useQuery({ queryKey: ["jobs", projectId], queryFn: () => api.listJobs(projectId) });
+  const jobsQuery = useQuery({
+    queryKey: ["jobs", projectId],
+    queryFn: () => api.listJobs(projectId),
+    retry: false,
+  });
   const startedJob = mutation.data;
   const resumedJob = activeProcessingJob(jobsQuery.data);
   const currentJobId = startedJob?.id ?? resumedJob?.id;
@@ -116,6 +120,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
         </p>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
+      {jobsQuery.isError ? <p className="text-sm text-coral">{jobsQuery.error.message}</p> : null}
     </section>
   );
 }
