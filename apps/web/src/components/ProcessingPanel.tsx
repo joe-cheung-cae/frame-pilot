@@ -38,6 +38,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
     queryKey: ["job", projectId, currentJobId],
     queryFn: () => api.getJob(projectId, currentJobId ?? ""),
     enabled: Boolean(currentJobId),
+    retry: false,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === "queued" || status === "running" ? 1000 : false;
@@ -125,6 +126,9 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
       ) : null}
       {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
+      {jobQuery.isError ? (
+        <p className="text-sm text-coral">Could not load processing job status: {jobQuery.error.message}</p>
+      ) : null}
       <div className="grid gap-3">
         <h2 className="text-sm font-semibold">Processing History</h2>
         {jobsQuery.isLoading ? <p className="text-sm text-neutral-600">Loading processing history...</p> : null}

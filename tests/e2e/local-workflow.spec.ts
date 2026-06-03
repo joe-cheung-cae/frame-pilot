@@ -165,6 +165,7 @@ let failNextPhotoPatch = false;
 let failExportHistory = false;
 let failPhotoStatusCounts = false;
 let failJobList = false;
+let failJobDetail = false;
 let failProjectList = false;
 let failProjectDetail = false;
 let failNextImport = false;
@@ -195,6 +196,7 @@ test.beforeEach(async ({ page }) => {
   failExportHistory = false;
   failPhotoStatusCounts = false;
   failJobList = false;
+  failJobDetail = false;
   failProjectList = false;
   failProjectDetail = false;
   failNextImport = false;
@@ -252,6 +254,11 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.route(`**/api/projects/${project.id}/jobs/*`, async (route) => {
+    if (failJobDetail) {
+      failJobDetail = false;
+      await route.fulfill({ json: { detail: "Processing job status endpoint failed" }, status: 500 });
+      return;
+    }
     const jobId = route.request().url().split("/").at(-1);
     if (currentJob?.id !== jobId) {
       await route.fulfill({ json: { detail: "Processing job not found" }, status: 404 });
@@ -475,6 +482,17 @@ test("shows processing project load errors", async ({ page }) => {
   await page.goto(`/projects/${project.id}/process`);
 
   await expect(page.getByText("Could not load project details")).toBeVisible();
+});
+
+test("shows processing job polling errors", async ({ page }) => {
+  failJobDetail = true;
+  await page.goto(`/projects/${project.id}/process`);
+
+  await page.getByRole("button", { name: "Run Grouping and Ranking" }).click();
+
+  await expect(
+    page.getByText("Could not load processing job status: Processing job status endpoint failed"),
+  ).toBeVisible();
 });
 
 test("loads more processing history on request", async ({ page }) => {
