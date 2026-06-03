@@ -347,6 +347,44 @@ def test_plural_export_routes_create_list_get_and_download(tmp_path, monkeypatch
     assert b"filename,original_path,capture_time,camera_model,lens_model" in download_response.content
 
 
+def test_export_history_supports_newest_first_pagination(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Paged export history"}).json()
+    base_time = datetime(2026, 1, 1, tzinfo=UTC)
+
+    with Session(get_engine()) as session:
+        records = [
+            ExportRecord(
+                id=f"export-{index}",
+                project_id=project["id"],
+                mode="csv",
+                status="complete",
+                selected_count=index,
+                statuses='["Pick"]',
+                output_path=str(tmp_path / f"selection-{index}.csv"),
+                created_at=base_time + timedelta(minutes=index),
+            )
+            for index in range(5)
+        ]
+        session.add_all(records)
+        session.commit()
+
+    full_response = client.get(f"/api/projects/{project['id']}/exports")
+    page_response = client.get(f"/api/projects/{project['id']}/exports?limit=2&offset=1")
+
+    assert full_response.status_code == 200
+    assert [record["id"] for record in full_response.json()] == [
+        "export-4",
+        "export-3",
+        "export-2",
+        "export-1",
+        "export-0",
+    ]
+    assert page_response.status_code == 200
+    assert [record["id"] for record in page_response.json()] == ["export-3", "export-2"]
+
+
 def test_multi_file_import_invalidates_processing_once(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     invalidate_calls = 0

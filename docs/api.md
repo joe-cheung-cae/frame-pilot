@@ -207,7 +207,7 @@ Export records can be listed newest-first:
 GET /api/projects/{project_id}/exports
 ```
 
-The response is an array of export records with the same shape as the creation response. The web export page uses this endpoint to show local export history, selected counts, status summaries, output paths, and download links for CSV and ZIP records.
+The response is an array of export records with the same shape as the creation response, ordered newest-first. Optional `limit` and `offset` query parameters can page large export histories. The web export page uses this endpoint to show local export history, selected counts, status summaries, output paths, and download links for CSV and ZIP records.
 
 Completed CSV and ZIP exports can be downloaded from:
 

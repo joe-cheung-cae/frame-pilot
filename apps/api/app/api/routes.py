@@ -342,13 +342,23 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
 
 @router.get("/projects/{project_id}/exports", response_model=list[ExportRead])
 @router.get("/projects/{project_id}/export", response_model=list[ExportRead])
-def list_exports_endpoint(project_id: str, session: Session = Depends(get_session)):
+def list_exports_endpoint(
+    project_id: str,
+    limit: int | None = Query(default=None, ge=1, le=5000),
+    offset: int = Query(default=0, ge=0),
+    session: Session = Depends(get_session),
+):
     _get_project(session, project_id)
-    return list(
-        session.exec(
-            select(ExportRecord).where(ExportRecord.project_id == project_id).order_by(ExportRecord.created_at.desc())
-        ).all()
+    statement = (
+        select(ExportRecord)
+        .where(ExportRecord.project_id == project_id)
+        .order_by(ExportRecord.created_at.desc(), ExportRecord.id.desc())
     )
+    if offset:
+        statement = statement.offset(offset)
+    if limit is not None:
+        statement = statement.limit(limit)
+    return list(session.exec(statement).all())
 
 
 @router.get("/projects/{project_id}/exports/{export_id}", response_model=ExportRead)
