@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
+import { parseReviewProgress, reviewProgressStorageKey } from "@/lib/reviewProgress";
 import { groupAfterMove, nextPhotoIdAfterMark, windowedPhotoRefs } from "@/lib/reviewNavigation";
 import { useReviewStore } from "@/store/reviewStore";
 
@@ -57,6 +58,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const filterButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const skipNextProgressSave = useRef<string | null>(null);
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
   const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listPhotos(projectId) });
   const groupsQuery = useQuery({ queryKey: ["groups", projectId], queryFn: () => api.listGroups(projectId) });
@@ -70,6 +72,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     setActiveGroupId,
     setActivePhotoId,
     setFilter,
+    setReviewProgress,
     toggleCompareMode,
     toggleLargePreview,
     toggleZoomPreview,
@@ -115,6 +118,40 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     [activePhoto?.id, visiblePhotos],
   );
   const visiblePhotoIds = useMemo(() => visiblePhotos.map((photo) => photo.id), [visiblePhotos]);
+
+  useEffect(() => {
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(reviewProgressStorageKey(projectId));
+    } catch {
+      stored = null;
+    }
+    skipNextProgressSave.current = projectId;
+    setReviewProgress(parseReviewProgress(stored, FILTERS));
+  }, [projectId, setReviewProgress]);
+
+  useEffect(() => {
+    if (skipNextProgressSave.current === projectId) {
+      skipNextProgressSave.current = null;
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        reviewProgressStorageKey(projectId),
+        JSON.stringify({
+          activeGroupId,
+          activePhotoId,
+          compareMode,
+          filter,
+          largePreview,
+          zoomPreview,
+        }),
+      );
+    } catch {
+      // Keep review usable if browser storage is unavailable.
+    }
+  }, [activeGroupId, activePhotoId, compareMode, filter, largePreview, projectId, zoomPreview]);
 
   const updateMutation = useMutation({
     mutationFn: ({ photo, patch }: { photo: Photo; patch: PhotoPatch }) => api.updatePhoto(projectId, photo.id, patch),

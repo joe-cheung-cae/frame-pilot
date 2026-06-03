@@ -302,6 +302,8 @@ test("walks the local project review and export flow in a browser", async ({ pag
   expect(photoPatches.at(-1)).toEqual({ patch: { user_status: "Pick" }, photoId: "photo-1" });
   await expect(page.getByRole("heading", { name: "frame-002.jpg" })).toBeVisible();
   expect(photoListRequests).toBe(initialPhotoListRequests);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "frame-002.jpg" })).toBeVisible();
 
   await page.keyboard.press("e");
   await expect(page).toHaveURL(/\/projects\/project-1\/export$/);

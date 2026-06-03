@@ -7,6 +7,14 @@ type ReviewState = {
   compareMode: boolean;
   largePreview: boolean;
   zoomPreview: boolean;
+  setReviewProgress: (progress: {
+    activeGroupId: string | null;
+    activePhotoId: string | null;
+    compareMode: boolean;
+    filter: string;
+    largePreview: boolean;
+    zoomPreview: boolean;
+  }) => void;
   setActiveGroupId: (groupId: string | null) => void;
   setActivePhotoId: (photoId: string | null) => void;
   setFilter: (filter: string) => void;
@@ -22,6 +30,7 @@ export const useReviewStore = create<ReviewState>((set) => ({
   filter: "All",
   largePreview: false,
   zoomPreview: false,
+  setReviewProgress: (progress) => set(progress),
   setActiveGroupId: (activeGroupId) => set({ activeGroupId }),
   setActivePhotoId: (activePhotoId) => set({ activePhotoId }),
   setFilter: (filter) => set({ filter, activeGroupId: null }),
