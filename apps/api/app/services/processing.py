@@ -391,6 +391,22 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
 
 
 def project_export_root(project: Project) -> Path:
-    target = Path(project.root_path) / "exports"
-    target.mkdir(parents=True, exist_ok=True)
-    return target
+    try:
+        project_root = Path(project.root_path).resolve(strict=True)
+    except FileNotFoundError as error:
+        raise ValueError("Project root path is unavailable") from error
+
+    export_root = project_root / "exports"
+    export_root.mkdir(parents=True, exist_ok=True)
+    resolved_export_root = export_root.resolve(strict=True)
+    if not resolved_export_root.is_dir() or not resolved_export_root.is_relative_to(project_root):
+        raise ValueError("Project export directory must stay inside the project root")
+
+    for child in ("csv", "zip", "folders"):
+        child_root = export_root / child
+        child_root.mkdir(parents=True, exist_ok=True)
+        resolved_child_root = child_root.resolve(strict=True)
+        if not resolved_child_root.is_dir() or not resolved_child_root.is_relative_to(resolved_export_root):
+            raise ValueError("Project export directory must stay inside the project root")
+
+    return resolved_export_root

@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import json
+import shutil
 import zipfile
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
@@ -1512,6 +1513,33 @@ def test_failed_export_cleanup_does_not_remove_artifact_outside_export_root(tmp_
     assert outside_artifact.read_text() == "outside partial export"
 
 
+def test_export_rejects_escaped_mode_directory_before_writing_record(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Escaped export mode"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    photo = import_response.json()["imported"][0]
+    client.patch(
+        f"/api/projects/{project['id']}/photos/{photo['id']}",
+        json={"user_status": "Pick"},
+    )
+    csv_dir = Path(project["root_path"]) / "exports" / "csv"
+    outside_dir = tmp_path / "outside-csv"
+    outside_dir.mkdir()
+    shutil.rmtree(csv_dir)
+    csv_dir.symlink_to(outside_dir, target_is_directory=True)
+
+    response = client.post(f"/api/projects/{project['id']}/exports", json={"mode": "csv", "statuses": ["Pick"]})
+
+    assert response.status_code == 422
+    assert "Project export directory" in response.json()["detail"]
+    assert client.get(f"/api/projects/{project['id']}/exports").json() == []
+    assert list(outside_dir.iterdir()) == []
+
+
 def test_file_export_fails_when_selected_original_is_missing(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
@@ -1635,6 +1663,40 @@ def test_download_rejects_export_artifact_symlink_outside_export_root(tmp_path, 
         export_id = record.id
 
     response = client.get(f"/api/projects/{project['id']}/export/{export_id}/download")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Export artifact not found"
+
+
+def test_download_rejects_exports_directory_symlink_outside_project_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Export root escape"}).json()
+    outside_exports = tmp_path / "outside-exports"
+    outside_csv = outside_exports / "csv"
+    outside_csv.mkdir(parents=True)
+    outside_artifact = outside_csv / "selection.csv"
+    outside_artifact.write_text("filename\noutside.jpg\n")
+    export_root = Path(project["root_path"]) / "exports"
+    shutil.rmtree(export_root)
+    export_root.symlink_to(outside_exports, target_is_directory=True)
+
+    with Session(get_engine()) as session:
+        record = ExportRecord(
+            project_id=project["id"],
+            mode="csv",
+            status="complete",
+            selected_count=1,
+            statuses='["Pick"]',
+            output_path=str(outside_artifact),
+            completed_at=datetime.now(UTC),
+        )
+        session.add(record)
+        session.commit()
+        session.refresh(record)
+        export_id = record.id
+
+    response = client.get(f"/api/projects/{project['id']}/exports/{export_id}/download")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Export artifact not found"

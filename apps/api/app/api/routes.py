@@ -335,7 +335,10 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
     if not photo_dicts:
         raise HTTPException(status_code=422, detail="No photos match the selected export statuses")
 
-    export_root = project_export_root(project)
+    try:
+        export_root = project_export_root(project)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
     record = ExportRecord(
         project_id=project_id,
         mode=payload.mode,
@@ -415,7 +418,10 @@ def download_export_endpoint(project_id: str, export_id: str, session: Session =
         raise HTTPException(status_code=409, detail="Export artifact is not ready for download")
 
     export_path = Path(export.output_path)
-    export_root = project_export_root(project).resolve()
+    try:
+        export_root = project_export_root(project).resolve()
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail="Export artifact not found") from error
     try:
         resolved_export_path = export_path.resolve(strict=True)
     except FileNotFoundError as error:
