@@ -77,14 +77,16 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const skipNextProgressSave = useRef<string | null>(null);
   const [allPhotosLoaded, setAllPhotosLoaded] = useState(false);
   const [allGroupsLoaded, setAllGroupsLoaded] = useState(false);
-  const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
+  const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
   const photosQuery = useQuery({
     queryKey: ["photos", projectId],
     queryFn: () => api.listPhotos(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+    retry: false,
   });
   const groupsQuery = useQuery({
     queryKey: ["groups", projectId],
     queryFn: () => api.listGroups(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+    retry: false,
   });
   const {
     activeGroupId,
@@ -399,6 +401,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const reviewed = photos.filter((photo) => photo.user_status !== "Unreviewed").length;
   const isLoading = project.isLoading || photosQuery.isLoading || groupsQuery.isLoading;
   const loadError = project.error ?? photosQuery.error ?? groupsQuery.error;
+  const loadErrorMessage = loadError instanceof Error ? loadError.message : "Start the local API and try again.";
   const saveError = updateMutation.error ?? batchUpdateMutation.error;
 
   if (isLoading) {
@@ -416,7 +419,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     return (
       <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
         <h1 className="text-2xl font-semibold">Culling Workspace</h1>
-        <p className="text-sm text-coral">Could not load this project. Start the local API and try again.</p>
+        <p className="text-sm text-coral">Could not load this project: {loadErrorMessage}</p>
       </section>
     );
   }

@@ -374,6 +374,14 @@ test("shows culling save errors when a rating update fails", async ({ page }) =>
   await expect.poll(() => photoPatches.length).toBe(0);
 });
 
+test("shows culling workspace load errors", async ({ page }) => {
+  failProjectDetail = true;
+
+  await page.goto(`/projects/${project.id}/cull`);
+
+  await expect(page.getByText("Could not load this project: Could not load project details")).toBeVisible();
+});
+
 test("shows export history load errors", async ({ page }) => {
   failExportHistory = true;
 
