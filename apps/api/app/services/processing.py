@@ -19,6 +19,11 @@ def _progress_percent(processed_items: int, failed_items: int, total_items: int)
     return round(min(100.0, ((processed_items + failed_items) / total_items) * 100), 2)
 
 
+def _failed_photo_count_message(count: int) -> str:
+    noun = "photo" if count == 1 else "photos"
+    return f"{count} {noun} could not be processed"
+
+
 def _save_job(
     session: Session,
     job: ProcessingJob,
@@ -361,7 +366,7 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         job.failed_items = len(failed_photos)
         job.progress_percent = 100.0
         if failed_photos:
-            job.error_message = f"{len(failed_photos)} photo could not be processed"
+            job.error_message = _failed_photo_count_message(len(failed_photos))
         job.completed_at = utc_now()
         project.processed_images = len(group_inputs)
         project.last_processed_at = job.completed_at

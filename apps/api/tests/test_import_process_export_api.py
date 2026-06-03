@@ -694,6 +694,40 @@ def test_processing_skips_photo_with_invalid_similarity_data(tmp_path, monkeypat
     assert "stored similarity data is invalid" in invalid_after_processing["recommendation_explanation"]
 
 
+def test_processing_pluralizes_multiple_failed_photo_message(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Multiple invalid similarity records"}).json()
+
+    with Session(get_engine()) as session:
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        for index in range(2):
+            thumbnail_path, preview_path = _write_test_derivatives(tmp_path, f"invalid-{index}")
+            session.add(
+                Photo(
+                    project_id=project["id"],
+                    original_path=str(tmp_path / f"missing-{index}.jpg"),
+                    filename=f"invalid-{index}.jpg",
+                    thumbnail_path=thumbnail_path,
+                    preview_path=preview_path,
+                    embedding="{not-json",
+                )
+            )
+        stored_project.total_images = 2
+        session.add(stored_project)
+        session.commit()
+
+    process_response = client.post(f"/api/projects/{project['id']}/process")
+    assert process_response.status_code == 202
+    job = _wait_for_job(client, project["id"], process_response.json())
+
+    assert job["status"] == "complete"
+    assert job["processed_items"] == 0
+    assert job["failed_items"] == 2
+    assert job["error_message"] == "2 photos could not be processed"
+
+
 def test_processing_regenerates_missing_generated_derivative(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
