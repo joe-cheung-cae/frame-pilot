@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import case
 from sqlmodel import Session, select
@@ -21,7 +21,7 @@ from app.schemas.api import (
 )
 from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
 from app.services.importing import import_image_file
-from app.services.processing import process_project, project_export_root
+from app.services.processing import create_processing_job, project_export_root, run_processing_job
 from app.services.projects import create_project, list_projects
 
 router = APIRouter(prefix="/api")
@@ -101,11 +101,17 @@ async def import_photos_endpoint(
 
 
 @router.post("/projects/{project_id}/process", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)
-def process_project_endpoint(project_id: str, session: Session = Depends(get_session)):
+def process_project_endpoint(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
     project = _get_project(session, project_id)
     if project.total_images <= 0:
         raise HTTPException(status_code=422, detail="Import photos before processing this project")
-    return process_project(session, project)
+    job = create_processing_job(session, project)
+    background_tasks.add_task(run_processing_job, job.id)
+    return job
 
 
 @router.get("/projects/{project_id}/jobs/{job_id}", response_model=JobRead)

@@ -12,6 +12,17 @@ from app.main import create_app
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project
 
 
+def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
+    current = job
+    for _ in range(20):
+        if current["status"] in {"complete", "failed"}:
+            return current
+        response = client.get(f"/api/projects/{project_id}/jobs/{current['id']}")
+        assert response.status_code == 200
+        current = response.json()
+    return current
+
+
 def _image_bytes(color: tuple[int, int, int] = (120, 150, 90), blur: bool = False) -> bytes:
     buffer = BytesIO()
     image = Image.new("RGB", (96, 72), color=color)
@@ -47,7 +58,15 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
 
     process_response = client.post(f"/api/projects/{project['id']}/process")
     assert process_response.status_code == 202
-    assert process_response.json()["status"] == "complete"
+    started_job = process_response.json()
+    assert started_job["job_type"] == "processing"
+    assert started_job["status"] in {"queued", "complete"}
+    job = _wait_for_job(client, project["id"], started_job)
+    assert job["status"] == "complete"
+    assert job["progress_percent"] == 100.0
+    assert job["failed_items"] == 0
+    assert job["started_at"] is not None
+    assert job["completed_at"] is not None
     processed_project = client.get(f"/api/projects/{project['id']}").json()
     assert processed_project["processed_images"] == 1
 
@@ -132,11 +151,13 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
 
     process_response = client.post(f"/api/projects/{project['id']}/process")
     assert process_response.status_code == 202
-    job = process_response.json()
+    job = _wait_for_job(client, project["id"], process_response.json())
     assert job["status"] == "complete"
     assert job["current_step"] == "complete"
     assert job["processed_items"] == 2
     assert job["total_items"] == 2
+    assert job["failed_items"] == 0
+    assert job["progress_percent"] == 100.0
     assert job["error_message"] is None
 
     photos = client.get(f"/api/projects/{project['id']}/photos").json()
@@ -251,6 +272,8 @@ def test_import_after_processing_invalidates_stale_groups_and_recommendations(tm
     process_response = client.post(f"/api/projects/{project['id']}/process")
 
     assert process_response.status_code == 202
+    job = _wait_for_job(client, project["id"], process_response.json())
+    assert job["status"] == "complete"
     assert client.get(f"/api/projects/{project['id']}/groups").json()
     assert client.get(f"/api/projects/{project['id']}/photos/{first_photo['id']}").json()["ai_recommendation"] == "Pick"
 

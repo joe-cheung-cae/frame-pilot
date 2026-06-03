@@ -53,11 +53,16 @@ export type PhotoGroup = {
 export type ProcessingJob = {
   id: string;
   project_id: string;
+  job_type: string;
   status: "queued" | "running" | "complete" | "failed";
   current_step: string;
   total_items: number;
   processed_items: number;
+  failed_items: number;
+  progress_percent: number;
   error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
 };
 
 export type ExportRecord = {
@@ -125,6 +130,8 @@ export const api = {
   },
   processProject: (projectId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/process`, { method: "POST" }),
+  getJob: (projectId: string, jobId: string) =>
+    request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}`),
   listPhotos: (projectId: string) => request<Photo[]>(`/api/projects/${projectId}/photos`),
   updatePhoto: (projectId: string, photoId: string, patch: Partial<Pick<Photo, "user_status" | "star_rating">>) =>
     request<Photo>(`/api/projects/${projectId}/photos/${photoId}`, { method: "PATCH", body: JSON.stringify(patch) }),

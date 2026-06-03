@@ -73,11 +73,16 @@ class PhotoGroup(SQLModel, table=True):
 class ProcessingJob(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     project_id: str = Field(index=True, foreign_key="project.id")
+    job_type: str = "processing"
     status: str = "queued"
     current_step: str = "queued"
     total_items: int = 0
     processed_items: int = 0
+    failed_items: int = 0
+    progress_percent: float = 0.0
     error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 

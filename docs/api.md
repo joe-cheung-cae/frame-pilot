@@ -63,7 +63,28 @@ If every file is skipped, the endpoint returns `422`. Importing new photos inval
 
 ## Processing
 
-`POST /api/projects/{project_id}/process` runs synchronously in the MVP and returns a `ProcessingJob`. A completed job means grouping, ranking, and recommendation explanations have been rebuilt for the current imported photo set.
+`POST /api/projects/{project_id}/process` creates a local background processing job and returns a `ProcessingJob` with `202 Accepted`. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the job reaches `complete` or `failed`.
+
+A processing job includes:
+
+```json
+{
+  "id": "job-id",
+  "project_id": "project-id",
+  "job_type": "processing",
+  "status": "running",
+  "current_step": "ranking group 1 of 3",
+  "total_items": 12,
+  "processed_items": 4,
+  "failed_items": 0,
+  "progress_percent": 33.33,
+  "error_message": null,
+  "started_at": "2026-06-02T12:00:00Z",
+  "completed_at": null
+}
+```
+
+A completed job means grouping, ranking, and recommendation explanations have been rebuilt for the current imported photo set.
 
 `GET /api/projects/{project_id}/photos` returns photos ordered for review by group, AI recommendation priority, score, and filename.
 

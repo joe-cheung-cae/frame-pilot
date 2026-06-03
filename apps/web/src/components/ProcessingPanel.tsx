@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Loader2, Play, Rows3, Upload } from "lucide-react";
@@ -13,15 +14,34 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
-      await queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
-      await queryClient.invalidateQueries({ queryKey: ["groups", projectId] });
     },
   });
-  const job = mutation.data;
-  const progress = job?.total_items ? Math.round((job.processed_items / job.total_items) * 100) : 0;
+  const startedJob = mutation.data;
+  const jobQuery = useQuery({
+    queryKey: ["job", projectId, startedJob?.id],
+    queryFn: () => api.getJob(projectId, startedJob?.id ?? ""),
+    enabled: Boolean(startedJob?.id),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "queued" || status === "running" ? 1000 : false;
+    },
+  });
+  const job = jobQuery.data ?? startedJob;
+  const progress = job ? Math.round(job.progress_percent) : 0;
   const hasImportedPhotos = Boolean(project.data?.total_images);
   const canOpenCulling = job?.status === "complete" || Boolean(project.data?.processed_images);
   const statusLabel = job?.status ? job.status[0].toUpperCase() + job.status.slice(1) : "Ready";
+  const isProcessing = job?.status === "queued" || job?.status === "running" || mutation.isPending;
+
+  useEffect(() => {
+    if (job?.status !== "complete") {
+      return;
+    }
+    void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+    void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    void queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
+    void queryClient.invalidateQueries({ queryKey: ["groups", projectId] });
+  }, [job?.status, projectId, queryClient]);
 
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
@@ -34,7 +54,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           <span className="font-medium">{statusLabel}</span>
           <span className="text-sm text-neutral-600">
             {job
-              ? `${job.processed_items} of ${job.total_items} photos · ${progress}%`
+              ? `${job.processed_items} of ${job.total_items} photos · ${job.failed_items} failed · ${progress}%`
               : `${project.data?.processed_images ?? 0} of ${project.data?.total_images ?? 0} processed`}
           </span>
         </div>
@@ -56,10 +76,10 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
       <div className="flex flex-wrap gap-3">
         <button
           className="focus-ring inline-flex items-center gap-2 rounded bg-leaf px-4 py-3 font-medium text-white disabled:opacity-50"
-          disabled={mutation.isPending || !hasImportedPhotos}
+          disabled={isProcessing || !hasImportedPhotos}
           onClick={() => mutation.mutate()}
         >
-          {mutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
+          {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
           Run Grouping and Ranking
         </button>
         {!hasImportedPhotos ? (

@@ -16,6 +16,7 @@ def init_db() -> None:
     engine = get_engine()
     SQLModel.metadata.create_all(engine)
     _ensure_export_record_columns(engine)
+    _ensure_processing_job_columns(engine)
 
 
 def _ensure_export_record_columns(engine) -> None:
@@ -29,6 +30,32 @@ def _ensure_export_record_columns(engine) -> None:
         statements.append("ALTER TABLE exportrecord ADD COLUMN selected_count INTEGER NOT NULL DEFAULT 0")
     if "statuses" not in existing:
         statements.append("ALTER TABLE exportrecord ADD COLUMN statuses VARCHAR NOT NULL DEFAULT '[]'")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+def _ensure_processing_job_columns(engine) -> None:
+    inspector = inspect(engine)
+    if not inspector.has_table("processingjob"):
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("processingjob")}
+    statements = []
+    if "job_type" not in existing:
+        statements.append("ALTER TABLE processingjob ADD COLUMN job_type VARCHAR NOT NULL DEFAULT 'processing'")
+    if "failed_items" not in existing:
+        statements.append("ALTER TABLE processingjob ADD COLUMN failed_items INTEGER NOT NULL DEFAULT 0")
+    if "progress_percent" not in existing:
+        statements.append("ALTER TABLE processingjob ADD COLUMN progress_percent FLOAT NOT NULL DEFAULT 0")
+    if "started_at" not in existing:
+        statements.append("ALTER TABLE processingjob ADD COLUMN started_at DATETIME")
+    if "completed_at" not in existing:
+        statements.append("ALTER TABLE processingjob ADD COLUMN completed_at DATETIME")
 
     if not statements:
         return

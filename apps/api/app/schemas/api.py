@@ -96,11 +96,16 @@ class GroupRead(BaseModel):
 class JobRead(BaseModel):
     id: str
     project_id: str
+    job_type: str
     status: str
     current_step: str
     total_items: int
     processed_items: int
+    failed_items: int
+    progress_percent: float
     error_message: str | None
+    started_at: datetime | None
+    completed_at: datetime | None
 
 
 class ExportCreate(BaseModel):
