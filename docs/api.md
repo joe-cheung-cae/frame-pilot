@@ -12,7 +12,7 @@ GET    /api/projects
 GET    /api/projects/{project_id}
 DELETE /api/projects/{project_id}
 
-POST   /api/projects/{project_id}/import
+POST   /api/projects/{project_id}/imports
 POST   /api/projects/{project_id}/process
 GET    /api/projects/{project_id}/jobs
 GET    /api/projects/{project_id}/jobs/{job_id}
@@ -62,7 +62,7 @@ Project responses include image totals and processing metadata:
 
 ## Import Response
 
-`POST /api/projects/{project_id}/import` accepts multiple files under the `files` form field.
+`POST /api/projects/{project_id}/imports` accepts multiple files under the `files` form field.
 
 The response contains both imported photos and skipped files:
 
@@ -104,6 +104,7 @@ The response contains both imported photos and skipped files:
 ```
 
 If every file is skipped, the endpoint returns `422`. Importing new photos invalidates previous groups and AI recommendations, so processing should be run again.
+The singular `/api/projects/{project_id}/import` route remains available as a backward-compatible alias.
 When EXIF data is available, import records basic capture time, camera, lens, focal length, aperture, shutter speed, and ISO metadata. Numeric EXIF rationals are normalized into stable display strings.
 HEIC and RAW extensions such as `.heic`, `.dng`, `.arw`, `.cr3`, and `.nef` are recognized as planned future formats, but v2 currently skips them with explicit unsupported-format reasons instead of attempting local decoding.
 

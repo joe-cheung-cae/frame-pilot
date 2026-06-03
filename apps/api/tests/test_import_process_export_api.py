@@ -161,6 +161,25 @@ def test_import_extracts_basic_exif_metadata(tmp_path, monkeypatch):
     assert photo["iso"] == 400
 
 
+def test_plural_import_route_imports_photos(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Plural imports"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/imports",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+
+    assert import_response.status_code == 201
+    import_result = import_response.json()
+    assert import_result["skipped"] == []
+    assert import_result["imported"][0]["filename"] == "frame.jpg"
+    imported_project = client.get(f"/api/projects/{project['id']}").json()
+    assert imported_project["total_images"] == 1
+    assert imported_project["processed_images"] == 0
+
+
 def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
     client = TestClient(create_app())

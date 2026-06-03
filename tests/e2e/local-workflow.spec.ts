@@ -211,7 +211,7 @@ test.beforeEach(async ({ page }) => {
     await route.fulfill({ json: currentJob });
   });
 
-  await page.route(`**/api/projects/${project.id}/import`, async (route) => {
+  await page.route(`**/api/projects/${project.id}/imports`, async (route) => {
     currentProject = { ...currentProject, total_images: currentProject.total_images + 1, processed_images: 0 };
     const imported = {
       ...photos[0],

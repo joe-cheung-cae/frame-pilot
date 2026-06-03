@@ -150,7 +150,7 @@ export const api = {
   importPhotos: (projectId: string, files: FileList) => {
     const body = new FormData();
     Array.from(files).forEach((file) => body.append("files", file));
-    return request<ImportResult>(`/api/projects/${projectId}/import`, { method: "POST", body });
+    return request<ImportResult>(`/api/projects/${projectId}/imports`, { method: "POST", body });
   },
   processProject: (projectId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/process`, { method: "POST" }),

@@ -112,6 +112,7 @@ def delete_project_endpoint(project_id: str, session: Session = Depends(get_sess
     return None
 
 
+@router.post("/projects/{project_id}/imports", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
 @router.post("/projects/{project_id}/import", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
 async def import_photos_endpoint(
     project_id: str,
