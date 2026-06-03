@@ -105,6 +105,34 @@ def _union(parent: list[int], left: int, right: int) -> None:
         parent[right_root] = left_root
 
 
+def _split_group_by_time_span(group: list[dict[str, Any]], max_time_gap_seconds: int) -> list[list[dict[str, Any]]]:
+    if len(group) <= 1:
+        return [group]
+
+    dated_group = [(photo, _parse_time(photo.get("capture_time"))) for photo in group]
+    if any(capture_time is None for _photo, capture_time in dated_group):
+        return [group]
+
+    splits: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    current_start: datetime | None = None
+
+    for photo, capture_time in dated_group:
+        if current_start is not None and capture_time is not None:
+            span_seconds = abs((capture_time - current_start).total_seconds())
+            if span_seconds > max_time_gap_seconds:
+                splits.append(current)
+                current = []
+                current_start = capture_time
+        if current_start is None:
+            current_start = capture_time
+        current.append(photo)
+
+    if current:
+        splits.append(current)
+    return splits
+
+
 def group_similar_photos(
     photos: list[dict[str, Any]],
     similarity_threshold: float = 0.96,
@@ -139,11 +167,14 @@ def group_similar_photos(
         grouped_by_root.setdefault(_find(parent, index), []).append(photo)
 
     groups = list(grouped_by_root.values())
+    split_groups = []
+    for group in groups:
+        split_groups.extend(_split_group_by_time_span(group, max_time_gap_seconds))
 
     return [
         SimilarPhotoGroup(
             photo_ids=[str(photo["id"]) for photo in group],
             group_type="duplicate" if len(group) > 1 else "single",
         )
-        for group in groups
+        for group in split_groups
     ]

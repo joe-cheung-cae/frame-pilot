@@ -143,3 +143,33 @@ def test_grouping_uses_perceptual_hash_distance_when_available():
     groups = group_similar_photos(photos, similarity_threshold=0.95, max_hash_distance=8)
 
     assert [group.photo_ids for group in groups] == [["a", "b"], ["c"]]
+
+
+def test_grouping_splits_transitive_matches_when_time_span_is_too_large():
+    photos = [
+        {
+            "id": "a",
+            "filename": "IMG_0001.jpg",
+            "capture_time": "2026-01-01T10:00:00",
+            "embedding": [1.0, 0.0],
+            "perceptual_hash": "0000000000000000",
+        },
+        {
+            "id": "b",
+            "filename": "IMG_0002.jpg",
+            "capture_time": "2026-01-01T10:00:20",
+            "embedding": [1.0, 0.0],
+            "perceptual_hash": "0000000000000000",
+        },
+        {
+            "id": "c",
+            "filename": "IMG_0003.jpg",
+            "capture_time": "2026-01-01T10:00:40",
+            "embedding": [1.0, 0.0],
+            "perceptual_hash": "0000000000000000",
+        },
+    ]
+
+    groups = group_similar_photos(photos, max_time_gap_seconds=30)
+
+    assert [group.photo_ids for group in groups] == [["a", "b"], ["c"]]

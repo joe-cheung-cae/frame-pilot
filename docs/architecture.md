@@ -33,7 +33,7 @@ Import is tolerant of mixed file selections: supported images are copied into `o
 
 Imported photos record deterministic local file identity metadata for the copied original: extension, file size, copy modification time, SHA-256 content hash, project copy path, and source identity. This supports future resumable processing without changing or deleting original photo files.
 
-Grouping uses deterministic candidate windows and union-find. Candidate pairs are limited by capture-time or filename proximity, checked for compatible dimensions, camera model, and focal length when those fields are available, then merged when their stored perceptual hashes are close enough or, when hashes are unavailable, their local embedding similarity meets the grouping threshold.
+Grouping uses deterministic candidate windows and union-find. Candidate pairs are limited by capture-time or filename proximity, checked for compatible dimensions, camera model, and focal length when those fields are available, then merged when their stored perceptual hashes are close enough or, when hashes are unavailable, their local embedding similarity meets the grouping threshold. After merging, groups with capture-time spans larger than the burst window are split into smaller review groups.
 
 Ranking persists a deterministic `score_summary` JSON string on each group. The summary records the representative photo, best score, gap to the next candidate, recommendation counts, and a low, medium, or high confidence label so the review UI can inspect group-level ranking strength without recalculating scores.
 
