@@ -16,12 +16,21 @@ type Mode = "csv" | "folder" | "zip";
 
 const RECENT_EXPORT_LIMIT = 50;
 
+function projectExportRoot(rootPath: string) {
+  return `${rootPath.replace(/[\\/]+$/, "")}/exports`;
+}
+
 export function ExportPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
   const [statuses, setStatuses] = useState<ExportStatus[]>(["Pick", "Maybe"]);
   const [exportLimit, setExportLimit] = useState(RECENT_EXPORT_LIMIT);
   const exportHistoryQueryKey = ["exports", projectId, exportLimit];
+  const projectQuery = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => api.getProject(projectId),
+    retry: false,
+  });
   const statusCountsQuery = useQuery({
     queryKey: ["photo-status-counts", projectId],
     queryFn: () => api.getPhotoStatusCounts(projectId),
@@ -63,6 +72,11 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       <div>
         <p className="text-sm text-neutral-600">{selectedCount} selected photos</p>
         <h1 className="mt-1 text-3xl font-semibold">Export Selection</h1>
+        {projectQuery.data?.root_path ? (
+          <p className="mt-2 break-all text-sm text-neutral-600">
+            Exports folder: {projectExportRoot(projectQuery.data.root_path)}
+          </p>
+        ) : null}
       </div>
       <div className="grid gap-2 rounded border border-line bg-white p-4">
         <h2 className="text-sm font-semibold">Statuses</h2>
