@@ -75,6 +75,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             <FileImage className="mx-auto text-leaf" size={34} />
             <span className="font-medium">Choose a folder</span>
             <span className="text-sm text-neutral-600">Original files are copied into the local project folder.</span>
+            <span className="text-sm text-neutral-600">Source folders are not tracked for rescan yet.</span>
           </span>
         </label>
       </div>

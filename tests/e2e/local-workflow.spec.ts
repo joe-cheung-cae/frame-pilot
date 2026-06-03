@@ -754,6 +754,7 @@ test("creates a project with a custom local data folder", async ({ page }) => {
 test("shows imported thumbnails before processing", async ({ page }) => {
   await page.goto(`/projects/${project.id}/import`);
   await expect(page.getByText(`Project data: ${project.root_path}`)).toBeVisible();
+  await expect(page.getByText("Source folders are not tracked for rescan yet.")).toBeVisible();
   await page.getByLabel("Choose image files").setInputFiles({
     name: "uploaded-frame.jpg",
     mimeType: "image/jpeg",
