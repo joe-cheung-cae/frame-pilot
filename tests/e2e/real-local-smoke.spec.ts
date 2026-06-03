@@ -42,5 +42,20 @@ test("runs a real local import, process, pick, and CSV export smoke flow", async
   await page.getByLabel("Maybe").uncheck();
   await page.getByRole("button", { name: "Export" }).click();
 
-  await expect(page.getByRole("link", { name: "Download CSV" })).toBeVisible();
+  const downloadLink = page.getByRole("link", { name: "Download CSV" });
+  await expect(downloadLink).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await downloadLink.click();
+  const download = await downloadPromise;
+  const stream = await download.createReadStream();
+  expect(stream).not.toBeNull();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream!) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const csv = Buffer.concat(chunks).toString("utf8");
+
+  expect(csv).toContain("filename,original_path,status");
+  expect(csv).toContain("Pick");
+  expect(csv).toContain("real-smoke-");
 });
