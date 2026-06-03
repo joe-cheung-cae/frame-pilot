@@ -66,6 +66,23 @@ def _build_group_inputs(photos: list[Photo]) -> tuple[list[dict], list[Photo]]:
     return group_inputs, failed_photos
 
 
+def _missing_derivative_paths(photo: Photo) -> list[str]:
+    missing = []
+    for label, raw_path in (("thumbnail", photo.thumbnail_path), ("preview", photo.preview_path)):
+        if not raw_path or not Path(raw_path).is_file():
+            missing.append(label)
+    return missing
+
+
+def _mark_photo_failed(session: Session, photo: Photo, reason: str, explanation: str) -> None:
+    photo.ai_recommendation = "Unreviewed"
+    photo.recommendation_explanation = explanation
+    photo.processing_state = "failed"
+    photo.processing_error = reason
+    photo.updated_at = utc_now()
+    session.add(photo)
+
+
 def _project_processing_is_current(session: Session, project: Project, photos: list[Photo]) -> bool:
     if not photos or project.processed_images != len(photos) or project.total_images != len(photos):
         return False
@@ -161,22 +178,43 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
             session.add(photo)
         session.commit()
 
-        _save_job(session, job, "validating similarity data", 0)
-        group_inputs, failed_photos = _build_group_inputs(photos)
-        for photo in failed_photos:
-            photo.ai_recommendation = "Unreviewed"
-            photo.recommendation_explanation = (
-                "Processing skipped this photo because its stored similarity data is invalid. Reimport the photo "
-                "to rebuild local analysis data."
+        _save_job(session, job, "validating generated files", 0)
+        derivative_failed_photos = []
+        derivative_failed_ids = set()
+        for photo in photos:
+            missing_derivatives = _missing_derivative_paths(photo)
+            if not missing_derivatives:
+                continue
+            derivative_failed_photos.append(photo)
+            derivative_failed_ids.add(photo.id)
+            reason = f"Missing generated {' and '.join(missing_derivatives)}"
+            _mark_photo_failed(
+                session,
+                photo,
+                reason,
+                f"Processing skipped this photo because its generated {' and '.join(missing_derivatives)} is missing. "
+                "Reimport the photo to rebuild local derived files.",
             )
-            photo.processing_state = "failed"
-            photo.processing_error = "Stored similarity data is invalid"
-            photo.updated_at = utc_now()
-            session.add(photo)
         session.commit()
 
+        _save_job(session, job, "validating similarity data", 0, len(derivative_failed_photos))
+        candidate_photos = [photo for photo in photos if photo.id not in derivative_failed_ids]
+        group_inputs, similarity_failed_photos = _build_group_inputs(candidate_photos)
+        for photo in similarity_failed_photos:
+            _mark_photo_failed(
+                session,
+                photo,
+                "Stored similarity data is invalid",
+                "Processing skipped this photo because its stored similarity data is invalid. Reimport the photo "
+                "to rebuild local analysis data.",
+            )
+        session.commit()
+
+        failed_photos = derivative_failed_photos + similarity_failed_photos
+
         _save_job(session, job, "grouping photos", 0, len(failed_photos))
-        photo_map = {photo.id: photo for photo in photos if photo.id not in {failed.id for failed in failed_photos}}
+        failed_photo_ids = {failed.id for failed in failed_photos}
+        photo_map = {photo.id: photo for photo in candidate_photos if photo.id not in failed_photo_ids}
         grouped_photos = group_similar_photos(group_inputs)
 
         for index, grouped in enumerate(grouped_photos, start=1):

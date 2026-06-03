@@ -36,6 +36,14 @@ def _image_bytes(color: tuple[int, int, int] = (120, 150, 90), blur: bool = Fals
     return buffer.getvalue()
 
 
+def _write_test_derivatives(tmp_path: Path, stem: str) -> tuple[str, str]:
+    thumbnail_path = tmp_path / f"{stem}-thumb.webp"
+    preview_path = tmp_path / f"{stem}-preview.webp"
+    thumbnail_path.write_bytes(b"thumbnail")
+    preview_path.write_bytes(b"preview")
+    return str(thumbnail_path), str(preview_path)
+
+
 def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
@@ -325,10 +333,13 @@ def test_processing_skips_photo_with_invalid_similarity_data(tmp_path, monkeypat
     with Session(get_engine()) as session:
         stored_project = session.get(Project, project["id"])
         assert stored_project is not None
+        invalid_thumbnail, invalid_preview = _write_test_derivatives(tmp_path, "invalid")
         invalid_photo = Photo(
             project_id=project["id"],
             original_path=str(tmp_path / "missing.jpg"),
             filename="invalid.jpg",
+            thumbnail_path=invalid_thumbnail,
+            preview_path=invalid_preview,
             embedding="{not-json",
         )
         session.add(invalid_photo)
@@ -353,6 +364,35 @@ def test_processing_skips_photo_with_invalid_similarity_data(tmp_path, monkeypat
     assert invalid_after_processing["processing_state"] == "failed"
     assert invalid_after_processing["processing_error"] == "Stored similarity data is invalid"
     assert "stored similarity data is invalid" in invalid_after_processing["recommendation_explanation"]
+
+
+def test_processing_skips_photo_with_missing_generated_derivative(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Missing derivative"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    photo = import_response.json()["imported"][0]
+    Path(photo["thumbnail_path"]).unlink()
+
+    process_response = client.post(f"/api/projects/{project['id']}/process")
+    assert process_response.status_code == 202
+    job = _wait_for_job(client, project["id"], process_response.json())
+
+    assert job["status"] == "complete"
+    assert job["processed_items"] == 0
+    assert job["failed_items"] == 1
+    assert job["progress_percent"] == 100.0
+    assert "1 photo could not be processed" in job["error_message"]
+    assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 0
+    failed_photo = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
+    assert failed_photo["processing_state"] == "failed"
+    assert failed_photo["processing_error"] == "Missing generated thumbnail"
+    assert "generated thumbnail is missing" in failed_photo["recommendation_explanation"]
 
 
 def test_import_renames_duplicate_filenames_without_overwriting(tmp_path, monkeypatch):
@@ -483,11 +523,15 @@ def test_processing_recommendation_explains_face_and_eye_quality(tmp_path, monke
     project = client.post("/api/projects", json={"name": "Face ranking"}).json()
 
     with Session(get_engine()) as session:
+        face_thumbnail, face_preview = _write_test_derivatives(tmp_path, "face")
+        plain_thumbnail, plain_preview = _write_test_derivatives(tmp_path, "plain")
         photos = [
             Photo(
                 project_id=project["id"],
                 original_path="/tmp/face.jpg",
                 filename="face.jpg",
+                thumbnail_path=face_thumbnail,
+                preview_path=face_preview,
                 sharpness_score=0.4,
                 exposure_score=0.4,
                 face_presence=True,
@@ -500,6 +544,8 @@ def test_processing_recommendation_explains_face_and_eye_quality(tmp_path, monke
                 project_id=project["id"],
                 original_path="/tmp/plain.jpg",
                 filename="plain.jpg",
+                thumbnail_path=plain_thumbnail,
+                preview_path=plain_preview,
                 sharpness_score=0.45,
                 exposure_score=0.45,
                 face_quality_score=0.0,
