@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { groupAfterMove, nextPhotoIdAfterMark, type ReviewGroupRef, type ReviewPhotoRef } from "./reviewNavigation.ts";
+import {
+  groupAfterMove,
+  nextPhotoIdAfterMark,
+  windowedPhotoRefs,
+  type ReviewGroupRef,
+  type ReviewPhotoRef,
+} from "./reviewNavigation.ts";
 
 const photos: ReviewPhotoRef[] = [{ id: "first" }, { id: "second" }, { id: "third" }];
 const groups: ReviewGroupRef[] = [
@@ -50,4 +56,30 @@ test("starts group navigation from the first group when no group is active", () 
 
 test("returns null when there are no groups", () => {
   assert.equal(groupAfterMove([], "missing", 1), null);
+});
+
+test("returns every photo when the filmstrip fits inside the window", () => {
+  assert.deepEqual(windowedPhotoRefs(photos, "second", 5), photos);
+});
+
+test("windows filmstrip photos around the active photo", () => {
+  const manyPhotos = Array.from({ length: 10 }, (_value, index) => ({ id: `photo-${index}` }));
+
+  assert.deepEqual(
+    windowedPhotoRefs(manyPhotos, "photo-5", 4).map((photo) => photo.id),
+    ["photo-3", "photo-4", "photo-5", "photo-6"],
+  );
+});
+
+test("keeps filmstrip windows inside the available photo range", () => {
+  const manyPhotos = Array.from({ length: 10 }, (_value, index) => ({ id: `photo-${index}` }));
+
+  assert.deepEqual(
+    windowedPhotoRefs(manyPhotos, "photo-0", 4).map((photo) => photo.id),
+    ["photo-0", "photo-1", "photo-2", "photo-3"],
+  );
+  assert.deepEqual(
+    windowedPhotoRefs(manyPhotos, "photo-9", 4).map((photo) => photo.id),
+    ["photo-6", "photo-7", "photo-8", "photo-9"],
+  );
 });

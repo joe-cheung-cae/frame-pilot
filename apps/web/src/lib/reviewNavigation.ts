@@ -43,3 +43,19 @@ export function groupAfterMove(
   const nextIndex = Math.min(Math.max(resolvedIndex + delta, 0), groups.length - 1);
   return groups[nextIndex];
 }
+
+export function windowedPhotoRefs<T extends ReviewPhotoRef>(
+  photos: readonly T[],
+  activePhotoId: string | null,
+  maxItems: number,
+): readonly T[] {
+  if (maxItems <= 0 || photos.length <= maxItems) {
+    return photos;
+  }
+
+  const activeIndex = activePhotoId ? photos.findIndex((photo) => photo.id === activePhotoId) : 0;
+  const resolvedIndex = activeIndex >= 0 ? activeIndex : 0;
+  const halfWindow = Math.floor(maxItems / 2);
+  const start = Math.min(Math.max(resolvedIndex - halfWindow, 0), photos.length - maxItems);
+  return photos.slice(start, start + maxItems);
+}

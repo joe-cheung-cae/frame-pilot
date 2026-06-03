@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
-import { groupAfterMove, nextPhotoIdAfterMark } from "@/lib/reviewNavigation";
+import { groupAfterMove, nextPhotoIdAfterMark, windowedPhotoRefs } from "@/lib/reviewNavigation";
 import { useReviewStore } from "@/store/reviewStore";
 
 const FILTERS = [
@@ -36,6 +36,8 @@ const FILTERS = [
   "Duplicate groups",
   "Photos with faces",
 ];
+
+const FILMSTRIP_WINDOW_SIZE = 80;
 
 type PhotoPatch = Partial<Pick<Photo, "user_status" | "star_rating">>;
 
@@ -107,6 +109,10 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     }
     return filteredPhotos.filter((photo) => photo.group_id === activeGroup.id);
   }, [activeGroup, activePhoto, filteredPhotos]);
+  const filmstripPhotos = useMemo(
+    () => windowedPhotoRefs(visiblePhotos, activePhoto?.id ?? null, FILMSTRIP_WINDOW_SIZE),
+    [activePhoto?.id, visiblePhotos],
+  );
 
   const updateMutation = useMutation({
     mutationFn: ({ photo, patch }: { photo: Photo; patch: PhotoPatch }) => api.updatePhoto(projectId, photo.id, patch),
@@ -501,7 +507,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         >
           <ArrowLeft size={18} />
         </button>
-        {visiblePhotos.map((photo) => {
+        {visiblePhotos.length > filmstripPhotos.length ? (
+          <span className="shrink-0 rounded border border-line px-3 py-2 text-xs text-neutral-600">
+            {filmstripPhotos.length} of {visiblePhotos.length}
+          </span>
+        ) : null}
+        {filmstripPhotos.map((photo) => {
           const thumbnail = assetUrl(projectId, photo.thumbnail_path);
           return (
             <button
