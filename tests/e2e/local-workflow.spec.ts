@@ -71,6 +71,8 @@ const photos = [
     user_status: "Unreviewed",
     star_rating: 0,
     group_id: "group-1",
+    processing_state: "processed",
+    processing_error: null,
   },
   {
     id: "photo-2",
@@ -97,6 +99,8 @@ const photos = [
     user_status: "Unreviewed",
     star_rating: 0,
     group_id: "group-1",
+    processing_state: "processed",
+    processing_error: null,
   },
   {
     id: "photo-3",
@@ -123,6 +127,8 @@ const photos = [
     user_status: "Unreviewed",
     star_rating: 0,
     group_id: "group-2",
+    processing_state: "processed",
+    processing_error: null,
   },
 ] as const;
 
@@ -168,6 +174,7 @@ let failPhotoStatusCounts = false;
 let failJobList = false;
 let failJobDetail = false;
 let processWithFailedItems = false;
+let includeProcessingFailedPhoto = false;
 let failProjectList = false;
 let failProjectDetail = false;
 let failNextImport = false;
@@ -204,6 +211,7 @@ test.beforeEach(async ({ page }) => {
   failJobList = false;
   failJobDetail = false;
   processWithFailedItems = false;
+  includeProcessingFailedPhoto = false;
   failProjectList = false;
   failProjectDetail = false;
   failNextImport = false;
@@ -303,6 +311,8 @@ test.beforeEach(async ({ page }) => {
       filename: "uploaded-frame.jpg",
       thumbnail_path: "thumbnails/uploaded-frame.webp",
       preview_path: "previews/uploaded-frame.webp",
+      processing_state: "imported",
+      processing_error: null,
     };
     currentPhotos = [imported, ...currentPhotos];
     const skipped = skipNextImport
@@ -325,7 +335,14 @@ test.beforeEach(async ({ page }) => {
     const limitParam = url.searchParams.get("limit");
     const offset = Number(url.searchParams.get("offset") ?? 0);
     const limit = limitParam ? Number(limitParam) : currentPhotos.length;
-    await route.fulfill({ json: currentPhotos.slice(offset, offset + limit) });
+    const servedPhotos = includeProcessingFailedPhoto
+      ? currentPhotos.map((photo) =>
+          photo.id === "photo-2"
+            ? { ...photo, processing_state: "failed", processing_error: "Missing generated thumbnail" }
+            : photo,
+        )
+      : currentPhotos;
+    await route.fulfill({ json: servedPhotos.slice(offset, offset + limit) });
   });
 
   await page.route(`**/api/projects/${project.id}/photos/status-counts`, async (route) => {
@@ -487,6 +504,18 @@ test("shows culling preview asset load errors", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toBeVisible();
   await expect(page.getByText("Preview failed to load.")).toBeVisible();
+});
+
+test("filters culling photos with processing failures", async ({ page }) => {
+  includeProcessingFailedPhoto = true;
+
+  await page.goto(`/projects/${project.id}/cull`);
+  await page.getByRole("button", { name: "Processing failures" }).click();
+
+  await expect(page.getByRole("button", { name: "Processing failures" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "frame-002.jpg" })).toBeVisible();
+  await expect(page.getByText("Processing error")).toBeVisible();
+  await expect(page.getByText("Missing generated thumbnail")).toBeVisible();
 });
 
 test("shows export history load errors", async ({ page }) => {

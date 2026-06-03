@@ -44,6 +44,7 @@ const FILTERS = [
   "Unreviewed",
   "AI recommended",
   "Blurry photos",
+  "Processing failures",
   "Duplicate groups",
   "Photos with faces",
 ];
@@ -61,6 +62,7 @@ function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<st
   if (filter === "Unreviewed") return photo.user_status === "Unreviewed";
   if (filter === "AI recommended") return photo.ai_recommendation === "Pick";
   if (filter === "Blurry photos") return photo.blur_score >= 0.55;
+  if (filter === "Processing failures") return photo.processing_state === "failed" || Boolean(photo.processing_error);
   if (filter === "Duplicate groups") return Boolean(photo.group_id && duplicateGroupIds.has(photo.group_id));
   if (filter === "Photos with faces") return photo.face_presence;
   return true;
@@ -718,6 +720,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 <p className="rounded border border-line bg-mist p-3 text-sm">
                   {activePhoto.recommendation_explanation}
                 </p>
+                {activePhoto.processing_error ? (
+                  <div className="rounded border border-coral/40 bg-coral/10 p-3 text-sm">
+                    <p className="font-semibold text-coral">Processing error</p>
+                    <p className="mt-1 text-neutral-700">{activePhoto.processing_error}</p>
+                  </div>
+                ) : null}
                 <div className="rounded border border-line p-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold">Batch visible</p>
