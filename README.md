@@ -80,6 +80,8 @@ npm run perf:api -- --output /tmp/framepilot-perf-targets --counts 100 500 2000
 
 Each count writes generated sources, local metadata, and exports under a separate `count-*` subdirectory.
 
+See [FramePilot v2 Testing Strategy](docs/v2_testing_strategy.md) for the expected unit, integration, E2E, and performance validation layers.
+
 ## Privacy
 
 The MVP does not upload originals or generated previews to any remote service. Imported images are copied into the local project directory so originals are never modified.
