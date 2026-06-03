@@ -6,6 +6,7 @@ export type Project = {
   root_path: string;
   total_images: number;
   processed_images: number;
+  last_processed_at: string | null;
   created_at: string;
   updated_at: string;
 };

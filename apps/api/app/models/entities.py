@@ -20,6 +20,7 @@ class Project(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utc_now)
     total_images: int = 0
     processed_images: int = 0
+    last_processed_at: datetime | None = None
 
 
 class Photo(SQLModel, table=True):

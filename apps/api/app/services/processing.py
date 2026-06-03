@@ -202,6 +202,7 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
             job.error_message = f"{len(failed_photos)} photo could not be processed"
         job.completed_at = utc_now()
         project.processed_images = len(group_inputs)
+        project.last_processed_at = job.completed_at
         project.updated_at = utc_now()
         session.add(project)
     except Exception as error:

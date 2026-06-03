@@ -24,6 +24,7 @@ class ProjectRead(BaseModel):
     updated_at: datetime
     total_images: int
     processed_images: int
+    last_processed_at: datetime | None
 
 
 class PhotoRead(BaseModel):

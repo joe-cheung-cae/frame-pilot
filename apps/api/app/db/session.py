@@ -15,6 +15,7 @@ def get_engine():
 def init_db() -> None:
     engine = get_engine()
     SQLModel.metadata.create_all(engine)
+    _ensure_project_columns(engine)
     _ensure_export_record_columns(engine)
     _ensure_photo_columns(engine)
     _ensure_processing_job_columns(engine)
@@ -31,6 +32,24 @@ def _ensure_export_record_columns(engine) -> None:
         statements.append("ALTER TABLE exportrecord ADD COLUMN selected_count INTEGER NOT NULL DEFAULT 0")
     if "statuses" not in existing:
         statements.append("ALTER TABLE exportrecord ADD COLUMN statuses VARCHAR NOT NULL DEFAULT '[]'")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+def _ensure_project_columns(engine) -> None:
+    inspector = inspect(engine)
+    if not inspector.has_table("project"):
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("project")}
+    statements = []
+    if "last_processed_at" not in existing:
+        statements.append("ALTER TABLE project ADD COLUMN last_processed_at DATETIME")
 
     if not statements:
         return

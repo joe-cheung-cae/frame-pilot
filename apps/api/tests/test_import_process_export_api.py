@@ -71,6 +71,7 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     assert job["completed_at"] is not None
     processed_project = client.get(f"/api/projects/{project['id']}").json()
     assert processed_project["processed_images"] == 1
+    assert processed_project["last_processed_at"] is not None
     processed_photo = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
     assert processed_photo["processing_state"] == "processed"
     assert processed_photo["processing_error"] is None
@@ -369,6 +370,7 @@ def test_import_after_processing_invalidates_stale_groups_and_recommendations(tm
     updated_project = client.get(f"/api/projects/{project['id']}").json()
     assert updated_project["total_images"] == 2
     assert updated_project["processed_images"] == 0
+    assert updated_project["last_processed_at"] is not None
     assert client.get(f"/api/projects/{project['id']}/groups").json() == []
     updated_first = client.get(f"/api/projects/{project['id']}/photos/{first_photo['id']}").json()
     assert updated_first["group_id"] is None

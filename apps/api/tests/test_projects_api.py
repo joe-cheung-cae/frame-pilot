@@ -14,6 +14,7 @@ def test_create_and_list_projects(tmp_path, monkeypatch):
     assert created["name"] == "Wedding selects"
     assert created["total_images"] == 0
     assert created["processed_images"] == 0
+    assert created["last_processed_at"] is None
 
     list_response = client.get("/api/projects")
 
