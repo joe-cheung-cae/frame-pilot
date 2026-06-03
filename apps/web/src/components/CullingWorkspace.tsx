@@ -493,6 +493,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                         className="max-h-[56vh] max-w-full object-contain"
                         src={comparePreview}
                         alt={`Compare ${photo.filename}`}
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <span className="text-sm text-white">No preview</span>
@@ -513,6 +515,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               }
               src={preview}
               alt={activePhoto?.filename ?? "Preview"}
+              decoding="async"
             />
           ) : (
             <div className="grid place-items-center gap-3 text-center text-white">
@@ -704,7 +707,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               onClick={() => setActivePhotoId(photo.id)}
             >
               {thumbnail ? (
-                <img className="h-full w-full object-cover" src={thumbnail} alt={photo.filename} />
+                <img
+                  className="h-full w-full object-cover"
+                  src={thumbnail}
+                  alt={photo.filename}
+                  loading="lazy"
+                  decoding="async"
+                />
               ) : (
                 <span className="grid h-full place-items-center text-xs">No preview</span>
               )}

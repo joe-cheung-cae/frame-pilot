@@ -104,6 +104,8 @@ export function ImportPanel({ projectId }: { projectId: string }) {
                       className="aspect-[4/3] w-full object-cover"
                       src={thumbnail}
                       alt={`Thumbnail for ${photo.filename}`}
+                      loading="lazy"
+                      decoding="async"
                     />
                   ) : (
                     <div className="grid aspect-[4/3] place-items-center text-xs text-neutral-600">No preview</div>
