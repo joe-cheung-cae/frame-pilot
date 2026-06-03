@@ -1503,6 +1503,44 @@ def test_file_export_fails_when_selected_original_is_missing(tmp_path, monkeypat
     assert not Path(record["output_path"]).exists()
 
 
+def test_file_export_routes_prefer_project_copy_path(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Project copy export"}).json()
+    missing_original = tmp_path / "missing-source" / "frame.jpg"
+    project_copy = Path(project["root_path"]) / "originals" / "frame.jpg"
+    project_copy.parent.mkdir(parents=True, exist_ok=True)
+    project_copy.write_bytes(b"project copy bytes")
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(missing_original),
+            project_copy_path=str(project_copy),
+            filename="frame.jpg",
+            user_status="Pick",
+        )
+        session.add(photo)
+        session.commit()
+
+    zip_response = client.post(f"/api/projects/{project['id']}/exports", json={"mode": "zip", "statuses": ["Pick"]})
+    assert zip_response.status_code == 201
+    zip_record = zip_response.json()
+    assert zip_record["selected_count"] == 1
+    with zipfile.ZipFile(zip_record["output_path"]) as archive:
+        assert archive.namelist() == ["frame.jpg"]
+        assert archive.read("frame.jpg") == b"project copy bytes"
+
+    folder_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "folder", "statuses": ["Pick"]},
+    )
+    assert folder_response.status_code == 201
+    folder_record = folder_response.json()
+    exported_file = Path(folder_record["output_path"]) / "frame.jpg"
+    assert exported_file.read_bytes() == b"project copy bytes"
+
+
 def test_download_rejects_incomplete_export_records_even_when_artifact_exists(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
