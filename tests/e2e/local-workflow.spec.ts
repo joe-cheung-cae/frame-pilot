@@ -18,6 +18,21 @@ const emptyProject = {
   processed_images: 0,
 };
 
+const completedJob = {
+  id: "job-1",
+  project_id: project.id,
+  job_type: "processing",
+  status: "complete",
+  current_step: "complete",
+  total_items: project.total_images,
+  processed_items: project.total_images,
+  failed_items: 0,
+  progress_percent: 100,
+  error_message: null,
+  started_at: "2026-06-02T00:00:00Z",
+  completed_at: "2026-06-02T00:00:01Z",
+};
+
 const photos = [
   {
     id: "photo-1",
@@ -142,6 +157,7 @@ test.beforeEach(async ({ page }) => {
   photoListRequests = 0;
   let currentProject = { ...project };
   let currentPhotos = photos.map((photo) => ({ ...photo }));
+  let currentJob: typeof completedJob | null = null;
 
   await page.route("**/api/projects", async (route) => {
     if (route.request().method() === "POST") {
@@ -162,23 +178,28 @@ test.beforeEach(async ({ page }) => {
       return;
     }
     currentProject = { ...currentProject, processed_images: currentProject.total_images };
+    currentJob = {
+      ...completedJob,
+      total_items: currentProject.total_images,
+      processed_items: currentProject.total_images,
+    };
     await route.fulfill({
-      json: {
-        id: "job-1",
-        project_id: project.id,
-        job_type: "processing",
-        status: "complete",
-        current_step: "complete",
-        total_items: currentProject.total_images,
-        processed_items: currentProject.total_images,
-        failed_items: 0,
-        progress_percent: 100,
-        error_message: null,
-        started_at: "2026-06-02T00:00:00Z",
-        completed_at: "2026-06-02T00:00:01Z",
-      },
+      json: currentJob,
       status: 202,
     });
+  });
+
+  await page.route(`**/api/projects/${project.id}/jobs`, async (route) => {
+    await route.fulfill({ json: currentJob ? [currentJob] : [] });
+  });
+
+  await page.route(`**/api/projects/${project.id}/jobs/*`, async (route) => {
+    const jobId = route.request().url().split("/").at(-1);
+    if (currentJob?.id !== jobId) {
+      await route.fulfill({ json: { detail: "Processing job not found" }, status: 404 });
+      return;
+    }
+    await route.fulfill({ json: currentJob });
   });
 
   await page.route(`**/api/projects/${project.id}/import`, async (route) => {
@@ -326,6 +347,31 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page.getByText("Statuses: Pick")).toHaveCount(2);
   await expect(page.getByRole("link", { name: "Download CSV" })).toBeVisible();
   await expect(page.getByText("CSV · 1 photos")).toBeVisible();
+});
+
+test("resumes polling an active processing job on the processing page", async ({ page }) => {
+  const runningJob = {
+    ...completedJob,
+    id: "job-running",
+    status: "running",
+    current_step: "hash/scoring",
+    processed_items: 1,
+    progress_percent: 33,
+    completed_at: null,
+  };
+
+  await page.route(`**/api/projects/${project.id}/jobs`, async (route) => {
+    await route.fulfill({ json: [runningJob] });
+  });
+  await page.route(`**/api/projects/${project.id}/jobs/${runningJob.id}`, async (route) => {
+    await route.fulfill({ json: runningJob });
+  });
+
+  await page.goto(`/projects/${project.id}/process`);
+
+  await expect(page.getByText("1 of 3 photos · 0 failed · 33%")).toBeVisible();
+  await expect(page.locator("p").filter({ hasText: /^hash\/scoring$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run Grouping and Ranking" })).toBeDisabled();
 });
 
 test("creates a project and opens the import step", async ({ page }) => {

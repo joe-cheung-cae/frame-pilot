@@ -156,6 +156,18 @@ def get_job_endpoint(project_id: str, job_id: str, session: Session = Depends(ge
     return job
 
 
+@router.get("/projects/{project_id}/jobs", response_model=list[JobRead])
+def list_jobs_endpoint(project_id: str, session: Session = Depends(get_session)):
+    _get_project(session, project_id)
+    return list(
+        session.exec(
+            select(ProcessingJob)
+            .where(ProcessingJob.project_id == project_id)
+            .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
+        ).all()
+    )
+
+
 @router.get("/projects/{project_id}/photos", response_model=list[PhotoRead])
 def list_photos_endpoint(project_id: str, session: Session = Depends(get_session)):
     _get_project(session, project_id)

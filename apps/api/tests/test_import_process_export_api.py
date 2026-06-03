@@ -332,6 +332,41 @@ def test_process_returns_existing_active_job_without_creating_duplicate(tmp_path
     assert len(jobs) == 1
 
 
+def test_list_jobs_returns_project_jobs_newest_first(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Job history"}).json()
+    other_project = client.post("/api/projects", json={"name": "Other job history"}).json()
+
+    with Session(get_engine()) as session:
+        older_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="complete",
+            current_step="complete",
+            created_at=datetime(2026, 1, 1, 10, 0, 0, tzinfo=UTC),
+        )
+        newer_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="failed",
+            current_step="failed",
+            created_at=datetime(2026, 1, 1, 11, 0, 0, tzinfo=UTC),
+        )
+        other_job = ProcessingJob(project_id=other_project["id"], job_type="processing", status="running")
+        session.add(older_job)
+        session.add(newer_job)
+        session.add(other_job)
+        session.commit()
+        older_job_id = older_job.id
+        newer_job_id = newer_job.id
+
+    response = client.get(f"/api/projects/{project['id']}/jobs")
+
+    assert response.status_code == 200
+    assert [job["id"] for job in response.json()] == [newer_job_id, older_job_id]
+
+
 def test_process_fails_stale_active_job_and_starts_replacement(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(routes, "run_processing_job", lambda _job_id: None)

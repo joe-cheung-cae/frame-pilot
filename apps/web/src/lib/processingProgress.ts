@@ -7,8 +7,14 @@ type ProcessingProgressJob = Pick<
 
 type ProcessingProgressProject = Pick<Project, "processed_images" | "total_images">;
 
+type ProcessingJobCandidate = Pick<ProcessingJob, "job_type" | "status">;
+
 export function processingStatusLabel(status: ProcessingJob["status"] | null | undefined): string {
   return status ? status[0].toUpperCase() + status.slice(1) : "Ready";
+}
+
+export function activeProcessingJob<T extends ProcessingJobCandidate>(jobs: readonly T[] | null | undefined): T | undefined {
+  return jobs?.find((job) => job.job_type === "processing" && (job.status === "queued" || job.status === "running"));
 }
 
 export function processingProgressPercent(job: Pick<ProcessingJob, "progress_percent"> | null | undefined): number {

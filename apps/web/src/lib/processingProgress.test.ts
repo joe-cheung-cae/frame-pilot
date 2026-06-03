@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  activeProcessingJob,
   processingProgressPercent,
   processingProgressSummary,
   processingStatusLabel,
@@ -39,4 +40,20 @@ test("formats active job progress with failed item counts", () => {
     ),
     "8 of 12 photos · 2 failed · 83%",
   );
+});
+
+test("selects the newest active processing job from ordered jobs", () => {
+  const active = { id: "job-2", job_type: "processing", status: "running" as const };
+  const jobs = [
+    { id: "job-3", job_type: "processing", status: "failed" as const },
+    active,
+    { id: "job-1", job_type: "processing", status: "queued" as const },
+  ];
+
+  assert.equal(activeProcessingJob(jobs), active);
+  assert.equal(
+    activeProcessingJob([{ id: "export-1", job_type: "export", status: "running" as const }]),
+    undefined,
+  );
+  assert.equal(activeProcessingJob(undefined), undefined);
 });

@@ -5,7 +5,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Loader2, Play, Rows3, Upload } from "lucide-react";
 import { api } from "@/lib/api";
-import { processingProgressPercent, processingProgressSummary, processingStatusLabel } from "@/lib/processingProgress";
+import {
+  activeProcessingJob,
+  processingProgressPercent,
+  processingProgressSummary,
+  processingStatusLabel,
+} from "@/lib/processingProgress";
 
 export function ProcessingPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -15,19 +20,23 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      await queryClient.invalidateQueries({ queryKey: ["jobs", projectId] });
     },
   });
+  const jobsQuery = useQuery({ queryKey: ["jobs", projectId], queryFn: () => api.listJobs(projectId) });
   const startedJob = mutation.data;
+  const resumedJob = activeProcessingJob(jobsQuery.data);
+  const currentJobId = startedJob?.id ?? resumedJob?.id;
   const jobQuery = useQuery({
-    queryKey: ["job", projectId, startedJob?.id],
-    queryFn: () => api.getJob(projectId, startedJob?.id ?? ""),
-    enabled: Boolean(startedJob?.id),
+    queryKey: ["job", projectId, currentJobId],
+    queryFn: () => api.getJob(projectId, currentJobId ?? ""),
+    enabled: Boolean(currentJobId),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === "queued" || status === "running" ? 1000 : false;
     },
   });
-  const job = jobQuery.data ?? startedJob;
+  const job = jobQuery.data ?? startedJob ?? resumedJob;
   const progress = processingProgressPercent(job);
   const hasImportedPhotos = Boolean(project.data?.total_images);
   const canOpenCulling = job?.status === "complete" || Boolean(project.data?.processed_images);
@@ -42,6 +51,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
     void queryClient.invalidateQueries({ queryKey: ["projects"] });
     void queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
     void queryClient.invalidateQueries({ queryKey: ["groups", projectId] });
+    void queryClient.invalidateQueries({ queryKey: ["jobs", projectId] });
   }, [job?.status, projectId, queryClient]);
 
   return (
