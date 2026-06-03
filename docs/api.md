@@ -78,6 +78,13 @@ The response contains both imported photos and skipped files:
       "content_hash": "sha256-hex",
       "project_copy_path": ".../originals/frame.jpg",
       "source_identity": "sha256:sha256-hex",
+      "capture_time": "2026-01-02T03:04:05",
+      "camera_model": "FramePilotCam",
+      "lens_model": "FramePilot 35mm",
+      "focal_length": "35",
+      "aperture": "2.8",
+      "shutter_speed": "1/125",
+      "iso": 400,
       "perceptual_hash": "ff00ff00ff00ff00",
       "thumbnail_path": ".../thumbnails/frame.webp",
       "preview_path": ".../previews/frame.webp",
@@ -97,6 +104,7 @@ The response contains both imported photos and skipped files:
 ```
 
 If every file is skipped, the endpoint returns `422`. Importing new photos invalidates previous groups and AI recommendations, so processing should be run again.
+When EXIF data is available, import records basic capture time, camera, lens, focal length, aperture, shutter speed, and ISO metadata. Numeric EXIF rationals are normalized into stable display strings.
 HEIC and RAW extensions such as `.heic`, `.dng`, `.arw`, `.cr3`, and `.nef` are recognized as planned future formats, but v2 currently skips them with explicit unsupported-format reasons instead of attempting local decoding.
 
 ## Processing
