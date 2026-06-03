@@ -4,7 +4,7 @@ const project = {
   id: "project-1",
   name: "E2E Shoot",
   root_path: "/tmp/framepilot/e2e",
-  total_images: 2,
+  total_images: 3,
   processed_images: 0,
   created_at: "2026-06-02T00:00:00Z",
   updated_at: "2026-06-02T00:00:00Z",
@@ -71,6 +71,32 @@ const photos = [
     star_rating: 0,
     group_id: "group-1",
   },
+  {
+    id: "photo-3",
+    project_id: project.id,
+    filename: "frame-003.jpg",
+    file_size: 1236,
+    width: 80,
+    height: 60,
+    thumbnail_path: "thumbnails/frame-003.webp",
+    preview_path: "previews/frame-003.webp",
+    sharpness_score: 0.62,
+    blur_score: 0.38,
+    exposure_score: 0.67,
+    contrast_score: 0.58,
+    noise_score: 0.25,
+    face_presence: false,
+    face_sharpness_score: 0,
+    eye_open_confidence: null,
+    face_quality_score: 0,
+    aesthetic_score: 0.6,
+    overall_score: 0.61,
+    ai_recommendation: "Pick",
+    recommendation_explanation: "Recommended because it has the strongest available quality signals.",
+    user_status: "Unreviewed",
+    star_rating: 0,
+    group_id: "group-2",
+  },
 ] as const;
 
 const groups = [
@@ -89,9 +115,27 @@ const groups = [
       top_photo_id: "photo-1",
     }),
   },
+  {
+    id: "group-2",
+    project_id: project.id,
+    group_type: "single",
+    representative_photo_id: "photo-3",
+    photo_count: 1,
+    score_summary: JSON.stringify({
+      best_score: 0.61,
+      confidence: "low",
+      explanation: "Low confidence because this group has no similar alternative to compare.",
+      recommendation_counts: { Maybe: 0, Pick: 1, Reject: 0, Unreviewed: 0 },
+      score_gap: 0,
+      top_photo_id: "photo-3",
+    }),
+  },
 ];
 
+let photoPatches: { patch: { star_rating?: number; user_status?: string }; photoId: string | undefined }[] = [];
+
 test.beforeEach(async ({ page }) => {
+  photoPatches = [];
   let currentProject = { ...project };
   let currentPhotos = photos.map((photo) => ({ ...photo }));
 
@@ -148,6 +192,7 @@ test.beforeEach(async ({ page }) => {
   await page.route(`**/api/projects/${project.id}/photos/*`, async (route) => {
     const photoId = route.request().url().split("/").at(-1);
     const patch = route.request().postDataJSON() as { user_status?: string; star_rating?: number };
+    photoPatches.push({ patch, photoId });
     currentPhotos = currentPhotos.map((photo) => (photo.id === photoId ? { ...photo, ...patch } : photo));
     await route.fulfill({ json: currentPhotos.find((photo) => photo.id === photoId) });
   });
@@ -197,6 +242,18 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page.getByRole("heading", { name: "E2E Shoot" })).toBeVisible();
   await expect(page.getByText("High confidence").first()).toBeVisible();
   await expect(page.getByText("High confidence because the top photo leads the next candidate by 0.23.")).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("heading", { name: "frame-003.jpg" })).toBeVisible();
+  await expect(page.getByText("Low confidence because this group has no similar alternative to compare.")).toBeVisible();
+  await page.keyboard.press("ArrowUp");
+  await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toBeVisible();
+  const initialPatchCount = photoPatches.length;
+  await page.keyboard.press("5");
+  await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 1);
+  expect(photoPatches.at(-1)).toEqual({ patch: { star_rating: 5 }, photoId: "photo-1" });
+  await page.keyboard.press("0");
+  await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 2);
+  expect(photoPatches.at(-1)).toEqual({ patch: { star_rating: 0 }, photoId: "photo-1" });
   await page.keyboard.press("p");
   await expect(page.getByRole("heading", { name: "frame-002.jpg" })).toBeVisible();
 

@@ -8,7 +8,7 @@ import { useEffect, useMemo } from "react";
 import { ArrowLeft, ArrowRight, Check, Eye, ImageOff, Loader2, Play, Star, Upload, X } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
-import { nextPhotoIdAfterMark } from "@/lib/reviewNavigation";
+import { groupAfterMove, nextPhotoIdAfterMark } from "@/lib/reviewNavigation";
 import { useReviewStore } from "@/store/reviewStore";
 
 const FILTERS = [
@@ -72,11 +72,11 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     visiblePhotos.findIndex((photo) => photo.id === activePhotoId),
   );
   const activePhoto = visiblePhotos[activeIndex] ?? visiblePhotos[0] ?? null;
-  const activeGroupIndex = activeGroupId ? groups.findIndex((group) => group.id === activeGroupId) : -1;
   const activeGroup = useMemo(() => {
     const groupId = activePhoto?.group_id ?? activeGroupId;
     return groupId ? (groups.find((group) => group.id === groupId) ?? null) : null;
   }, [activeGroupId, activePhoto?.group_id, groups]);
+  const activeGroupIndex = activeGroup ? groups.findIndex((group) => group.id === activeGroup.id) : -1;
   const activeGroupSummary = useMemo(
     () => parseGroupScoreSummary(activeGroup?.score_summary),
     [activeGroup?.score_summary],
@@ -122,6 +122,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     selectGroup(nextGroup.id, nextGroup.representative_photo_id);
   }
 
+  function moveGroup(delta: -1 | 1) {
+    const nextGroup = groupAfterMove(groups, activeGroup?.id ?? activeGroupId, delta);
+    if (nextGroup) {
+      selectGroup(nextGroup.id, nextGroup.representative_photo_id);
+    }
+  }
+
   function mark(status: Photo["user_status"]) {
     if (activePhoto) {
       const nextPhotoId = nextPhotoIdAfterMark(visiblePhotos, activePhoto.id);
@@ -143,6 +150,14 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       if (event.key === "ArrowLeft") move(-1);
       if (event.key === "ArrowRight") move(1);
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        moveGroup(-1);
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        moveGroup(1);
+      }
       if (event.key.toLowerCase() === "p") mark("Pick");
       if (event.key.toLowerCase() === "m") mark("Maybe");
       if (event.key.toLowerCase() === "x") mark("Reject");
@@ -153,6 +168,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       }
       if (event.key.toLowerCase() === "g") cycleGroup();
       const numeric = Number(event.key);
+      if (numeric === 0) rate(0);
       if (numeric >= 1 && numeric <= 5) rate(numeric);
     }
     window.addEventListener("keydown", onKeyDown);
