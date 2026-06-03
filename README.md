@@ -15,7 +15,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The MVP keeps ori
 - Group-focused culling with recommendation-first review ordering.
 - Pick, Maybe, Reject, and Unreviewed statuses.
 - Keyboard review shortcuts: arrows, P, M, X, U, 1-5, Space, and G.
-- CSV, folder, and ZIP export modes with unique local export outputs.
+- CSV, folder, and ZIP export modes with unique local export outputs and export history.
 
 ## Setup
 
@@ -39,7 +39,7 @@ Typical workflow:
 2. Import JPEG, PNG, or WebP files. Valid files are imported even if some selected files are skipped.
 3. Run processing to rebuild groups and recommendations.
 4. Review photos by group and mark Pick, Maybe, Reject, or Unreviewed.
-5. Export one or more selected statuses to CSV, folder, or ZIP. CSV and ZIP exports can be downloaded from the browser.
+5. Export one or more selected statuses to CSV, folder, or ZIP. CSV and ZIP exports can be downloaded from the browser, and previous exports remain visible in export history.
 
 ## Verify
 
