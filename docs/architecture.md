@@ -39,3 +39,5 @@ Ranking persists a deterministic `score_summary` JSON string on each group. The 
 Exports are local artifacts written under `exports/`. Each export record has a unique output path and records the selected statuses plus selected photo count. Empty exports are rejected before an artifact is written. CSV and ZIP artifacts can be downloaded through the local API; folder exports expose the local output path. Export records remain in SQLite and can be listed for local export history.
 
 Future sidecar-oriented export should write derived metadata files under project-controlled output directories, never next to or over original source files unless the user explicitly chooses that workflow in a later release.
+
+SQLite initialization also creates indexes for large-project review and export queries: photo review ordering by project, status-filtered export selection, project group listing, and active processing-job lookup.

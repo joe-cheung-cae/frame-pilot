@@ -20,6 +20,7 @@ def init_db() -> None:
     _ensure_photo_group_columns(engine)
     _ensure_photo_columns(engine)
     _ensure_processing_job_columns(engine)
+    _ensure_performance_indexes(engine)
 
 
 def _ensure_export_record_columns(engine) -> None:
@@ -133,6 +134,55 @@ def _ensure_processing_job_columns(engine) -> None:
         statements.append("ALTER TABLE processingjob ADD COLUMN started_at DATETIME")
     if "completed_at" not in existing:
         statements.append("ALTER TABLE processingjob ADD COLUMN completed_at DATETIME")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+def _ensure_performance_indexes(engine) -> None:
+    inspector = inspect(engine)
+    statements = []
+
+    if inspector.has_table("photo"):
+        photo_indexes = {index["name"] for index in inspector.get_indexes("photo")}
+        if "ix_photo_project_review_order" not in photo_indexes:
+            statements.append(
+                """
+                CREATE INDEX IF NOT EXISTS ix_photo_project_review_order
+                ON photo (project_id, group_id, ai_recommendation, overall_score, filename)
+                """
+            )
+        if "ix_photo_project_status_filename" not in photo_indexes:
+            statements.append(
+                """
+                CREATE INDEX IF NOT EXISTS ix_photo_project_status_filename
+                ON photo (project_id, user_status, filename)
+                """
+            )
+
+    if inspector.has_table("photogroup"):
+        group_indexes = {index["name"] for index in inspector.get_indexes("photogroup")}
+        if "ix_photogroup_project_created" not in group_indexes:
+            statements.append(
+                """
+                CREATE INDEX IF NOT EXISTS ix_photogroup_project_created
+                ON photogroup (project_id, created_at, id)
+                """
+            )
+
+    if inspector.has_table("processingjob"):
+        job_indexes = {index["name"] for index in inspector.get_indexes("processingjob")}
+        if "ix_processingjob_project_active" not in job_indexes:
+            statements.append(
+                """
+                CREATE INDEX IF NOT EXISTS ix_processingjob_project_active
+                ON processingjob (project_id, job_type, status, created_at, id)
+                """
+            )
 
     if not statements:
         return
