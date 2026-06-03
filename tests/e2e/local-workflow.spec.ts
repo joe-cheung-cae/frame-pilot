@@ -673,6 +673,19 @@ test("shows completed processing jobs with failed items", async ({ page }) => {
     page.getByText("1 photo could not be processed. Review failed photo details before export.").first(),
   ).toBeVisible();
   await expect(page.getByText("3 of 3 photos · 1 failed · 100%").first()).toBeVisible();
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      "framepilot.reviewProgress.v1.project-1",
+      JSON.stringify({
+        activeGroupId: "group-2",
+        activePhotoId: "photo-3",
+        compareMode: false,
+        filter: "All",
+        largePreview: false,
+        zoomPreview: false,
+      }),
+    );
+  });
 
   await page.getByRole("link", { name: "Review processing failures" }).click();
 

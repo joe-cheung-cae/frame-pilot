@@ -195,9 +195,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     }
     skipNextProgressSave.current = projectId;
     const storedProgress = parseReviewProgress(stored, REVIEW_FILTERS);
+    const validRequestedFilter = requestedFilter && REVIEW_FILTERS.includes(requestedFilter) ? requestedFilter : null;
     setReviewProgress({
       ...storedProgress,
-      filter: requestedFilter && REVIEW_FILTERS.includes(requestedFilter) ? requestedFilter : storedProgress.filter,
+      activeGroupId: validRequestedFilter ? null : storedProgress.activeGroupId,
+      activePhotoId: validRequestedFilter ? null : storedProgress.activePhotoId,
+      filter: validRequestedFilter ?? storedProgress.filter,
     });
   }, [projectId, requestedFilter, setReviewProgress]);
 
