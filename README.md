@@ -14,7 +14,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The MVP keeps ori
 - Lightweight embedding approximation for near-duplicate grouping.
 - Group-focused culling with recommendation-first review ordering.
 - Pick, Maybe, Reject, and Unreviewed statuses.
-- Keyboard review shortcuts: arrows, P, M, X, U, 1-5, Space, and G.
+- Keyboard review shortcuts: arrows, P, M, X, U, 1-5, 0, Space, Z, C, G, F, and E.
 - CSV, folder, and ZIP export modes with unique local export outputs and export history.
 
 ## Setup
