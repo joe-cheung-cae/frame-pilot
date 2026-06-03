@@ -78,6 +78,7 @@ class PhotoGroup(SQLModel, table=True):
     group_type: str = "single"
     representative_photo_id: str | None = Field(default=None, foreign_key="photo.id")
     photo_count: int = 0
+    score_summary: str = "{}"
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 

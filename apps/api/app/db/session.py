@@ -17,6 +17,7 @@ def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     _ensure_project_columns(engine)
     _ensure_export_record_columns(engine)
+    _ensure_photo_group_columns(engine)
     _ensure_photo_columns(engine)
     _ensure_processing_job_columns(engine)
 
@@ -56,6 +57,24 @@ def _ensure_project_columns(engine) -> None:
         statements.append("ALTER TABLE project ADD COLUMN last_processed_at DATETIME")
     if "schema_version" not in existing:
         statements.append("ALTER TABLE project ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 2")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+def _ensure_photo_group_columns(engine) -> None:
+    inspector = inspect(engine)
+    if not inspector.has_table("photogroup"):
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("photogroup")}
+    statements = []
+    if "score_summary" not in existing:
+        statements.append("ALTER TABLE photogroup ADD COLUMN score_summary VARCHAR NOT NULL DEFAULT '{}'")
 
     if not statements:
         return

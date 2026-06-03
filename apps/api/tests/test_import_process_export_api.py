@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import json
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -94,6 +95,10 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     groups = client.get(f"/api/projects/{project['id']}/groups").json()
     assert len(groups) == 1
     assert groups[0]["representative_photo_id"] == photo["id"]
+    score_summary = json.loads(groups[0]["score_summary"])
+    assert score_summary["confidence"] == "low"
+    assert score_summary["top_photo_id"] == photo["id"]
+    assert score_summary["recommendation_counts"]["Pick"] == 1
 
     update_response = client.patch(
         f"/api/projects/{project['id']}/photos/{photo['id']}",
@@ -600,6 +605,67 @@ def test_processing_recommendation_explains_face_and_eye_quality(tmp_path, monke
     face_photo = next(photo for photo in processed if photo["filename"] == "face.jpg")
     assert face_photo["ai_recommendation"] == "Pick"
     assert "experimental face and open-eye signals" in face_photo["recommendation_explanation"]
+
+
+def test_processing_persists_duplicate_group_score_summary(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Group confidence"}).json()
+
+    with Session(get_engine()) as session:
+        best_thumbnail, best_preview = _write_test_derivatives(tmp_path, "best")
+        weak_thumbnail, weak_preview = _write_test_derivatives(tmp_path, "weak")
+        photos = [
+            Photo(
+                project_id=project["id"],
+                original_path="/tmp/IMG_0001.jpg",
+                filename="IMG_0001.jpg",
+                thumbnail_path=best_thumbnail,
+                preview_path=best_preview,
+                sharpness_score=1.0,
+                exposure_score=1.0,
+                contrast_score=1.0,
+                noise_score=0.0,
+                aesthetic_score=1.0,
+                embedding="[1, 0]",
+            ),
+            Photo(
+                project_id=project["id"],
+                original_path="/tmp/IMG_0002.jpg",
+                filename="IMG_0002.jpg",
+                thumbnail_path=weak_thumbnail,
+                preview_path=weak_preview,
+                sharpness_score=0.0,
+                exposure_score=0.0,
+                contrast_score=0.0,
+                noise_score=1.0,
+                aesthetic_score=0.0,
+                embedding="[1, 0]",
+            ),
+        ]
+        session.add_all(photos)
+        project_model = session.get(Project, project["id"])
+        assert project_model is not None
+        project_model.total_images = 2
+        session.add(project_model)
+        session.commit()
+        best_photo_id = photos[0].id
+
+    response = client.post(f"/api/projects/{project['id']}/process")
+
+    assert response.status_code == 202
+    job = _wait_for_job(client, project["id"], response.json())
+    assert job["status"] == "complete"
+    groups = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert len(groups) == 1
+    assert groups[0]["group_type"] == "duplicate"
+    assert groups[0]["representative_photo_id"] == best_photo_id
+    score_summary = json.loads(groups[0]["score_summary"])
+    assert score_summary["confidence"] == "high"
+    assert score_summary["top_photo_id"] == best_photo_id
+    assert score_summary["best_score"] >= score_summary["score_gap"] > 0.1
+    assert score_summary["recommendation_counts"] == {"Maybe": 0, "Pick": 1, "Reject": 1, "Unreviewed": 0}
+    assert "top photo leads" in score_summary["explanation"]
 
 
 def test_import_rejects_invalid_image_and_cleans_written_file(tmp_path, monkeypatch):

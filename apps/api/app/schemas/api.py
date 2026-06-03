@@ -103,6 +103,7 @@ class GroupRead(BaseModel):
     group_type: str
     representative_photo_id: str | None
     photo_count: int
+    score_summary: str
 
 
 class JobRead(BaseModel):

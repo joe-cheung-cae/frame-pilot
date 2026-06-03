@@ -129,7 +129,20 @@ Processing validates generated thumbnail and preview files before grouping. Miss
 
 `GET /api/projects/{project_id}/photos` returns photos ordered for review by group, AI recommendation priority, score, and filename.
 
-`GET /api/projects/{project_id}/groups` returns groups in stable creation order for group-by-group review.
+`GET /api/projects/{project_id}/groups` returns groups in stable creation order for group-by-group review. Each group includes a JSON `score_summary` string with the top photo id, best score, score gap, confidence label, recommendation counts, and a short deterministic explanation.
+
+Example group response:
+
+```json
+{
+  "id": "group-id",
+  "project_id": "project-id",
+  "group_type": "duplicate",
+  "representative_photo_id": "photo-id",
+  "photo_count": 2,
+  "score_summary": "{\"best_score\": 0.82, \"confidence\": \"medium\", \"explanation\": \"Medium confidence because the top photo leads the next candidate by 0.07.\", \"recommendation_counts\": {\"Maybe\": 1, \"Pick\": 1, \"Reject\": 0, \"Unreviewed\": 0}, \"score_gap\": 0.07, \"top_photo_id\": \"photo-id\"}"
+}
+```
 
 ## Export
 

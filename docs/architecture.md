@@ -34,4 +34,6 @@ Imported photos record deterministic local file identity metadata for the copied
 
 Grouping uses deterministic candidate windows and union-find. Candidate pairs are limited by capture-time or filename proximity, checked for compatible dimensions, camera model, and focal length when those fields are available, then merged when their stored perceptual hashes are close enough or, when hashes are unavailable, their local embedding similarity meets the grouping threshold.
 
+Ranking persists a deterministic `score_summary` JSON string on each group. The summary records the representative photo, best score, gap to the next candidate, recommendation counts, and a low, medium, or high confidence label so the review UI can inspect group-level ranking strength without recalculating scores.
+
 Exports are local artifacts written under `exports/`. Each export record has a unique output path and records the selected statuses plus selected photo count. Empty exports are rejected before an artifact is written. CSV and ZIP artifacts can be downloaded through the local API; folder exports expose the local output path.

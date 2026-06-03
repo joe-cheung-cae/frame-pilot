@@ -7,7 +7,7 @@ from app.db.session import get_engine
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.services.grouping import group_similar_photos
 from app.services.importing import ensure_photo_derivatives
-from app.services.ranking import rank_group
+from app.services.ranking import RankedPhoto, rank_group
 
 
 def _progress_percent(processed_items: int, failed_items: int, total_items: int) -> float:
@@ -87,6 +87,37 @@ def _mark_photo_failed(session: Session, photo: Photo, reason: str, explanation:
     photo.processing_error = reason
     photo.updated_at = utc_now()
     session.add(photo)
+
+
+def _group_score_summary(group_type: str, ranked: list[RankedPhoto]) -> str:
+    recommendation_counts = {"Pick": 0, "Maybe": 0, "Reject": 0, "Unreviewed": 0}
+    for item in ranked:
+        recommendation_counts[item.recommendation] = recommendation_counts.get(item.recommendation, 0) + 1
+
+    best_score = ranked[0].score if ranked else 0.0
+    score_gap = round(best_score - ranked[1].score, 4) if len(ranked) > 1 else 0.0
+    if len(ranked) <= 1 or group_type == "single":
+        confidence = "low"
+        explanation = "Low confidence because this group has no similar alternative to compare."
+    elif score_gap >= 0.15:
+        confidence = "high"
+        explanation = f"High confidence because the top photo leads the next candidate by {score_gap:.2f}."
+    elif score_gap >= 0.05:
+        confidence = "medium"
+        explanation = f"Medium confidence because the top photo leads the next candidate by {score_gap:.2f}."
+    else:
+        confidence = "low"
+        explanation = f"Low confidence because the top candidates are separated by only {score_gap:.2f}."
+
+    summary = {
+        "best_score": round(best_score, 4),
+        "confidence": confidence,
+        "explanation": explanation,
+        "recommendation_counts": recommendation_counts,
+        "score_gap": score_gap,
+        "top_photo_id": ranked[0].photo_id if ranked else None,
+    }
+    return json.dumps(summary, sort_keys=True)
 
 
 def _project_processing_is_current(session: Session, project: Project, photos: list[Photo]) -> bool:
@@ -255,6 +286,7 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
 
             ranked = rank_group(ranking_input)
             group.representative_photo_id = ranked[0].photo_id if ranked else None
+            group.score_summary = _group_score_summary(grouped.group_type, ranked)
             for item in ranked:
                 photo = photo_map[item.photo_id]
                 photo.ai_recommendation = item.recommendation

@@ -43,3 +43,5 @@ final_score =
 ```
 
 `noise_quality_score` is computed as the inverse of local noise risk. The top-ranked photo receives a Pick recommendation. Other photos in the same group receive Maybe or Reject based on their distance from the best score. User decisions always override recommendations.
+
+Each processed group also stores a deterministic JSON `score_summary`. Single-image groups receive low confidence because there is no similar alternative to compare. Duplicate groups receive high confidence when the best photo leads the next candidate by at least `0.15`, medium confidence at `0.05`, and low confidence below that gap.

@@ -60,6 +60,7 @@ export type PhotoGroup = {
   group_type: string;
   representative_photo_id: string | null;
   photo_count: number;
+  score_summary: string;
 };
 
 export type ProcessingJob = {
