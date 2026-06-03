@@ -632,10 +632,10 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page.getByText(`Exports folder: ${project.root_path}/exports`)).toBeVisible();
   await page.getByLabel("Maybe").uncheck();
   await page.getByRole("button", { name: "Export" }).click();
-  await expect(page.getByText("1 photos exported.")).toBeVisible();
+  await expect(page.getByText("1 photo exported.")).toBeVisible();
   await expect(page.getByText("Statuses: Pick")).toHaveCount(2);
   await expect(page.getByRole("link", { name: "Download CSV" })).toBeVisible();
-  await expect(page.getByText("CSV · 1 photos")).toBeVisible();
+  await expect(page.getByText("CSV · 1 photo")).toBeVisible();
 });
 
 test("loads the full culling photo list only on request", async ({ page }) => {

@@ -20,6 +20,10 @@ function projectExportRoot(rootPath: string) {
   return `${rootPath.replace(/[\\/]+$/, "")}/exports`;
 }
 
+function photoCountLabel(count: number) {
+  return `${count} ${count === 1 ? "photo" : "photos"}`;
+}
+
 export function ExportPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
@@ -70,7 +74,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
       <div>
-        <p className="text-sm text-neutral-600">{selectedCount} selected photos</p>
+        <p className="text-sm text-neutral-600">{photoCountLabel(selectedCount)} selected</p>
         <h1 className="mt-1 text-3xl font-semibold">Export Selection</h1>
         {projectQuery.data?.root_path ? (
           <p className="mt-2 break-all text-sm text-neutral-600">
@@ -136,7 +140,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       {mutation.data ? (
         <div className="grid gap-3 rounded border border-line bg-white p-4 text-sm">
           <p className="text-leaf">
-            {mutation.data.selected_count} photos exported
+            {photoCountLabel(mutation.data.selected_count)} exported
             {mutation.data.mode === "folder" ? ` to ${mutation.data.output_path}` : "."}
           </p>
           <p className="text-neutral-600">Statuses: {formatExportStatusSummary(mutation.data.statuses)}</p>
@@ -167,7 +171,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
               >
                 <div>
                   <p className="font-medium">
-                    {record.mode.toUpperCase()} · {record.selected_count} photos
+                    {record.mode.toUpperCase()} · {photoCountLabel(record.selected_count)}
                     <span className={record.status === "failed" ? "ml-2 text-coral" : "ml-2 text-neutral-500"}>
                       {record.status}
                     </span>
