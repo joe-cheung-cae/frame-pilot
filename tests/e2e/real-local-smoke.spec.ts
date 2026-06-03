@@ -55,7 +55,7 @@ test("runs a real local import, process, pick, and CSV export smoke flow", async
   }
   const csv = Buffer.concat(chunks).toString("utf8");
 
-  expect(csv).toContain("filename,original_path,status");
+  expect(csv).toContain("filename,original_path,capture_time,camera_model,lens_model");
   expect(csv).toContain("Pick");
   expect(csv).toContain("real-smoke-");
 });
