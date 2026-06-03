@@ -755,6 +755,50 @@ def test_processing_records_missing_derivative_when_original_copy_is_missing(tmp
     assert "generated files could not be rebuilt" in failed_photo["recommendation_explanation"]
 
 
+def test_processing_recovers_when_missing_original_copy_is_restored(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Restored original copy"}).json()
+    image = _image_bytes()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", image, "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    photo = import_response.json()["imported"][0]
+    thumbnail_path = Path(photo["thumbnail_path"])
+    preview_path = Path(photo["preview_path"])
+    copy_path = Path(photo["project_copy_path"])
+    thumbnail_path.unlink()
+    copy_path.unlink()
+
+    failed_job = _wait_for_job(client, project["id"], client.post(f"/api/projects/{project['id']}/process").json())
+
+    assert failed_job["status"] == "complete"
+    assert failed_job["processed_items"] == 0
+    assert failed_job["failed_items"] == 1
+    assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 0
+    failed_photo = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
+    assert failed_photo["processing_state"] == "failed"
+    assert failed_photo["processing_error"] == "Missing generated thumbnail"
+
+    copy_path.write_bytes(image)
+    recovered_job = _wait_for_job(client, project["id"], client.post(f"/api/projects/{project['id']}/process").json())
+
+    assert recovered_job["status"] == "complete"
+    assert recovered_job["processed_items"] == 1
+    assert recovered_job["failed_items"] == 0
+    assert recovered_job["error_message"] is None
+    assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 1
+    recovered_photo = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
+    assert recovered_photo["processing_state"] == "processed"
+    assert recovered_photo["processing_error"] is None
+    assert Path(recovered_photo["thumbnail_path"]) == thumbnail_path
+    assert thumbnail_path.exists()
+    assert preview_path.exists()
+
+
 def test_import_renames_duplicate_filenames_without_overwriting(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
