@@ -1,7 +1,8 @@
+import os
 from functools import lru_cache
 from pathlib import Path
+
 from pydantic import BaseModel
-import os
 
 
 class Settings(BaseModel):
@@ -21,4 +22,3 @@ def get_settings() -> Settings:
 
 def reset_settings_cache() -> None:
     get_settings.cache_clear()
-

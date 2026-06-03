@@ -1,6 +1,6 @@
-from PIL import Image
 import imagehash
 import numpy as np
+from PIL import Image
 
 
 def image_embedding(image: Image.Image) -> list[float]:

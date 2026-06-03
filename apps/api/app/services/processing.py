@@ -8,12 +8,22 @@ from app.services.grouping import group_similar_photos
 from app.services.ranking import rank_group
 
 
+def _save_job(session: Session, job: ProcessingJob, current_step: str, processed_items: int | None = None) -> None:
+    job.current_step = current_step
+    if processed_items is not None:
+        job.processed_items = processed_items
+    job.updated_at = utc_now()
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+
+
 def process_project(session: Session, project: Project) -> ProcessingJob:
     photos = list(session.exec(select(Photo).where(Photo.project_id == project.id)).all())
     job = ProcessingJob(
         project_id=project.id,
         status="running",
-        current_step="grouping",
+        current_step="starting",
         total_items=len(photos),
         processed_items=0,
     )
@@ -22,6 +32,7 @@ def process_project(session: Session, project: Project) -> ProcessingJob:
     session.refresh(job)
 
     try:
+        _save_job(session, job, "clearing stale groups", 0)
         for existing in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
             session.delete(existing)
         for photo in photos:
@@ -29,6 +40,7 @@ def process_project(session: Session, project: Project) -> ProcessingJob:
             session.add(photo)
         session.commit()
 
+        _save_job(session, job, "grouping photos", 0)
         group_inputs = [
             {
                 "id": photo.id,
@@ -39,8 +51,10 @@ def process_project(session: Session, project: Project) -> ProcessingJob:
             for photo in photos
         ]
         photo_map = {photo.id: photo for photo in photos}
+        grouped_photos = group_similar_photos(group_inputs)
 
-        for grouped in group_similar_photos(group_inputs):
+        for index, grouped in enumerate(grouped_photos, start=1):
+            _save_job(session, job, f"ranking group {index} of {len(grouped_photos)}", job.processed_items)
             group = PhotoGroup(project_id=project.id, group_type=grouped.group_type, photo_count=len(grouped.photo_ids))
             session.add(group)
             session.commit()
@@ -75,7 +89,9 @@ def process_project(session: Session, project: Project) -> ProcessingJob:
 
             group.updated_at = utc_now()
             session.add(group)
-            job.processed_items += len(grouped.photo_ids)
+            processed_items = job.processed_items + len(grouped.photo_ids)
+            job.processed_items = processed_items
+            job.updated_at = utc_now()
             session.add(job)
             session.commit()
 

@@ -1,13 +1,16 @@
 .DS_Store
 .framepilot-data/
+.framepilot-e2e-data/
 .venv/
 __pycache__/
 .pytest_cache/
+.ruff_cache/
 *.pyc
 *.egg-info/
 node_modules/
 .next/
 .next-e2e/
+*.tsbuildinfo
 dist/
 build/
 coverage/

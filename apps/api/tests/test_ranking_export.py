@@ -32,6 +32,42 @@ def test_rank_group_selects_highest_explainable_score():
     assert "sharpness" in ranked[0].explanation
 
 
+def test_rank_group_prefers_sharp_well_exposed_photo_over_blurry_or_badly_exposed_similar_photo():
+    photos = [
+        {
+            "id": "sharp-balanced",
+            "sharpness_score": 0.92,
+            "exposure_score": 0.88,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.82,
+            "duplicate_penalty": 0.1,
+        },
+        {
+            "id": "blurry",
+            "sharpness_score": 0.18,
+            "exposure_score": 0.86,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.62,
+            "duplicate_penalty": 0.1,
+        },
+        {
+            "id": "underexposed",
+            "sharpness_score": 0.9,
+            "exposure_score": 0.12,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.3,
+            "duplicate_penalty": 0.1,
+        },
+    ]
+
+    ranked = rank_group(photos)
+
+    assert ranked[0].photo_id == "sharp-balanced"
+    assert ranked[0].recommendation == "Pick"
+    assert {ranked[1].photo_id, ranked[2].photo_id} == {"blurry", "underexposed"}
+    assert all(item.recommendation == "Reject" for item in ranked[1:])
+
+
 def test_rank_group_explains_face_and_eye_quality_when_it_leads():
     photos = [
         {
@@ -56,7 +92,7 @@ def test_rank_group_explains_face_and_eye_quality_when_it_leads():
     ranked = rank_group(photos)
 
     assert ranked[0].photo_id == "face"
-    assert "open-eye confidence" in ranked[0].explanation
+    assert "experimental face and open-eye signals" in ranked[0].explanation
 
 
 def test_rank_group_explains_maybe_and_reject_with_metric_context():
@@ -213,7 +249,9 @@ def test_zip_export_preserves_files_with_duplicate_names(tmp_path):
     first.write_bytes(b"first")
     second.write_bytes(b"second")
 
-    target = zip_selected_files(tmp_path / "selected.zip", [{"original_path": str(first)}, {"original_path": str(second)}])
+    target = zip_selected_files(
+        tmp_path / "selected.zip", [{"original_path": str(first)}, {"original_path": str(second)}]
+    )
 
     with zipfile.ZipFile(target) as archive:
         assert sorted(archive.namelist()) == ["frame-1.jpg", "frame.jpg"]

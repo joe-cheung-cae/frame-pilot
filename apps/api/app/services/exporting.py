@@ -1,8 +1,8 @@
 import csv
 import shutil
 import zipfile
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 
 def _unique_destination(directory: Path, filename: str) -> Path:
@@ -77,7 +77,9 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
                     "contrast_score": f"{float(photo.get('contrast_score', 0.0) or 0.0):.3f}",
                     "face_presence": str(bool(photo.get("face_presence", False))).lower(),
                     "face_sharpness_score": f"{float(photo.get('face_sharpness_score', 0.0) or 0.0):.3f}",
-                    "eye_open_confidence": "" if photo.get("eye_open_confidence") is None else f"{float(photo.get('eye_open_confidence') or 0.0):.3f}",
+                    "eye_open_confidence": ""
+                    if photo.get("eye_open_confidence") is None
+                    else f"{float(photo.get('eye_open_confidence') or 0.0):.3f}",
                     "face_quality_score": f"{float(photo.get('face_quality_score', 0.0) or 0.0):.3f}",
                     "width": photo.get("width", 0),
                     "height": photo.get("height", 0),

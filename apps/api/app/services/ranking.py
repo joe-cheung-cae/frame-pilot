@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-
 WEIGHTS = {
     "sharpness_score": 0.30,
     "exposure_score": 0.20,
@@ -13,7 +12,7 @@ WEIGHTS = {
 QUALITY_LABELS = {
     "sharpness_score": "sharpness",
     "exposure_score": "exposure",
-    "face_quality_score": "face quality",
+    "face_quality_score": "experimental face signal quality",
     "aesthetic_score": "aesthetic balance",
 }
 
@@ -45,8 +44,8 @@ def _weakest_metric(photo: dict[str, Any]) -> str:
 
 def _pick_explanation(photo: dict[str, Any], group_size: int) -> str:
     strongest = QUALITY_LABELS[_strongest_metric(photo)]
-    if strongest == "face quality" and float(photo.get("eye_open_confidence", 0.0) or 0.0) > 0:
-        strongest = "face quality and open-eye confidence"
+    if strongest == "experimental face signal quality" and float(photo.get("eye_open_confidence", 0.0) or 0.0) > 0:
+        strongest = "experimental face and open-eye signals"
     if group_size <= 1:
         return f"Recommended because it has the strongest {strongest} score among the available quality signals."
     return f"Recommended because it has the highest overall score in this group, led by its {strongest} score."
@@ -54,8 +53,8 @@ def _pick_explanation(photo: dict[str, Any], group_size: int) -> str:
 
 def _secondary_explanation(photo: dict[str, Any], recommendation: str, score_gap: float) -> str:
     weakest = QUALITY_LABELS[_weakest_metric(photo)]
-    if weakest == "face quality" and photo.get("face_presence"):
-        weakest = "face or eye quality"
+    if weakest == "experimental face signal quality" and photo.get("face_presence"):
+        weakest = "experimental face or eye signals"
     if recommendation == "Reject":
         return f"Rejected because it trails the strongest image by {score_gap:.2f}, with weaker {weakest}."
     return f"Marked as Maybe because it is within {score_gap:.2f} of the strongest image, though {weakest} is weaker."

@@ -60,4 +60,3 @@ def group_similar_photos(
         )
         for group in groups
     ]
-

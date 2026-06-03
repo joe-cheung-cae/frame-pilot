@@ -1,8 +1,10 @@
+import csv
+import zipfile
 from io import BytesIO
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFilter
 from sqlmodel import Session, select
 
 from app.db.session import get_engine
@@ -10,9 +12,14 @@ from app.main import create_app
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project
 
 
-def _image_bytes() -> bytes:
+def _image_bytes(color: tuple[int, int, int] = (120, 150, 90), blur: bool = False) -> bytes:
     buffer = BytesIO()
-    image = Image.new("RGB", (80, 60), color=(120, 150, 90))
+    image = Image.new("RGB", (96, 72), color=color)
+    draw = ImageDraw.Draw(image)
+    for offset in range(0, 96, 8):
+        draw.line((offset, 0, 95 - offset, 71), fill=(240, 240, 240), width=2)
+    if blur:
+        image = image.filter(ImageFilter.GaussianBlur(radius=4))
     image.save(buffer, format="JPEG")
     return buffer.getvalue()
 
@@ -64,6 +71,130 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     assert export_record["output_path"].endswith(".csv")
     assert export_record["selected_count"] == 1
     assert export_record["statuses"] == '["Pick"]'
+
+
+def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
+    client = TestClient(create_app())
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    sharp_source = source_dir / "sharp.jpg"
+    dark_source = source_dir / "dark.jpg"
+    unsupported_source = source_dir / "notes.txt"
+    sharp_bytes = _image_bytes()
+    dark_bytes = _image_bytes(color=(18, 20, 22), blur=True)
+    sharp_source.write_bytes(sharp_bytes)
+    dark_source.write_bytes(dark_bytes)
+    unsupported_source.write_text("not a photo")
+    original_source_stat = sharp_source.stat()
+
+    project_response = client.post("/api/projects", json={"name": "Generated workflow"})
+    assert project_response.status_code == 201
+    project = project_response.json()
+
+    with (
+        sharp_source.open("rb") as sharp_file,
+        dark_source.open("rb") as dark_file,
+        unsupported_source.open(
+            "rb",
+        ) as unsupported_file,
+    ):
+        import_response = client.post(
+            f"/api/projects/{project['id']}/import",
+            files=[
+                ("files", ("sharp.jpg", sharp_file, "image/jpeg")),
+                ("files", ("dark.jpg", dark_file, "image/jpeg")),
+                ("files", ("notes.txt", unsupported_file, "text/plain")),
+            ],
+        )
+
+    assert import_response.status_code == 201
+    import_result = import_response.json()
+    assert [item["filename"] for item in import_result["imported"]] == ["sharp.jpg", "dark.jpg"]
+    assert import_result["skipped"] == [
+        {
+            "filename": "notes.txt",
+            "reason": "Only JPEG, PNG, and WebP files are supported",
+        },
+    ]
+    assert sharp_source.read_bytes() == sharp_bytes
+    assert sharp_source.stat().st_mtime_ns == original_source_stat.st_mtime_ns
+
+    imported_photo = import_result["imported"][0]
+    with Session(get_engine()) as session:
+        stored_photo = session.get(Photo, imported_photo["id"])
+        assert stored_photo is not None
+        imported_original = Path(stored_photo.original_path)
+    assert imported_original != sharp_source
+    assert imported_original.read_bytes() == sharp_bytes
+    assert Path(imported_photo["thumbnail_path"]).exists()
+    assert Path(imported_photo["preview_path"]).exists()
+
+    process_response = client.post(f"/api/projects/{project['id']}/process")
+    assert process_response.status_code == 202
+    job = process_response.json()
+    assert job["status"] == "complete"
+    assert job["current_step"] == "complete"
+    assert job["processed_items"] == 2
+    assert job["total_items"] == 2
+    assert job["error_message"] is None
+
+    photos = client.get(f"/api/projects/{project['id']}/photos").json()
+    assert len(photos) == 2
+    assert all(photo["group_id"] for photo in photos)
+    groups = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert groups
+    assert sum(group["photo_count"] for group in groups) == 2
+
+    pick_response = client.patch(
+        f"/api/projects/{project['id']}/photos/{photos[0]['id']}",
+        json={"user_status": "Pick", "star_rating": 4},
+    )
+    assert pick_response.status_code == 200
+    assert pick_response.json()["user_status"] == "Pick"
+
+    csv_export_response = client.post(
+        f"/api/projects/{project['id']}/export",
+        json={"mode": "csv", "statuses": ["Pick"]},
+    )
+    assert csv_export_response.status_code == 201
+    csv_export = csv_export_response.json()
+    assert csv_export["selected_count"] == 1
+    csv_path = Path(csv_export["output_path"])
+    assert csv_path.exists()
+    with csv_path.open(newline="") as handle:
+        csv_rows = list(csv.DictReader(handle))
+    assert [row["status"] for row in csv_rows] == ["Pick"]
+
+    csv_download_response = client.get(f"/api/projects/{project['id']}/export/{csv_export['id']}/download")
+    assert csv_download_response.status_code == 200
+    assert "filename" in csv_download_response.headers["content-disposition"]
+    assert b"filename,original_path,status" in csv_download_response.content
+
+    zip_export_response = client.post(
+        f"/api/projects/{project['id']}/export",
+        json={"mode": "zip", "statuses": ["Pick"]},
+    )
+    assert zip_export_response.status_code == 201
+    zip_export = zip_export_response.json()
+    zip_path = Path(zip_export["output_path"])
+    assert zip_path.exists()
+    with zipfile.ZipFile(zip_path) as archive:
+        assert archive.namelist() == [photos[0]["filename"]]
+
+    zip_download_response = client.get(f"/api/projects/{project['id']}/export/{zip_export['id']}/download")
+    assert zip_download_response.status_code == 200
+    assert zip_download_response.content == zip_path.read_bytes()
+
+    folder_export_response = client.post(
+        f"/api/projects/{project['id']}/export",
+        json={"mode": "folder", "statuses": ["Pick"]},
+    )
+    assert folder_export_response.status_code == 201
+    folder_download_response = client.get(
+        f"/api/projects/{project['id']}/export/{folder_export_response.json()['id']}/download",
+    )
+    assert folder_download_response.status_code == 422
 
 
 def test_process_rejects_project_with_no_imported_photos(tmp_path, monkeypatch):
@@ -243,7 +374,7 @@ def test_processing_recommendation_explains_face_and_eye_quality(tmp_path, monke
     processed = client.get(f"/api/projects/{project['id']}/photos").json()
     face_photo = next(photo for photo in processed if photo["filename"] == "face.jpg")
     assert face_photo["ai_recommendation"] == "Pick"
-    assert "open-eye confidence" in face_photo["recommendation_explanation"]
+    assert "experimental face and open-eye signals" in face_photo["recommendation_explanation"]
 
 
 def test_import_rejects_invalid_image_and_cleans_written_file(tmp_path, monkeypatch):

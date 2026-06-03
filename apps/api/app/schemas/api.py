@@ -1,12 +1,11 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
 
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    root_path: Optional[str] = None
+    root_path: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -34,15 +33,15 @@ class PhotoRead(BaseModel):
     file_size: int
     width: int
     height: int
-    capture_time: Optional[datetime]
-    camera_model: Optional[str]
-    lens_model: Optional[str]
-    focal_length: Optional[str]
-    aperture: Optional[str]
-    shutter_speed: Optional[str]
-    iso: Optional[int]
-    thumbnail_path: Optional[str]
-    preview_path: Optional[str]
+    capture_time: datetime | None
+    camera_model: str | None
+    lens_model: str | None
+    focal_length: str | None
+    aperture: str | None
+    shutter_speed: str | None
+    iso: int | None
+    thumbnail_path: str | None
+    preview_path: str | None
     sharpness_score: float
     blur_score: float
     exposure_score: float
@@ -50,7 +49,7 @@ class PhotoRead(BaseModel):
     noise_score: float
     face_presence: bool
     face_sharpness_score: float
-    eye_open_confidence: Optional[float]
+    eye_open_confidence: float | None
     face_quality_score: float
     aesthetic_score: float
     overall_score: float
@@ -58,7 +57,7 @@ class PhotoRead(BaseModel):
     recommendation_explanation: str
     user_status: str
     star_rating: int
-    group_id: Optional[str]
+    group_id: str | None
 
 
 class ImportSkippedFile(BaseModel):
@@ -72,12 +71,12 @@ class ImportResult(BaseModel):
 
 
 class PhotoUpdate(BaseModel):
-    user_status: Optional[str] = None
-    star_rating: Optional[int] = Field(default=None, ge=0, le=5)
+    user_status: str | None = None
+    star_rating: int | None = Field(default=None, ge=0, le=5)
 
     @field_validator("user_status")
     @classmethod
-    def status_must_be_valid(cls, value: Optional[str]) -> Optional[str]:
+    def status_must_be_valid(cls, value: str | None) -> str | None:
         if value is None:
             return value
         allowed = {"Pick", "Maybe", "Reject", "Unreviewed"}
@@ -90,7 +89,7 @@ class GroupRead(BaseModel):
     id: str
     project_id: str
     group_type: str
-    representative_photo_id: Optional[str]
+    representative_photo_id: str | None
     photo_count: int
 
 
@@ -101,7 +100,7 @@ class JobRead(BaseModel):
     current_step: str
     total_items: int
     processed_items: int
-    error_message: Optional[str]
+    error_message: str | None
 
 
 class ExportCreate(BaseModel):

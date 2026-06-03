@@ -33,17 +33,13 @@ def _to_luminance(image: np.ndarray) -> np.ndarray:
 
 def _laplacian_variance(gray: np.ndarray) -> float:
     padded = np.pad(gray, 1, mode="edge")
-    laplacian = (
-        -4 * padded[1:-1, 1:-1]
-        + padded[:-2, 1:-1]
-        + padded[2:, 1:-1]
-        + padded[1:-1, :-2]
-        + padded[1:-1, 2:]
-    )
+    laplacian = -4 * padded[1:-1, 1:-1] + padded[:-2, 1:-1] + padded[2:, 1:-1] + padded[1:-1, :-2] + padded[1:-1, 2:]
     return float(laplacian.var())
 
 
-def _detect_face_signals(image: np.ndarray, gray: np.ndarray, sharpness_score: float) -> tuple[bool, float, float | None, float]:
+def _detect_face_signals(
+    image: np.ndarray, gray: np.ndarray, sharpness_score: float
+) -> tuple[bool, float, float | None, float]:
     if image.ndim < 3:
         return False, 0.0, None, 0.0
 
@@ -93,9 +89,7 @@ def _detect_face_signals(image: np.ndarray, gray: np.ndarray, sharpness_score: f
     face_quality_score = round(
         float(
             np.clip(
-                0.45 * face_sharpness_score
-                + 0.30 * (eye_open_confidence or 0.0)
-                + 0.25 * sharpness_score,
+                0.45 * face_sharpness_score + 0.30 * (eye_open_confidence or 0.0) + 0.25 * sharpness_score,
                 0.0,
                 1.0,
             )
@@ -116,7 +110,9 @@ def compute_quality_scores(image: np.ndarray) -> QualityScores:
 
     high_freq = np.abs(gray - gray.mean())
     noise_score = normalize_score(float(np.percentile(high_freq, 95)), 130.0)
-    face_presence, face_sharpness_score, eye_open_confidence, face_quality_score = _detect_face_signals(image, gray, sharpness_score)
+    face_presence, face_sharpness_score, eye_open_confidence, face_quality_score = _detect_face_signals(
+        image, gray, sharpness_score
+    )
     aesthetic_score = round((contrast_score + exposure_score) / 2.0, 4)
     overall_score = round(
         0.35 * sharpness_score

@@ -25,4 +25,3 @@ export function Shell({ children }: { children: React.ReactNode }) {
     </main>
   );
 }
-

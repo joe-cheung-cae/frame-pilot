@@ -62,17 +62,26 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           </span>
         </label>
       </div>
-      {mutation.isPending ? <p className="inline-flex items-center gap-2 text-sm"><Loader2 className="animate-spin" size={16} />Importing and generating previews...</p> : null}
+      {mutation.isPending ? (
+        <p className="inline-flex items-center gap-2 text-sm">
+          <Loader2 className="animate-spin" size={16} />
+          Importing and generating previews...
+        </p>
+      ) : null}
       {message ? <p className="text-sm text-leaf">{message}</p> : null}
       {skipped.length ? (
         <div className="rounded border border-line bg-white p-3 text-sm text-neutral-700">
           <p className="font-medium text-coral">{skipped.length} files skipped.</p>
           <ul className="mt-2 grid gap-1">
             {skipped.slice(0, 5).map((item) => (
-              <li key={`${item.filename}-${item.reason}`}>{item.filename}: {item.reason}</li>
+              <li key={`${item.filename}-${item.reason}`}>
+                {item.filename}: {item.reason}
+              </li>
             ))}
           </ul>
-          {skipped.length > 5 ? <p className="mt-2 text-neutral-600">Only the first 5 skipped files are shown.</p> : null}
+          {skipped.length > 5 ? (
+            <p className="mt-2 text-neutral-600">Only the first 5 skipped files are shown.</p>
+          ) : null}
         </div>
       ) : null}
       {recentImports.length ? (
@@ -84,7 +93,11 @@ export function ImportPanel({ projectId }: { projectId: string }) {
               return (
                 <div className="overflow-hidden rounded border border-line bg-mist" key={photo.id}>
                   {thumbnail ? (
-                    <img className="aspect-[4/3] w-full object-cover" src={thumbnail} alt={`Thumbnail for ${photo.filename}`} />
+                    <img
+                      className="aspect-[4/3] w-full object-cover"
+                      src={thumbnail}
+                      alt={`Thumbnail for ${photo.filename}`}
+                    />
                   ) : (
                     <div className="grid aspect-[4/3] place-items-center text-xs text-neutral-600">No preview</div>
                   )}
@@ -93,11 +106,16 @@ export function ImportPanel({ projectId }: { projectId: string }) {
               );
             })}
           </div>
-          {recentImports.length > 12 ? <p className="text-sm text-neutral-600">Showing the first 12 imported images.</p> : null}
+          {recentImports.length > 12 ? (
+            <p className="text-sm text-neutral-600">Showing the first 12 imported images.</p>
+          ) : null}
         </div>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
-      <Link className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white" href={`/projects/${projectId}/process`}>
+      <Link
+        className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
+        href={`/projects/${projectId}/process`}
+      >
         <Play size={18} />
         Process Project
       </Link>

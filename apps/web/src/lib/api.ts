@@ -53,11 +53,22 @@ export type PhotoGroup = {
 export type ProcessingJob = {
   id: string;
   project_id: string;
-  status: string;
+  status: "queued" | "running" | "complete" | "failed";
   current_step: string;
   total_items: number;
   processed_items: number;
   error_message: string | null;
+};
+
+export type ExportRecord = {
+  id: string;
+  project_id: string;
+  mode: "csv" | "folder" | "zip";
+  status: string;
+  selected_count: number;
+  statuses: string;
+  output_path: string;
+  created_at: string;
 };
 
 function formatErrorDetail(detail: unknown): string | null {
@@ -104,24 +115,30 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   listProjects: () => request<Project[]>("/api/projects"),
-  createProject: (name: string) => request<Project>("/api/projects", { method: "POST", body: JSON.stringify({ name }) }),
+  createProject: (name: string) =>
+    request<Project>("/api/projects", { method: "POST", body: JSON.stringify({ name }) }),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   importPhotos: (projectId: string, files: FileList) => {
     const body = new FormData();
     Array.from(files).forEach((file) => body.append("files", file));
     return request<ImportResult>(`/api/projects/${projectId}/import`, { method: "POST", body });
   },
-  processProject: (projectId: string) => request<ProcessingJob>(`/api/projects/${projectId}/process`, { method: "POST" }),
+  processProject: (projectId: string) =>
+    request<ProcessingJob>(`/api/projects/${projectId}/process`, { method: "POST" }),
   listPhotos: (projectId: string) => request<Photo[]>(`/api/projects/${projectId}/photos`),
   updatePhoto: (projectId: string, photoId: string, patch: Partial<Pick<Photo, "user_status" | "star_rating">>) =>
     request<Photo>(`/api/projects/${projectId}/photos/${photoId}`, { method: "PATCH", body: JSON.stringify(patch) }),
   listGroups: (projectId: string) => request<PhotoGroup[]>(`/api/projects/${projectId}/groups`),
   exportSelection: (projectId: string, mode: "csv" | "folder" | "zip", statuses: string[]) =>
-    request<{ id: string; output_path: string; mode: string; status: string; selected_count: number; statuses: string }>(`/api/projects/${projectId}/export`, {
+    request<ExportRecord>(`/api/projects/${projectId}/export`, {
       method: "POST",
       body: JSON.stringify({ mode, statuses }),
     }),
 };
+
+export function exportDownloadUrl(projectId: string, exportId: string): string {
+  return `${API_BASE}/api/projects/${projectId}/export/${exportId}/download`;
+}
 
 export function assetUrl(projectId: string, path: string | null): string | null {
   if (!path) {

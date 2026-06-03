@@ -10,7 +10,7 @@ The MVP scoring model is deterministic and explainable.
 - Contrast: normalized luminance standard deviation.
 - Noise risk: high-frequency luminance deviation estimate.
 - Aesthetic: average of exposure and contrast until a dedicated local model is added.
-- Face and eye scores: lightweight local heuristic signals, not a professional face detection model.
+- Experimental face and eye scores: lightweight local heuristic signals, not a professional face detection model.
 
 ## Face And Eye Heuristic
 
@@ -25,7 +25,7 @@ The heuristic:
 5. Estimates `eye_open_confidence` from the amount of dark detail in the upper-middle portion of the candidate face box.
 6. Combines face sharpness, eye-open confidence, and global sharpness into `face_quality_score`.
 
-These scores are useful as weak MVP ranking hints. They can miss faces, especially with unusual lighting, skin tones, profiles, occlusion, very small faces, heavy color grading, grayscale images, or non-portrait scenes. They can also produce false positives on skin-colored objects. They should not be treated as identity detection, biometric analysis, or a reliable professional portrait quality model.
+These experimental signals are useful as weak MVP ranking hints. They can miss faces, especially with unusual lighting, skin tones, profiles, occlusion, very small faces, heavy color grading, grayscale images, or non-portrait scenes. They can also produce false positives on skin-colored objects. They should not be treated as identity detection, biometric analysis, or a reliable professional portrait quality model.
 
 ## Group Ranking
 

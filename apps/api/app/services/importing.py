@@ -3,14 +3,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO
 
-from PIL import Image, ExifTags, ImageOps, UnidentifiedImageError
 import numpy as np
+from PIL import ExifTags, Image, ImageOps, UnidentifiedImageError
 from sqlmodel import Session, select
 
 from app.ai.embeddings import image_embedding
 from app.image.scoring import compute_quality_scores
 from app.models.entities import Photo, PhotoGroup, Project, utc_now
-
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"

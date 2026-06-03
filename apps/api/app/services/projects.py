@@ -27,4 +27,3 @@ def create_project(session: Session, name: str, root_path: str | None = None) ->
 
 def list_projects(session: Session) -> list[Project]:
     return list(session.exec(select(Project).order_by(Project.created_at.desc())).all())
-

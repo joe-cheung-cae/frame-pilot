@@ -2,7 +2,10 @@ export type ReviewPhotoRef = {
   id: string;
 };
 
-export function nextPhotoIdAfterMark(visiblePhotos: readonly ReviewPhotoRef[], activePhotoId: string | null): string | null {
+export function nextPhotoIdAfterMark(
+  visiblePhotos: readonly ReviewPhotoRef[],
+  activePhotoId: string | null,
+): string | null {
   if (!visiblePhotos.length) {
     return null;
   }

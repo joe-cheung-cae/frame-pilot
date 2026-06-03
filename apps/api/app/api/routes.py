@@ -24,7 +24,6 @@ from app.services.importing import import_image_file
 from app.services.processing import process_project, project_export_root
 from app.services.projects import create_project, list_projects
 
-
 router = APIRouter(prefix="/api")
 
 
@@ -48,6 +47,13 @@ def _export_target(export_root: Path, export_id: str, mode: str) -> Path:
     if mode == "folder":
         return export_root / f"selected-{export_id}"
     return export_root / f"selected-{export_id}.zip"
+
+
+def _get_export(session: Session, project_id: str, export_id: str) -> ExportRecord:
+    export = session.get(ExportRecord, export_id)
+    if export is None or export.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Export not found")
+    return export
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -154,7 +160,11 @@ def update_photo_endpoint(
 @router.get("/projects/{project_id}/groups", response_model=list[GroupRead])
 def list_groups_endpoint(project_id: str, session: Session = Depends(get_session)):
     _get_project(session, project_id)
-    return list(session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project_id).order_by(PhotoGroup.created_at, PhotoGroup.id)).all())
+    return list(
+        session.exec(
+            select(PhotoGroup).where(PhotoGroup.project_id == project_id).order_by(PhotoGroup.created_at, PhotoGroup.id)
+        ).all()
+    )
 
 
 @router.get("/projects/{project_id}/groups/{group_id}", response_model=GroupRead)
@@ -209,10 +219,28 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
 
 @router.get("/projects/{project_id}/export/{export_id}", response_model=ExportRead)
 def get_export_endpoint(project_id: str, export_id: str, session: Session = Depends(get_session)):
-    export = session.get(ExportRecord, export_id)
-    if export is None or export.project_id != project_id:
-        raise HTTPException(status_code=404, detail="Export not found")
-    return export
+    return _get_export(session, project_id, export_id)
+
+
+@router.get("/projects/{project_id}/export/{export_id}/download")
+def download_export_endpoint(project_id: str, export_id: str, session: Session = Depends(get_session)):
+    project = _get_project(session, project_id)
+    export = _get_export(session, project_id, export_id)
+    if export.mode not in {"csv", "zip"}:
+        raise HTTPException(status_code=422, detail="Folder exports are available at their local output path")
+
+    export_path = Path(export.output_path)
+    export_root = project_export_root(project).resolve()
+    try:
+        resolved_export_path = export_path.resolve(strict=True)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Export artifact not found") from error
+
+    if not resolved_export_path.is_file() or not resolved_export_path.is_relative_to(export_root):
+        raise HTTPException(status_code=404, detail="Export artifact not found")
+
+    media_type = "text/csv" if export.mode == "csv" else "application/zip"
+    return FileResponse(resolved_export_path, media_type=media_type, filename=resolved_export_path.name)
 
 
 @router.get("/assets/{project_id}/{kind}/{filename}")

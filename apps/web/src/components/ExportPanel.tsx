@@ -3,7 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, FileArchive, FileSpreadsheet, FolderOutput, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { api } from "@/lib/api";
+import { api, exportDownloadUrl } from "@/lib/api";
 import { countPhotosByStatus, EXPORT_STATUSES, selectedPhotoCount, type ExportStatus } from "@/lib/exportSelection";
 
 type Mode = "csv" | "folder" | "zip";
@@ -14,7 +14,14 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listPhotos(projectId) });
   const statusCounts = useMemo(() => countPhotosByStatus(photosQuery.data ?? []), [photosQuery.data]);
   const selectedCount = selectedPhotoCount(statusCounts, statuses);
-  const mutation = useMutation({ mutationFn: () => api.exportSelection(projectId, mode, statuses) });
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (!statuses.length || selectedCount === 0) {
+        throw new Error("Choose at least one non-empty status before exporting.");
+      }
+      return api.exportSelection(projectId, mode, statuses);
+    },
+  });
 
   function toggleStatus(status: ExportStatus) {
     setStatuses((current) => {
@@ -35,9 +42,17 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         <h2 className="text-sm font-semibold">Statuses</h2>
         <div className="grid gap-2 sm:grid-cols-4">
           {EXPORT_STATUSES.map((status) => (
-            <label className="focus-within:ring-2 focus-within:ring-leaf flex cursor-pointer items-center justify-between gap-3 rounded border border-line px-3 py-2 text-sm" key={status}>
+            <label
+              className="focus-within:ring-2 focus-within:ring-leaf flex cursor-pointer items-center justify-between gap-3 rounded border border-line px-3 py-2 text-sm"
+              key={status}
+            >
               <span className="flex items-center gap-2">
-                <input checked={statuses.includes(status)} className="h-4 w-4 accent-leaf" onChange={() => toggleStatus(status)} type="checkbox" />
+                <input
+                  checked={statuses.includes(status)}
+                  className="h-4 w-4 accent-leaf"
+                  onChange={() => toggleStatus(status)}
+                  type="checkbox"
+                />
                 {status}
               </span>
               <span className="text-neutral-600">{statusCounts[status]}</span>
@@ -73,8 +88,26 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         Export
       </button>
       {!statuses.length ? <p className="text-sm text-coral">Choose at least one status to export.</p> : null}
-      {statuses.length > 0 && selectedCount === 0 && !photosQuery.isLoading ? <p className="text-sm text-neutral-600">No photos match the selected statuses.</p> : null}
-      {mutation.data ? <p className="text-sm text-leaf">{mutation.data.selected_count} photos exported to {mutation.data.output_path}</p> : null}
+      {statuses.length > 0 && selectedCount === 0 && !photosQuery.isLoading ? (
+        <p className="text-sm text-neutral-600">No photos match the selected statuses.</p>
+      ) : null}
+      {mutation.data ? (
+        <div className="grid gap-3 rounded border border-line bg-white p-4 text-sm">
+          <p className="text-leaf">
+            {mutation.data.selected_count} photos exported
+            {mutation.data.mode === "folder" ? ` to ${mutation.data.output_path}` : "."}
+          </p>
+          {mutation.data.mode === "folder" ? null : (
+            <a
+              className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-4 py-2 font-medium text-white"
+              href={exportDownloadUrl(projectId, mutation.data.id)}
+            >
+              <Download size={16} />
+              Download {mutation.data.mode.toUpperCase()}
+            </a>
+          )}
+        </div>
+      ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
     </section>
   );

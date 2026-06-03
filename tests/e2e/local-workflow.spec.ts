@@ -156,7 +156,7 @@ test.beforeEach(async ({ page }) => {
         mode: "csv",
         status: "complete",
         selected_count: currentPhotos.filter((photo) => photo.user_status === "Pick").length,
-        statuses: "[\"Pick\"]",
+        statuses: '["Pick"]',
         output_path: "/tmp/framepilot/e2e/exports/selection-export-1.csv",
         created_at: "2026-06-02T00:00:00Z",
       },
@@ -194,7 +194,8 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page.getByRole("heading", { name: "Export Selection" })).toBeVisible();
   await page.getByLabel("Maybe").uncheck();
   await page.getByRole("button", { name: "Export" }).click();
-  await expect(page.getByText("1 photos exported to /tmp/framepilot/e2e/exports/selection-export-1.csv")).toBeVisible();
+  await expect(page.getByText("1 photos exported.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Download CSV" })).toBeVisible();
 });
 
 test("creates a project and opens the import step", async ({ page }) => {
