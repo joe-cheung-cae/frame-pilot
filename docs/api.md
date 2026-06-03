@@ -152,7 +152,7 @@ If a whole processing job fails before individual photos complete, photos still 
 
 `PATCH /api/projects/{project_id}/photos/{photo_id}` and `PATCH /api/projects/{project_id}/photos/batch` update review status and star rating. Requests must include at least one of `user_status` or `star_rating`.
 
-`GET /api/projects/{project_id}/groups` returns groups in stable creation order for group-by-group review. Each group includes a JSON `score_summary` string with the top photo id, best score, score gap, confidence label, recommendation counts, and a short deterministic explanation.
+`GET /api/projects/{project_id}/groups` returns groups in stable creation order for group-by-group review. Optional `limit` and `offset` query parameters can page large group lists. Each group includes a JSON `score_summary` string with the top photo id, best score, score gap, confidence label, recommendation counts, and a short deterministic explanation.
 
 Example group response:
 

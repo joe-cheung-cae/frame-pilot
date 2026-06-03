@@ -752,13 +752,19 @@ def test_group_list_returns_groups_in_creation_order(tmp_path, monkeypatch):
     with Session(get_engine()) as session:
         second = PhotoGroup(project_id=project["id"], photo_count=2)
         first = PhotoGroup(project_id=project["id"], photo_count=1)
+        third = PhotoGroup(project_id=project["id"], photo_count=3)
         session.add(second)
         session.add(first)
+        session.add(third)
         session.commit()
 
     groups = client.get(f"/api/projects/{project['id']}/groups").json()
 
-    assert [group["photo_count"] for group in groups] == [2, 1]
+    assert [group["photo_count"] for group in groups] == [2, 1, 3]
+
+    page = client.get(f"/api/projects/{project['id']}/groups?limit=1&offset=1").json()
+
+    assert [group["id"] for group in page] == [groups[1]["id"]]
 
 
 def test_photo_list_prioritizes_recommended_and_high_scoring_photos(tmp_path, monkeypatch):

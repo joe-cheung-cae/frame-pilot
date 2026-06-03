@@ -257,13 +257,21 @@ def update_photo_endpoint(
 
 
 @router.get("/projects/{project_id}/groups", response_model=list[GroupRead])
-def list_groups_endpoint(project_id: str, session: Session = Depends(get_session)):
+def list_groups_endpoint(
+    project_id: str,
+    limit: int | None = Query(default=None, ge=1, le=5000),
+    offset: int = Query(default=0, ge=0),
+    session: Session = Depends(get_session),
+):
     _get_project(session, project_id)
-    return list(
-        session.exec(
-            select(PhotoGroup).where(PhotoGroup.project_id == project_id).order_by(PhotoGroup.created_at, PhotoGroup.id)
-        ).all()
+    statement = (
+        select(PhotoGroup).where(PhotoGroup.project_id == project_id).order_by(PhotoGroup.created_at, PhotoGroup.id)
     )
+    if offset:
+        statement = statement.offset(offset)
+    if limit is not None:
+        statement = statement.limit(limit)
+    return list(session.exec(statement).all())
 
 
 @router.get("/projects/{project_id}/groups/{group_id}", response_model=GroupRead)
