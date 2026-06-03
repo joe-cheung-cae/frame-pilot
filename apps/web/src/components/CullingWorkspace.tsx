@@ -523,6 +523,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 className={`focus-ring rounded px-3 py-2 text-left text-sm ${filter === item ? "bg-leaf text-white" : "hover:bg-mist"}`}
                 key={item}
                 onClick={() => setFilter(item)}
+                aria-pressed={filter === item}
                 ref={(node) => {
                   filterButtonRefs.current[index] = node;
                 }}
@@ -560,11 +561,15 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
             {sidebarGroups.map((group) => {
               const summary = parseGroupScoreSummary(group.score_summary);
               const groupNumber = (groupIndexById.get(group.id) ?? 0) + 1;
+              const isActiveGroup = activeGroup?.id === group.id;
+              const groupPhotoLabel = `${group.photo_count} ${group.photo_count === 1 ? "photo" : "photos"}`;
               return (
                 <button
-                  className={`focus-ring rounded border px-3 py-2 text-left ${activeGroupId === group.id ? "border-leaf bg-mist" : "border-line bg-white"}`}
+                  className={`focus-ring rounded border px-3 py-2 text-left ${isActiveGroup ? "border-leaf bg-mist" : "border-line bg-white"}`}
                   key={group.id}
                   onClick={() => selectGroup(group.id, group.representative_photo_id)}
+                  aria-current={isActiveGroup ? "true" : undefined}
+                  aria-label={`Group ${groupNumber}, ${groupPhotoLabel}, ${groupConfidenceLabel(summary)}`}
                 >
                   <span className="flex items-center justify-between gap-3">
                     <span>Group {groupNumber}</span>
@@ -757,24 +762,32 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   <button
                     className="focus-ring rounded bg-leaf px-3 py-2 text-sm font-medium text-white"
                     onClick={() => mark("Pick")}
+                    aria-pressed={activePhoto.user_status === "Pick"}
+                    aria-label="Set active photo to Pick"
                   >
                     Pick
                   </button>
                   <button
                     className="focus-ring rounded bg-gold px-3 py-2 text-sm font-medium text-white"
                     onClick={() => mark("Maybe")}
+                    aria-pressed={activePhoto.user_status === "Maybe"}
+                    aria-label="Set active photo to Maybe"
                   >
                     Maybe
                   </button>
                   <button
                     className="focus-ring rounded bg-coral px-3 py-2 text-sm font-medium text-white"
                     onClick={() => mark("Reject")}
+                    aria-pressed={activePhoto.user_status === "Reject"}
+                    aria-label="Set active photo to Reject"
                   >
                     Reject
                   </button>
                   <button
                     className="focus-ring rounded border border-line px-3 py-2 text-sm font-medium"
                     onClick={() => mark("Unreviewed")}
+                    aria-pressed={activePhoto.user_status === "Unreviewed"}
+                    aria-label="Set active photo to Unreviewed"
                   >
                     Unreviewed
                   </button>
@@ -785,6 +798,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     className="focus-ring rounded p-2 text-neutral-600"
                     onClick={() => rate(0)}
                     aria-label="Clear rating"
+                    aria-pressed={activePhoto.star_rating === 0}
                   >
                     <StarOff size={20} />
                   </button>
@@ -794,6 +808,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                       key={rating}
                       onClick={() => rate(rating)}
                       aria-label={`${rating} stars`}
+                      aria-pressed={activePhoto.star_rating === rating}
                     >
                       <Star fill={activePhoto.star_rating >= rating ? "currentColor" : "none"} size={20} />
                     </button>
@@ -824,6 +839,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               className={`focus-ring relative h-20 w-28 shrink-0 overflow-hidden rounded border ${photo.id === activePhoto?.id ? "border-leaf" : "border-line"}`}
               key={photo.id}
               onClick={() => setActivePhotoId(photo.id)}
+              aria-current={photo.id === activePhoto?.id ? "true" : undefined}
+              aria-label={`Select ${photo.filename}`}
             >
               {thumbnail && !assetHasFailed(thumbnail) ? (
                 <img

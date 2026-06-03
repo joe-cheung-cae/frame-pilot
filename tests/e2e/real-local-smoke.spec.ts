@@ -36,10 +36,11 @@ test("runs a real local import, process, pick, and CSV export smoke flow", async
 
   await page.getByRole("link", { name: "Open Culling Workspace" }).click();
   await expect(page.getByRole("heading", { name: /real-smoke-/ })).toBeVisible();
-  await page.getByRole("button", { name: "Pick", exact: true }).click();
+  await page.getByRole("button", { name: "Set active photo to Pick" }).click();
 
   await page.getByRole("link", { name: "Export" }).click();
-  await page.getByLabel("Maybe").uncheck();
+  await expect(page.getByRole("heading", { name: "Export Selection" })).toBeVisible();
+  await page.getByRole("checkbox", { name: "Maybe" }).uncheck();
   await page.getByRole("button", { name: "Export" }).click();
 
   const downloadLink = page.getByRole("link", { name: "Download CSV" });

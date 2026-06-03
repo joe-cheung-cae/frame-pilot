@@ -53,6 +53,7 @@ SQLite initialization also creates indexes for large-project review and export q
 
 The culling workspace keeps large projects responsive by requesting bounded first pages for photos and groups, then rendering bounded windows for the group sidebar, filmstrip, and compare-mode candidates instead of mounting every matching thumbnail or preview at once. Users can explicitly load the full photo or group list when a review task needs complete in-browser context.
 If a generated preview or thumbnail asset fails to load, the workspace records the failed asset URL and renders an explicit local fallback instead of leaving a broken image in the review surface.
+Dense culling controls expose active filter, group, photo, status, rating, compare, zoom, and preview states with ARIA attributes so keyboard and assistive-technology users can confirm the current review context.
 
 The processing page shows recent local job history from a bounded newest-first query and can increase that limit when the user requests older jobs.
 

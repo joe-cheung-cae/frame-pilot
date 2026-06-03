@@ -678,6 +678,13 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await page.getByRole("link", { name: "Open Culling Workspace" }).click();
   await expect(page.getByRole("heading", { name: "E2E Shoot" })).toBeVisible();
   expect(photoListRequestUrls.some((url) => url.includes("limit=500") && url.includes("offset=0"))).toBe(true);
+  await expect(page.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Picks" })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", { name: "Group 1, 2 photos, High confidence" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await expect(page.getByRole("button", { name: "Select frame-001.jpg" })).toHaveAttribute("aria-current", "true");
   await expect(page.getByRole("button", { name: "Toggle large preview" })).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("Space");
   await expect(page.getByRole("button", { name: "Toggle large preview" })).toHaveAttribute("aria-pressed", "true");
@@ -701,6 +708,10 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page.getByText("High confidence because the top photo leads the next candidate by 0.23.")).toBeVisible();
   await page.keyboard.press("ArrowDown");
   await expect(page.getByRole("heading", { name: "frame-003.jpg" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Group 2, 1 photo, Low confidence" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
   await expect(page.getByText("Low confidence because this group has no similar alternative to compare.")).toBeVisible();
   await page.keyboard.press("ArrowUp");
   await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toBeVisible();
@@ -710,12 +721,20 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page.getByText("1/125")).toBeVisible();
   const initialPatchCount = photoPatches.length;
   const initialPhotoListRequests = photoListRequests;
+  await expect(page.getByRole("button", { name: "Set active photo to Unreviewed" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByRole("button", { name: "Clear rating" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "5 stars" })).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("5");
   await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 1);
   expect(photoPatches.at(-1)).toEqual({ patch: { star_rating: 5 }, photoId: "photo-1" });
+  await expect(page.getByRole("button", { name: "5 stars" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Clear rating" }).click();
   await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 2);
   expect(photoPatches.at(-1)).toEqual({ patch: { star_rating: 0 }, photoId: "photo-1" });
+  await expect(page.getByRole("button", { name: "Clear rating" })).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("0");
   await expect.poll(() => photoPatches.length).toBe(initialPatchCount + 3);
   expect(photoPatches.at(-1)).toEqual({ patch: { star_rating: 0 }, photoId: "photo-1" });
