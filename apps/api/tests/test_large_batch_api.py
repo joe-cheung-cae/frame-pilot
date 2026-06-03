@@ -55,6 +55,13 @@ def test_photo_list_returns_2000_records_in_review_order(tmp_path, monkeypatch):
     assert [photo["filename"] for photo in records[:20]] == [photo["filename"] for photo in expected[:20]]
     assert [photo["filename"] for photo in records[-20:]] == [photo["filename"] for photo in expected[-20:]]
 
+    page_response = client.get(f"/api/projects/{project['id']}/photos?limit=25&offset=40")
+
+    assert page_response.status_code == 200
+    page_records = page_response.json()
+    assert len(page_records) == 25
+    assert [photo["id"] for photo in page_records] == [photo["id"] for photo in records[40:65]]
+
 
 def test_100_synthetic_image_workflow_imports_and_processes(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))

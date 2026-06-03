@@ -148,7 +148,7 @@ Each photo also exposes local processing state:
 Processing validates generated thumbnail and preview files before grouping. Missing derivatives are regenerated from the local copied original when possible; unrecoverable derivative failures are recorded as failed photo items instead of failing the whole job.
 If a whole processing job fails before individual photos complete, photos still marked as in-progress are returned to `imported` with the interruption reason so the next processing run can retry them.
 
-`GET /api/projects/{project_id}/photos` returns photos ordered for review by group, AI recommendation priority, score, and filename.
+`GET /api/projects/{project_id}/photos` returns photos ordered for review by group, AI recommendation priority, score, and filename. Optional `limit` and `offset` query parameters can page large projects; omitting them preserves the full-list response.
 
 `PATCH /api/projects/{project_id}/photos/{photo_id}` and `PATCH /api/projects/{project_id}/photos/batch` update review status and star rating. Requests must include at least one of `user_status` or `star_rating`.
 

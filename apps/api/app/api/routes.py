@@ -2,7 +2,7 @@ import json
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import case
 from sqlmodel import Session, select
@@ -178,7 +178,12 @@ def list_jobs_endpoint(project_id: str, session: Session = Depends(get_session))
 
 
 @router.get("/projects/{project_id}/photos", response_model=list[PhotoRead])
-def list_photos_endpoint(project_id: str, session: Session = Depends(get_session)):
+def list_photos_endpoint(
+    project_id: str,
+    limit: int | None = Query(default=None, ge=1, le=5000),
+    offset: int = Query(default=0, ge=0),
+    session: Session = Depends(get_session),
+):
     _get_project(session, project_id)
     recommendation_order = case(
         (Photo.ai_recommendation == "Pick", 0),
@@ -186,13 +191,16 @@ def list_photos_endpoint(project_id: str, session: Session = Depends(get_session
         (Photo.ai_recommendation == "Unreviewed", 2),
         else_=3,
     )
-    return list(
-        session.exec(
-            select(Photo)
-            .where(Photo.project_id == project_id)
-            .order_by(Photo.group_id, recommendation_order, Photo.overall_score.desc(), Photo.filename)
-        ).all()
+    statement = (
+        select(Photo)
+        .where(Photo.project_id == project_id)
+        .order_by(Photo.group_id, recommendation_order, Photo.overall_score.desc(), Photo.filename)
     )
+    if offset:
+        statement = statement.offset(offset)
+    if limit is not None:
+        statement = statement.limit(limit)
+    return list(session.exec(statement).all())
 
 
 @router.get("/projects/{project_id}/photos/{photo_id}", response_model=PhotoRead)
