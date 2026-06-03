@@ -75,6 +75,7 @@ def _build_group_inputs(photos: list[Photo]) -> tuple[list[dict], list[Photo]]:
                 "width": photo.width,
                 "height": photo.height,
                 "camera_model": photo.camera_model,
+                "lens_model": photo.lens_model,
                 "focal_length": photo.focal_length,
             }
         )

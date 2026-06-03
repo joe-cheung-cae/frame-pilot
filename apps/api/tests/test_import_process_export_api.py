@@ -14,6 +14,7 @@ from app.api import routes
 from app.db.session import get_engine
 from app.main import create_app
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project
+from app.services.grouping import SimilarPhotoGroup
 from app.services.importing import invalidate_project_processing
 
 
@@ -900,6 +901,54 @@ def test_processing_recommendation_explains_face_and_eye_quality(tmp_path, monke
     face_photo = next(photo for photo in processed if photo["filename"] == "face.jpg")
     assert face_photo["ai_recommendation"] == "Pick"
     assert "experimental face and open-eye signals" in face_photo["recommendation_explanation"]
+
+
+def test_processing_passes_lens_metadata_to_grouping(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Lens grouping payload"}).json()
+    captured_inputs = []
+
+    with Session(get_engine()) as session:
+        thumbnail_path, preview_path = _write_test_derivatives(tmp_path, "lens")
+        photo = Photo(
+            project_id=project["id"],
+            original_path="/tmp/lens.jpg",
+            filename="lens.jpg",
+            thumbnail_path=thumbnail_path,
+            preview_path=preview_path,
+            width=6000,
+            height=4000,
+            camera_model="Camera A",
+            lens_model="Prime 35mm",
+            focal_length="35",
+            sharpness_score=0.8,
+            exposure_score=0.8,
+            contrast_score=0.7,
+            noise_score=0.2,
+            aesthetic_score=0.7,
+            embedding="[1, 0]",
+        )
+        session.add(photo)
+        project_model = session.get(Project, project["id"])
+        assert project_model is not None
+        project_model.total_images = 1
+        session.add(project_model)
+        session.commit()
+        photo_id = photo.id
+
+    def capture_group_inputs(group_inputs):
+        captured_inputs.extend(group_inputs)
+        return [SimilarPhotoGroup(photo_ids=[photo_id], group_type="single")]
+
+    monkeypatch.setattr("app.services.processing.group_similar_photos", capture_group_inputs)
+
+    response = client.post(f"/api/projects/{project['id']}/process")
+
+    assert response.status_code == 202
+    job = _wait_for_job(client, project["id"], response.json())
+    assert job["status"] == "complete"
+    assert captured_inputs[0]["lens_model"] == "Prime 35mm"
 
 
 def test_processing_persists_duplicate_group_score_summary(tmp_path, monkeypatch):
