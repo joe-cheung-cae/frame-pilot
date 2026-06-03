@@ -23,3 +23,93 @@ def test_grouping_falls_back_to_filename_order_without_capture_time():
     groups = group_similar_photos(photos, similarity_threshold=0.95)
 
     assert groups[0].photo_ids == ["1", "2"]
+
+
+def test_grouping_uses_union_find_for_non_adjacent_burst_frames():
+    photos = [
+        {
+            "id": "a",
+            "filename": "IMG_0001.jpg",
+            "capture_time": "2026-01-01T10:00:00",
+            "embedding": [1.0, 0.0],
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        },
+        {
+            "id": "b",
+            "filename": "IMG_0002.jpg",
+            "capture_time": "2026-01-01T10:00:01",
+            "embedding": [0.7, 0.7],
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        },
+        {
+            "id": "c",
+            "filename": "IMG_0003.jpg",
+            "capture_time": "2026-01-01T10:00:02",
+            "embedding": [0.99, 0.01],
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        },
+    ]
+
+    groups = group_similar_photos(photos, similarity_threshold=0.95, max_time_gap_seconds=10)
+
+    assert [group.photo_ids for group in groups] == [["a", "c"], ["b"]]
+
+
+def test_grouping_avoids_over_merging_across_metadata_mismatch():
+    photos = [
+        {
+            "id": "wide",
+            "filename": "IMG_0001.jpg",
+            "capture_time": "2026-01-01T10:00:00",
+            "embedding": [1.0, 0.0],
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "24",
+        },
+        {
+            "id": "tele",
+            "filename": "IMG_0002.jpg",
+            "capture_time": "2026-01-01T10:00:01",
+            "embedding": [1.0, 0.0],
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "200",
+        },
+        {
+            "id": "other-camera",
+            "filename": "IMG_0003.jpg",
+            "capture_time": "2026-01-01T10:00:02",
+            "embedding": [1.0, 0.0],
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera B",
+            "focal_length": "24",
+        },
+    ]
+
+    groups = group_similar_photos(photos, similarity_threshold=0.95, max_time_gap_seconds=10)
+
+    assert [group.photo_ids for group in groups] == [["wide"], ["tele"], ["other-camera"]]
+
+
+def test_grouping_uses_filename_proximity_without_capture_time():
+    photos = [
+        {"id": "a", "filename": "IMG_0001.jpg", "embedding": [1.0, 0.0]},
+        {"id": "b", "filename": "IMG_0002.jpg", "embedding": [1.0, 0.0]},
+        {"id": "c", "filename": "IMG_0100.jpg", "embedding": [1.0, 0.0]},
+    ]
+
+    groups = group_similar_photos(photos, similarity_threshold=0.95, max_filename_gap=3)
+
+    assert [group.photo_ids for group in groups] == [["a", "b"], ["c"]]

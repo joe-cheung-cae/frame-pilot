@@ -62,6 +62,10 @@ def _build_group_inputs(photos: list[Photo]) -> tuple[list[dict], list[Photo]]:
                 "filename": photo.filename,
                 "capture_time": photo.capture_time,
                 "embedding": embedding,
+                "width": photo.width,
+                "height": photo.height,
+                "camera_model": photo.camera_model,
+                "focal_length": photo.focal_length,
             }
         )
     return group_inputs, failed_photos
