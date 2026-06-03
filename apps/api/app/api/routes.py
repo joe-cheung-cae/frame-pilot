@@ -21,7 +21,7 @@ from app.schemas.api import (
     ProjectRead,
 )
 from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
-from app.services.importing import import_image_file
+from app.services.importing import import_image_file, invalidate_project_processing
 from app.services.processing import create_processing_job, project_export_root, run_processing_job
 from app.services.projects import create_project, list_projects
 
@@ -102,12 +102,15 @@ async def import_photos_endpoint(
     for upload in files:
         filename = upload.filename or "image"
         try:
-            imported.append(import_image_file(session, project, filename, upload.file))
+            imported.append(import_image_file(session, project, filename, upload.file, invalidate_processing=False))
         except ValueError as error:
             skipped.append({"filename": filename, "reason": str(error)})
     if not imported and skipped:
         details = "; ".join(f"{item['filename']}: {item['reason']}" for item in skipped)
         raise HTTPException(status_code=422, detail=details)
+    if imported:
+        invalidate_project_processing(session, project)
+        session.commit()
     return {"imported": imported, "skipped": skipped}
 
 

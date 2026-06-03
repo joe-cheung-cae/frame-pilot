@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from app.db.session import get_engine
 from app.main import create_app
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project
+from app.services.importing import invalidate_project_processing
 
 
 def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
@@ -251,6 +252,35 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
         f"/api/projects/{project['id']}/export/{folder_export_response.json()['id']}/download",
     )
     assert folder_download_response.status_code == 422
+
+
+def test_multi_file_import_invalidates_processing_once(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    invalidate_calls = 0
+
+    def counted_invalidation(session, project):
+        nonlocal invalidate_calls
+        invalidate_calls += 1
+        invalidate_project_processing(session, project)
+
+    monkeypatch.setattr("app.api.routes.invalidate_project_processing", counted_invalidation)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Batch import invalidation"}).json()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[
+            ("files", ("first.jpg", _image_bytes(), "image/jpeg")),
+            ("files", ("second.jpg", _image_bytes(color=(40, 80, 120)), "image/jpeg")),
+        ],
+    )
+
+    assert response.status_code == 201
+    assert len(response.json()["imported"]) == 2
+    assert invalidate_calls == 1
+    updated_project = client.get(f"/api/projects/{project['id']}").json()
+    assert updated_project["total_images"] == 2
+    assert updated_project["processed_images"] == 0
 
 
 def test_process_rejects_project_with_no_imported_photos(tmp_path, monkeypatch):

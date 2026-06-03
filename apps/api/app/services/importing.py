@@ -129,7 +129,7 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _invalidate_project_processing(session: Session, project: Project) -> None:
+def invalidate_project_processing(session: Session, project: Project) -> None:
     for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
         session.delete(group)
 
@@ -142,9 +142,17 @@ def _invalidate_project_processing(session: Session, project: Project) -> None:
         session.add(photo)
 
     project.processed_images = 0
+    project.updated_at = utc_now()
+    session.add(project)
 
 
-def import_image_file(session: Session, project: Project, filename: str, file: BinaryIO) -> Photo:
+def import_image_file(
+    session: Session,
+    project: Project,
+    filename: str,
+    file: BinaryIO,
+    invalidate_processing: bool = True,
+) -> Photo:
     if not is_supported_image(filename):
         raise ValueError("Only JPEG, PNG, and WebP files are supported")
 
@@ -207,7 +215,8 @@ def import_image_file(session: Session, project: Project, filename: str, file: B
         **metadata,
     )
     session.add(photo)
-    _invalidate_project_processing(session, project)
+    if invalidate_processing:
+        invalidate_project_processing(session, project)
     project.total_images += 1
     project.updated_at = utc_now()
     session.add(project)
