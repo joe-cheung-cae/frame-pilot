@@ -32,6 +32,7 @@ import {
   windowedGroupRefs,
   windowedPhotoRefs,
 } from "@/lib/reviewNavigation";
+import { reviewShortcutCommandForKey, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
 import { useReviewStore } from "@/store/reviewStore";
 
 const FILTERS = [
@@ -307,32 +308,24 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      if (event.key === "ArrowLeft") move(-1);
-      if (event.key === "ArrowRight") move(1);
-      if (event.key === "ArrowUp") {
+      const command = reviewShortcutCommandForKey(event.key);
+      if (!command) return;
+      if (reviewShortcutNeedsPreventDefault(command)) {
         event.preventDefault();
-        moveGroup(-1);
       }
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        moveGroup(1);
+
+      if (command.type === "move_photo") move(command.delta);
+      if (command.type === "move_group") moveGroup(command.delta);
+      if (command.type === "mark") mark(command.status);
+      if (command.type === "rate") rate(command.rating);
+      if (command.type === "toggle_large_preview") toggleLargePreview();
+      if (command.type === "toggle_zoom") toggleZoomPreview();
+      if (command.type === "toggle_compare") toggleCompareMode();
+      if (command.type === "cycle_group") cycleGroup();
+      if (command.type === "focus_filters") focusFilterControls();
+      if (command.type === "export") {
+        router.push(`/projects/${projectId}/export`);
       }
-      if (event.key.toLowerCase() === "p") mark("Pick");
-      if (event.key.toLowerCase() === "m") mark("Maybe");
-      if (event.key.toLowerCase() === "x") mark("Reject");
-      if (event.key.toLowerCase() === "u") mark("Unreviewed");
-      if (event.key === " ") {
-        event.preventDefault();
-        toggleLargePreview();
-      }
-      if (event.key.toLowerCase() === "z") toggleZoomPreview();
-      if (event.key.toLowerCase() === "c") toggleCompareMode();
-      if (event.key.toLowerCase() === "g") cycleGroup();
-      if (event.key.toLowerCase() === "f") focusFilterControls();
-      if (event.key.toLowerCase() === "e") router.push(`/projects/${projectId}/export`);
-      const numeric = Number(event.key);
-      if (numeric === 0) rate(0);
-      if (numeric >= 1 && numeric <= 5) rate(numeric);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
