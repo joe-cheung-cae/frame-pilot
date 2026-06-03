@@ -7,14 +7,14 @@ import { api } from "@/lib/api";
 import { projectNextHref } from "@/lib/projectRouting";
 
 export function ProjectList() {
-  const { data, isLoading, error } = useQuery({ queryKey: ["projects"], queryFn: api.listProjects });
+  const { data, isLoading, error } = useQuery({ queryKey: ["projects"], queryFn: api.listProjects, retry: false });
 
   if (isLoading) {
     return <Loader2 className="animate-spin text-leaf" />;
   }
 
   if (error) {
-    return <p className="text-sm text-coral">Start the local API to load projects.</p>;
+    return <p className="text-sm text-coral">Could not load projects: {error.message}</p>;
   }
 
   if (!data?.length) {

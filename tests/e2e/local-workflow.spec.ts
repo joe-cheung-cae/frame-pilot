@@ -165,6 +165,7 @@ let failNextPhotoPatch = false;
 let failExportHistory = false;
 let failPhotoStatusCounts = false;
 let failJobList = false;
+let failProjectList = false;
 let failProjectDetail = false;
 let failNextImport = false;
 let skipNextImport = false;
@@ -194,6 +195,7 @@ test.beforeEach(async ({ page }) => {
   failExportHistory = false;
   failPhotoStatusCounts = false;
   failJobList = false;
+  failProjectList = false;
   failProjectDetail = false;
   failNextImport = false;
   skipNextImport = false;
@@ -207,6 +209,10 @@ test.beforeEach(async ({ page }) => {
     if (route.request().method() === "POST") {
       currentProject = { ...currentProject, total_images: 0, processed_images: 0 };
       await route.fulfill({ json: currentProject, status: 201 });
+      return;
+    }
+    if (failProjectList) {
+      await route.fulfill({ json: { detail: "Could not read local project database" }, status: 500 });
       return;
     }
     await route.fulfill({ json: [currentProject, emptyProject] });
@@ -372,6 +378,14 @@ test("shows culling save errors when a rating update fails", async ({ page }) =>
 
   await expect(page.getByText("Could not save review update")).toBeVisible();
   await expect.poll(() => photoPatches.length).toBe(0);
+});
+
+test("shows project list load errors", async ({ page }) => {
+  failProjectList = true;
+
+  await page.goto("/");
+
+  await expect(page.getByText("Could not load projects: Could not read local project database")).toBeVisible();
 });
 
 test("shows culling workspace load errors", async ({ page }) => {
