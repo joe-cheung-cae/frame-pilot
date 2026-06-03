@@ -59,4 +59,4 @@ The export page shows the local exports folder before export, keeps status total
 
 The shell links to a local help page that lists the keyboard shortcuts supported by the culling workspace.
 
-Recent project cards link to the next resumable workflow step and show whether the project should continue with import, processing, or culling.
+Recent project cards link to the next resumable workflow step and show whether the project should continue with import, processing, or culling. Each project also has a dashboard route at `/projects/{project_id}` with local storage details, processing counts, and direct links to import, processing, culling, and export.

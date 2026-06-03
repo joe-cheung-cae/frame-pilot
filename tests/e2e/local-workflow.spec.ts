@@ -567,6 +567,14 @@ test("shows processing project load errors", async ({ page }) => {
   await expect(page.getByText("Could not load project details")).toBeVisible();
 });
 
+test("shows project dashboard load errors", async ({ page }) => {
+  failProjectDetail = true;
+
+  await page.goto(`/projects/${project.id}`);
+
+  await expect(page.getByText("Could not load project details")).toBeVisible();
+});
+
 test("shows processing job polling errors", async ({ page }) => {
   failJobDetail = true;
   await page.goto(`/projects/${project.id}/process`);
@@ -613,9 +621,19 @@ test("loads more processing history on request", async ({ page }) => {
 test("walks the local project review and export flow in a browser", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Recent Projects" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Project data: \/tmp\/framepilot\/e2e/ })).toBeVisible();
+  await expect(page.getByText(/Project data: \/tmp\/framepilot\/e2e/)).toBeVisible();
   await expect(page.getByRole("link", { name: /Next: Process photos/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /Next: Import images/ })).toBeVisible();
+  await page.getByRole("link", { name: "Dashboard" }).first().click();
+  await expect(page).toHaveURL(/\/projects\/project-1$/);
+  await expect(page.getByRole("heading", { name: "E2E Shoot" })).toBeVisible();
+  await expect(page.getByText("0 of 3 photos processed")).toBeVisible();
+  await expect(page.getByText(`Project data: ${project.root_path}`)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Import", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Process", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Cull", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Export", exact: true })).toBeVisible();
+  await page.goto("/");
   await page.getByRole("link", { name: /E2E Shoot/ }).click();
   await expect(page).toHaveURL(/\/projects\/project-1\/process$/);
 
