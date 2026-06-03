@@ -187,6 +187,23 @@ def _ensure_performance_indexes(engine) -> None:
                 ON processingjob (project_id, job_type, status, created_at, id)
                 """
             )
+        if "ix_processingjob_project_created" not in job_indexes:
+            statements.append(
+                """
+                CREATE INDEX IF NOT EXISTS ix_processingjob_project_created
+                ON processingjob (project_id, created_at, id)
+                """
+            )
+
+    if inspector.has_table("exportrecord"):
+        export_indexes = {index["name"] for index in inspector.get_indexes("exportrecord")}
+        if "ix_exportrecord_project_created" not in export_indexes:
+            statements.append(
+                """
+                CREATE INDEX IF NOT EXISTS ix_exportrecord_project_created
+                ON exportrecord (project_id, created_at, id)
+                """
+            )
 
     if not statements:
         return

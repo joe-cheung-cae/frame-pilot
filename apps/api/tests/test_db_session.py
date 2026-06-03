@@ -43,8 +43,11 @@ def test_init_db_adds_large_project_query_indexes(tmp_path):
     photo_indexes = {index["name"] for index in inspector.get_indexes("photo")}
     group_indexes = {index["name"] for index in inspector.get_indexes("photogroup")}
     job_indexes = {index["name"] for index in inspector.get_indexes("processingjob")}
+    export_indexes = {index["name"] for index in inspector.get_indexes("exportrecord")}
 
     assert "ix_photo_project_review_order" in photo_indexes
     assert "ix_photo_project_status_filename" in photo_indexes
     assert "ix_photogroup_project_created" in group_indexes
     assert "ix_processingjob_project_active" in job_indexes
+    assert "ix_processingjob_project_created" in job_indexes
+    assert "ix_exportrecord_project_created" in export_indexes
