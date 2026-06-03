@@ -10,7 +10,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The MVP keeps ori
 - JPEG, PNG, and WebP imports.
 - Deterministic thumbnail and preview generation.
 - Basic metadata extraction and explainable image quality scoring.
-- Lightweight local face and eye-open signal scoring.
+- Lightweight local face and eye-open heuristic scoring.
 - Lightweight embedding approximation for near-duplicate grouping.
 - Group-focused culling with recommendation-first review ordering.
 - Pick, Maybe, Reject, and Unreviewed statuses.
@@ -58,3 +58,5 @@ npm run test:e2e
 ## Privacy
 
 The MVP does not upload originals or generated previews to any remote service. Imported images are copied into the local project directory so originals are never modified.
+
+Face and eye-open scores are computed locally with a deterministic color and luminance heuristic. They are MVP ranking hints, not a bundled professional face detection or biometric model.
