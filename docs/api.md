@@ -56,6 +56,8 @@ Project responses include image totals and processing metadata:
 
 `last_processed_at` is `null` until the first processing job completes. v2 currently uses `copy` mode, which copies imported photos into the local project directory without modifying original source files.
 
+`DELETE /api/projects/{project_id}` removes the project and related local metadata records from the app database. It does not delete the project folder, copied originals, generated previews, or exports from disk.
+
 ## Import Response
 
 `POST /api/projects/{project_id}/import` accepts multiple files under the `files` form field.

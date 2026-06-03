@@ -99,6 +99,9 @@ def get_project_endpoint(project_id: str, session: Session = Depends(get_session
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project_endpoint(project_id: str, session: Session = Depends(get_session)):
     project = _get_project(session, project_id)
+    for model in (ExportRecord, ProcessingJob, Photo, PhotoGroup):
+        for item in session.exec(select(model).where(model.project_id == project_id)).all():
+            session.delete(item)
     session.delete(project)
     session.commit()
     return None
