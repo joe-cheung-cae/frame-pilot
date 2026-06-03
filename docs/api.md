@@ -18,6 +18,7 @@ GET    /api/projects/{project_id}/jobs
 GET    /api/projects/{project_id}/jobs/{job_id}
 
 GET    /api/projects/{project_id}/photos
+GET    /api/projects/{project_id}/photos/status-counts
 GET    /api/projects/{project_id}/photos/{photo_id}
 PATCH  /api/projects/{project_id}/photos/{photo_id}
 PATCH  /api/projects/{project_id}/photos/batch
