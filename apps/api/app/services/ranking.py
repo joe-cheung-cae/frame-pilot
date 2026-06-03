@@ -4,14 +4,18 @@ from typing import Any
 WEIGHTS = {
     "sharpness_score": 0.30,
     "exposure_score": 0.20,
-    "face_quality_score": 0.20,
-    "aesthetic_score": 0.20,
+    "contrast_score": 0.15,
+    "noise_quality_score": 0.10,
+    "face_quality_score": 0.15,
+    "aesthetic_score": 0.10,
     "duplicate_penalty": -0.10,
 }
 
 QUALITY_LABELS = {
     "sharpness_score": "sharpness",
     "exposure_score": "exposure",
+    "contrast_score": "contrast",
+    "noise_quality_score": "low noise risk",
     "face_quality_score": "experimental face signal quality",
     "aesthetic_score": "aesthetic balance",
 }
@@ -26,29 +30,51 @@ class RankedPhoto:
 
 
 def final_score(photo: dict[str, Any]) -> float:
-    score = sum(float(photo.get(field, 0.0) or 0.0) * weight for field, weight in WEIGHTS.items())
+    score = sum(_metric_value(photo, field) * weight for field, weight in WEIGHTS.items())
     return round(max(0.0, min(1.0, score)), 4)
 
 
 def _metric_value(photo: dict[str, Any], field: str) -> float:
+    if field == "noise_quality_score":
+        if "noise_score" not in photo or photo.get("noise_score") is None:
+            return 0.0
+        return 1.0 - float(photo.get("noise_score", 0.0) or 0.0)
     return float(photo.get(field, 0.0) or 0.0)
 
 
 def _strongest_metric(photo: dict[str, Any]) -> str:
-    return max(QUALITY_LABELS, key=lambda field: _metric_value(photo, field))
+    return max(QUALITY_LABELS, key=lambda field: _metric_value(photo, field) * WEIGHTS[field])
+
+
+def _top_metric_labels(photo: dict[str, Any], limit: int = 3) -> list[str]:
+    ranked_fields = sorted(
+        QUALITY_LABELS,
+        key=lambda field: _metric_value(photo, field) * WEIGHTS[field],
+        reverse=True,
+    )
+    labels = []
+    for field in ranked_fields:
+        if _metric_value(photo, field) <= 0:
+            continue
+        label = QUALITY_LABELS[field]
+        if label == "experimental face signal quality" and float(photo.get("eye_open_confidence", 0.0) or 0.0) > 0:
+            label = "experimental face and open-eye signals"
+        labels.append(label)
+        if len(labels) >= limit:
+            return labels
+    return labels
 
 
 def _weakest_metric(photo: dict[str, Any]) -> str:
-    return min(QUALITY_LABELS, key=lambda field: _metric_value(photo, field))
+    return min(QUALITY_LABELS, key=lambda field: _metric_value(photo, field) * WEIGHTS[field])
 
 
 def _pick_explanation(photo: dict[str, Any], group_size: int) -> str:
-    strongest = QUALITY_LABELS[_strongest_metric(photo)]
-    if strongest == "experimental face signal quality" and float(photo.get("eye_open_confidence", 0.0) or 0.0) > 0:
-        strongest = "experimental face and open-eye signals"
+    strongest = _top_metric_labels(photo, limit=3)
+    strongest_text = " and ".join(strongest) if strongest else QUALITY_LABELS[_strongest_metric(photo)]
     if group_size <= 1:
-        return f"Recommended because it has the strongest {strongest} score among the available quality signals."
-    return f"Recommended because it has the highest overall score in this group, led by its {strongest} score."
+        return f"Recommended because it has the strongest {strongest_text} scores among the available quality signals."
+    return f"Recommended because it has the highest overall score in this group, led by its {strongest_text} scores."
 
 
 def _secondary_explanation(photo: dict[str, Any], recommendation: str, score_gap: float) -> str:

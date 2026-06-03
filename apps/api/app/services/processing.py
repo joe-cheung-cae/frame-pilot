@@ -243,6 +243,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
                         "id": photo.id,
                         "sharpness_score": photo.sharpness_score,
                         "exposure_score": photo.exposure_score,
+                        "contrast_score": photo.contrast_score,
+                        "noise_score": photo.noise_score,
                         "face_presence": photo.face_presence,
                         "eye_open_confidence": photo.eye_open_confidence,
                         "face_quality_score": photo.face_quality_score,

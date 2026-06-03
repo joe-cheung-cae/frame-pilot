@@ -35,9 +35,11 @@ The group ranking formula is:
 final_score =
     0.30 * sharpness_score
   + 0.20 * exposure_score
-  + 0.20 * face_quality_score
-  + 0.20 * aesthetic_score
+  + 0.15 * contrast_score
+  + 0.10 * noise_quality_score
+  + 0.15 * experimental_face_quality_score
+  + 0.10 * aesthetic_score
   - 0.10 * duplicate_penalty
 ```
 
-The top-ranked photo receives a Pick recommendation. Other photos in the same group receive Maybe or Reject based on their distance from the best score. User decisions always override recommendations.
+`noise_quality_score` is computed as the inverse of local noise risk. The top-ranked photo receives a Pick recommendation. Other photos in the same group receive Maybe or Reject based on their distance from the best score. User decisions always override recommendations.

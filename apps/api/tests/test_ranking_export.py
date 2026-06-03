@@ -68,6 +68,37 @@ def test_rank_group_prefers_sharp_well_exposed_photo_over_blurry_or_badly_expose
     assert all(item.recommendation == "Reject" for item in ranked[1:])
 
 
+def test_rank_group_rewards_contrast_and_penalizes_noise_risk():
+    photos = [
+        {
+            "id": "clean-contrast",
+            "sharpness_score": 0.7,
+            "exposure_score": 0.7,
+            "contrast_score": 0.9,
+            "noise_score": 0.1,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.75,
+            "duplicate_penalty": 0.0,
+        },
+        {
+            "id": "flat-noisy",
+            "sharpness_score": 0.7,
+            "exposure_score": 0.7,
+            "contrast_score": 0.2,
+            "noise_score": 0.9,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.45,
+            "duplicate_penalty": 0.0,
+        },
+    ]
+
+    ranked = rank_group(photos)
+
+    assert ranked[0].photo_id == "clean-contrast"
+    assert "contrast" in ranked[0].explanation
+    assert ranked[1].recommendation == "Reject"
+
+
 def test_rank_group_explains_face_and_eye_quality_when_it_leads():
     photos = [
         {
