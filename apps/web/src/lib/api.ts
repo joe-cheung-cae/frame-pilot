@@ -226,8 +226,14 @@ function listAllExports(projectId: string, pageLimit?: number) {
 
 export const api = {
   listProjects: () => request<Project[]>("/api/projects"),
-  createProject: (name: string) =>
-    request<Project>("/api/projects", { method: "POST", body: JSON.stringify({ name }) }),
+  createProject: (name: string, rootPath?: string) => {
+    const trimmedRootPath = rootPath?.trim();
+    const payload: { name: string; root_path?: string } = { name };
+    if (trimmedRootPath) {
+      payload.root_path = trimmedRootPath;
+    }
+    return request<Project>("/api/projects", { method: "POST", body: JSON.stringify(payload) });
+  },
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   importPhotos: (projectId: string, files: FileList) => {
     const body = new FormData();

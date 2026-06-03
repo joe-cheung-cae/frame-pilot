@@ -59,7 +59,7 @@ Project responses include image totals and processing metadata:
 ```
 
 `last_processed_at` is `null` until the first processing job completes. v2 currently uses `copy` mode, which copies imported photos into the local project directory without modifying original source files.
-When `POST /api/projects` omits `root_path` or sends it blank, FramePilot uses the default managed project directory. Custom `root_path` values must point to a usable local directory location. Invalid storage paths return `422` before project metadata is created.
+When `POST /api/projects` omits `root_path` or sends it blank, FramePilot uses the default managed project directory. The project creation UI exposes this as an optional local project data folder field. Custom `root_path` values must point to a usable local directory location. Invalid storage paths return `422` before project metadata is created.
 
 `DELETE /api/projects/{project_id}` removes the project and related local metadata records from the app database. It does not delete the project folder, copied originals, generated previews, or exports from disk.
 

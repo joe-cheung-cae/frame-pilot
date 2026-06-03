@@ -173,6 +173,7 @@ let failNextImport = false;
 let skipNextImport = false;
 let photoListRequests = 0;
 let photoListRequestUrls: string[] = [];
+let projectCreatePayloads: { name?: string; root_path?: string }[] = [];
 
 function projectListRoute(resource: "exports" | "groups" | "jobs" | "photos") {
   return new RegExp(`/api/projects/${project.id}/${resource}(?:\\?.*)?$`);
@@ -205,13 +206,22 @@ test.beforeEach(async ({ page }) => {
   skipNextImport = false;
   photoListRequests = 0;
   photoListRequestUrls = [];
+  projectCreatePayloads = [];
   let currentProject = { ...project };
   let currentPhotos = photos.map((photo) => ({ ...photo }));
   let currentJob: typeof completedJob | null = null;
 
   await page.route("**/api/projects", async (route) => {
     if (route.request().method() === "POST") {
-      currentProject = { ...currentProject, total_images: 0, processed_images: 0 };
+      const payload = route.request().postDataJSON() as { name?: string; root_path?: string };
+      projectCreatePayloads.push(payload);
+      currentProject = {
+        ...currentProject,
+        name: payload.name ?? currentProject.name,
+        root_path: payload.root_path?.trim() || currentProject.root_path,
+        total_images: 0,
+        processed_images: 0,
+      };
       await route.fulfill({ json: currentProject, status: 201 });
       return;
     }
@@ -707,6 +717,21 @@ test("creates a project and opens the import step", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/projects\/project-1\/import$/);
   await expect(page.getByRole("heading", { name: "Import Images" })).toBeVisible();
+  expect(projectCreatePayloads).toEqual([{ name: "New Local Shoot" }]);
+});
+
+test("creates a project with a custom local data folder", async ({ page }) => {
+  const customRootPath = "/tmp/framepilot/custom-e2e";
+
+  await page.goto("/projects/new");
+  await page.getByLabel("Project name").fill("Custom Storage Shoot");
+  await page.getByLabel("Project data folder").fill(customRootPath);
+  await page.getByRole("button", { name: "Create and Import" }).click();
+
+  await expect(page).toHaveURL(/\/projects\/project-1\/import$/);
+  await expect(page.getByRole("heading", { name: "Import Images" })).toBeVisible();
+  await expect(page.getByText(`Project data: ${customRootPath}`)).toBeVisible();
+  expect(projectCreatePayloads).toEqual([{ name: "Custom Storage Shoot", root_path: customRootPath }]);
 });
 
 test("shows imported thumbnails before processing", async ({ page }) => {

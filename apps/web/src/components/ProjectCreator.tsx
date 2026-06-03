@@ -8,10 +8,12 @@ import { api } from "@/lib/api";
 
 export function ProjectCreator() {
   const [name, setName] = useState("");
+  const [rootPath, setRootPath] = useState("");
   const router = useRouter();
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: api.createProject,
+    mutationFn: ({ projectName, projectRootPath }: { projectName: string; projectRootPath?: string }) =>
+      api.createProject(projectName, projectRootPath),
     onSuccess: async (project) => {
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       router.push(`/projects/${project.id}/import`);
@@ -21,7 +23,7 @@ export function ProjectCreator() {
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (name.trim()) {
-      mutation.mutate(name.trim());
+      mutation.mutate({ projectName: name.trim(), projectRootPath: rootPath.trim() || undefined });
     }
   }
 
@@ -36,6 +38,16 @@ export function ProjectCreator() {
           placeholder="Saturday portrait session"
         />
       </label>
+      <label className="grid gap-2 text-sm font-medium text-ink">
+        Project data folder
+        <input
+          className="focus-ring rounded border border-line bg-white px-3 py-3 text-base"
+          value={rootPath}
+          onChange={(event) => setRootPath(event.target.value)}
+          placeholder="/Users/name/Pictures/FramePilot project"
+        />
+      </label>
+      <p className="-mt-2 text-sm text-muted">Leave blank to use the FramePilot managed local data folder.</p>
       <button
         className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded bg-leaf px-4 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
         disabled={!name.trim() || mutation.isPending}
