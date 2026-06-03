@@ -12,6 +12,8 @@ import {
   processingStatusLabel,
 } from "@/lib/processingProgress";
 
+const RECENT_JOB_LIMIT = 50;
+
 export function ProcessingPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
@@ -25,7 +27,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   });
   const jobsQuery = useQuery({
     queryKey: ["jobs", projectId],
-    queryFn: () => api.listAllJobs(projectId),
+    queryFn: () => api.listJobs(projectId, { limit: RECENT_JOB_LIMIT, offset: 0 }),
     retry: false,
   });
   const startedJob = mutation.data;

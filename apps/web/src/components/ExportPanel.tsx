@@ -14,6 +14,8 @@ import {
 
 type Mode = "csv" | "folder" | "zip";
 
+const RECENT_EXPORT_LIMIT = 50;
+
 export function ExportPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
@@ -25,7 +27,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   });
   const exportsQuery = useQuery({
     queryKey: ["exports", projectId],
-    queryFn: () => api.listAllExports(projectId),
+    queryFn: () => api.listExports(projectId, { limit: RECENT_EXPORT_LIMIT, offset: 0 }),
     retry: false,
   });
   const statusCounts = statusCountsQuery.data ?? { Pick: 0, Maybe: 0, Reject: 0, Unreviewed: 0 };
