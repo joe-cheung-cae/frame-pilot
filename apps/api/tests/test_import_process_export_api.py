@@ -15,7 +15,7 @@ from app.db.session import get_engine
 from app.main import create_app
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project
 from app.services.grouping import SimilarPhotoGroup
-from app.services.importing import invalidate_project_processing
+from app.services.importing import import_image_file, invalidate_project_processing
 
 
 def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
@@ -62,6 +62,13 @@ def _write_test_derivatives(tmp_path: Path, stem: str) -> tuple[str, str]:
     thumbnail_path.write_bytes(b"thumbnail")
     preview_path.write_bytes(b"preview")
     return str(thumbnail_path), str(preview_path)
+
+
+class ChunkOnlyReader(BytesIO):
+    def read(self, size: int = -1) -> bytes:
+        if size < 0:
+            raise AssertionError("Import should read uploaded files in bounded chunks")
+        return super().read(size)
 
 
 def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
@@ -316,6 +323,20 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
         f"/api/projects/{project['id']}/export/{folder_export_response.json()['id']}/download",
     )
     assert folder_download_response.status_code == 422
+
+
+def test_import_copies_uploaded_file_in_bounded_chunks(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Chunked import"}).json()
+    image = _image_bytes()
+
+    with Session(get_engine()) as session:
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        photo = import_image_file(session, stored_project, "chunked.jpg", ChunkOnlyReader(image))
+
+    assert Path(photo.original_path).read_bytes() == image
 
 
 def test_plural_export_routes_create_list_get_and_download(tmp_path, monkeypatch):

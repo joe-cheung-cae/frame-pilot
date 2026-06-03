@@ -17,6 +17,7 @@ PLANNED_HEIC_EXTENSIONS = {".heic", ".heif"}
 PLANNED_RAW_EXTENSIONS = {".arw", ".cr3", ".dng", ".nef"}
 EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 CONTENT_HASH_CHUNK_SIZE = 1024 * 1024
+IMPORT_COPY_CHUNK_SIZE = 1024 * 1024
 
 
 def is_supported_image(filename: str) -> bool:
@@ -171,6 +172,12 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _copy_file_to_path(file: BinaryIO, path: Path) -> None:
+    with path.open("wb") as handle:
+        while chunk := file.read(IMPORT_COPY_CHUNK_SIZE):
+            handle.write(chunk)
+
+
 def invalidate_project_processing(session: Session, project: Project) -> None:
     for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
         session.delete(group)
@@ -203,8 +210,7 @@ def import_image_file(
     originals_dir = project_root / "originals"
     originals_dir.mkdir(parents=True, exist_ok=True)
     source_path = _unique_path(originals_dir, safe_name)
-    with source_path.open("wb") as handle:
-        handle.write(file.read())
+    _copy_file_to_path(file, source_path)
 
     thumbnail_path: Path | None = None
     preview_path: Path | None = None
