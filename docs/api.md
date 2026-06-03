@@ -177,7 +177,7 @@ Example group response:
 }
 ```
 
-Supported modes are `csv`, `folder`, and `zip`. Supported statuses are `Pick`, `Maybe`, `Reject`, and `Unreviewed`.
+Supported modes are `csv`, `folder`, and `zip`. Supported statuses are `Pick`, `Maybe`, `Reject`, and `Unreviewed`. Status filters are stored without duplicates in that supported order.
 
 The response includes the number of exported photos and the local output path:
 

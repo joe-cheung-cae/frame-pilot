@@ -1145,6 +1145,30 @@ def test_export_rejects_invalid_status(tmp_path, monkeypatch):
     assert response.status_code == 422
 
 
+def test_export_normalizes_duplicate_status_filters(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Normalized export"}).json()
+
+    with Session(get_engine()) as session:
+        photos = [
+            Photo(project_id=project["id"], original_path="/tmp/pick.jpg", filename="pick.jpg", user_status="Pick"),
+            Photo(project_id=project["id"], original_path="/tmp/maybe.jpg", filename="maybe.jpg", user_status="Maybe"),
+        ]
+        session.add_all(photos)
+        session.commit()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/export",
+        json={"mode": "csv", "statuses": ["Maybe", "Pick", "Maybe"]},
+    )
+
+    assert response.status_code == 201
+    record = response.json()
+    assert record["selected_count"] == 2
+    assert record["statuses"] == '["Pick", "Maybe"]'
+
+
 def test_export_rejects_when_no_photos_match_selected_statuses(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())

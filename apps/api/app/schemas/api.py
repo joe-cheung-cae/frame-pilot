@@ -146,13 +146,15 @@ class ExportCreate(BaseModel):
     @field_validator("statuses")
     @classmethod
     def statuses_must_be_valid(cls, value: list[str]) -> list[str]:
-        allowed = {"Pick", "Maybe", "Reject", "Unreviewed"}
+        allowed_order = ["Pick", "Maybe", "Reject", "Unreviewed"]
+        allowed = set(allowed_order)
         if not value:
             raise ValueError("At least one status is required")
         invalid = sorted(set(value) - allowed)
         if invalid:
             raise ValueError(f"Statuses must be one of {sorted(allowed)}")
-        return value
+        selected = set(value)
+        return [status for status in allowed_order if status in selected]
 
 
 class ExportRead(BaseModel):
