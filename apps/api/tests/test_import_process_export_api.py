@@ -1205,6 +1205,37 @@ def test_failed_export_records_failed_history_and_removes_partial_artifact(tmp_p
     assert not Path(record["output_path"]).exists()
 
 
+def test_file_export_fails_when_selected_original_is_missing(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Missing export original"}).json()
+    missing_original = tmp_path / "missing.jpg"
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(missing_original),
+            filename="missing.jpg",
+            user_status="Pick",
+        )
+        session.add(photo)
+        session.commit()
+
+    response = client.post(f"/api/projects/{project['id']}/exports", json={"mode": "zip", "statuses": ["Pick"]})
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Export failed"
+    history = client.get(f"/api/projects/{project['id']}/exports").json()
+    assert len(history) == 1
+    record = history[0]
+    assert record["mode"] == "zip"
+    assert record["status"] == "failed"
+    assert record["selected_count"] == 1
+    assert record["error_message"] == "Export failed"
+    assert record["output_path"].endswith(".zip")
+    assert not Path(record["output_path"]).exists()
+
+
 def test_download_rejects_incomplete_export_records_even_when_artifact_exists(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())

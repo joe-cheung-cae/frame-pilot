@@ -36,6 +36,13 @@ def _unique_archive_name(used_names: set[str], filename: str) -> str:
         index += 1
 
 
+def _existing_original_path(photo: dict) -> Path:
+    source = Path(photo["original_path"])
+    if not source.is_file():
+        raise FileNotFoundError(f"Original file is missing: {source}")
+    return source
+
+
 def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", newline="") as handle:
@@ -106,9 +113,8 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
 def copy_selected_files(target_dir: Path, photos: Iterable[dict]) -> Path:
     target_dir.mkdir(parents=True, exist_ok=True)
     for photo in photos:
-        source = Path(photo["original_path"])
-        if source.exists():
-            shutil.copy2(source, _unique_destination(target_dir, source.name))
+        source = _existing_original_path(photo)
+        shutil.copy2(source, _unique_destination(target_dir, source.name))
     return target_dir
 
 
@@ -117,7 +123,6 @@ def zip_selected_files(target_zip: Path, photos: Iterable[dict]) -> Path:
     used_names: set[str] = set()
     with zipfile.ZipFile(target_zip, "w", zipfile.ZIP_DEFLATED) as archive:
         for photo in photos:
-            source = Path(photo["original_path"])
-            if source.exists():
-                archive.write(source, arcname=_unique_archive_name(used_names, source.name))
+            source = _existing_original_path(photo)
+            archive.write(source, arcname=_unique_archive_name(used_names, source.name))
     return target_zip

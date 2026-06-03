@@ -1,6 +1,8 @@
 import csv
 import zipfile
 
+import pytest
+
 from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
 from app.services.ranking import final_score, rank_group
 
@@ -327,6 +329,11 @@ def test_folder_export_preserves_files_with_duplicate_names(tmp_path):
     assert (tmp_path / "selected" / "frame-1.jpg").read_bytes() == b"second"
 
 
+def test_folder_export_rejects_missing_original_file(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        copy_selected_files(tmp_path / "selected", [{"original_path": str(tmp_path / "missing.jpg")}])
+
+
 def test_zip_export_preserves_files_with_duplicate_names(tmp_path):
     first_dir = tmp_path / "first"
     second_dir = tmp_path / "second"
@@ -345,3 +352,8 @@ def test_zip_export_preserves_files_with_duplicate_names(tmp_path):
         assert sorted(archive.namelist()) == ["frame-1.jpg", "frame.jpg"]
         assert archive.read("frame.jpg") == b"first"
         assert archive.read("frame-1.jpg") == b"second"
+
+
+def test_zip_export_rejects_missing_original_file(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        zip_selected_files(tmp_path / "selected.zip", [{"original_path": str(tmp_path / "missing.jpg")}])
