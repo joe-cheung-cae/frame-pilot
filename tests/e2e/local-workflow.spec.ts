@@ -163,6 +163,7 @@ let photoPatches: { patch: { star_rating?: number; user_status?: string }; photo
 let batchPhotoPatches: { patch: { star_rating?: number; user_status?: string }; photoIds: string[] }[] = [];
 let failNextPhotoPatch = false;
 let failExportHistory = false;
+let failNextExport = false;
 let failPhotoStatusCounts = false;
 let failJobList = false;
 let failJobDetail = false;
@@ -194,6 +195,7 @@ test.beforeEach(async ({ page }) => {
   batchPhotoPatches = [];
   failNextPhotoPatch = false;
   failExportHistory = false;
+  failNextExport = false;
   failPhotoStatusCounts = false;
   failJobList = false;
   failJobDetail = false;
@@ -349,6 +351,11 @@ test.beforeEach(async ({ page }) => {
       await route.fulfill({ json: [] });
       return;
     }
+    if (failNextExport) {
+      failNextExport = false;
+      await route.fulfill({ json: { detail: "Export failed" }, status: 500 });
+      return;
+    }
 
     await route.fulfill({
       json: {
@@ -466,6 +473,20 @@ test("shows export photo count load errors", async ({ page }) => {
 
   await expect(page.getByText("Could not load exportable photos")).toBeVisible();
   await expect(page.getByText("No photos match the selected statuses.")).toHaveCount(0);
+});
+
+test("shows export creation errors", async ({ page }) => {
+  await page.goto(`/projects/${project.id}/cull`);
+  await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toBeVisible();
+  await page.keyboard.press("p");
+  await expect.poll(() => photoPatches.length).toBe(1);
+
+  failNextExport = true;
+  await page.goto(`/projects/${project.id}/export`);
+  await page.getByLabel("Maybe").uncheck();
+  await page.getByRole("button", { name: "Export" }).click();
+
+  await expect(page.getByText("Export failed")).toBeVisible();
 });
 
 test("shows processing job list load errors", async ({ page }) => {
