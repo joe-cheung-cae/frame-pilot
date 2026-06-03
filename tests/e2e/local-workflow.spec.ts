@@ -664,6 +664,7 @@ test("shows processing job polling errors", async ({ page }) => {
 
 test("shows completed processing jobs with failed items", async ({ page }) => {
   processWithFailedItems = true;
+  includeProcessingFailedPhoto = true;
   await page.goto(`/projects/${project.id}/process`);
 
   await page.getByRole("button", { name: "Run Grouping and Ranking" }).click();
@@ -672,6 +673,13 @@ test("shows completed processing jobs with failed items", async ({ page }) => {
     page.getByText("1 photo could not be processed. Review failed photo details before export.").first(),
   ).toBeVisible();
   await expect(page.getByText("3 of 3 photos · 1 failed · 100%").first()).toBeVisible();
+
+  await page.getByRole("link", { name: "Review processing failures" }).click();
+
+  await expect(page).toHaveURL(/\/projects\/project-1\/cull\?filter=Processing%20failures$/);
+  await expect(page.getByRole("button", { name: "Processing failures" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "frame-002.jpg" })).toBeVisible();
+  await expect(page.getByText("Missing generated thumbnail")).toBeVisible();
 });
 
 test("loads more processing history on request", async ({ page }) => {

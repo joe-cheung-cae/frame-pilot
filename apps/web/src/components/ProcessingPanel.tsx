@@ -12,6 +12,7 @@ import {
   processingProgressSummary,
   processingStatusLabel,
 } from "@/lib/processingProgress";
+import { PROCESSING_FAILURE_FILTER } from "@/lib/reviewFilters";
 
 const RECENT_JOB_LIMIT = 50;
 
@@ -53,6 +54,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   const isProcessing = job?.status === "queued" || job?.status === "running" || mutation.isPending;
   const canLoadMoreJobs = (jobsQuery.data?.length ?? 0) >= jobLimit;
   const jobFailureNotice = processingFailureNotice(job);
+  const processingFailuresHref = `/projects/${projectId}/cull?filter=${encodeURIComponent(PROCESSING_FAILURE_FILTER)}`;
 
   useEffect(() => {
     if (job?.status !== "complete") {
@@ -93,7 +95,15 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           </p>
         ) : null}
         {jobFailureNotice && job?.status !== "failed" ? (
-          <p className="mt-3 text-sm text-coral">{jobFailureNotice}</p>
+          <div className="mt-3 grid gap-2 text-sm">
+            <p className="text-coral">{jobFailureNotice}</p>
+            <Link
+              className="focus-ring w-fit rounded border border-line bg-white px-3 py-2 font-medium"
+              href={processingFailuresHref}
+            >
+              Review processing failures
+            </Link>
+          </div>
         ) : null}
       </div>
       <div className="flex flex-wrap gap-3">

@@ -4,7 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -26,6 +26,7 @@ import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
 import { parseReviewProgress, reviewProgressStorageKey } from "@/lib/reviewProgress";
+import { PROCESSING_FAILURE_FILTER, REVIEW_FILTERS } from "@/lib/reviewFilters";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
@@ -35,19 +36,6 @@ import {
 } from "@/lib/reviewNavigation";
 import { reviewShortcutCommandForKey, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
 import { useReviewStore } from "@/store/reviewStore";
-
-const FILTERS = [
-  "All",
-  "Picks",
-  "Maybes",
-  "Rejects",
-  "Unreviewed",
-  "AI recommended",
-  "Blurry photos",
-  "Processing failures",
-  "Duplicate groups",
-  "Photos with faces",
-];
 
 const FILMSTRIP_WINDOW_SIZE = 80;
 const GROUP_WINDOW_SIZE = 80;
@@ -62,7 +50,7 @@ function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<st
   if (filter === "Unreviewed") return photo.user_status === "Unreviewed";
   if (filter === "AI recommended") return photo.ai_recommendation === "Pick";
   if (filter === "Blurry photos") return photo.blur_score >= 0.55;
-  if (filter === "Processing failures") return photo.processing_state === "failed" || Boolean(photo.processing_error);
+  if (filter === PROCESSING_FAILURE_FILTER) return photo.processing_state === "failed" || Boolean(photo.processing_error);
   if (filter === "Duplicate groups") return Boolean(photo.group_id && duplicateGroupIds.has(photo.group_id));
   if (filter === "Photos with faces") return photo.face_presence;
   return true;
@@ -75,6 +63,8 @@ function formatCaptureTime(value: string | null): string | null {
 export function CullingWorkspace({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedFilter = searchParams.get("filter");
   const filterButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const skipNextProgressSave = useRef<string | null>(null);
   const [allPhotosLoaded, setAllPhotosLoaded] = useState(false);
@@ -204,8 +194,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       stored = null;
     }
     skipNextProgressSave.current = projectId;
-    setReviewProgress(parseReviewProgress(stored, FILTERS));
-  }, [projectId, setReviewProgress]);
+    const storedProgress = parseReviewProgress(stored, REVIEW_FILTERS);
+    setReviewProgress({
+      ...storedProgress,
+      filter: requestedFilter && REVIEW_FILTERS.includes(requestedFilter) ? requestedFilter : storedProgress.filter,
+    });
+  }, [projectId, requestedFilter, setReviewProgress]);
 
   useEffect(() => {
     if (skipNextProgressSave.current === projectId) {
@@ -369,7 +363,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   }
 
   function focusFilterControls() {
-    const activeFilterIndex = Math.max(FILTERS.indexOf(filter), 0);
+    const activeFilterIndex = Math.max(REVIEW_FILTERS.indexOf(filter), 0);
     filterButtonRefs.current[activeFilterIndex]?.focus();
   }
 
@@ -520,7 +514,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         <aside className="border-b border-line bg-white p-4 lg:border-b-0 lg:border-r">
           <h2 className="mb-3 text-sm font-semibold">Filters</h2>
           <div className="grid gap-1">
-            {FILTERS.map((item, index) => (
+            {REVIEW_FILTERS.map((item, index) => (
               <button
                 className={`focus-ring rounded px-3 py-2 text-left text-sm ${filter === item ? "bg-leaf text-white" : "hover:bg-mist"}`}
                 key={item}
