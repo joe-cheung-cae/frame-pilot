@@ -82,6 +82,7 @@ Each count writes generated sources, local metadata, and exports under a separat
 
 See [FramePilot v2 Testing Strategy](docs/v2_testing_strategy.md) for the expected unit, integration, E2E, and performance validation layers.
 See [FramePilot v2 Migration Plan](docs/v2_migration_plan.md) for schema, storage, API, and project data migration rules.
+See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for grouping, ranking, explanation, and optional model policy.
 
 ## Privacy
 
