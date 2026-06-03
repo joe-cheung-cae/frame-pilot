@@ -63,6 +63,22 @@ def test_photo_list_returns_2000_records_in_review_order(tmp_path, monkeypatch):
     assert [photo["id"] for photo in page_records] == [photo["id"] for photo in records[40:65]]
 
 
+def test_large_list_pagination_rejects_invalid_query_values(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Invalid pagination"}).json()
+
+    photo_limit_response = client.get(f"/api/projects/{project['id']}/photos?limit=0")
+    photo_offset_response = client.get(f"/api/projects/{project['id']}/photos?offset=-1")
+    group_limit_response = client.get(f"/api/projects/{project['id']}/groups?limit=0")
+    group_offset_response = client.get(f"/api/projects/{project['id']}/groups?offset=-1")
+
+    assert photo_limit_response.status_code == 422
+    assert photo_offset_response.status_code == 422
+    assert group_limit_response.status_code == 422
+    assert group_offset_response.status_code == 422
+
+
 def test_100_synthetic_image_workflow_imports_and_processes(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
     client = TestClient(create_app())
