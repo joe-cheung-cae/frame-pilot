@@ -954,6 +954,8 @@ test("creates a project and opens the import step", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/projects\/project-1\/import$/);
   await expect(page.getByRole("heading", { name: "Import Images" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Process Project" })).toBeDisabled();
+  await expect(page.getByText("Import images before processing this project.")).toBeVisible();
   expect(projectCreatePayloads).toEqual([{ name: "New Local Shoot" }]);
 });
 
@@ -984,6 +986,7 @@ test("shows imported thumbnails before processing", async ({ page }) => {
   await expect(page.getByText("1 image imported and previewed.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recently Imported" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Thumbnail for uploaded-frame.jpg" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Process Project" })).toBeVisible();
 });
 
 test("shows skipped files after a mixed import", async ({ page }) => {

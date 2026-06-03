@@ -47,6 +47,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   }
 
   const visibleSkipped = showAllSkipped ? skipped : skipped.slice(0, 5);
+  const canProcessProject = Boolean(project.data?.total_images || recentImports.length);
 
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
@@ -144,13 +145,27 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
       {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
-      <Link
-        className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
-        href={`/projects/${projectId}/process`}
-      >
-        <Play size={18} />
-        Process Project
-      </Link>
+      {canProcessProject ? (
+        <Link
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
+          href={`/projects/${projectId}/process`}
+        >
+          <Play size={18} />
+          Process Project
+        </Link>
+      ) : (
+        <div className="grid gap-2">
+          <button
+            className="inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white opacity-50"
+            disabled
+            type="button"
+          >
+            <Play size={18} />
+            Process Project
+          </button>
+          <p className="text-sm text-neutral-600">Import images before processing this project.</p>
+        </div>
+      )}
     </section>
   );
 }
