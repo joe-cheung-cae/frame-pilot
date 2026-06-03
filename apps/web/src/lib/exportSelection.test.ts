@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { countPhotosByStatus, EXPORT_STATUSES, selectedPhotoCount, type ExportStatus } from "./exportSelection.ts";
+import {
+  countPhotosByStatus,
+  EXPORT_STATUSES,
+  formatExportStatusSummary,
+  selectedPhotoCount,
+  type ExportStatus,
+} from "./exportSelection.ts";
 
 test("counts photos by export status", () => {
   const counts = countPhotosByStatus([
@@ -23,4 +29,10 @@ test("sums selected export statuses", () => {
 
 test("keeps the supported status order stable", () => {
   assert.deepEqual(EXPORT_STATUSES, ["Pick", "Maybe", "Reject", "Unreviewed"]);
+});
+
+test("formats export status summaries from stored JSON", () => {
+  assert.equal(formatExportStatusSummary('["Maybe","Pick"]'), "Pick, Maybe");
+  assert.equal(formatExportStatusSummary("[]"), "No statuses");
+  assert.equal(formatExportStatusSummary("not json"), "Unknown statuses");
 });

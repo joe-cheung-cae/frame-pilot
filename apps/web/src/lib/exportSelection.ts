@@ -15,3 +15,19 @@ export function countPhotosByStatus(photos: readonly Pick<Photo, "user_status">[
 export function selectedPhotoCount(counts: Record<ExportStatus, number>, statuses: readonly ExportStatus[]): number {
   return statuses.reduce((total, status) => total + counts[status], 0);
 }
+
+export function formatExportStatusSummary(rawStatuses: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawStatuses);
+  } catch {
+    return "Unknown statuses";
+  }
+
+  if (!Array.isArray(parsed)) {
+    return "Unknown statuses";
+  }
+
+  const selected = EXPORT_STATUSES.filter((status) => parsed.includes(status));
+  return selected.length ? selected.join(", ") : "No statuses";
+}

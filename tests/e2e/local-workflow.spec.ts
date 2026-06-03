@@ -316,6 +316,7 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await page.getByLabel("Maybe").uncheck();
   await page.getByRole("button", { name: "Export" }).click();
   await expect(page.getByText("1 photos exported.")).toBeVisible();
+  await expect(page.getByText("Statuses: Pick")).toHaveCount(2);
   await expect(page.getByRole("link", { name: "Download CSV" })).toBeVisible();
   await expect(page.getByText("CSV · 1 photos")).toBeVisible();
 });

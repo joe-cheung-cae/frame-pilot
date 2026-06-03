@@ -4,7 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileArchive, FileSpreadsheet, FolderOutput, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { api, exportDownloadUrl } from "@/lib/api";
-import { countPhotosByStatus, EXPORT_STATUSES, selectedPhotoCount, type ExportStatus } from "@/lib/exportSelection";
+import {
+  countPhotosByStatus,
+  EXPORT_STATUSES,
+  formatExportStatusSummary,
+  selectedPhotoCount,
+  type ExportStatus,
+} from "@/lib/exportSelection";
 
 type Mode = "csv" | "folder" | "zip";
 
@@ -104,6 +110,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
             {mutation.data.selected_count} photos exported
             {mutation.data.mode === "folder" ? ` to ${mutation.data.output_path}` : "."}
           </p>
+          <p className="text-neutral-600">Statuses: {formatExportStatusSummary(mutation.data.statuses)}</p>
           {mutation.data.mode === "folder" ? null : (
             <a
               className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-4 py-2 font-medium text-white"
@@ -132,6 +139,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                   <p className="font-medium">
                     {record.mode.toUpperCase()} · {record.selected_count} photos
                   </p>
+                  <p className="text-neutral-600">Statuses: {formatExportStatusSummary(record.statuses)}</p>
                   <p className="text-neutral-600">{record.output_path}</p>
                 </div>
                 {record.mode === "folder" ? null : (
