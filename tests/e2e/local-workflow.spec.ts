@@ -163,6 +163,10 @@ let failJobList = false;
 let failProjectDetail = false;
 let photoListRequests = 0;
 
+function projectListRoute(resource: "exports" | "groups" | "jobs" | "photos") {
+  return new RegExp(`/api/projects/${project.id}/${resource}(?:\\?.*)?$`);
+}
+
 test.beforeEach(async ({ page }) => {
   photoPatches = [];
   batchPhotoPatches = [];
@@ -210,7 +214,7 @@ test.beforeEach(async ({ page }) => {
     });
   });
 
-  await page.route(`**/api/projects/${project.id}/jobs`, async (route) => {
+  await page.route(projectListRoute("jobs"), async (route) => {
     if (failJobList) {
       await route.fulfill({ json: { detail: "Could not load processing jobs" }, status: 500 });
       return;
@@ -240,7 +244,7 @@ test.beforeEach(async ({ page }) => {
     await route.fulfill({ json: { imported: [imported], skipped: [] }, status: 201 });
   });
 
-  await page.route(`**/api/projects/${project.id}/photos`, async (route) => {
+  await page.route(projectListRoute("photos"), async (route) => {
     photoListRequests += 1;
     if (failPhotoList) {
       await route.fulfill({ json: { detail: "Could not load exportable photos" }, status: 500 });
@@ -278,11 +282,11 @@ test.beforeEach(async ({ page }) => {
     await route.fulfill({ json: currentPhotos.filter((photo) => photo_ids.includes(photo.id)) });
   });
 
-  await page.route(`**/api/projects/${project.id}/groups`, async (route) => {
+  await page.route(projectListRoute("groups"), async (route) => {
     await route.fulfill({ json: groups });
   });
 
-  await page.route(`**/api/projects/${project.id}/exports`, async (route) => {
+  await page.route(projectListRoute("exports"), async (route) => {
     if (route.request().method() === "GET") {
       if (failExportHistory) {
         await route.fulfill({ json: { detail: "Could not load export history" }, status: 500 });
@@ -453,7 +457,7 @@ test("resumes polling an active processing job on the processing page", async ({
     completed_at: null,
   };
 
-  await page.route(`**/api/projects/${project.id}/jobs`, async (route) => {
+  await page.route(projectListRoute("jobs"), async (route) => {
     await route.fulfill({ json: [runningJob] });
   });
   await page.route(`**/api/projects/${project.id}/jobs/${runningJob.id}`, async (route) => {
