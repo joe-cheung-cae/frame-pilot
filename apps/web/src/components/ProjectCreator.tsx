@@ -47,7 +47,7 @@ export function ProjectCreator() {
           placeholder="/Users/name/Pictures/FramePilot project"
         />
       </label>
-      <p className="-mt-2 text-sm text-muted">Leave blank to use the FramePilot managed local data folder.</p>
+      <p className="-mt-2 text-sm text-neutral-600">Leave blank to use the FramePilot managed local data folder.</p>
       <button
         className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded bg-leaf px-4 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
         disabled={!name.trim() || mutation.isPending}
