@@ -52,7 +52,11 @@ project-root/
   thumbnails/
   previews/
   cache/
+    hashes/
+    embeddings/
+    jobs/
   exports/
+  logs/
 ```
 
 v2.0 uses copy mode: imported originals are copied into the project directory and then left untouched. `source_mode`, `source_root_path`, and `schema_version` are already recorded so reference mode can be introduced later without changing the current safety baseline.

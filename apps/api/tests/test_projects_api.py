@@ -33,6 +33,19 @@ def test_create_and_list_projects(tmp_path, monkeypatch):
     assert created["total_images"] == 0
     assert created["processed_images"] == 0
     assert created["last_processed_at"] is None
+    project_root = Path(created["root_path"])
+    for child in (
+        "originals",
+        "thumbnails",
+        "previews",
+        "exports",
+        "cache",
+        "cache/hashes",
+        "cache/embeddings",
+        "cache/jobs",
+        "logs",
+    ):
+        assert (project_root / child).is_dir()
 
     list_response = client.get("/api/projects")
 

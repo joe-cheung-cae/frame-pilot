@@ -15,7 +15,17 @@ def create_project(session: Session, name: str, root_path: str | None = None) ->
 
     project_root = Path(root_path) if root_path else settings.data_dir / "projects" / project.id
     project_root.mkdir(parents=True, exist_ok=True)
-    for child in ("originals", "thumbnails", "previews", "exports", "cache"):
+    for child in (
+        "originals",
+        "thumbnails",
+        "previews",
+        "exports",
+        "cache",
+        "cache/hashes",
+        "cache/embeddings",
+        "cache/jobs",
+        "logs",
+    ):
         (project_root / child).mkdir(parents=True, exist_ok=True)
     project.root_path = str(project_root)
     project.updated_at = utc_now()

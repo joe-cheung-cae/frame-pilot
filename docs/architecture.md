@@ -14,6 +14,10 @@ The backend stores each project under:
   previews/
   exports/
   cache/
+    hashes/
+    embeddings/
+    jobs/
+  logs/
 ```
 
 The browser talks only to the local API. Original files are copied into the local project folder during import and are not modified after that.
