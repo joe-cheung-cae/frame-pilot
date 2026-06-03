@@ -20,7 +20,11 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const [mode, setMode] = useState<Mode>("csv");
   const [statuses, setStatuses] = useState<ExportStatus[]>(["Pick", "Maybe"]);
   const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listPhotos(projectId) });
-  const exportsQuery = useQuery({ queryKey: ["exports", projectId], queryFn: () => api.listExports(projectId) });
+  const exportsQuery = useQuery({
+    queryKey: ["exports", projectId],
+    queryFn: () => api.listExports(projectId),
+    retry: false,
+  });
   const statusCounts = useMemo(() => countPhotosByStatus(photosQuery.data ?? []), [photosQuery.data]);
   const selectedCount = selectedPhotoCount(statusCounts, statuses);
   const mutation = useMutation({
@@ -129,6 +133,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         {exportsQuery.isLoading ? (
           <p className="text-sm text-neutral-600">Loading export history...</p>
         ) : null}
+        {exportsQuery.isError ? <p className="text-sm text-coral">{exportsQuery.error.message}</p> : null}
         {exportsQuery.data?.length ? (
           <div className="grid gap-2">
             {exportsQuery.data.map((record) => (
@@ -162,7 +167,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
             ))}
           </div>
         ) : null}
-        {!exportsQuery.isLoading && !exportsQuery.data?.length ? (
+        {!exportsQuery.isLoading && !exportsQuery.isError && !exportsQuery.data?.length ? (
           <p className="text-sm text-neutral-600">No exports yet.</p>
         ) : null}
       </div>

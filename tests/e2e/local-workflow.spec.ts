@@ -157,12 +157,14 @@ const groups = [
 let photoPatches: { patch: { star_rating?: number; user_status?: string }; photoId: string | undefined }[] = [];
 let batchPhotoPatches: { patch: { star_rating?: number; user_status?: string }; photoIds: string[] }[] = [];
 let failNextPhotoPatch = false;
+let failExportHistory = false;
 let photoListRequests = 0;
 
 test.beforeEach(async ({ page }) => {
   photoPatches = [];
   batchPhotoPatches = [];
   failNextPhotoPatch = false;
+  failExportHistory = false;
   photoListRequests = 0;
   let currentProject = { ...project };
   let currentPhotos = photos.map((photo) => ({ ...photo }));
@@ -264,6 +266,10 @@ test.beforeEach(async ({ page }) => {
 
   await page.route(`**/api/projects/${project.id}/exports`, async (route) => {
     if (route.request().method() === "GET") {
+      if (failExportHistory) {
+        await route.fulfill({ json: { detail: "Could not load export history" }, status: 500 });
+        return;
+      }
       await route.fulfill({ json: [] });
       return;
     }
@@ -303,6 +309,15 @@ test("shows culling save errors when a rating update fails", async ({ page }) =>
 
   await expect(page.getByText("Could not save review update")).toBeVisible();
   await expect.poll(() => photoPatches.length).toBe(0);
+});
+
+test("shows export history load errors", async ({ page }) => {
+  failExportHistory = true;
+
+  await page.goto(`/projects/${project.id}/export`);
+
+  await expect(page.getByText("Could not load export history")).toBeVisible();
+  await expect(page.getByText("No exports yet.")).toHaveCount(0);
 });
 
 test("walks the local project review and export flow in a browser", async ({ page }) => {
