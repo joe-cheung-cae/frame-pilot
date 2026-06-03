@@ -243,6 +243,11 @@ test("walks the local project review and export flow in a browser", async ({ pag
 
   await page.getByRole("link", { name: "Open Culling Workspace" }).click();
   await expect(page.getByRole("heading", { name: "E2E Shoot" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Toggle zoom" })).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("z");
+  await expect(page.getByRole("button", { name: "Toggle zoom" })).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("z");
+  await expect(page.getByRole("button", { name: "Toggle zoom" })).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByText("High confidence").first()).toBeVisible();
   await expect(page.getByText("High confidence because the top photo leads the next candidate by 0.23.")).toBeVisible();
   await page.keyboard.press("ArrowDown");

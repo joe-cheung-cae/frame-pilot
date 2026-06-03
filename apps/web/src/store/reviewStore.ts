@@ -5,10 +5,12 @@ type ReviewState = {
   activeGroupId: string | null;
   filter: string;
   largePreview: boolean;
+  zoomPreview: boolean;
   setActiveGroupId: (groupId: string | null) => void;
   setActivePhotoId: (photoId: string | null) => void;
   setFilter: (filter: string) => void;
   toggleLargePreview: () => void;
+  toggleZoomPreview: () => void;
 };
 
 export const useReviewStore = create<ReviewState>((set) => ({
@@ -16,8 +18,10 @@ export const useReviewStore = create<ReviewState>((set) => ({
   activeGroupId: null,
   filter: "All",
   largePreview: false,
+  zoomPreview: false,
   setActiveGroupId: (activeGroupId) => set({ activeGroupId }),
   setActivePhotoId: (activePhotoId) => set({ activePhotoId }),
   setFilter: (filter) => set({ filter, activeGroupId: null }),
   toggleLargePreview: () => set((state) => ({ largePreview: !state.largePreview })),
+  toggleZoomPreview: () => set((state) => ({ zoomPreview: !state.zoomPreview })),
 }));

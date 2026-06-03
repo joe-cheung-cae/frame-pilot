@@ -5,7 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
-import { ArrowLeft, ArrowRight, Check, Eye, ImageOff, Loader2, Play, Star, Upload, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Eye, ImageOff, Loader2, Play, Star, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
 import { groupAfterMove, nextPhotoIdAfterMark } from "@/lib/reviewNavigation";
@@ -48,10 +48,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     activePhotoId,
     filter,
     largePreview,
+    zoomPreview,
     setActiveGroupId,
     setActivePhotoId,
     setFilter,
     toggleLargePreview,
+    toggleZoomPreview,
   } = useReviewStore();
   const photos = useMemo(() => photosQuery.data ?? [], [photosQuery.data]);
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
@@ -183,6 +185,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         event.preventDefault();
         toggleLargePreview();
       }
+      if (event.key.toLowerCase() === "z") toggleZoomPreview();
       if (event.key.toLowerCase() === "g") cycleGroup();
       const numeric = Number(event.key);
       if (numeric === 0) rate(0);
@@ -318,11 +321,17 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           </div>
         </aside>
         <div
-          className={`grid min-h-[420px] place-items-center bg-neutral-900 p-4 ${largePreview ? "lg:col-span-2" : ""}`}
+          className={`grid min-h-[420px] place-items-center overflow-auto bg-neutral-900 p-4 ${
+            largePreview ? "lg:col-span-2" : ""
+          }`}
         >
           {preview ? (
             <img
-              className="max-h-[72vh] max-w-full object-contain"
+              className={
+                zoomPreview
+                  ? "mx-auto max-w-none object-contain"
+                  : "mx-auto max-h-[72vh] max-w-full object-contain"
+              }
               src={preview}
               alt={activePhoto?.filename ?? "Preview"}
             />
@@ -474,6 +483,16 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           aria-label="Toggle preview"
         >
           {largePreview ? <X size={18} /> : <Eye size={18} />}
+        </button>
+        <button
+          className={`focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border ${
+            zoomPreview ? "border-leaf bg-mist text-leaf" : "border-line"
+          }`}
+          onClick={toggleZoomPreview}
+          aria-label="Toggle zoom"
+          aria-pressed={zoomPreview}
+        >
+          {zoomPreview ? <ZoomOut size={18} /> : <ZoomIn size={18} />}
         </button>
       </div>
     </section>
