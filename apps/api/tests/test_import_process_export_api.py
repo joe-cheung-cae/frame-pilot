@@ -283,6 +283,34 @@ def test_process_returns_existing_active_job_without_creating_duplicate(tmp_path
     assert len(jobs) == 1
 
 
+def test_process_skips_unchanged_project_without_rebuilding_groups(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Already processed"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+
+    first_job = _wait_for_job(client, project["id"], client.post(f"/api/projects/{project['id']}/process").json())
+    assert first_job["status"] == "complete"
+    first_groups = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert len(first_groups) == 1
+    first_last_processed_at = client.get(f"/api/projects/{project['id']}").json()["last_processed_at"]
+
+    second_job = _wait_for_job(client, project["id"], client.post(f"/api/projects/{project['id']}/process").json())
+
+    assert second_job["status"] == "complete"
+    assert second_job["current_step"] == "complete - no changes"
+    assert second_job["processed_items"] == 1
+    assert second_job["failed_items"] == 0
+    assert second_job["progress_percent"] == 100.0
+    assert client.get(f"/api/projects/{project['id']}/groups").json() == first_groups
+    assert client.get(f"/api/projects/{project['id']}").json()["last_processed_at"] == first_last_processed_at
+
+
 def test_processing_skips_photo_with_invalid_similarity_data(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())

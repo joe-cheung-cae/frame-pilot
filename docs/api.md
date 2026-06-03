@@ -115,6 +115,7 @@ A processing job includes:
 ```
 
 A completed job means grouping, ranking, and recommendation explanations have been rebuilt for the current imported photo set.
+If the project is already fully processed and unchanged, a new processing job completes with `current_step` set to `complete - no changes` and leaves existing groups untouched.
 
 Each photo also exposes local processing state:
 

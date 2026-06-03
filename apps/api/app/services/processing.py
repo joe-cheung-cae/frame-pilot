@@ -66,6 +66,33 @@ def _build_group_inputs(photos: list[Photo]) -> tuple[list[dict], list[Photo]]:
     return group_inputs, failed_photos
 
 
+def _project_processing_is_current(session: Session, project: Project, photos: list[Photo]) -> bool:
+    if not photos or project.processed_images != len(photos) or project.total_images != len(photos):
+        return False
+    if any(photo.processing_state != "processed" or photo.processing_error or not photo.group_id for photo in photos):
+        return False
+
+    groups = list(session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all())
+    return bool(groups) and sum(group.photo_count for group in groups) == len(photos)
+
+
+def _complete_unchanged_job(session: Session, job: ProcessingJob, total_items: int) -> ProcessingJob:
+    now = utc_now()
+    job.status = "complete"
+    job.current_step = "complete - no changes"
+    job.total_items = total_items
+    job.processed_items = total_items
+    job.failed_items = 0
+    job.progress_percent = 100.0
+    job.error_message = None
+    job.completed_at = now
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
 def create_processing_job(session: Session, project: Project) -> ProcessingJob:
     job = ProcessingJob(
         project_id=project.id,
@@ -119,6 +146,9 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
     session.add(job)
     session.commit()
     session.refresh(job)
+
+    if _project_processing_is_current(session, project, photos):
+        return _complete_unchanged_job(session, job, len(photos))
 
     try:
         _save_job(session, job, "clearing stale groups", 0)

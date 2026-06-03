@@ -22,6 +22,8 @@ Projects record storage policy metadata with `source_mode`, `source_root_path`, 
 
 Processing uses local FastAPI background tasks. `POST /api/projects/{project_id}/process` creates a `ProcessingJob` and returns it immediately, then the worker updates status, current step, item counts, failure counts, progress percentage, start time, and completion time in SQLite. The processing screen polls `GET /api/projects/{project_id}/jobs/{job_id}` until the job completes or fails.
 
+Processing is idempotent for unchanged completed projects: if all photos are already marked `processed`, project counts match, and groups cover the full photo set, a new processing job completes without clearing or rebuilding groups. New imports still invalidate processing state and require a full grouping/ranking run.
+
 Photos keep their own local `processing_state` and `processing_error` fields so incomplete or skipped items can be inspected without modifying original files. Import creates photos in the `imported` state, processing moves them through `processing`, and the job records each photo as `processed` or `failed`.
 
 Import is tolerant of mixed file selections: supported images are copied into `originals/`, derivatives are generated in `thumbnails/` and `previews/`, and unsupported or unreadable files are reported as skipped. Adding new imports invalidates existing grouping and recommendation metadata because the review set has changed.
