@@ -5,7 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -51,6 +51,7 @@ const FILTERS = [
 const FILMSTRIP_WINDOW_SIZE = 80;
 const GROUP_WINDOW_SIZE = 80;
 const COMPARE_WINDOW_SIZE = 6;
+const CULLING_INITIAL_PAGE_LIMIT = 500;
 
 function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<string>) {
   if (filter === "All") return true;
@@ -74,9 +75,17 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const router = useRouter();
   const filterButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const skipNextProgressSave = useRef<string | null>(null);
+  const [allPhotosLoaded, setAllPhotosLoaded] = useState(false);
+  const [allGroupsLoaded, setAllGroupsLoaded] = useState(false);
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
-  const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listAllPhotos(projectId) });
-  const groupsQuery = useQuery({ queryKey: ["groups", projectId], queryFn: () => api.listAllGroups(projectId) });
+  const photosQuery = useQuery({
+    queryKey: ["photos", projectId],
+    queryFn: () => api.listPhotos(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+  });
+  const groupsQuery = useQuery({
+    queryKey: ["groups", projectId],
+    queryFn: () => api.listGroups(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+  });
   const {
     activeGroupId,
     activePhotoId,
@@ -94,6 +103,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   } = useReviewStore();
   const photos = useMemo(() => photosQuery.data ?? [], [photosQuery.data]);
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
+  const projectPhotoCount = project.data?.total_images ?? photos.length;
+  const photosPartiallyLoaded = projectPhotoCount > photos.length && !allPhotosLoaded;
+  const groupsMayBePartial = groups.length === CULLING_INITIAL_PAGE_LIMIT && !allGroupsLoaded;
   const duplicateGroupIds = useMemo(
     () => new Set(groups.filter((group) => group.photo_count > 1).map((group) => group.id)),
     [groups],
@@ -157,6 +169,27 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     ].filter((row): row is [string, string] => Boolean(row[1]));
   }, [activePhoto]);
   const photoStatusCountsQueryKey = useMemo(() => ["photo-status-counts", projectId], [projectId]);
+
+  useEffect(() => {
+    setAllPhotosLoaded(false);
+    setAllGroupsLoaded(false);
+  }, [projectId]);
+
+  const loadAllPhotosMutation = useMutation({
+    mutationFn: () => api.listAllPhotos(projectId),
+    onSuccess: (allPhotos) => {
+      queryClient.setQueryData(["photos", projectId], allPhotos);
+      setAllPhotosLoaded(true);
+    },
+  });
+
+  const loadAllGroupsMutation = useMutation({
+    mutationFn: () => api.listAllGroups(projectId),
+    onSuccess: (allGroups) => {
+      queryClient.setQueryData(["groups", projectId], allGroups);
+      setAllGroupsLoaded(true);
+    },
+  });
 
   useEffect(() => {
     let stored: string | null = null;
@@ -434,16 +467,33 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         <div>
           <h1 className="text-lg font-semibold">{project.data?.name ?? "Culling Workspace"}</h1>
           <p className="text-sm text-neutral-600">
-            {reviewed}/{photos.length} reviewed · {picks} picks
+            {reviewed}/{photos.length} loaded reviewed · {picks} loaded picks
+            {photosPartiallyLoaded ? ` · ${photos.length} of ${projectPhotoCount} loaded` : ""}
             {activeGroupIndex >= 0 ? ` · Group ${activeGroupIndex + 1} of ${groups.length}` : ""}
           </p>
+          {loadAllPhotosMutation.error || loadAllGroupsMutation.error ? (
+            <p className="mt-1 text-xs text-coral">
+              {(loadAllPhotosMutation.error ?? loadAllGroupsMutation.error)?.message}
+            </p>
+          ) : null}
         </div>
-        <Link
-          className="focus-ring rounded bg-ink px-4 py-2 text-sm font-medium text-white"
-          href={`/projects/${projectId}/export`}
-        >
-          Export
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {photosPartiallyLoaded ? (
+            <button
+              className="focus-ring rounded border border-line bg-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+              disabled={loadAllPhotosMutation.isPending}
+              onClick={() => loadAllPhotosMutation.mutate()}
+            >
+              {loadAllPhotosMutation.isPending ? "Loading..." : "Load all photos"}
+            </button>
+          ) : null}
+          <Link
+            className="focus-ring rounded bg-ink px-4 py-2 text-sm font-medium text-white"
+            href={`/projects/${projectId}/export`}
+          >
+            Export
+          </Link>
+        </div>
       </div>
       <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[260px_1fr_320px]">
         <aside className="border-b border-line bg-white p-4 lg:border-b-0 lg:border-r">
@@ -462,7 +512,18 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               </button>
             ))}
           </div>
-          <h2 className="mb-3 mt-6 text-sm font-semibold">Groups</h2>
+          <div className="mb-3 mt-6 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold">Groups</h2>
+            {groupsMayBePartial ? (
+              <button
+                className="focus-ring rounded border border-line px-2 py-1 text-xs font-medium disabled:opacity-50"
+                disabled={loadAllGroupsMutation.isPending}
+                onClick={() => loadAllGroupsMutation.mutate()}
+              >
+                {loadAllGroupsMutation.isPending ? "Loading..." : "Load all"}
+              </button>
+            ) : null}
+          </div>
           <div className="grid gap-2 text-sm text-neutral-700">
             {activeGroupId ? (
               <button

@@ -162,6 +162,7 @@ let failPhotoStatusCounts = false;
 let failJobList = false;
 let failProjectDetail = false;
 let photoListRequests = 0;
+let photoListRequestUrls: string[] = [];
 
 function projectListRoute(resource: "exports" | "groups" | "jobs" | "photos") {
   return new RegExp(`/api/projects/${project.id}/${resource}(?:\\?.*)?$`);
@@ -188,6 +189,7 @@ test.beforeEach(async ({ page }) => {
   failJobList = false;
   failProjectDetail = false;
   photoListRequests = 0;
+  photoListRequestUrls = [];
   let currentProject = { ...project };
   let currentPhotos = photos.map((photo) => ({ ...photo }));
   let currentJob: typeof completedJob | null = null;
@@ -258,7 +260,12 @@ test.beforeEach(async ({ page }) => {
 
   await page.route(projectListRoute("photos"), async (route) => {
     photoListRequests += 1;
-    await route.fulfill({ json: currentPhotos });
+    photoListRequestUrls.push(route.request().url());
+    const url = new URL(route.request().url());
+    const limitParam = url.searchParams.get("limit");
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    const limit = limitParam ? Number(limitParam) : currentPhotos.length;
+    await route.fulfill({ json: currentPhotos.slice(offset, offset + limit) });
   });
 
   await page.route(`**/api/projects/${project.id}/photos/status-counts`, async (route) => {
@@ -389,6 +396,7 @@ test("walks the local project review and export flow in a browser", async ({ pag
 
   await page.getByRole("link", { name: "Open Culling Workspace" }).click();
   await expect(page.getByRole("heading", { name: "E2E Shoot" })).toBeVisible();
+  expect(photoListRequestUrls.some((url) => url.includes("limit=500") && url.includes("offset=0"))).toBe(true);
   await expect(page.getByRole("button", { name: "Toggle large preview" })).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("Space");
   await expect(page.getByRole("button", { name: "Toggle large preview" })).toHaveAttribute("aria-pressed", "true");
@@ -460,6 +468,43 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page.getByText("Statuses: Pick")).toHaveCount(2);
   await expect(page.getByRole("link", { name: "Download CSV" })).toBeVisible();
   await expect(page.getByText("CSV · 1 photos")).toBeVisible();
+});
+
+test("loads the full culling photo list only on request", async ({ page }) => {
+  const manyPhotos = Array.from({ length: 501 }, (_, index) => ({
+    ...photos[index % photos.length],
+    id: `large-photo-${index + 1}`,
+    filename: `large-frame-${String(index + 1).padStart(3, "0")}.jpg`,
+    group_id: "group-1",
+  }));
+  const requestedOffsets: number[] = [];
+
+  await page.unroute(`**/api/projects/${project.id}`);
+  await page.unroute(projectListRoute("photos"));
+  await page.route(`**/api/projects/${project.id}`, async (route) => {
+    await route.fulfill({
+      json: { ...project, total_images: manyPhotos.length, processed_images: manyPhotos.length },
+    });
+  });
+  await page.route(projectListRoute("photos"), async (route) => {
+    const url = new URL(route.request().url());
+    const limit = Number(url.searchParams.get("limit") ?? manyPhotos.length);
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    requestedOffsets.push(offset);
+    await route.fulfill({ json: manyPhotos.slice(offset, offset + limit) });
+  });
+
+  await page.goto(`/projects/${project.id}/cull`);
+
+  await expect(page.getByRole("heading", { name: "large-frame-001.jpg" })).toBeVisible();
+  await expect(page.getByText("500 of 501 loaded")).toBeVisible();
+  expect(requestedOffsets).toEqual([0]);
+
+  await page.getByRole("button", { name: "Load all photos" }).click();
+
+  await expect.poll(() => requestedOffsets).toEqual([0, 0, 500]);
+  await expect(page.getByText("500 of 501 loaded")).toHaveCount(0);
+  await expect(page.getByText("0/501 loaded reviewed")).toBeVisible();
 });
 
 test("resumes polling an active processing job on the processing page", async ({ page }) => {
