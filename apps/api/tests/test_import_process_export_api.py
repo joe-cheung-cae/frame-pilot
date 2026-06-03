@@ -851,6 +851,39 @@ def test_import_skips_invalid_files_when_other_images_import_successfully(tmp_pa
     assert not (root / "originals" / "broken.jpg").exists()
 
 
+def test_import_reports_heic_and_raw_as_planned_unsupported_formats(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Planned formats"}).json()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[
+            ("files", ("good.jpg", _image_bytes(), "image/jpeg")),
+            ("files", ("camera.heic", b"not decoded in v2", "image/heic")),
+            ("files", ("frame.dng", b"not decoded in v2", "image/x-adobe-dng")),
+        ],
+    )
+
+    assert response.status_code == 201
+    result = response.json()
+    assert [photo["filename"] for photo in result["imported"]] == ["good.jpg"]
+    assert result["skipped"] == [
+        {
+            "filename": "camera.heic",
+            "reason": "HEIC files are not supported yet; import JPEG, PNG, or WebP files for this release",
+        },
+        {
+            "filename": "frame.dng",
+            "reason": "RAW files are not supported yet; import JPEG, PNG, or WebP files for this release",
+        },
+    ]
+    originals = Path(project["root_path"]) / "originals"
+    assert (originals / "good.jpg").exists()
+    assert not (originals / "camera.heic").exists()
+    assert not (originals / "frame.dng").exists()
+
+
 def test_export_rejects_invalid_status(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())

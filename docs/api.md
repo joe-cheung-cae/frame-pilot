@@ -92,6 +92,7 @@ The response contains both imported photos and skipped files:
 ```
 
 If every file is skipped, the endpoint returns `422`. Importing new photos invalidates previous groups and AI recommendations, so processing should be run again.
+HEIC and RAW extensions such as `.heic`, `.dng`, `.arw`, `.cr3`, and `.nef` are recognized as planned future formats, but v2 currently skips them with explicit unsupported-format reasons instead of attempting local decoding.
 
 ## Processing
 

@@ -13,12 +13,23 @@ from app.image.scoring import compute_quality_scores
 from app.models.entities import Photo, PhotoGroup, Project, utc_now
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+PLANNED_HEIC_EXTENSIONS = {".heic", ".heif"}
+PLANNED_RAW_EXTENSIONS = {".arw", ".cr3", ".dng", ".nef"}
 EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 CONTENT_HASH_CHUNK_SIZE = 1024 * 1024
 
 
 def is_supported_image(filename: str) -> bool:
     return Path(filename).suffix.lower() in SUPPORTED_EXTENSIONS
+
+
+def unsupported_image_reason(filename: str) -> str:
+    extension = Path(filename).suffix.lower()
+    if extension in PLANNED_HEIC_EXTENSIONS:
+        return "HEIC files are not supported yet; import JPEG, PNG, or WebP files for this release"
+    if extension in PLANNED_RAW_EXTENSIONS:
+        return "RAW files are not supported yet; import JPEG, PNG, or WebP files for this release"
+    return "Only JPEG, PNG, and WebP files are supported"
 
 
 def _unique_path(directory: Path, filename: str) -> Path:
@@ -154,7 +165,7 @@ def import_image_file(
     invalidate_processing: bool = True,
 ) -> Photo:
     if not is_supported_image(filename):
-        raise ValueError("Only JPEG, PNG, and WebP files are supported")
+        raise ValueError(unsupported_image_reason(filename))
 
     project_root = Path(project.root_path)
     safe_name = Path(filename).name

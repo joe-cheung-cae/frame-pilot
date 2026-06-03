@@ -7,7 +7,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The MVP keeps ori
 - Next.js, React, TypeScript, Tailwind CSS frontend.
 - FastAPI, Pydantic, SQLModel, SQLite backend.
 - Local project folders with originals, thumbnails, previews, exports, and cache directories.
-- JPEG, PNG, and WebP imports.
+- JPEG, PNG, and WebP imports. HEIC and RAW files are skipped with explicit local messages until preview extraction is added in a later v2.x slice.
 - Deterministic thumbnail and preview generation.
 - Basic metadata extraction and explainable image quality scoring.
 - Experimental local face and eye-open heuristic signals.
