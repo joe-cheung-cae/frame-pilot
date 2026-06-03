@@ -1,8 +1,10 @@
+from contextlib import ExitStack
 from pathlib import Path
 
 from app.devtools.performance_smoke import (
     PerformanceSmokeConfig,
     PerformanceSmokeSuiteConfig,
+    _upload_files,
     run_performance_smoke,
     run_performance_smoke_suite,
 )
@@ -28,6 +30,21 @@ def test_performance_smoke_reports_local_workflow_metrics(tmp_path):
     assert result["timings"]["import_seconds"] >= 0
     assert result["timings"]["process_seconds"] >= 0
     assert result["timings"]["export_seconds"] >= 0
+
+
+def test_performance_smoke_upload_files_use_open_file_handles(tmp_path):
+    first = tmp_path / "first.jpg"
+    second = tmp_path / "second.jpg"
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+
+    with ExitStack() as stack:
+        files = _upload_files([first, second], stack)
+
+        assert [field for field, _payload in files] == ["files", "files"]
+        assert [payload[0] for _field, payload in files] == ["first.jpg", "second.jpg"]
+        assert all(hasattr(payload[1], "read") for _field, payload in files)
+        assert not any(isinstance(payload[1], bytes) for _field, payload in files)
 
 
 def test_performance_smoke_suite_reports_multiple_counts(tmp_path):

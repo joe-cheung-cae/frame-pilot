@@ -7,8 +7,10 @@ import platform
 import resource
 import tempfile
 import time
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
+from typing import BinaryIO
 
 from fastapi.testclient import TestClient
 
@@ -62,6 +64,10 @@ def _chunked(paths: list[Path], size: int) -> list[list[Path]]:
     if size <= 0:
         raise ValueError("import_batch_size must be greater than zero")
     return [paths[index : index + size] for index in range(0, len(paths), size)]
+
+
+def _upload_files(paths: list[Path], stack: ExitStack) -> list[tuple[str, tuple[str, BinaryIO, str]]]:
+    return [("files", (path.name, stack.enter_context(path.open("rb")), "image/jpeg")) for path in paths]
 
 
 def _artifact_metric(output_path: str) -> dict[str, int]:
@@ -129,10 +135,8 @@ def run_performance_smoke(config: PerformanceSmokeConfig) -> dict:
         started = time.monotonic()
         imported_count = 0
         for batch in _chunked(paths, config.import_batch_size):
-            response = client.post(
-                f"/api/projects/{project['id']}/import",
-                files=[("files", (path.name, path.read_bytes(), "image/jpeg")) for path in batch],
-            )
+            with ExitStack() as stack:
+                response = client.post(f"/api/projects/{project['id']}/import", files=_upload_files(batch, stack))
             response.raise_for_status()
             imported_count += len(response.json()["imported"])
         timings["import_seconds"] = round(time.monotonic() - started, 3)
