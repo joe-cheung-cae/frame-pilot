@@ -185,7 +185,8 @@ export const api = {
     }),
   listGroups: (projectId: string, options?: ListPageOptions) =>
     request<PhotoGroup[]>(`/api/projects/${projectId}/groups${listPageQuery(options)}`),
-  listExports: (projectId: string) => request<ExportRecord[]>(`/api/projects/${projectId}/exports`),
+  listExports: (projectId: string, options?: ListPageOptions) =>
+    request<ExportRecord[]>(`/api/projects/${projectId}/exports${listPageQuery(options)}`),
   exportSelection: (projectId: string, mode: "csv" | "folder" | "zip", statuses: string[]) =>
     request<ExportRecord>(`/api/projects/${projectId}/exports`, {
       method: "POST",
