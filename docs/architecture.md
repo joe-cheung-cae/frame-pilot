@@ -50,4 +50,6 @@ Future sidecar-oriented export should write derived metadata files under project
 
 SQLite initialization also creates indexes for large-project review and export queries: photo review ordering by project, status-filtered export selection, project group listing, and active processing-job lookup.
 
-The culling workspace keeps large projects responsive by rendering bounded windows for the group sidebar, filmstrip, and compare-mode candidates instead of mounting every matching thumbnail or preview at once.
+The culling workspace keeps large projects responsive by requesting bounded first pages for photos and groups, then rendering bounded windows for the group sidebar, filmstrip, and compare-mode candidates instead of mounting every matching thumbnail or preview at once. Users can explicitly load the full photo or group list when a review task needs complete in-browser context.
+
+The export page keeps status totals lightweight through the status-count API and keeps export history bounded by loading the most recent records first, with an explicit load-more action for older local export records.

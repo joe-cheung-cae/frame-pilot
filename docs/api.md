@@ -149,7 +149,7 @@ Each photo also exposes local processing state:
 Processing validates generated thumbnail and preview files before grouping. Missing derivatives are regenerated from the local copied original when possible; unrecoverable derivative failures are recorded as failed photo items instead of failing the whole job.
 If a whole processing job fails before individual photos complete, photos still marked as in-progress are returned to `imported` with the interruption reason so the next processing run can retry them.
 
-`GET /api/projects/{project_id}/photos` returns photos ordered for review by group, AI recommendation priority, score, and filename. Optional `limit` and `offset` query parameters can page large projects; omitting them preserves the full-list response.
+`GET /api/projects/{project_id}/photos` returns photos ordered for review by group, AI recommendation priority, score, and filename. Optional `limit` and `offset` query parameters can page large projects; omitting them preserves the full-list response. The culling workspace requests an initial bounded page for faster first render and exposes an explicit full-load action when complete in-browser context is needed.
 
 `GET /api/projects/{project_id}/photos/status-counts` returns lightweight review status totals without hydrating full photo records:
 
@@ -166,7 +166,7 @@ The export UI uses this endpoint to calculate selected counts for large projects
 
 `PATCH /api/projects/{project_id}/photos/{photo_id}` and `PATCH /api/projects/{project_id}/photos/batch` update review status and star rating. Requests must include at least one of `user_status` or `star_rating`.
 
-`GET /api/projects/{project_id}/groups` returns groups in stable creation order for group-by-group review. Optional `limit` and `offset` query parameters can page large group lists. Each group includes a JSON `score_summary` string with the top photo id, best score, score gap, confidence label, recommendation counts, and a short deterministic explanation.
+`GET /api/projects/{project_id}/groups` returns groups in stable creation order for group-by-group review. Optional `limit` and `offset` query parameters can page large group lists. The culling workspace requests an initial bounded page and exposes an explicit full-load action if the group list may continue. Each group includes a JSON `score_summary` string with the top photo id, best score, score gap, confidence label, recommendation counts, and a short deterministic explanation.
 
 Example group response:
 
@@ -221,7 +221,7 @@ Export records can be listed newest-first:
 GET /api/projects/{project_id}/exports
 ```
 
-The response is an array of export records with the same shape as the creation response, ordered newest-first. Optional `limit` and `offset` query parameters can page large export histories. The web export page uses this endpoint to show local export history, selected counts, status summaries, output paths, and download links for CSV and ZIP records.
+The response is an array of export records with the same shape as the creation response, ordered newest-first. Optional `limit` and `offset` query parameters can page large export histories. The web export page uses this endpoint to show local export history, selected counts, status summaries, output paths, and download links for CSV and ZIP records, loading the most recent records first and increasing the bounded limit when the user requests older exports.
 
 Completed CSV and ZIP exports can be downloaded from:
 

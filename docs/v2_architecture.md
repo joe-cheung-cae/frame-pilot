@@ -37,8 +37,8 @@ The Next.js frontend owns:
 - job polling and processing progress display
 - keyboard-first review state
 - optimistic status and rating updates
-- bounded rendering for large filmstrip, group, and compare views
-- export selection summaries and export history display
+- bounded first-page loading plus bounded rendering for large photo, group, filmstrip, and compare views
+- export selection summaries and paged export history with load-more controls
 
 Reusable review and progress logic should live in `apps/web/src/lib` where practical so unit tests can cover behavior without requiring browser component tests for every small state rule.
 
