@@ -910,6 +910,42 @@ def test_photo_status_counts_include_zeroes_and_exclude_other_projects(tmp_path,
     assert response.json() == {"Pick": 2, "Maybe": 1, "Reject": 0, "Unreviewed": 0}
 
 
+def test_photo_status_counts_reflect_single_and_batch_status_updates(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Status count updates"}).json()
+
+    with Session(get_engine()) as session:
+        photos = [
+            Photo(project_id=project["id"], original_path="/tmp/first.jpg", filename="first.jpg"),
+            Photo(project_id=project["id"], original_path="/tmp/second.jpg", filename="second.jpg"),
+            Photo(project_id=project["id"], original_path="/tmp/third.jpg", filename="third.jpg"),
+        ]
+        session.add_all(photos)
+        session.commit()
+        photo_ids = [photo.id for photo in photos]
+
+    initial_counts = client.get(f"/api/projects/{project['id']}/photos/status-counts")
+    assert initial_counts.status_code == 200
+    assert initial_counts.json() == {"Pick": 0, "Maybe": 0, "Reject": 0, "Unreviewed": 3}
+
+    single_update = client.patch(
+        f"/api/projects/{project['id']}/photos/{photo_ids[0]}",
+        json={"user_status": "Pick"},
+    )
+    assert single_update.status_code == 200
+    after_single_update = client.get(f"/api/projects/{project['id']}/photos/status-counts")
+    assert after_single_update.json() == {"Pick": 1, "Maybe": 0, "Reject": 0, "Unreviewed": 2}
+
+    batch_update = client.patch(
+        f"/api/projects/{project['id']}/photos/batch",
+        json={"photo_ids": photo_ids[1:], "user_status": "Maybe"},
+    )
+    assert batch_update.status_code == 200
+    after_batch_update = client.get(f"/api/projects/{project['id']}/photos/status-counts")
+    assert after_batch_update.json() == {"Pick": 1, "Maybe": 2, "Reject": 0, "Unreviewed": 0}
+
+
 def test_photo_update_rejects_empty_patch(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
