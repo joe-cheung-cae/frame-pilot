@@ -343,6 +343,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const reviewed = photos.filter((photo) => photo.user_status !== "Unreviewed").length;
   const isLoading = project.isLoading || photosQuery.isLoading || groupsQuery.isLoading;
   const loadError = project.error ?? photosQuery.error ?? groupsQuery.error;
+  const saveError = updateMutation.error ?? batchUpdateMutation.error;
 
   if (isLoading) {
     return (
@@ -663,6 +664,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     Unreviewed
                   </button>
                 </div>
+                {saveError ? <p className="text-sm text-coral">{saveError.message}</p> : null}
                 <div className="flex gap-1">
                   <button
                     className="focus-ring rounded p-2 text-neutral-600"

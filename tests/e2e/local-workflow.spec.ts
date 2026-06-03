@@ -156,11 +156,13 @@ const groups = [
 
 let photoPatches: { patch: { star_rating?: number; user_status?: string }; photoId: string | undefined }[] = [];
 let batchPhotoPatches: { patch: { star_rating?: number; user_status?: string }; photoIds: string[] }[] = [];
+let failNextPhotoPatch = false;
 let photoListRequests = 0;
 
 test.beforeEach(async ({ page }) => {
   photoPatches = [];
   batchPhotoPatches = [];
+  failNextPhotoPatch = false;
   photoListRequests = 0;
   let currentProject = { ...project };
   let currentPhotos = photos.map((photo) => ({ ...photo }));
@@ -232,6 +234,11 @@ test.beforeEach(async ({ page }) => {
       await route.fallback();
       return;
     }
+    if (failNextPhotoPatch) {
+      failNextPhotoPatch = false;
+      await route.fulfill({ json: { detail: "Could not save review update" }, status: 500 });
+      return;
+    }
     const photoId = route.request().url().split("/").at(-1);
     const patch = route.request().postDataJSON() as { user_status?: string; star_rating?: number };
     photoPatches.push({ patch, photoId });
@@ -285,6 +292,17 @@ test.beforeEach(async ({ page }) => {
       contentType: "image/png",
     });
   });
+});
+
+test("shows culling save errors when a rating update fails", async ({ page }) => {
+  await page.goto(`/projects/${project.id}/cull`);
+  await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toBeVisible();
+
+  failNextPhotoPatch = true;
+  await page.keyboard.press("5");
+
+  await expect(page.getByText("Could not save review update")).toBeVisible();
+  await expect.poll(() => photoPatches.length).toBe(0);
 });
 
 test("walks the local project review and export flow in a browser", async ({ page }) => {
