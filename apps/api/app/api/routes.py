@@ -23,7 +23,13 @@ from app.schemas.api import (
 )
 from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
 from app.services.importing import import_image_file, invalidate_project_processing
-from app.services.processing import create_processing_job, project_export_root, run_processing_job
+from app.services.processing import (
+    create_processing_job,
+    fail_stale_processing_job,
+    processing_job_is_stale,
+    project_export_root,
+    run_processing_job,
+)
 from app.services.projects import create_project, list_projects
 
 router = APIRouter(prefix="/api")
@@ -133,7 +139,10 @@ def process_project_endpoint(
         raise HTTPException(status_code=422, detail="Import photos before processing this project")
     active_job = _get_active_processing_job(session, project_id)
     if active_job is not None:
-        return active_job
+        if processing_job_is_stale(active_job):
+            fail_stale_processing_job(session, active_job)
+        else:
+            return active_job
     job = create_processing_job(session, project)
     background_tasks.add_task(run_processing_job, job.id)
     return job

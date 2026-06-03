@@ -2,6 +2,7 @@ import csv
 import hashlib
 import json
 import zipfile
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 
@@ -329,6 +330,58 @@ def test_process_returns_existing_active_job_without_creating_duplicate(tmp_path
     with Session(get_engine()) as session:
         jobs = list(session.exec(select(ProcessingJob).where(ProcessingJob.project_id == project["id"])).all())
     assert len(jobs) == 1
+
+
+def test_process_fails_stale_active_job_and_starts_replacement(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(routes, "run_processing_job", lambda _job_id: None)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Stale active job"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    photo_id = import_response.json()["imported"][0]["id"]
+    stale_time = datetime.now(UTC) - timedelta(hours=1)
+
+    with Session(get_engine()) as session:
+        stale_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="running",
+            current_step="ranking group 1 of 1",
+            total_items=1,
+            updated_at=stale_time,
+        )
+        photo = session.get(Photo, photo_id)
+        assert photo is not None
+        photo.processing_state = "processing"
+        session.add(stale_job)
+        session.add(photo)
+        session.commit()
+        stale_job_id = stale_job.id
+
+    response = client.post(f"/api/projects/{project['id']}/process")
+
+    assert response.status_code == 202
+    replacement_job = response.json()
+    assert replacement_job["id"] != stale_job_id
+    assert replacement_job["status"] == "queued"
+    with Session(get_engine()) as session:
+        jobs = list(session.exec(select(ProcessingJob).where(ProcessingJob.project_id == project["id"])).all())
+        stale_after_retry = session.get(ProcessingJob, stale_job_id)
+        photo_after_retry = session.get(Photo, photo_id)
+
+    assert len(jobs) == 2
+    assert stale_after_retry is not None
+    assert stale_after_retry.status == "failed"
+    assert stale_after_retry.current_step == "failed - stale"
+    assert stale_after_retry.error_message == "Processing job was interrupted before completion"
+    assert photo_after_retry is not None
+    assert photo_after_retry.processing_state == "imported"
+    assert photo_after_retry.processing_error == "Processing job was interrupted before completion"
 
 
 def test_process_skips_unchanged_project_without_rebuilding_groups(tmp_path, monkeypatch):

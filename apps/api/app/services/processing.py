@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlmodel import Session, select
@@ -8,6 +9,8 @@ from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_n
 from app.services.grouping import group_similar_photos
 from app.services.importing import ensure_photo_derivatives
 from app.services.ranking import RankedPhoto, rank_group
+
+STALE_PROCESSING_JOB_AFTER = timedelta(minutes=30)
 
 
 def _progress_percent(processed_items: int, failed_items: int, total_items: int) -> float:
@@ -33,6 +36,12 @@ def _save_job(
     session.add(job)
     session.commit()
     session.refresh(job)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _photo_embedding(photo: Photo) -> list[float]:
@@ -155,6 +164,30 @@ def _complete_unchanged_job(session: Session, job: ProcessingJob, total_items: i
     job.failed_items = 0
     job.progress_percent = 100.0
     job.error_message = None
+    job.completed_at = now
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def processing_job_is_stale(job: ProcessingJob, now: datetime | None = None) -> bool:
+    if job.status not in {"queued", "running"}:
+        return False
+    current_time = _as_utc(now or utc_now())
+    return current_time - _as_utc(job.updated_at) >= STALE_PROCESSING_JOB_AFTER
+
+
+def fail_stale_processing_job(session: Session, job: ProcessingJob) -> ProcessingJob:
+    reason = "Processing job was interrupted before completion"
+    _reset_incomplete_photos_after_job_failure(session, job.project_id, reason)
+    now = utc_now()
+    job.status = "failed"
+    job.current_step = "failed - stale"
+    job.error_message = reason
+    job.failed_items = max(1, job.total_items - job.processed_items) if job.total_items else 1
+    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
     job.completed_at = now
     job.updated_at = now
     session.add(job)

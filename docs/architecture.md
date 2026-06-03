@@ -21,6 +21,7 @@ The browser talks only to the local API. Original files are copied into the loca
 Projects record storage policy metadata with `source_mode`, `source_root_path`, and `schema_version`. v2 currently creates projects in `copy` mode; reference-mode metadata is reserved for later work and does not change the current copy-on-import safety behavior.
 
 Processing uses local FastAPI background tasks. `POST /api/projects/{project_id}/process` creates a `ProcessingJob` and returns it immediately, then the worker updates status, current step, item counts, failure counts, progress percentage, start time, and completion time in SQLite. The processing screen polls `GET /api/projects/{project_id}/jobs/{job_id}` until the job completes or fails.
+If a queued or running processing job has not updated for more than 30 minutes, the next process request treats it as interrupted, marks it failed, resets in-progress photos to retryable imported state, and starts a replacement job.
 
 Processing is idempotent for unchanged completed projects: if all photos are already marked `processed`, project counts match, and groups cover the full photo set, a new processing job completes without clearing or rebuilding groups. New imports still invalidate processing state and require a full grouping/ranking run.
 

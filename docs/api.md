@@ -97,6 +97,7 @@ HEIC and RAW extensions such as `.heic`, `.dng`, `.arw`, `.cr3`, and `.nef` are 
 ## Processing
 
 `POST /api/projects/{project_id}/process` creates a local background processing job and returns a `ProcessingJob` with `202 Accepted`. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the job reaches `complete` or `failed`.
+If an earlier queued or running processing job has not updated for more than 30 minutes, the next process request marks that stale job as failed and starts a replacement job.
 
 A processing job includes:
 
