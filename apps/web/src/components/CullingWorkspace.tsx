@@ -24,7 +24,13 @@ import {
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
 import { parseReviewProgress, reviewProgressStorageKey } from "@/lib/reviewProgress";
-import { groupAfterMove, nextPhotoIdAfterMark, windowedGroupRefs, windowedPhotoRefs } from "@/lib/reviewNavigation";
+import {
+  groupAfterMove,
+  nextPhotoIdAfterMark,
+  windowedCompareRefs,
+  windowedGroupRefs,
+  windowedPhotoRefs,
+} from "@/lib/reviewNavigation";
 import { useReviewStore } from "@/store/reviewStore";
 
 const FILTERS = [
@@ -41,6 +47,7 @@ const FILTERS = [
 
 const FILMSTRIP_WINDOW_SIZE = 80;
 const GROUP_WINDOW_SIZE = 80;
+const COMPARE_WINDOW_SIZE = 6;
 
 function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<string>) {
   if (filter === "All") return true;
@@ -109,12 +116,16 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     () => parseGroupScoreSummary(activeGroup?.score_summary),
     [activeGroup?.score_summary],
   );
-  const comparePhotos = useMemo(() => {
+  const compareCandidates = useMemo(() => {
     if (!activeGroup) {
       return activePhoto ? [activePhoto] : [];
     }
     return filteredPhotos.filter((photo) => photo.group_id === activeGroup.id);
   }, [activeGroup, activePhoto, filteredPhotos]);
+  const comparePhotos = useMemo(
+    () => windowedCompareRefs(compareCandidates, activePhoto?.id ?? null, COMPARE_WINDOW_SIZE),
+    [activePhoto?.id, compareCandidates],
+  );
   const filmstripPhotos = useMemo(
     () => windowedPhotoRefs(visiblePhotos, activePhoto?.id ?? null, FILMSTRIP_WINDOW_SIZE),
     [activePhoto?.id, visiblePhotos],
@@ -449,6 +460,11 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         >
           {compareMode && comparePhotos.length > 1 ? (
             <div className="grid w-full gap-3 md:grid-cols-2">
+              {compareCandidates.length > comparePhotos.length ? (
+                <span className="md:col-span-2 justify-self-start rounded bg-white/90 px-2 py-1 text-xs text-ink">
+                  {comparePhotos.length} of {compareCandidates.length} compare candidates
+                </span>
+              ) : null}
               {comparePhotos.map((photo) => {
                 const comparePreview = assetUrl(projectId, photo.preview_path);
                 return (

@@ -42,3 +42,5 @@ Exports are local artifacts written under `exports/`. Each export record has a u
 Future sidecar-oriented export should write derived metadata files under project-controlled output directories, never next to or over original source files unless the user explicitly chooses that workflow in a later release.
 
 SQLite initialization also creates indexes for large-project review and export queries: photo review ordering by project, status-filtered export selection, project group listing, and active processing-job lookup.
+
+The culling workspace keeps large projects responsive by rendering bounded windows for the group sidebar, filmstrip, and compare-mode candidates instead of mounting every matching thumbnail or preview at once.

@@ -75,3 +75,11 @@ export function windowedGroupRefs<T extends ReviewGroupRef>(
   const start = Math.min(Math.max(resolvedIndex - halfWindow, 0), groups.length - maxItems);
   return groups.slice(start, start + maxItems);
 }
+
+export function windowedCompareRefs<T extends ReviewPhotoRef>(
+  photos: readonly T[],
+  activePhotoId: string | null,
+  maxItems: number,
+): readonly T[] {
+  return windowedPhotoRefs(photos, activePhotoId, maxItems);
+}

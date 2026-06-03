@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
+  windowedCompareRefs,
   windowedGroupRefs,
   windowedPhotoRefs,
   type ReviewGroupRef,
@@ -110,5 +111,14 @@ test("keeps group windows inside the available group range", () => {
   assert.deepEqual(
     windowedGroupRefs(manyGroups, "group-9", 4).map((group) => group.id),
     ["group-6", "group-7", "group-8", "group-9"],
+  );
+});
+
+test("windows compare refs for large duplicate groups", () => {
+  const manyPhotos = Array.from({ length: 2000 }, (_value, index) => ({ id: `photo-${index}` }));
+
+  assert.deepEqual(
+    windowedCompareRefs(manyPhotos, "photo-1000", 6).map((photo) => photo.id),
+    ["photo-997", "photo-998", "photo-999", "photo-1000", "photo-1001", "photo-1002"],
   );
 });
