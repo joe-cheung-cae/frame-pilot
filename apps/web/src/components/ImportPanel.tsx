@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ChangeEvent, useState } from "react";
 import { FileImage, Loader2, Play } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
+import { invalidateProjectWorkflowQueries } from "@/lib/queryInvalidation";
 
 export function ImportPanel({ projectId }: { projectId: string }) {
   const [message, setMessage] = useState("");
@@ -24,8 +25,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       setMessage(`${result.imported.length} images imported and previewed.`);
       setSkipped(result.skipped);
       setRecentImports(result.imported);
-      await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
-      await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
   });
 
