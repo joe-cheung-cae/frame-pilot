@@ -63,6 +63,10 @@ function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<st
   return true;
 }
 
+function formatCaptureTime(value: string | null): string | null {
+  return value ? value.replace("T", " ").slice(0, 16) : null;
+}
+
 export function CullingWorkspace({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -136,6 +140,20 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     [activeGroup?.id, activeGroupId, groups],
   );
   const visiblePhotoIds = useMemo(() => visiblePhotos.map((photo) => photo.id), [visiblePhotos]);
+  const metadataRows = useMemo(() => {
+    if (!activePhoto) {
+      return [];
+    }
+    return [
+      ["Captured", formatCaptureTime(activePhoto.capture_time)],
+      ["Camera", activePhoto.camera_model],
+      ["Lens", activePhoto.lens_model],
+      ["Focal length", activePhoto.focal_length ? `${activePhoto.focal_length} mm` : null],
+      ["Aperture", activePhoto.aperture ? `f/${activePhoto.aperture}` : null],
+      ["Shutter", activePhoto.shutter_speed],
+      ["ISO", activePhoto.iso ? String(activePhoto.iso) : null],
+    ].filter((row): row is [string, string] => Boolean(row[1]));
+  }, [activePhoto]);
 
   useEffect(() => {
     let stored: string | null = null;
@@ -521,6 +539,19 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     {activePhoto.width} x {activePhoto.height}
                   </p>
                 </div>
+                {metadataRows.length ? (
+                  <div className="rounded border border-line p-3 text-sm">
+                    <p className="font-semibold">Metadata</p>
+                    <div className="mt-2 grid gap-1 text-neutral-700">
+                      {metadataRows.map(([label, value]) => (
+                        <p className="flex justify-between gap-3" key={label}>
+                          <span className="text-neutral-500">{label}</span>
+                          <span className="text-right">{value}</span>
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {activeGroup ? (
                   <div className="rounded border border-line bg-mist p-3 text-sm">
                     <div className="flex items-center justify-between gap-3">

@@ -41,6 +41,13 @@ const photos = [
     file_size: 1234,
     width: 80,
     height: 60,
+    capture_time: "2026-01-02T03:04:05",
+    camera_model: "FramePilotCam",
+    lens_model: "FramePilot 35mm",
+    focal_length: "35",
+    aperture: "2.8",
+    shutter_speed: "1/125",
+    iso: 400,
     thumbnail_path: "thumbnails/frame-001.webp",
     preview_path: "previews/frame-001.webp",
     sharpness_score: 0.82,
@@ -315,6 +322,10 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page.getByText("Low confidence because this group has no similar alternative to compare.")).toBeVisible();
   await page.keyboard.press("ArrowUp");
   await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toBeVisible();
+  await expect(page.getByText("FramePilotCam")).toBeVisible();
+  await expect(page.getByText("FramePilot 35mm")).toBeVisible();
+  await expect(page.getByText("f/2.8")).toBeVisible();
+  await expect(page.getByText("1/125")).toBeVisible();
   const initialPatchCount = photoPatches.length;
   const initialPhotoListRequests = photoListRequests;
   await page.keyboard.press("5");

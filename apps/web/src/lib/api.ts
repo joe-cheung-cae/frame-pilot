@@ -26,6 +26,13 @@ export type Photo = {
   source_identity: string | null;
   width: number;
   height: number;
+  capture_time: string | null;
+  camera_model: string | null;
+  lens_model: string | null;
+  focal_length: string | null;
+  aperture: string | null;
+  shutter_speed: string | null;
+  iso: number | null;
   thumbnail_path: string | null;
   preview_path: string | null;
   perceptual_hash: string | null;
