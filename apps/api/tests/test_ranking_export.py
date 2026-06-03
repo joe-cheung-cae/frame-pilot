@@ -334,6 +334,22 @@ def test_folder_export_rejects_missing_original_file(tmp_path):
         copy_selected_files(tmp_path / "selected", [{"original_path": str(tmp_path / "missing.jpg")}])
 
 
+def test_file_exports_prefer_project_copy_path(tmp_path):
+    original = tmp_path / "source-original.jpg"
+    project_copy = tmp_path / "project-copy.jpg"
+    original.write_bytes(b"source original")
+    project_copy.write_bytes(b"project copy")
+    photo = {"original_path": str(original), "project_copy_path": str(project_copy)}
+
+    copy_selected_files(tmp_path / "selected", [photo])
+    zip_path = zip_selected_files(tmp_path / "selected.zip", [photo])
+
+    assert (tmp_path / "selected" / "project-copy.jpg").read_bytes() == b"project copy"
+    with zipfile.ZipFile(zip_path) as archive:
+        assert archive.namelist() == ["project-copy.jpg"]
+        assert archive.read("project-copy.jpg") == b"project copy"
+
+
 def test_zip_export_preserves_files_with_duplicate_names(tmp_path):
     first_dir = tmp_path / "first"
     second_dir = tmp_path / "second"

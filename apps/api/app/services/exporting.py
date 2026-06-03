@@ -37,7 +37,7 @@ def _unique_archive_name(used_names: set[str], filename: str) -> str:
 
 
 def _existing_original_path(photo: dict) -> Path:
-    source = Path(photo["original_path"])
+    source = Path(photo.get("project_copy_path") or photo["original_path"])
     if not source.is_file():
         raise FileNotFoundError(f"Original file is missing: {source}")
     return source
