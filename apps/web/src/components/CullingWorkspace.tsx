@@ -5,7 +5,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
-import { ArrowLeft, ArrowRight, Check, Eye, ImageOff, Loader2, Play, Star, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Columns2,
+  Eye,
+  ImageOff,
+  Loader2,
+  Play,
+  Star,
+  Upload,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
 import { groupAfterMove, nextPhotoIdAfterMark } from "@/lib/reviewNavigation";
@@ -46,12 +60,14 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const {
     activeGroupId,
     activePhotoId,
+    compareMode,
     filter,
     largePreview,
     zoomPreview,
     setActiveGroupId,
     setActivePhotoId,
     setFilter,
+    toggleCompareMode,
     toggleLargePreview,
     toggleZoomPreview,
   } = useReviewStore();
@@ -85,6 +101,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     () => parseGroupScoreSummary(activeGroup?.score_summary),
     [activeGroup?.score_summary],
   );
+  const comparePhotos = useMemo(() => {
+    if (!activeGroup) {
+      return activePhoto ? [activePhoto] : [];
+    }
+    return filteredPhotos.filter((photo) => photo.group_id === activeGroup.id);
+  }, [activeGroup, activePhoto, filteredPhotos]);
 
   const updateMutation = useMutation({
     mutationFn: ({ photo, patch }: { photo: Photo; patch: PhotoPatch }) => api.updatePhoto(projectId, photo.id, patch),
@@ -186,6 +208,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         toggleLargePreview();
       }
       if (event.key.toLowerCase() === "z") toggleZoomPreview();
+      if (event.key.toLowerCase() === "c") toggleCompareMode();
       if (event.key.toLowerCase() === "g") cycleGroup();
       const numeric = Number(event.key);
       if (numeric === 0) rate(0);
@@ -325,7 +348,35 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
             largePreview ? "lg:col-span-2" : ""
           }`}
         >
-          {preview ? (
+          {compareMode && comparePhotos.length > 1 ? (
+            <div className="grid w-full gap-3 md:grid-cols-2">
+              {comparePhotos.map((photo) => {
+                const comparePreview = assetUrl(projectId, photo.preview_path);
+                return (
+                  <button
+                    className={`focus-ring grid min-h-72 place-items-center overflow-hidden rounded border bg-neutral-950 p-2 ${
+                      photo.id === activePhoto?.id ? "border-leaf" : "border-neutral-700"
+                    }`}
+                    key={photo.id}
+                    onClick={() => setActivePhotoId(photo.id)}
+                  >
+                    {comparePreview ? (
+                      <img
+                        className="max-h-[56vh] max-w-full object-contain"
+                        src={comparePreview}
+                        alt={`Compare ${photo.filename}`}
+                      />
+                    ) : (
+                      <span className="text-sm text-white">No preview</span>
+                    )}
+                    <span className="mt-2 justify-self-start rounded bg-white/90 px-2 py-1 text-xs text-ink">
+                      {photo.filename} · {photo.ai_recommendation}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : preview ? (
             <img
               className={
                 zoomPreview
@@ -483,6 +534,16 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           aria-label="Toggle preview"
         >
           {largePreview ? <X size={18} /> : <Eye size={18} />}
+        </button>
+        <button
+          className={`focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border ${
+            compareMode ? "border-leaf bg-mist text-leaf" : "border-line"
+          }`}
+          onClick={toggleCompareMode}
+          aria-label="Toggle compare"
+          aria-pressed={compareMode}
+        >
+          <Columns2 size={18} />
         </button>
         <button
           className={`focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border ${

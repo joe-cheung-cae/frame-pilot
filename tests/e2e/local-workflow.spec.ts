@@ -248,6 +248,13 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await expect(page.getByRole("button", { name: "Toggle zoom" })).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("z");
   await expect(page.getByRole("button", { name: "Toggle zoom" })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", { name: "Toggle compare" })).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("c");
+  await expect(page.getByRole("button", { name: "Toggle compare" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("img", { name: "Compare frame-001.jpg" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Compare frame-002.jpg" })).toBeVisible();
+  await page.keyboard.press("c");
+  await expect(page.getByRole("button", { name: "Toggle compare" })).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByText("High confidence").first()).toBeVisible();
   await expect(page.getByText("High confidence because the top photo leads the next candidate by 0.23.")).toBeVisible();
   await page.keyboard.press("ArrowDown");
