@@ -20,11 +20,14 @@ class ProjectRead(BaseModel):
     id: str
     name: str
     root_path: str
+    source_mode: str
+    source_root_path: str | None
     created_at: datetime
     updated_at: datetime
     total_images: int
     processed_images: int
     last_processed_at: datetime | None
+    schema_version: int
 
 
 class PhotoRead(BaseModel):

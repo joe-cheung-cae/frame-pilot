@@ -4,9 +4,12 @@ export type Project = {
   id: string;
   name: string;
   root_path: string;
+  source_mode: "copy";
+  source_root_path: string | null;
   total_images: number;
   processed_images: number;
   last_processed_at: string | null;
+  schema_version: number;
   created_at: string;
   updated_at: string;
 };

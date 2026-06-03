@@ -41,15 +41,18 @@ Project responses include image totals and processing metadata:
   "id": "project-id",
   "name": "Weekend shoot",
   "root_path": ".../.framepilot-data/projects/project-id",
+  "source_mode": "copy",
+  "source_root_path": null,
   "total_images": 12,
   "processed_images": 10,
   "last_processed_at": "2026-06-02T12:00:00Z",
+  "schema_version": 2,
   "created_at": "2026-06-02T11:30:00Z",
   "updated_at": "2026-06-02T12:00:00Z"
 }
 ```
 
-`last_processed_at` is `null` until the first processing job completes.
+`last_processed_at` is `null` until the first processing job completes. v2 currently uses `copy` mode, which copies imported photos into the local project directory without modifying original source files.
 
 ## Import Response
 

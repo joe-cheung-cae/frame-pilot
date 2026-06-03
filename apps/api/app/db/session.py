@@ -48,8 +48,14 @@ def _ensure_project_columns(engine) -> None:
 
     existing = {column["name"] for column in inspector.get_columns("project")}
     statements = []
+    if "source_mode" not in existing:
+        statements.append("ALTER TABLE project ADD COLUMN source_mode VARCHAR NOT NULL DEFAULT 'copy'")
+    if "source_root_path" not in existing:
+        statements.append("ALTER TABLE project ADD COLUMN source_root_path VARCHAR")
     if "last_processed_at" not in existing:
         statements.append("ALTER TABLE project ADD COLUMN last_processed_at DATETIME")
+    if "schema_version" not in existing:
+        statements.append("ALTER TABLE project ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 2")
 
     if not statements:
         return

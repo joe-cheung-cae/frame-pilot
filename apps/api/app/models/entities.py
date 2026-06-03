@@ -16,11 +16,14 @@ class Project(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     name: str
     root_path: str
+    source_mode: str = "copy"
+    source_root_path: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
     total_images: int = 0
     processed_images: int = 0
     last_processed_at: datetime | None = None
+    schema_version: int = 2
 
 
 class Photo(SQLModel, table=True):

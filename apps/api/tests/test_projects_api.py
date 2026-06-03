@@ -12,6 +12,9 @@ def test_create_and_list_projects(tmp_path, monkeypatch):
     assert response.status_code == 201
     created = response.json()
     assert created["name"] == "Wedding selects"
+    assert created["source_mode"] == "copy"
+    assert created["source_root_path"] is None
+    assert created["schema_version"] == 2
     assert created["total_images"] == 0
     assert created["processed_images"] == 0
     assert created["last_processed_at"] is None
