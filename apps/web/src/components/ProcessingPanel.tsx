@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Loader2, Play, Rows3, Upload } from "lucide-react";
 import { api } from "@/lib/api";
+import { processingProgressPercent, processingProgressSummary, processingStatusLabel } from "@/lib/processingProgress";
 
 export function ProcessingPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -27,10 +28,10 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
     },
   });
   const job = jobQuery.data ?? startedJob;
-  const progress = job ? Math.round(job.progress_percent) : 0;
+  const progress = processingProgressPercent(job);
   const hasImportedPhotos = Boolean(project.data?.total_images);
   const canOpenCulling = job?.status === "complete" || Boolean(project.data?.processed_images);
-  const statusLabel = job?.status ? job.status[0].toUpperCase() + job.status.slice(1) : "Ready";
+  const statusLabel = processingStatusLabel(job?.status);
   const isProcessing = job?.status === "queued" || job?.status === "running" || mutation.isPending;
 
   useEffect(() => {
@@ -53,9 +54,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
         <div className="flex items-center justify-between gap-4">
           <span className="font-medium">{statusLabel}</span>
           <span className="text-sm text-neutral-600">
-            {job
-              ? `${job.processed_items} of ${job.total_items} photos · ${job.failed_items} failed · ${progress}%`
-              : `${project.data?.processed_images ?? 0} of ${project.data?.total_images ?? 0} processed`}
+            {processingProgressSummary(job, project.data)}
           </span>
         </div>
         <p className="mt-2 text-sm text-neutral-700">
