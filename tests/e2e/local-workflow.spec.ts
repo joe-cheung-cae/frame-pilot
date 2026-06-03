@@ -166,11 +166,16 @@ test.beforeEach(async ({ page }) => {
       json: {
         id: "job-1",
         project_id: project.id,
+        job_type: "processing",
         status: "complete",
         current_step: "complete",
         total_items: currentProject.total_images,
         processed_items: currentProject.total_images,
+        failed_items: 0,
+        progress_percent: 100,
         error_message: null,
+        started_at: "2026-06-02T00:00:00Z",
+        completed_at: "2026-06-02T00:00:01Z",
       },
       status: 202,
     });
@@ -262,6 +267,8 @@ test("walks the local project review and export flow in a browser", async ({ pag
 
   await page.goto(`/projects/${project.id}/process`);
   await page.getByRole("button", { name: "Run Grouping and Ranking" }).click();
+  await expect(page.getByText("3 of 3 photos · 0 failed · 100%")).toBeVisible();
+  await expect(page.locator("p").filter({ hasText: /^complete$/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open Culling Workspace" })).toBeVisible();
 
   await page.getByRole("link", { name: "Open Culling Workspace" }).click();
