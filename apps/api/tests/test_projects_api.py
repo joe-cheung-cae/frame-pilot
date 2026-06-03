@@ -67,6 +67,19 @@ def test_create_project_rejects_empty_name(tmp_path, monkeypatch):
     assert response.status_code == 422
 
 
+def test_create_project_rejects_unusable_root_path_without_metadata(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    blocked_root = tmp_path / "blocked-root"
+    blocked_root.write_text("not a directory")
+
+    response = client.post("/api/projects", json={"name": "Bad storage", "root_path": str(blocked_root)})
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Project root path must be a usable local directory"
+    assert client.get("/api/projects").json() == []
+
+
 def test_get_project_returns_404_for_missing_project(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())

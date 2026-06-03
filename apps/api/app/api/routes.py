@@ -98,7 +98,10 @@ def _get_active_processing_job(session: Session, project_id: str) -> ProcessingJ
 
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 def create_project_endpoint(payload: ProjectCreate, session: Session = Depends(get_session)):
-    return create_project(session, payload.name, payload.root_path)
+    try:
+        return create_project(session, payload.name, payload.root_path)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @router.get("/projects", response_model=list[ProjectRead])
