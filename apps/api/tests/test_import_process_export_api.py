@@ -382,7 +382,9 @@ def test_processing_can_recover_after_failed_job(tmp_path, monkeypatch):
     assert failed_job["current_step"] == "failed"
     assert "grouping interrupted" in failed_job["error_message"]
     interrupted_photo = client.get(f"/api/projects/{project['id']}/photos/{photo_id}").json()
-    assert interrupted_photo["processing_state"] == "processing"
+    assert interrupted_photo["processing_state"] == "imported"
+    assert interrupted_photo["processing_error"] == "grouping interrupted"
+    assert "Processing was interrupted" in interrupted_photo["recommendation_explanation"]
 
     recovered_job = _wait_for_job(client, project["id"], client.post(f"/api/projects/{project['id']}/process").json())
 

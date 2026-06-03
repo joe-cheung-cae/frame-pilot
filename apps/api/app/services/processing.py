@@ -89,6 +89,22 @@ def _mark_photo_failed(session: Session, photo: Photo, reason: str, explanation:
     session.add(photo)
 
 
+def _reset_incomplete_photos_after_job_failure(session: Session, project_id: str, reason: str) -> None:
+    interrupted_photos = list(
+        session.exec(
+            select(Photo).where(Photo.project_id == project_id).where(Photo.processing_state == "processing")
+        ).all()
+    )
+    for photo in interrupted_photos:
+        photo.processing_state = "imported"
+        photo.processing_error = reason
+        photo.recommendation_explanation = (
+            "Processing was interrupted before this photo completed. Run processing again to retry local analysis."
+        )
+        photo.updated_at = utc_now()
+        session.add(photo)
+
+
 def _group_score_summary(group_type: str, ranked: list[RankedPhoto]) -> str:
     recommendation_counts = {"Pick": 0, "Maybe": 0, "Reject": 0, "Unreviewed": 0}
     for item in ranked:
@@ -319,9 +335,11 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         session.add(project)
     except Exception as error:
         session.rollback()
+        failure_reason = str(error)
+        _reset_incomplete_photos_after_job_failure(session, project.id, failure_reason)
         job.status = "failed"
         job.current_step = "failed"
-        job.error_message = str(error)
+        job.error_message = failure_reason
         job.failed_items = max(1, job.total_items - job.processed_items) if job.total_items else 1
         job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
         job.completed_at = utc_now()
