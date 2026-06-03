@@ -55,7 +55,7 @@ The culling workspace keeps large projects responsive by requesting bounded firs
 If a generated preview or thumbnail asset fails to load, the workspace records the failed asset URL and renders an explicit local fallback instead of leaving a broken image in the review surface.
 Dense culling controls expose active filter, group, photo, status, rating, compare, zoom, and preview states with ARIA attributes so keyboard and assistive-technology users can confirm the current review context.
 
-The processing page shows recent local job history from a bounded newest-first query and can increase that limit when the user requests older jobs.
+The processing page shows current and historical failed-item notices even when the overall job completed, so recoverable per-photo failures are visible before culling or export. It also shows recent local job history from a bounded newest-first query and can increase that limit when the user requests older jobs.
 
 The export page shows the local exports folder before export, keeps status totals lightweight through the status-count API, and keeps export history bounded by loading the most recent records first, with an explicit load-more action for older local export records.
 

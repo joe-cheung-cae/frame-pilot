@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   activeProcessingJob,
+  processingFailureNotice,
   processingProgressPercent,
   processingProgressSummary,
   processingStatusLabel,
@@ -40,6 +41,16 @@ test("formats active job progress with failed item counts", () => {
     ),
     "8 of 12 photos · 2 failed · 83%",
   );
+});
+
+test("formats processing failure notices", () => {
+  assert.equal(processingFailureNotice(undefined), null);
+  assert.equal(processingFailureNotice({ error_message: null, failed_items: 0 }), null);
+  assert.equal(
+    processingFailureNotice({ error_message: "1 photo could not be processed during scoring.", failed_items: 1 }),
+    "1 photo could not be processed during scoring.",
+  );
+  assert.equal(processingFailureNotice({ error_message: null, failed_items: 2 }), "2 photos could not be processed.");
 });
 
 test("selects the newest active processing job from ordered jobs", () => {

@@ -5,6 +5,8 @@ type ProcessingProgressJob = Pick<
   "failed_items" | "processed_items" | "progress_percent" | "status" | "total_items"
 >;
 
+type ProcessingFailureJob = Pick<ProcessingJob, "error_message" | "failed_items">;
+
 type ProcessingProgressProject = Pick<Project, "processed_images" | "total_images">;
 
 type ProcessingJobCandidate = Pick<ProcessingJob, "job_type" | "status">;
@@ -32,4 +34,15 @@ export function processingProgressSummary(
     return `${job.processed_items} of ${job.total_items} photos · ${job.failed_items} failed · ${processingProgressPercent(job)}%`;
   }
   return `${project?.processed_images ?? 0} of ${project?.total_images ?? 0} processed`;
+}
+
+export function processingFailureNotice(job: ProcessingFailureJob | null | undefined): string | null {
+  if (!job || job.failed_items <= 0) {
+    return null;
+  }
+  if (job.error_message) {
+    return job.error_message;
+  }
+  const noun = job.failed_items === 1 ? "photo" : "photos";
+  return `${job.failed_items} ${noun} could not be processed.`;
 }

@@ -7,6 +7,7 @@ import { Loader2, Play, Rows3, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   activeProcessingJob,
+  processingFailureNotice,
   processingProgressPercent,
   processingProgressSummary,
   processingStatusLabel,
@@ -51,6 +52,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   const statusLabel = processingStatusLabel(job?.status);
   const isProcessing = job?.status === "queued" || job?.status === "running" || mutation.isPending;
   const canLoadMoreJobs = (jobsQuery.data?.length ?? 0) >= jobLimit;
+  const jobFailureNotice = processingFailureNotice(job);
 
   useEffect(() => {
     if (job?.status !== "complete") {
@@ -89,6 +91,9 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           <p className="mt-3 text-sm text-coral">
             {job.error_message ?? "Processing failed. Review the imported files and try again."}
           </p>
+        ) : null}
+        {jobFailureNotice && job?.status !== "failed" ? (
+          <p className="mt-3 text-sm text-coral">{jobFailureNotice}</p>
         ) : null}
       </div>
       <div className="flex flex-wrap gap-3">
@@ -135,24 +140,27 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
         {jobsQuery.isError ? <p className="text-sm text-coral">{jobsQuery.error.message}</p> : null}
         {jobsQuery.data?.length ? (
           <div className="grid gap-2">
-            {jobsQuery.data.map((record) => (
-              <div
-                className="grid gap-1 rounded border border-line bg-white p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
-                key={record.id}
-              >
-                <div>
-                  <p className="font-medium">
-                    {record.job_type}
-                    <span className={record.status === "failed" ? "ml-2 text-coral" : "ml-2 text-neutral-500"}>
-                      {record.status}
-                    </span>
-                  </p>
-                  <p className="text-neutral-600">{record.current_step}</p>
-                  {record.error_message ? <p className="text-coral">{record.error_message}</p> : null}
+            {jobsQuery.data.map((record) => {
+              const recordFailureNotice = processingFailureNotice(record) ?? record.error_message;
+              return (
+                <div
+                  className="grid gap-1 rounded border border-line bg-white p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
+                  key={record.id}
+                >
+                  <div>
+                    <p className="font-medium">
+                      {record.job_type}
+                      <span className={record.status === "failed" ? "ml-2 text-coral" : "ml-2 text-neutral-500"}>
+                        {record.status}
+                      </span>
+                    </p>
+                    <p className="text-neutral-600">{record.current_step}</p>
+                    {recordFailureNotice ? <p className="text-coral">{recordFailureNotice}</p> : null}
+                  </div>
+                  <p className="text-neutral-600">{processingProgressSummary(record, project.data)}</p>
                 </div>
-                <p className="text-neutral-600">{processingProgressSummary(record, project.data)}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
         {canLoadMoreJobs ? (

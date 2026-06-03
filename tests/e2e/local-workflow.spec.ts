@@ -167,6 +167,7 @@ let failNextExport = false;
 let failPhotoStatusCounts = false;
 let failJobList = false;
 let failJobDetail = false;
+let processWithFailedItems = false;
 let failProjectList = false;
 let failProjectDetail = false;
 let failNextImport = false;
@@ -202,6 +203,7 @@ test.beforeEach(async ({ page }) => {
   failPhotoStatusCounts = false;
   failJobList = false;
   failJobDetail = false;
+  processWithFailedItems = false;
   failProjectList = false;
   failProjectDetail = false;
   failNextImport = false;
@@ -254,7 +256,12 @@ test.beforeEach(async ({ page }) => {
       ...completedJob,
       total_items: currentProject.total_images,
       processed_items: currentProject.total_images,
+      failed_items: processWithFailedItems ? 1 : 0,
+      error_message: processWithFailedItems
+        ? "1 photo could not be processed. Review failed photo details before export."
+        : null,
     };
+    processWithFailedItems = false;
     await route.fulfill({
       json: currentJob,
       status: 202,
@@ -624,6 +631,18 @@ test("shows processing job polling errors", async ({ page }) => {
   await expect(
     page.getByText("Could not load processing job status: Processing job status endpoint failed"),
   ).toBeVisible();
+});
+
+test("shows completed processing jobs with failed items", async ({ page }) => {
+  processWithFailedItems = true;
+  await page.goto(`/projects/${project.id}/process`);
+
+  await page.getByRole("button", { name: "Run Grouping and Ranking" }).click();
+
+  await expect(
+    page.getByText("1 photo could not be processed. Review failed photo details before export.").first(),
+  ).toBeVisible();
+  await expect(page.getByText("3 of 3 photos · 1 failed · 100%").first()).toBeVisible();
 });
 
 test("loads more processing history on request", async ({ page }) => {
