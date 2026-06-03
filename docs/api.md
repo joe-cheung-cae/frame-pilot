@@ -176,6 +176,7 @@ The response includes the number of exported photos and the local output path:
   "statuses": "[\"Pick\", \"Maybe\"]",
   "output_path": ".../exports/selection-export-id.csv",
   "error_message": null,
+  "completed_at": "2026-06-02T12:00:01Z",
   "created_at": "2026-06-02T12:00:00Z"
 }
 ```

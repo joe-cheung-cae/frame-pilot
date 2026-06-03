@@ -164,4 +164,5 @@ class ExportRead(BaseModel):
     statuses: str
     output_path: str
     error_message: str | None
+    completed_at: datetime | None
     created_at: datetime

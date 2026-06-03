@@ -300,12 +300,14 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
         record.status = "failed"
         record.output_path = str(target)
         record.error_message = "Export failed"
+        record.completed_at = utc_now()
         session.add(record)
         session.commit()
         raise HTTPException(status_code=500, detail="Export failed") from error
 
     record.status = "complete"
     record.output_path = str(output_path)
+    record.completed_at = utc_now()
     session.add(record)
     session.commit()
     session.refresh(record)

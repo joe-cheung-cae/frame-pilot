@@ -36,6 +36,8 @@ def _ensure_export_record_columns(engine) -> None:
         statements.append("ALTER TABLE exportrecord ADD COLUMN statuses VARCHAR NOT NULL DEFAULT '[]'")
     if "error_message" not in existing:
         statements.append("ALTER TABLE exportrecord ADD COLUMN error_message VARCHAR")
+    if "completed_at" not in existing:
+        statements.append("ALTER TABLE exportrecord ADD COLUMN completed_at DATETIME")
 
     if not statements:
         return

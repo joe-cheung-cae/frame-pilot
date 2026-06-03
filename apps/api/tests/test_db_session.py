@@ -29,6 +29,7 @@ def test_init_db_adds_missing_export_record_columns_to_existing_sqlite_table(tmp
     assert "selected_count" in columns
     assert "statuses" in columns
     assert "error_message" in columns
+    assert "completed_at" in columns
 
 
 def test_init_db_adds_large_project_query_indexes(tmp_path):
