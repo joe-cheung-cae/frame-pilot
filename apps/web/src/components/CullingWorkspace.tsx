@@ -24,7 +24,7 @@ import {
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
 import { parseReviewProgress, reviewProgressStorageKey } from "@/lib/reviewProgress";
-import { groupAfterMove, nextPhotoIdAfterMark, windowedPhotoRefs } from "@/lib/reviewNavigation";
+import { groupAfterMove, nextPhotoIdAfterMark, windowedGroupRefs, windowedPhotoRefs } from "@/lib/reviewNavigation";
 import { useReviewStore } from "@/store/reviewStore";
 
 const FILTERS = [
@@ -40,6 +40,7 @@ const FILTERS = [
 ];
 
 const FILMSTRIP_WINDOW_SIZE = 80;
+const GROUP_WINDOW_SIZE = 80;
 
 function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<string>) {
   if (filter === "All") return true;
@@ -102,7 +103,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     const groupId = activePhoto?.group_id ?? activeGroupId;
     return groupId ? (groups.find((group) => group.id === groupId) ?? null) : null;
   }, [activeGroupId, activePhoto?.group_id, groups]);
-  const activeGroupIndex = activeGroup ? groups.findIndex((group) => group.id === activeGroup.id) : -1;
+  const groupIndexById = useMemo(() => new Map(groups.map((group, index) => [group.id, index])), [groups]);
+  const activeGroupIndex = activeGroup ? (groupIndexById.get(activeGroup.id) ?? -1) : -1;
   const activeGroupSummary = useMemo(
     () => parseGroupScoreSummary(activeGroup?.score_summary),
     [activeGroup?.score_summary],
@@ -116,6 +118,10 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const filmstripPhotos = useMemo(
     () => windowedPhotoRefs(visiblePhotos, activePhoto?.id ?? null, FILMSTRIP_WINDOW_SIZE),
     [activePhoto?.id, visiblePhotos],
+  );
+  const sidebarGroups = useMemo(
+    () => windowedGroupRefs(groups, activeGroup?.id ?? activeGroupId, GROUP_WINDOW_SIZE),
+    [activeGroup?.id, activeGroupId, groups],
   );
   const visiblePhotoIds = useMemo(() => visiblePhotos.map((photo) => photo.id), [visiblePhotos]);
 
@@ -412,8 +418,14 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 Show filtered photos
               </button>
             ) : null}
-            {groups.map((group, index) => {
+            {groups.length > sidebarGroups.length ? (
+              <span className="rounded border border-line px-3 py-2 text-xs text-neutral-600">
+                {sidebarGroups.length} of {groups.length} groups
+              </span>
+            ) : null}
+            {sidebarGroups.map((group) => {
               const summary = parseGroupScoreSummary(group.score_summary);
+              const groupNumber = (groupIndexById.get(group.id) ?? 0) + 1;
               return (
                 <button
                   className={`focus-ring rounded border px-3 py-2 text-left ${activeGroupId === group.id ? "border-leaf bg-mist" : "border-line bg-white"}`}
@@ -421,7 +433,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   onClick={() => selectGroup(group.id, group.representative_photo_id)}
                 >
                   <span className="flex items-center justify-between gap-3">
-                    <span>Group {index + 1}</span>
+                    <span>Group {groupNumber}</span>
                     <span>{group.photo_count}</span>
                   </span>
                   <span className="mt-1 block text-xs text-neutral-500">{groupConfidenceLabel(summary)}</span>

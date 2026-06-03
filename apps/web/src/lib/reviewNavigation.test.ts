@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
+  windowedGroupRefs,
   windowedPhotoRefs,
   type ReviewGroupRef,
   type ReviewPhotoRef,
@@ -81,5 +82,33 @@ test("keeps filmstrip windows inside the available photo range", () => {
   assert.deepEqual(
     windowedPhotoRefs(manyPhotos, "photo-9", 4).map((photo) => photo.id),
     ["photo-6", "photo-7", "photo-8", "photo-9"],
+  );
+});
+
+test("windows group refs around the active group", () => {
+  const manyGroups = Array.from({ length: 10 }, (_value, index) => ({
+    id: `group-${index}`,
+    representative_photo_id: null,
+  }));
+
+  assert.deepEqual(
+    windowedGroupRefs(manyGroups, "group-5", 4).map((group) => group.id),
+    ["group-3", "group-4", "group-5", "group-6"],
+  );
+});
+
+test("keeps group windows inside the available group range", () => {
+  const manyGroups = Array.from({ length: 10 }, (_value, index) => ({
+    id: `group-${index}`,
+    representative_photo_id: null,
+  }));
+
+  assert.deepEqual(
+    windowedGroupRefs(manyGroups, "group-0", 4).map((group) => group.id),
+    ["group-0", "group-1", "group-2", "group-3"],
+  );
+  assert.deepEqual(
+    windowedGroupRefs(manyGroups, "group-9", 4).map((group) => group.id),
+    ["group-6", "group-7", "group-8", "group-9"],
   );
 });

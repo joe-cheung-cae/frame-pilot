@@ -59,3 +59,19 @@ export function windowedPhotoRefs<T extends ReviewPhotoRef>(
   const start = Math.min(Math.max(resolvedIndex - halfWindow, 0), photos.length - maxItems);
   return photos.slice(start, start + maxItems);
 }
+
+export function windowedGroupRefs<T extends ReviewGroupRef>(
+  groups: readonly T[],
+  activeGroupId: string | null,
+  maxItems: number,
+): readonly T[] {
+  if (maxItems <= 0 || groups.length <= maxItems) {
+    return groups;
+  }
+
+  const activeIndex = activeGroupId ? groups.findIndex((group) => group.id === activeGroupId) : 0;
+  const resolvedIndex = activeIndex >= 0 ? activeIndex : 0;
+  const halfWindow = Math.floor(maxItems / 2);
+  const start = Math.min(Math.max(resolvedIndex - halfWindow, 0), groups.length - maxItems);
+  return groups.slice(start, start + maxItems);
+}
