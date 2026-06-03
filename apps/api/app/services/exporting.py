@@ -50,6 +50,7 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
             handle,
             fieldnames=[
                 "filename",
+                "photo_id",
                 "original_path",
                 "project_copy_path",
                 "source_identity",
@@ -87,6 +88,7 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
             writer.writerow(
                 {
                     "filename": photo.get("filename", ""),
+                    "photo_id": photo.get("id", ""),
                     "original_path": photo.get("original_path", ""),
                     "project_copy_path": photo.get("project_copy_path") or "",
                     "source_identity": photo.get("source_identity") or "",

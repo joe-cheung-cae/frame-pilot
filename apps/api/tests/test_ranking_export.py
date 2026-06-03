@@ -206,6 +206,7 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
     target = tmp_path / "selection.csv"
     photos = [
         {
+            "id": "photo-a",
             "filename": "a.jpg",
             "original_path": "/shoot/a.jpg",
             "project_copy_path": "/project/originals/a.jpg",
@@ -239,6 +240,7 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "processing_error": None,
         },
         {
+            "id": "photo-b",
             "filename": "b.jpg",
             "original_path": "/shoot/b.jpg",
             "user_status": "Reject",
@@ -269,6 +271,7 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
     assert rows == [
         {
             "filename": "a.jpg",
+            "photo_id": "photo-a",
             "original_path": "/shoot/a.jpg",
             "project_copy_path": "/project/originals/a.jpg",
             "source_identity": "sha256:aaa",
@@ -302,6 +305,7 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
         },
         {
             "filename": "b.jpg",
+            "photo_id": "photo-b",
             "original_path": "/shoot/b.jpg",
             "project_copy_path": "",
             "source_identity": "",

@@ -4,7 +4,7 @@ FramePilot v2.0 supports CSV, ZIP, and folder exports. XMP sidecar export is pla
 
 ## Current Modes
 
-- `csv`: writes a local CSV artifact with selected photos, source identity fields (`original_path`, `project_copy_path`, `source_identity`, `content_hash`, size, and mtime), imported capture and camera metadata, ratings, statuses, scores, group metadata, dimensions, processing state/error fields, and recommendation explanations.
+- `csv`: writes a local CSV artifact with selected photos, project photo ids, source identity fields (`original_path`, `project_copy_path`, `source_identity`, `content_hash`, size, and mtime), imported capture and camera metadata, ratings, statuses, scores, group metadata, dimensions, processing state/error fields, and recommendation explanations.
 - `zip`: writes a local ZIP containing selected original project copies, preserving duplicate filenames with deterministic suffixes.
 - `folder`: copies selected original project copies into a local export folder and preserves duplicate filenames with deterministic suffixes.
 

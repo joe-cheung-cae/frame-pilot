@@ -295,7 +295,7 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
     assert csv_download_response.status_code == 200
     assert "filename" in csv_download_response.headers["content-disposition"]
     assert (
-        b"filename,original_path,project_copy_path,source_identity,content_hash,file_size,file_mtime"
+        b"filename,photo_id,original_path,project_copy_path,source_identity,content_hash,file_size,file_mtime"
         in csv_download_response.content
     )
 
@@ -370,7 +370,7 @@ def test_plural_export_routes_create_list_get_and_download(tmp_path, monkeypatch
     download_response = client.get(f"/api/projects/{project['id']}/exports/{export_record['id']}/download")
     assert download_response.status_code == 200
     assert (
-        b"filename,original_path,project_copy_path,source_identity,content_hash,file_size,file_mtime"
+        b"filename,photo_id,original_path,project_copy_path,source_identity,content_hash,file_size,file_mtime"
         in download_response.content
     )
 
