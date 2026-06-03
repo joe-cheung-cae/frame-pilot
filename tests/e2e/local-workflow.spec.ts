@@ -391,6 +391,14 @@ test("shows export history load errors", async ({ page }) => {
   await expect(page.getByText("No exports yet.")).toHaveCount(0);
 });
 
+test("shows export project load errors", async ({ page }) => {
+  failProjectDetail = true;
+
+  await page.goto(`/projects/${project.id}/export`);
+
+  await expect(page.getByText("Could not load project details")).toBeVisible();
+});
+
 test("loads more export history on request", async ({ page }) => {
   const requestedLimits: number[] = [];
   const exportHistory = Array.from({ length: 51 }, (_, index) => {

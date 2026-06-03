@@ -128,6 +128,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         Export
       </button>
       {!statuses.length ? <p className="text-sm text-coral">Choose at least one status to export.</p> : null}
+      {projectQuery.isError ? <p className="text-sm text-coral">{projectQuery.error.message}</p> : null}
       {statusCountsQuery.isError ? <p className="text-sm text-coral">{statusCountsQuery.error.message}</p> : null}
       {statuses.length > 0 && selectedCount === 0 && !statusCountsQuery.isLoading && !statusCountsQuery.isError ? (
         <p className="text-sm text-neutral-600">No photos match the selected statuses.</p>
