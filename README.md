@@ -84,6 +84,7 @@ See [FramePilot v2 Product Requirements](docs/v2_product_requirements.md) for ta
 See [FramePilot v2 Architecture](docs/v2_architecture.md) for backend, frontend, storage, processing, and export boundaries.
 See [FramePilot v2 Milestones](docs/v2_milestones.md) for release checkpoints and validation gates.
 See [FramePilot v2 Testing Strategy](docs/v2_testing_strategy.md) for the expected unit, integration, E2E, and performance validation layers.
+See [FramePilot v2 Performance Baseline](docs/v2_performance_baseline.md) for the latest recorded synthetic large-batch smoke result.
 See [FramePilot v2 Migration Plan](docs/v2_migration_plan.md) for schema, storage, API, and project data migration rules.
 See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for grouping, ranking, explanation, and optional model policy.
 
