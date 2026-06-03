@@ -233,6 +233,48 @@ def test_process_rejects_project_with_no_imported_photos(tmp_path, monkeypatch):
     assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 0
 
 
+def test_processing_skips_photo_with_invalid_similarity_data(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Invalid similarity data"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("valid.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+
+    with Session(get_engine()) as session:
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        invalid_photo = Photo(
+            project_id=project["id"],
+            original_path=str(tmp_path / "missing.jpg"),
+            filename="invalid.jpg",
+            embedding="{not-json",
+        )
+        session.add(invalid_photo)
+        stored_project.total_images += 1
+        session.add(stored_project)
+        session.commit()
+        invalid_photo_id = invalid_photo.id
+
+    process_response = client.post(f"/api/projects/{project['id']}/process")
+    assert process_response.status_code == 202
+    job = _wait_for_job(client, project["id"], process_response.json())
+
+    assert job["status"] == "complete"
+    assert job["processed_items"] == 1
+    assert job["failed_items"] == 1
+    assert job["progress_percent"] == 100.0
+    assert "1 photo could not be processed" in job["error_message"]
+    assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 1
+    groups = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert sum(group["photo_count"] for group in groups) == 1
+    invalid_after_processing = client.get(f"/api/projects/{project['id']}/photos/{invalid_photo_id}").json()
+    assert "stored similarity data is invalid" in invalid_after_processing["recommendation_explanation"]
+
+
 def test_import_renames_duplicate_filenames_without_overwriting(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())

@@ -9,10 +9,10 @@ from app.services.grouping import group_similar_photos
 from app.services.ranking import rank_group
 
 
-def _progress_percent(processed_items: int, total_items: int) -> float:
+def _progress_percent(processed_items: int, failed_items: int, total_items: int) -> float:
     if total_items <= 0:
         return 100.0
-    return round(min(100.0, (processed_items / total_items) * 100), 2)
+    return round(min(100.0, ((processed_items + failed_items) / total_items) * 100), 2)
 
 
 def _save_job(
@@ -27,11 +27,43 @@ def _save_job(
         job.processed_items = processed_items
     if failed_items is not None:
         job.failed_items = failed_items
-    job.progress_percent = _progress_percent(job.processed_items, job.total_items)
+    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
     job.updated_at = utc_now()
     session.add(job)
     session.commit()
     session.refresh(job)
+
+
+def _photo_embedding(photo: Photo) -> list[float]:
+    raw_embedding = json.loads(photo.embedding or "[]")
+    if not isinstance(raw_embedding, list):
+        raise ValueError("Stored similarity data is not a list")
+    embedding: list[float] = []
+    for value in raw_embedding:
+        if not isinstance(value, int | float):
+            raise ValueError("Stored similarity data contains a non-numeric value")
+        embedding.append(float(value))
+    return embedding
+
+
+def _build_group_inputs(photos: list[Photo]) -> tuple[list[dict], list[Photo]]:
+    group_inputs = []
+    failed_photos = []
+    for photo in photos:
+        try:
+            embedding = _photo_embedding(photo)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            failed_photos.append(photo)
+            continue
+        group_inputs.append(
+            {
+                "id": photo.id,
+                "filename": photo.filename,
+                "capture_time": photo.capture_time,
+                "embedding": embedding,
+            }
+        )
+    return group_inputs, failed_photos
 
 
 def create_processing_job(session: Session, project: Project) -> ProcessingJob:
@@ -79,7 +111,7 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
     job.total_items = len(photos)
     job.processed_items = 0
     job.failed_items = 0
-    job.progress_percent = _progress_percent(0, len(photos))
+    job.progress_percent = _progress_percent(0, 0, len(photos))
     job.error_message = None
     job.started_at = utc_now()
     job.completed_at = None
@@ -97,17 +129,20 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
             session.add(photo)
         session.commit()
 
-        _save_job(session, job, "grouping photos", 0)
-        group_inputs = [
-            {
-                "id": photo.id,
-                "filename": photo.filename,
-                "capture_time": photo.capture_time,
-                "embedding": json.loads(photo.embedding or "[]"),
-            }
-            for photo in photos
-        ]
-        photo_map = {photo.id: photo for photo in photos}
+        _save_job(session, job, "validating similarity data", 0)
+        group_inputs, failed_photos = _build_group_inputs(photos)
+        for photo in failed_photos:
+            photo.ai_recommendation = "Unreviewed"
+            photo.recommendation_explanation = (
+                "Processing skipped this photo because its stored similarity data is invalid. Reimport the photo "
+                "to rebuild local analysis data."
+            )
+            photo.updated_at = utc_now()
+            session.add(photo)
+        session.commit()
+
+        _save_job(session, job, "grouping photos", 0, len(failed_photos))
+        photo_map = {photo.id: photo for photo in photos if photo.id not in {failed.id for failed in failed_photos}}
         grouped_photos = group_similar_photos(group_inputs)
 
         for index, grouped in enumerate(grouped_photos, start=1):
@@ -154,10 +189,13 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
 
         job.status = "complete"
         job.current_step = "complete"
-        job.processed_items = len(photos)
+        job.processed_items = len(group_inputs)
+        job.failed_items = len(failed_photos)
         job.progress_percent = 100.0
+        if failed_photos:
+            job.error_message = f"{len(failed_photos)} photo could not be processed"
         job.completed_at = utc_now()
-        project.processed_images = len(photos)
+        project.processed_images = len(group_inputs)
         project.updated_at = utc_now()
         session.add(project)
     except Exception as error:
@@ -166,7 +204,7 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         job.current_step = "failed"
         job.error_message = str(error)
         job.failed_items = max(1, job.total_items - job.processed_items) if job.total_items else 1
-        job.progress_percent = _progress_percent(job.processed_items, job.total_items)
+        job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
         job.completed_at = utc_now()
 
     job.updated_at = utc_now()
