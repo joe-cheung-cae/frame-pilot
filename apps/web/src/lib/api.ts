@@ -100,6 +100,23 @@ export type ExportRecord = {
 
 export type PhotoPatch = Partial<Pick<Photo, "user_status" | "star_rating">>;
 
+export type ListPageOptions = {
+  limit?: number;
+  offset?: number;
+};
+
+export function listPageQuery(options: ListPageOptions = {}): string {
+  const params = new URLSearchParams();
+  if (options.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+  if (options.offset !== undefined) {
+    params.set("offset", String(options.offset));
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
 function formatErrorDetail(detail: unknown): string | null {
   if (typeof detail === "string") {
     return detail;
@@ -157,7 +174,8 @@ export const api = {
   listJobs: (projectId: string) => request<ProcessingJob[]>(`/api/projects/${projectId}/jobs`),
   getJob: (projectId: string, jobId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}`),
-  listPhotos: (projectId: string) => request<Photo[]>(`/api/projects/${projectId}/photos`),
+  listPhotos: (projectId: string, options?: ListPageOptions) =>
+    request<Photo[]>(`/api/projects/${projectId}/photos${listPageQuery(options)}`),
   updatePhoto: (projectId: string, photoId: string, patch: PhotoPatch) =>
     request<Photo>(`/api/projects/${projectId}/photos/${photoId}`, { method: "PATCH", body: JSON.stringify(patch) }),
   batchUpdatePhotos: (projectId: string, photoIds: string[], patch: PhotoPatch) =>
@@ -165,7 +183,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ photo_ids: photoIds, ...patch }),
     }),
-  listGroups: (projectId: string) => request<PhotoGroup[]>(`/api/projects/${projectId}/groups`),
+  listGroups: (projectId: string, options?: ListPageOptions) =>
+    request<PhotoGroup[]>(`/api/projects/${projectId}/groups${listPageQuery(options)}`),
   listExports: (projectId: string) => request<ExportRecord[]>(`/api/projects/${projectId}/exports`),
   exportSelection: (projectId: string, mode: "csv" | "folder" | "zip", statuses: string[]) =>
     request<ExportRecord>(`/api/projects/${projectId}/exports`, {
