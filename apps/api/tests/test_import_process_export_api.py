@@ -1529,3 +1529,34 @@ def test_download_rejects_incomplete_export_records_even_when_artifact_exists(tm
 
     assert response.status_code == 409
     assert response.json()["detail"] == "Export artifact is not ready for download"
+
+
+def test_download_rejects_export_artifact_symlink_outside_export_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Export symlink escape"}).json()
+    outside_artifact = tmp_path / "outside.csv"
+    outside_artifact.write_text("filename\noutside.jpg\n")
+    export_path = Path(project["root_path"]) / "exports" / "csv" / "selection.csv"
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+    export_path.symlink_to(outside_artifact)
+
+    with Session(get_engine()) as session:
+        record = ExportRecord(
+            project_id=project["id"],
+            mode="csv",
+            status="complete",
+            selected_count=1,
+            statuses='["Pick"]',
+            output_path=str(export_path),
+            completed_at=datetime.now(UTC),
+        )
+        session.add(record)
+        session.commit()
+        session.refresh(record)
+        export_id = record.id
+
+    response = client.get(f"/api/projects/{project['id']}/export/{export_id}/download")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Export artifact not found"
