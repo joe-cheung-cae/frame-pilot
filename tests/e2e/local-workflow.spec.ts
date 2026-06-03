@@ -4,8 +4,12 @@ const project = {
   id: "project-1",
   name: "E2E Shoot",
   root_path: "/tmp/framepilot/e2e",
+  source_mode: "copy",
+  source_root_path: null,
   total_images: 3,
   processed_images: 0,
+  last_processed_at: null,
+  schema_version: 2,
   created_at: "2026-06-02T00:00:00Z",
   updated_at: "2026-06-02T00:00:00Z",
 };
@@ -14,6 +18,7 @@ const emptyProject = {
   ...project,
   id: "empty-project",
   name: "Empty Shoot",
+  root_path: "/tmp/framepilot/empty-e2e",
   total_images: 0,
   processed_images: 0,
 };
@@ -456,6 +461,7 @@ test("loads more processing history on request", async ({ page }) => {
 test("walks the local project review and export flow in a browser", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Recent Projects" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Project data: \/tmp\/framepilot\/e2e/ })).toBeVisible();
   await page.getByRole("link", { name: /E2E Shoot/ }).click();
   await expect(page).toHaveURL(/\/projects\/project-1\/process$/);
 

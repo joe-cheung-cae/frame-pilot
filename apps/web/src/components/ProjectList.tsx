@@ -36,6 +36,10 @@ export function ProjectList() {
           <span className="text-sm text-neutral-600">
             {project.processed_images} of {project.total_images} processed
           </span>
+          <span className="grid gap-1 text-xs text-neutral-500">
+            <span>Storage: Copy mode</span>
+            <span className="break-all">Project data: {project.root_path}</span>
+          </span>
         </Link>
       ))}
     </div>
