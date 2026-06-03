@@ -55,6 +55,14 @@ Run browser E2E coverage separately:
 npm run test:e2e
 ```
 
+Generate deterministic local image sets for performance validation:
+
+```bash
+npm run generate:synthetic -- --output /tmp/framepilot-500 --count 500
+```
+
+Generated files are local test fixtures and should not be committed.
+
 ## Privacy
 
 The MVP does not upload originals or generated previews to any remote service. Imported images are copied into the local project directory so originals are never modified.
