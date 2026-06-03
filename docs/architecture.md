@@ -13,6 +13,9 @@ The backend stores each project under:
   thumbnails/
   previews/
   exports/
+    csv/
+    zip/
+    folders/
   cache/
     hashes/
     embeddings/

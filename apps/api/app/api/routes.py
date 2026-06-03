@@ -56,10 +56,10 @@ def _get_photo(session: Session, project_id: str, photo_id: str) -> Photo:
 
 def _export_target(export_root: Path, export_id: str, mode: str) -> Path:
     if mode == "csv":
-        return export_root / f"selection-{export_id}.csv"
+        return export_root / "csv" / f"selection-{export_id}.csv"
     if mode == "folder":
-        return export_root / f"selected-{export_id}"
-    return export_root / f"selected-{export_id}.zip"
+        return export_root / "folders" / f"selected-{export_id}"
+    return export_root / "zip" / f"selected-{export_id}.zip"
 
 
 def _remove_partial_export(target: Path) -> None:

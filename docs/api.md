@@ -187,14 +187,14 @@ The response includes the number of exported photos and the local output path:
   "status": "complete",
   "selected_count": 12,
   "statuses": "[\"Pick\", \"Maybe\"]",
-  "output_path": ".../exports/selection-export-id.csv",
+  "output_path": ".../exports/csv/selection-export-id.csv",
   "error_message": null,
   "completed_at": "2026-06-02T12:00:01Z",
   "created_at": "2026-06-02T12:00:00Z"
 }
 ```
 
-Exports are written under the local project `exports/` directory. Repeated exports use unique paths. Requests with no matching photos return `422` and do not write an export artifact. ZIP and folder exports fail if any selected local original copy is missing. If artifact creation fails, the API returns `500`, removes partial output when possible, and keeps a local export history record with `status` set to `failed` and `error_message` set.
+Exports are written under mode-specific local project directories: `exports/csv/`, `exports/zip/`, and `exports/folders/`. Repeated exports use unique paths. Requests with no matching photos return `422` and do not write an export artifact. ZIP and folder exports fail if any selected local original copy is missing. If artifact creation fails, the API returns `500`, removes partial output when possible, and keeps a local export history record with `status` set to `failed` and `error_message` set.
 
 CSV exports include filename, original path, capture and camera metadata, user status, star rating, group id, AI recommendation, overall and technical scores, face and eye-open signals, image dimensions, and the recommendation explanation.
 

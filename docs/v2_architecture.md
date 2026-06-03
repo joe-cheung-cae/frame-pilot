@@ -56,6 +56,9 @@ project-root/
     embeddings/
     jobs/
   exports/
+    csv/
+    zip/
+    folders/
   logs/
 ```
 

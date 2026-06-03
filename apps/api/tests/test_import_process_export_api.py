@@ -277,6 +277,7 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
     csv_export = csv_export_response.json()
     assert csv_export["selected_count"] == 1
     csv_path = Path(csv_export["output_path"])
+    assert csv_path.parent == Path(project["root_path"]) / "exports" / "csv"
     assert csv_path.exists()
     with csv_path.open(newline="") as handle:
         csv_rows = list(csv.DictReader(handle))
@@ -294,6 +295,7 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
     assert zip_export_response.status_code == 201
     zip_export = zip_export_response.json()
     zip_path = Path(zip_export["output_path"])
+    assert zip_path.parent == Path(project["root_path"]) / "exports" / "zip"
     assert zip_path.exists()
     with zipfile.ZipFile(zip_path) as archive:
         assert archive.namelist() == [photos[0]["filename"]]
@@ -307,6 +309,9 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
         json={"mode": "folder", "statuses": ["Pick"]},
     )
     assert folder_export_response.status_code == 201
+    folder_path = Path(folder_export_response.json()["output_path"])
+    assert folder_path.parent == Path(project["root_path"]) / "exports" / "folders"
+    assert folder_path.is_dir()
     folder_download_response = client.get(
         f"/api/projects/{project['id']}/export/{folder_export_response.json()['id']}/download",
     )
@@ -1135,7 +1140,9 @@ def test_export_rejects_when_no_photos_match_selected_statuses(tmp_path, monkeyp
     assert response.status_code == 422
     assert "No photos match" in response.text
     export_root = Path(project["root_path"]) / "exports"
-    assert list(export_root.iterdir()) == []
+    assert list((export_root / "csv").iterdir()) == []
+    assert list((export_root / "zip").iterdir()) == []
+    assert list((export_root / "folders").iterdir()) == []
 
 
 def test_repeated_exports_write_unique_records_and_paths(tmp_path, monkeypatch):
