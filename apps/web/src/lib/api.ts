@@ -105,6 +105,8 @@ export type ListPageOptions = {
   offset?: number;
 };
 
+export const DEFAULT_LIST_PAGE_LIMIT = 500;
+
 export function listPageQuery(options: ListPageOptions = {}): string {
   const params = new URLSearchParams();
   if (options.limit !== undefined) {
@@ -115,6 +117,26 @@ export function listPageQuery(options: ListPageOptions = {}): string {
   }
   const query = params.toString();
   return query ? `?${query}` : "";
+}
+
+export async function collectPagedList<T>(
+  loadPage: (options: Required<ListPageOptions>) => Promise<T[]>,
+  pageLimit = DEFAULT_LIST_PAGE_LIMIT,
+): Promise<T[]> {
+  if (!Number.isInteger(pageLimit) || pageLimit < 1) {
+    throw new Error("Page limit must be a positive integer.");
+  }
+
+  const items: T[] = [];
+  let offset = 0;
+  while (true) {
+    const page = await loadPage({ limit: pageLimit, offset });
+    items.push(...page);
+    if (page.length < pageLimit) {
+      return items;
+    }
+    offset += pageLimit;
+  }
 }
 
 function formatErrorDetail(detail: unknown): string | null {
@@ -159,6 +181,38 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function listJobs(projectId: string, options?: ListPageOptions) {
+  return request<ProcessingJob[]>(`/api/projects/${projectId}/jobs${listPageQuery(options)}`);
+}
+
+function listAllJobs(projectId: string, pageLimit?: number) {
+  return collectPagedList((options) => listJobs(projectId, options), pageLimit);
+}
+
+function listPhotos(projectId: string, options?: ListPageOptions) {
+  return request<Photo[]>(`/api/projects/${projectId}/photos${listPageQuery(options)}`);
+}
+
+function listAllPhotos(projectId: string, pageLimit?: number) {
+  return collectPagedList((options) => listPhotos(projectId, options), pageLimit);
+}
+
+function listGroups(projectId: string, options?: ListPageOptions) {
+  return request<PhotoGroup[]>(`/api/projects/${projectId}/groups${listPageQuery(options)}`);
+}
+
+function listAllGroups(projectId: string, pageLimit?: number) {
+  return collectPagedList((options) => listGroups(projectId, options), pageLimit);
+}
+
+function listExports(projectId: string, options?: ListPageOptions) {
+  return request<ExportRecord[]>(`/api/projects/${projectId}/exports${listPageQuery(options)}`);
+}
+
+function listAllExports(projectId: string, pageLimit?: number) {
+  return collectPagedList((options) => listExports(projectId, options), pageLimit);
+}
+
 export const api = {
   listProjects: () => request<Project[]>("/api/projects"),
   createProject: (name: string) =>
@@ -171,12 +225,12 @@ export const api = {
   },
   processProject: (projectId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/process`, { method: "POST" }),
-  listJobs: (projectId: string, options?: ListPageOptions) =>
-    request<ProcessingJob[]>(`/api/projects/${projectId}/jobs${listPageQuery(options)}`),
+  listJobs,
+  listAllJobs,
   getJob: (projectId: string, jobId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}`),
-  listPhotos: (projectId: string, options?: ListPageOptions) =>
-    request<Photo[]>(`/api/projects/${projectId}/photos${listPageQuery(options)}`),
+  listPhotos,
+  listAllPhotos,
   updatePhoto: (projectId: string, photoId: string, patch: PhotoPatch) =>
     request<Photo>(`/api/projects/${projectId}/photos/${photoId}`, { method: "PATCH", body: JSON.stringify(patch) }),
   batchUpdatePhotos: (projectId: string, photoIds: string[], patch: PhotoPatch) =>
@@ -184,10 +238,10 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ photo_ids: photoIds, ...patch }),
     }),
-  listGroups: (projectId: string, options?: ListPageOptions) =>
-    request<PhotoGroup[]>(`/api/projects/${projectId}/groups${listPageQuery(options)}`),
-  listExports: (projectId: string, options?: ListPageOptions) =>
-    request<ExportRecord[]>(`/api/projects/${projectId}/exports${listPageQuery(options)}`),
+  listGroups,
+  listAllGroups,
+  listExports,
+  listAllExports,
   exportSelection: (projectId: string, mode: "csv" | "folder" | "zip", statuses: string[]) =>
     request<ExportRecord>(`/api/projects/${projectId}/exports`, {
       method: "POST",

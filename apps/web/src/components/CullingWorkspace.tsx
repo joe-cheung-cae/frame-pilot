@@ -74,8 +74,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const filterButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const skipNextProgressSave = useRef<string | null>(null);
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
-  const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listPhotos(projectId) });
-  const groupsQuery = useQuery({ queryKey: ["groups", projectId], queryFn: () => api.listGroups(projectId) });
+  const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listAllPhotos(projectId) });
+  const groupsQuery = useQuery({ queryKey: ["groups", projectId], queryFn: () => api.listAllGroups(projectId) });
   const {
     activeGroupId,
     activePhotoId,

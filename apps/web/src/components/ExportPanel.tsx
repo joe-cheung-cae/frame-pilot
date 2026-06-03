@@ -21,12 +21,12 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const [statuses, setStatuses] = useState<ExportStatus[]>(["Pick", "Maybe"]);
   const photosQuery = useQuery({
     queryKey: ["photos", projectId],
-    queryFn: () => api.listPhotos(projectId),
+    queryFn: () => api.listAllPhotos(projectId),
     retry: false,
   });
   const exportsQuery = useQuery({
     queryKey: ["exports", projectId],
-    queryFn: () => api.listExports(projectId),
+    queryFn: () => api.listAllExports(projectId),
     retry: false,
   });
   const statusCounts = useMemo(() => countPhotosByStatus(photosQuery.data ?? []), [photosQuery.data]);

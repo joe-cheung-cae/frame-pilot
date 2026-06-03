@@ -25,7 +25,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   });
   const jobsQuery = useQuery({
     queryKey: ["jobs", projectId],
-    queryFn: () => api.listJobs(projectId),
+    queryFn: () => api.listAllJobs(projectId),
     retry: false,
   });
   const startedJob = mutation.data;
