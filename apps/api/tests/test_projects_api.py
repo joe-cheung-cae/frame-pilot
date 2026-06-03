@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -43,3 +45,24 @@ def test_get_project_returns_404_for_missing_project(tmp_path, monkeypatch):
     response = client.get("/api/projects/missing")
 
     assert response.status_code == 404
+
+
+def test_generated_assets_cannot_escape_project_asset_directories(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Asset safety"}).json()
+    thumbnail_dir = Path(project["root_path"]) / "thumbnails"
+    valid_asset = thumbnail_dir / "frame.webp"
+    valid_asset.write_bytes(b"thumbnail")
+    outside_asset = tmp_path / "outside.webp"
+    outside_asset.write_bytes(b"outside")
+    (thumbnail_dir / "leak.webp").symlink_to(outside_asset)
+
+    valid_response = client.get(f"/api/assets/{project['id']}/thumbnails/frame.webp")
+    escape_response = client.get(f"/api/assets/{project['id']}/thumbnails/leak.webp")
+    invalid_kind_response = client.get(f"/api/assets/{project['id']}/originals/frame.webp")
+
+    assert valid_response.status_code == 200
+    assert valid_response.content == b"thumbnail"
+    assert escape_response.status_code == 404
+    assert invalid_kind_response.status_code == 404

@@ -357,7 +357,12 @@ def get_generated_asset(project_id: str, kind: str, filename: str, session: Sess
     project = _get_project(session, project_id)
     if kind not in {"thumbnails", "previews"}:
         raise HTTPException(status_code=404, detail="Asset type not found")
-    path = Path(project.root_path) / kind / Path(filename).name
-    if not path.exists():
+    asset_root = (Path(project.root_path) / kind).resolve()
+    path = asset_root / Path(filename).name
+    try:
+        resolved_path = path.resolve(strict=True)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Asset not found") from error
+    if not resolved_path.is_file() or not resolved_path.is_relative_to(asset_root):
         raise HTTPException(status_code=404, detail="Asset not found")
-    return FileResponse(path)
+    return FileResponse(resolved_path)
