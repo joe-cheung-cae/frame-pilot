@@ -67,6 +67,18 @@ def test_create_project_rejects_empty_name(tmp_path, monkeypatch):
     assert response.status_code == 422
 
 
+def test_create_project_treats_blank_root_path_as_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+
+    response = client.post("/api/projects", json={"name": "Default storage", "root_path": "  "})
+
+    assert response.status_code == 201
+    project = response.json()
+    assert Path(project["root_path"]).parent == tmp_path / "projects"
+    assert Path(project["root_path"]).is_dir()
+
+
 def test_create_project_rejects_unusable_root_path_without_metadata(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())

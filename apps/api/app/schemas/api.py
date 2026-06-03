@@ -15,6 +15,14 @@ class ProjectCreate(BaseModel):
             raise ValueError("Project name is required")
         return stripped
 
+    @field_validator("root_path")
+    @classmethod
+    def blank_root_path_uses_default(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
 
 class ProjectRead(BaseModel):
     id: str
