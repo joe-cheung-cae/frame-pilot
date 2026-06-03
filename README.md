@@ -70,6 +70,7 @@ npm run perf:api -- --output /tmp/framepilot-perf-500 --count 500
 ```
 
 The smoke command reports generation, import, processing time, and peak memory for the local process.
+It also marks the synthetic photos as Pick and records CSV, ZIP, and folder export timings by default.
 
 ## Privacy
 

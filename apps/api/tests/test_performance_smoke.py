@@ -7,6 +7,11 @@ def test_performance_smoke_reports_local_workflow_metrics(tmp_path):
     )
 
     assert result["count"] == 3
+    assert set(result["exports"]) == {"csv", "folder", "zip"}
+    assert result["exports"]["csv"]["bytes"] > 0
+    assert result["exports"]["folder"]["file_count"] == 3
+    assert result["exports"]["zip"]["bytes"] > 0
+    assert all(export["selected_count"] == 3 for export in result["exports"].values())
     assert result["failed_items"] == 0
     assert result["imported_count"] == 3
     assert result["max_rss_mb"] > 0
@@ -15,3 +20,4 @@ def test_performance_smoke_reports_local_workflow_metrics(tmp_path):
     assert result["timings"]["generate_seconds"] >= 0
     assert result["timings"]["import_seconds"] >= 0
     assert result["timings"]["process_seconds"] >= 0
+    assert result["timings"]["export_seconds"] >= 0
