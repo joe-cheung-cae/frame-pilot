@@ -47,6 +47,7 @@ def test_init_db_adds_large_project_query_indexes(tmp_path):
 
     assert "ix_photo_project_review_order" in photo_indexes
     assert "ix_photo_project_status_filename" in photo_indexes
+    assert "ix_photo_project_processing_state" in photo_indexes
     assert "ix_photogroup_project_created" in group_indexes
     assert "ix_processingjob_project_active" in job_indexes
     assert "ix_processingjob_project_created" in job_indexes

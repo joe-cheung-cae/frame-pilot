@@ -167,6 +167,13 @@ def _ensure_performance_indexes(engine) -> None:
                 ON photo (project_id, user_status, filename)
                 """
             )
+        if "ix_photo_project_processing_state" not in photo_indexes:
+            statements.append(
+                """
+                CREATE INDEX IF NOT EXISTS ix_photo_project_processing_state
+                ON photo (project_id, processing_state)
+                """
+            )
 
     if inspector.has_table("photogroup"):
         group_indexes = {index["name"] for index in inspector.get_indexes("photogroup")}
