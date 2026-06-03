@@ -9,6 +9,7 @@ FramePilot v2.0 supports CSV, ZIP, and folder exports. XMP sidecar export is pla
 - `folder`: copies selected original project copies into a local export folder and preserves duplicate filenames with deterministic suffixes.
 
 All current exports are derived outputs under the project `exports/` directory. They do not modify original source files.
+ZIP and folder exports require the selected local project copies to exist. If a selected copy is missing, the export is marked failed and partial output is removed when possible.
 
 ## Planned XMP Sidecar Scope
 
