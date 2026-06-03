@@ -70,6 +70,22 @@ def _upload_files(paths: list[Path], stack: ExitStack) -> list[tuple[str, tuple[
     return [("files", (path.name, stack.enter_context(path.open("rb")), "image/jpeg")) for path in paths]
 
 
+def _list_all_pages(client: TestClient, path: str, page_size: int = 500) -> list[dict]:
+    if page_size <= 0:
+        raise ValueError("page_size must be greater than zero")
+
+    records = []
+    offset = 0
+    while True:
+        response = client.get(path, params={"limit": page_size, "offset": offset})
+        response.raise_for_status()
+        page = response.json()
+        records.extend(page)
+        if len(page) < page_size:
+            return records
+        offset += page_size
+
+
 def _artifact_metric(output_path: str) -> dict[str, int]:
     path = Path(output_path)
     if path.is_dir():
@@ -149,12 +165,9 @@ def run_performance_smoke(config: PerformanceSmokeConfig) -> dict:
 
         project_response = client.get(f"/api/projects/{project['id']}")
         project_response.raise_for_status()
-        photos_response = client.get(f"/api/projects/{project['id']}/photos")
-        photos_response.raise_for_status()
-        photo_ids = [photo["id"] for photo in photos_response.json()]
-        groups_response = client.get(f"/api/projects/{project['id']}/groups")
-        groups_response.raise_for_status()
-        groups = groups_response.json()
+        photos = _list_all_pages(client, f"/api/projects/{project['id']}/photos")
+        photo_ids = [photo["id"] for photo in photos]
+        groups = _list_all_pages(client, f"/api/projects/{project['id']}/groups")
 
         started = time.monotonic()
         exports = _export_selected_photos(client, project["id"], photo_ids, config.export_modes)

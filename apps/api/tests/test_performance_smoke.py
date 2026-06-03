@@ -4,10 +4,34 @@ from pathlib import Path
 from app.devtools.performance_smoke import (
     PerformanceSmokeConfig,
     PerformanceSmokeSuiteConfig,
+    _list_all_pages,
     _upload_files,
     run_performance_smoke,
     run_performance_smoke_suite,
 )
+
+
+class FakePagedResponse:
+    def __init__(self, records: list[dict]):
+        self.records = records
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> list[dict]:
+        return self.records
+
+
+class FakePagedClient:
+    def __init__(self, records: list[dict]):
+        self.records = records
+        self.requests: list[tuple[str, dict]] = []
+
+    def get(self, path: str, params: dict) -> FakePagedResponse:
+        self.requests.append((path, params))
+        offset = params["offset"]
+        limit = params["limit"]
+        return FakePagedResponse(self.records[offset : offset + limit])
 
 
 def test_performance_smoke_reports_local_workflow_metrics(tmp_path):
@@ -45,6 +69,27 @@ def test_performance_smoke_upload_files_use_open_file_handles(tmp_path):
         assert [payload[0] for _field, payload in files] == ["first.jpg", "second.jpg"]
         assert all(hasattr(payload[1], "read") for _field, payload in files)
         assert not any(isinstance(payload[1], bytes) for _field, payload in files)
+
+
+def test_performance_smoke_lists_records_in_pages():
+    records = [{"id": f"item-{index}"} for index in range(5)]
+    client = FakePagedClient(records)
+
+    assert _list_all_pages(client, "/items", page_size=2) == records
+    assert client.requests == [
+        ("/items", {"limit": 2, "offset": 0}),
+        ("/items", {"limit": 2, "offset": 2}),
+        ("/items", {"limit": 2, "offset": 4}),
+    ]
+
+
+def test_performance_smoke_rejects_invalid_page_size():
+    try:
+        _list_all_pages(FakePagedClient([]), "/items", page_size=0)
+    except ValueError as error:
+        assert "page_size" in str(error)
+    else:
+        raise AssertionError("Expected invalid page size to be rejected")
 
 
 def test_performance_smoke_suite_reports_multiple_counts(tmp_path):
