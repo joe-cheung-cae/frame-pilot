@@ -173,6 +173,7 @@ let failNextExport = false;
 let failPhotoStatusCounts = false;
 let failJobList = false;
 let failJobDetail = false;
+let failNextProcessingJob = false;
 let processWithFailedItems = false;
 let includeProcessingFailedPhoto = false;
 let failProjectList = false;
@@ -210,6 +211,7 @@ test.beforeEach(async ({ page }) => {
   failPhotoStatusCounts = false;
   failJobList = false;
   failJobDetail = false;
+  failNextProcessingJob = false;
   processWithFailedItems = false;
   includeProcessingFailedPhoto = false;
   failProjectList = false;
@@ -257,6 +259,20 @@ test.beforeEach(async ({ page }) => {
   await page.route(`**/api/projects/${project.id}/process`, async (route) => {
     if (currentProject.total_images === 0) {
       await route.fulfill({ json: { detail: "Import photos before processing this project" }, status: 422 });
+      return;
+    }
+    if (failNextProcessingJob) {
+      failNextProcessingJob = false;
+      currentJob = {
+        ...completedJob,
+        status: "failed",
+        current_step: "failed",
+        processed_items: 0,
+        failed_items: currentProject.total_images,
+        progress_percent: 100,
+        error_message: "Processing interrupted. Review local files and retry.",
+      };
+      await route.fulfill({ json: currentJob, status: 202 });
       return;
     }
     currentProject = { ...currentProject, processed_images: currentProject.total_images };
@@ -660,6 +676,21 @@ test("shows processing job polling errors", async ({ page }) => {
   await expect(
     page.getByText("Could not load processing job status: Processing job status endpoint failed"),
   ).toBeVisible();
+});
+
+test("shows retry action after a failed processing job", async ({ page }) => {
+  failNextProcessingJob = true;
+  await page.goto(`/projects/${project.id}/process`);
+
+  await page.getByRole("button", { name: "Run Grouping and Ranking" }).click();
+
+  await expect(page.getByText("Processing interrupted. Review local files and retry.").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry Grouping and Ranking" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Retry Grouping and Ranking" }).click();
+
+  await expect(page.getByText("3 of 3 photos · 0 failed · 100%").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run Grouping and Ranking" })).toBeVisible();
 });
 
 test("shows completed processing jobs with failed items", async ({ page }) => {

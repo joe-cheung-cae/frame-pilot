@@ -52,6 +52,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   const canOpenCulling = job?.status === "complete" || Boolean(project.data?.processed_images);
   const statusLabel = processingStatusLabel(job?.status);
   const isProcessing = job?.status === "queued" || job?.status === "running" || mutation.isPending;
+  const processingActionLabel = job?.status === "failed" ? "Retry Grouping and Ranking" : "Run Grouping and Ranking";
   const canLoadMoreJobs = (jobsQuery.data?.length ?? 0) >= jobLimit;
   const jobFailureNotice = processingFailureNotice(job);
   const processingFailuresHref = `/projects/${projectId}/cull?filter=${encodeURIComponent(PROCESSING_FAILURE_FILTER)}`;
@@ -113,7 +114,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           onClick={() => mutation.mutate()}
         >
           {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
-          Run Grouping and Ranking
+          {processingActionLabel}
         </button>
         {!hasImportedPhotos ? (
           <Link
