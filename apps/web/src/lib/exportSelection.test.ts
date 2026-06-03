@@ -5,6 +5,7 @@ import {
   countPhotosByStatus,
   EXPORT_STATUSES,
   formatExportStatusSummary,
+  isExportDownloadable,
   selectedPhotoCount,
   type ExportStatus,
 } from "./exportSelection.ts";
@@ -35,4 +36,12 @@ test("formats export status summaries from stored JSON", () => {
   assert.equal(formatExportStatusSummary('["Maybe","Pick"]'), "Pick, Maybe");
   assert.equal(formatExportStatusSummary("[]"), "No statuses");
   assert.equal(formatExportStatusSummary("not json"), "Unknown statuses");
+});
+
+test("allows downloads only for completed file exports", () => {
+  assert.equal(isExportDownloadable({ mode: "csv", status: "complete" }), true);
+  assert.equal(isExportDownloadable({ mode: "zip", status: "complete" }), true);
+  assert.equal(isExportDownloadable({ mode: "folder", status: "complete" }), false);
+  assert.equal(isExportDownloadable({ mode: "csv", status: "failed" }), false);
+  assert.equal(isExportDownloadable({ mode: "zip", status: "running" }), false);
 });

@@ -1,4 +1,4 @@
-import type { Photo } from "@/lib/api";
+import type { ExportRecord, Photo } from "@/lib/api";
 
 export type ExportStatus = Photo["user_status"];
 
@@ -30,4 +30,8 @@ export function formatExportStatusSummary(rawStatuses: string): string {
 
   const selected = EXPORT_STATUSES.filter((status) => parsed.includes(status));
   return selected.length ? selected.join(", ") : "No statuses";
+}
+
+export function isExportDownloadable(record: Pick<ExportRecord, "mode" | "status">): boolean {
+  return record.status === "complete" && record.mode !== "folder";
 }

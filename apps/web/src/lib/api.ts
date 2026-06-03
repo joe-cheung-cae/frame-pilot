@@ -82,7 +82,7 @@ export type ExportRecord = {
   id: string;
   project_id: string;
   mode: "csv" | "folder" | "zip";
-  status: string;
+  status: "running" | "complete" | "failed";
   selected_count: number;
   statuses: string;
   output_path: string;

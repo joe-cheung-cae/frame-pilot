@@ -8,6 +8,7 @@ import {
   countPhotosByStatus,
   EXPORT_STATUSES,
   formatExportStatusSummary,
+  isExportDownloadable,
   selectedPhotoCount,
   type ExportStatus,
 } from "@/lib/exportSelection";
@@ -111,7 +112,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
             {mutation.data.mode === "folder" ? ` to ${mutation.data.output_path}` : "."}
           </p>
           <p className="text-neutral-600">Statuses: {formatExportStatusSummary(mutation.data.statuses)}</p>
-          {mutation.data.mode === "folder" ? null : (
+          {isExportDownloadable(mutation.data) ? (
             <a
               className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-4 py-2 font-medium text-white"
               href={exportDownloadUrl(projectId, mutation.data.id)}
@@ -119,7 +120,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
               <Download size={16} />
               Download {mutation.data.mode.toUpperCase()}
             </a>
-          )}
+          ) : null}
         </div>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
@@ -138,11 +139,14 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                 <div>
                   <p className="font-medium">
                     {record.mode.toUpperCase()} · {record.selected_count} photos
+                    <span className={record.status === "failed" ? "ml-2 text-coral" : "ml-2 text-neutral-500"}>
+                      {record.status}
+                    </span>
                   </p>
                   <p className="text-neutral-600">Statuses: {formatExportStatusSummary(record.statuses)}</p>
                   <p className="text-neutral-600">{record.output_path}</p>
                 </div>
-                {record.mode === "folder" ? null : (
+                {isExportDownloadable(record) ? (
                   <a
                     className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-3 py-2 font-medium text-white"
                     href={exportDownloadUrl(projectId, record.id)}
@@ -150,7 +154,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                     <Download size={16} />
                     Download
                   </a>
-                )}
+                ) : null}
               </div>
             ))}
           </div>
