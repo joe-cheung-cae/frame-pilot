@@ -166,15 +166,23 @@ def get_job_endpoint(project_id: str, job_id: str, session: Session = Depends(ge
 
 
 @router.get("/projects/{project_id}/jobs", response_model=list[JobRead])
-def list_jobs_endpoint(project_id: str, session: Session = Depends(get_session)):
+def list_jobs_endpoint(
+    project_id: str,
+    limit: int | None = Query(default=None, ge=1, le=5000),
+    offset: int = Query(default=0, ge=0),
+    session: Session = Depends(get_session),
+):
     _get_project(session, project_id)
-    return list(
-        session.exec(
-            select(ProcessingJob)
-            .where(ProcessingJob.project_id == project_id)
-            .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
-        ).all()
+    statement = (
+        select(ProcessingJob)
+        .where(ProcessingJob.project_id == project_id)
+        .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
     )
+    if offset:
+        statement = statement.offset(offset)
+    if limit is not None:
+        statement = statement.limit(limit)
+    return list(session.exec(statement).all())
 
 
 @router.get("/projects/{project_id}/photos", response_model=list[PhotoRead])

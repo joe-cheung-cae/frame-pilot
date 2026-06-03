@@ -482,18 +482,30 @@ def test_list_jobs_returns_project_jobs_newest_first(tmp_path, monkeypatch):
             current_step="failed",
             created_at=datetime(2026, 1, 1, 11, 0, 0, tzinfo=UTC),
         )
+        newest_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="complete",
+            current_step="complete",
+            created_at=datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC),
+        )
         other_job = ProcessingJob(project_id=other_project["id"], job_type="processing", status="running")
         session.add(older_job)
         session.add(newer_job)
+        session.add(newest_job)
         session.add(other_job)
         session.commit()
         older_job_id = older_job.id
         newer_job_id = newer_job.id
+        newest_job_id = newest_job.id
 
     response = client.get(f"/api/projects/{project['id']}/jobs")
+    page_response = client.get(f"/api/projects/{project['id']}/jobs?limit=1&offset=1")
 
     assert response.status_code == 200
-    assert [job["id"] for job in response.json()] == [newer_job_id, older_job_id]
+    assert [job["id"] for job in response.json()] == [newest_job_id, newer_job_id, older_job_id]
+    assert page_response.status_code == 200
+    assert [job["id"] for job in page_response.json()] == [newer_job_id]
 
 
 def test_process_fails_stale_active_job_and_starts_replacement(tmp_path, monkeypatch):
