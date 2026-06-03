@@ -230,6 +230,8 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "width": 4000,
             "height": 3000,
             "recommendation_explanation": "Recommended because it is sharp.",
+            "processing_state": "processed",
+            "processing_error": None,
         },
         {
             "filename": "b.jpg",
@@ -249,6 +251,8 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "width": 4000,
             "height": 3000,
             "recommendation_explanation": "Rejected because it is weaker.",
+            "processing_state": "failed",
+            "processing_error": "Missing generated preview",
         },
     ]
 
@@ -283,6 +287,8 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "width": "4000",
             "height": "3000",
             "recommendation_explanation": "Recommended because it is sharp.",
+            "processing_state": "processed",
+            "processing_error": "",
         },
         {
             "filename": "b.jpg",
@@ -309,6 +315,8 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "width": "4000",
             "height": "3000",
             "recommendation_explanation": "Rejected because it is weaker.",
+            "processing_state": "failed",
+            "processing_error": "Missing generated preview",
         },
     ]
 

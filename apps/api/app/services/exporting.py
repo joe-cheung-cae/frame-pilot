@@ -73,6 +73,8 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
                 "width",
                 "height",
                 "recommendation_explanation",
+                "processing_state",
+                "processing_error",
             ],
         )
         writer.writeheader()
@@ -105,6 +107,8 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
                     "width": photo.get("width", 0),
                     "height": photo.get("height", 0),
                     "recommendation_explanation": photo.get("recommendation_explanation", ""),
+                    "processing_state": photo.get("processing_state", ""),
+                    "processing_error": photo.get("processing_error") or "",
                 }
             )
     return target
