@@ -36,6 +36,9 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       <div>
         <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
         <h1 className="mt-1 text-3xl font-semibold">Import Images</h1>
+        {project.data?.root_path ? (
+          <p className="mt-2 break-all text-sm text-neutral-600">Project data: {project.data.root_path}</p>
+        ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="focus-within:ring-2 focus-within:ring-leaf grid min-h-56 cursor-pointer place-items-center rounded border border-dashed border-line bg-white p-8 text-center">

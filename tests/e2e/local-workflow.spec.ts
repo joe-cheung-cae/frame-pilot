@@ -443,6 +443,7 @@ test("creates a project and opens the import step", async ({ page }) => {
 
 test("shows imported thumbnails before processing", async ({ page }) => {
   await page.goto(`/projects/${project.id}/import`);
+  await expect(page.getByText(`Project data: ${project.root_path}`)).toBeVisible();
   await page.getByLabel("Choose image files").setInputFiles({
     name: "uploaded-frame.jpg",
     mimeType: "image/jpeg",
