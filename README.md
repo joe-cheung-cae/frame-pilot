@@ -1,8 +1,8 @@
 # FramePilot
 
-FramePilot is a local-first AI-assisted photo culling web app. The MVP keeps originals on the user's machine, generates local previews, computes explainable technical scores, groups similar frames, recommends the strongest image in each group, and lets the user override every decision.
+FramePilot is a local-first AI-assisted photo culling web app. The current v2 foundation keeps originals on the user's machine, generates local previews, computes explainable technical scores, groups similar frames, recommends the strongest image in each group, and lets the user override every decision.
 
-## Current MVP
+## Current v2 Foundation
 
 - Next.js, React, TypeScript, Tailwind CSS frontend.
 - FastAPI, Pydantic, SQLModel, SQLite backend.
@@ -88,9 +88,10 @@ See [FramePilot v2 Testing Strategy](docs/v2_testing_strategy.md) for the expect
 See [FramePilot v2 Performance Baseline](docs/v2_performance_baseline.md) for the latest recorded synthetic large-batch smoke result.
 See [FramePilot v2 Migration Plan](docs/v2_migration_plan.md) for schema, storage, API, and project data migration rules.
 See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for grouping, ranking, explanation, and optional model policy.
+See [FramePilot v2 Iteration Review](docs/v2_iteration_review.md) for the latest repository status, verification notes, and remaining risks.
 
 ## Privacy
 
-The MVP does not upload originals or generated previews to any remote service. Imported images are copied into the local project directory so originals are never modified.
+The v2 foundation does not upload originals or generated previews to any remote service. Imported images are copied into the local project directory so originals are never modified.
 
-Experimental face and eye-open scores are computed locally with a deterministic color and luminance heuristic. They are MVP ranking hints, not a bundled professional face detection or biometric model.
+Experimental face and eye-open scores are computed locally with a deterministic color and luminance heuristic. They are local ranking hints, not a bundled professional face detection or biometric model.
