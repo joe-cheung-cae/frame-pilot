@@ -21,6 +21,7 @@ Recent high-value changes:
 - Culling workspace entry, selection, filter-reset, metadata row, score row, group summary, and header summary rules now live in tested helper modules.
 - Grouping now considers filename-sorted candidate windows as well as capture-time order, which protects burst-like frames with missing capture metadata.
 - Weak single-image groups now receive conservative Maybe recommendations instead of overconfident Pick recommendations.
+- Deterministic grouping and ranking thresholds are documented in the algorithm and scoring docs.
 - v2.0 accepts the current local in-process job architecture; a separate worker is deferred until real-scale validation proves it is needed.
 
 ## Repository State
@@ -29,6 +30,7 @@ Current branch: `feature/v2-performance-iteration`
 
 Recent commits reviewed:
 
+- `63b34e9 docs: document deterministic culling thresholds`
 - `c40c3b9 test: cover culling header summary`
 - `7539d93 test: cover culling group summary rows`
 - `8c6ae02 docs: refresh culling score row coverage`
@@ -69,7 +71,7 @@ Tracked generated/private-file check:
 | v2.1 Processing and Progress | Strong | `ProcessingJob`, `/jobs`, import progress, stale recovery tests | In-process jobs are accepted for v2.0; a separate worker is deferred pending real-scale evidence |
 | v2.2 Culling Workspace | Mostly complete | keyboard shortcuts, compare/zoom, bounded filmstrip/group windows, tested state helpers, 2,000 seeded E2E | `CullingWorkspace.tsx` remains large and not component-tested |
 | v2.3 Export and Interoperability | Mostly complete | CSV/ZIP/folder export, history, download endpoints, path safety tests | XMP sidecar export remains planned only; exports are synchronous |
-| v2.4 Algorithm Quality | Mostly complete for deterministic MVP | grouping/ranking/scoring tests and docs, filename-window grouping, conservative singleton ranking | Needs real-photo-like fixture validation and threshold reporting |
+| v2.4 Algorithm Quality | Mostly complete for deterministic MVP | grouping/ranking/scoring tests and docs, filename-window grouping, conservative singleton ranking, documented thresholds | Needs real-photo-like fixture validation |
 | v2.5 Performance and Reliability | Improved | API perf smoke, browser perf instrumentation, stale recovery, 100/500 real browser-backend runs | 2,000 real browser-backend run remains unattempted |
 | v2.6 Optional Advanced Support | Deferred | unsupported HEIC/RAW messages and docs | HEIC/RAW/model support intentionally not implemented |
 
@@ -127,7 +129,7 @@ These warnings are not current failures, but they remain useful cleanup candidat
 | priority | area | risk | next mitigation |
 | --- | --- | --- | --- |
 | P1 | Durable jobs | Import and processing work can still be interrupted by local API process exits | v2.0 accepts in-process jobs; revisit a worker after 1,000- to 2,000-photo real browser-backend validation |
-| P1 | Real-photo validation | Synthetic images do not prove photographer-quality grouping/ranking | Add non-private realistic fixture families and threshold notes |
+| P1 | Real-photo validation | Synthetic images do not prove photographer-quality grouping/ranking | Add non-private realistic fixture families and validation notes |
 | P1 | Real browser scale | Seeded 2,000-photo UI passes, but 2,000 real browser-backend import/process/review is unmeasured | Run/manual-document a 2,000 real browser-backend validation after import bottlenecks are acceptable |
 | P2 | Workspace maintainability | `CullingWorkspace.tsx` is still 865 lines | Extract controller/helper logic and add focused tests |
 | P2 | Route/test size | `routes.py`, `processing.py`, API tests, and E2E tests are large | Split by route/workflow only after behavior stabilizes |
