@@ -363,13 +363,14 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
     except Exception as error:
         session.rollback()
         _remove_partial_export(target, export_root)
+        error_message = str(error) if isinstance(error, FileNotFoundError) and str(error) else "Export failed"
         record.status = "failed"
         record.output_path = str(target)
-        record.error_message = "Export failed"
+        record.error_message = error_message
         record.completed_at = utc_now()
         session.add(record)
         session.commit()
-        raise HTTPException(status_code=500, detail="Export failed") from error
+        raise HTTPException(status_code=500, detail=error_message) from error
 
     record.status = "complete"
     record.output_path = str(output_path)

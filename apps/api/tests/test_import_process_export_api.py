@@ -1559,14 +1559,15 @@ def test_file_export_fails_when_selected_original_is_missing(tmp_path, monkeypat
     response = client.post(f"/api/projects/{project['id']}/exports", json={"mode": "zip", "statuses": ["Pick"]})
 
     assert response.status_code == 500
-    assert response.json()["detail"] == "Export failed"
+    expected_error = f"Original file is missing: {missing_original}"
+    assert response.json()["detail"] == expected_error
     history = client.get(f"/api/projects/{project['id']}/exports").json()
     assert len(history) == 1
     record = history[0]
     assert record["mode"] == "zip"
     assert record["status"] == "failed"
     assert record["selected_count"] == 1
-    assert record["error_message"] == "Export failed"
+    assert record["error_message"] == expected_error
     assert record["output_path"].endswith(".zip")
     assert not Path(record["output_path"]).exists()
 
