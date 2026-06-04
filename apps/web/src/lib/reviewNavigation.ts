@@ -7,6 +7,17 @@ export type ReviewGroupRef = {
   representative_photo_id: string | null;
 };
 
+export type ReviewGroupedPhotoRef = ReviewPhotoRef & {
+  group_id: string | null;
+};
+
+export type ReviewSelectionState<TPhoto extends ReviewGroupedPhotoRef, TGroup extends ReviewGroupRef> = {
+  activeIndex: number;
+  activePhoto: TPhoto | null;
+  activeGroup: TGroup | null;
+  compareCandidates: readonly TPhoto[];
+};
+
 export function nextPhotoIdAfterMark(
   visiblePhotos: readonly ReviewPhotoRef[],
   activePhotoId: string | null,
@@ -42,6 +53,35 @@ export function groupAfterMove(
   const resolvedIndex = activeIndex;
   const nextIndex = Math.min(Math.max(resolvedIndex + delta, 0), groups.length - 1);
   return groups[nextIndex];
+}
+
+export function reviewSelectionState<TPhoto extends ReviewGroupedPhotoRef, TGroup extends ReviewGroupRef>({
+  activeGroupId,
+  activePhotoId,
+  filteredPhotos,
+  groups,
+  visiblePhotos,
+}: {
+  activeGroupId: string | null;
+  activePhotoId: string | null;
+  filteredPhotos: readonly TPhoto[];
+  groups: readonly TGroup[];
+  visiblePhotos: readonly TPhoto[];
+}): ReviewSelectionState<TPhoto, TGroup> {
+  const activeIndex = Math.max(
+    0,
+    visiblePhotos.findIndex((photo) => photo.id === activePhotoId),
+  );
+  const activePhoto = visiblePhotos[activeIndex] ?? visiblePhotos[0] ?? null;
+  const groupId = activePhoto?.group_id ?? activeGroupId;
+  const activeGroup = groupId ? (groups.find((group) => group.id === groupId) ?? null) : null;
+  const compareCandidates = activeGroup
+    ? filteredPhotos.filter((photo) => photo.group_id === activeGroup.id)
+    : activePhoto
+      ? [activePhoto]
+      : [];
+
+  return { activeGroup, activeIndex, activePhoto, compareCandidates };
 }
 
 export function windowedPhotoRefs<T extends ReviewPhotoRef>(

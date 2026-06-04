@@ -4,9 +4,11 @@ import assert from "node:assert/strict";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
+  reviewSelectionState,
   windowedCompareRefs,
   windowedGroupRefs,
   windowedPhotoRefs,
+  type ReviewGroupedPhotoRef,
   type ReviewGroupRef,
   type ReviewPhotoRef,
 } from "./reviewNavigation.ts";
@@ -16,6 +18,12 @@ const groups: ReviewGroupRef[] = [
   { id: "group-1", representative_photo_id: "first" },
   { id: "group-2", representative_photo_id: "second" },
   { id: "group-3", representative_photo_id: null },
+];
+const groupedPhotos: ReviewGroupedPhotoRef[] = [
+  { id: "first", group_id: "group-1" },
+  { id: "second", group_id: "group-1" },
+  { id: "third", group_id: "group-2" },
+  { id: "ungrouped", group_id: null },
 ];
 
 test("advances to the next visible photo after marking", () => {
@@ -58,6 +66,78 @@ test("starts group navigation from the first group when no group is active", () 
 
 test("returns null when there are no groups", () => {
   assert.equal(groupAfterMove([], "missing", 1), null);
+});
+
+test("resolves active review selection from visible photos", () => {
+  assert.deepEqual(
+    reviewSelectionState({
+      activeGroupId: null,
+      activePhotoId: "second",
+      filteredPhotos: groupedPhotos,
+      groups,
+      visiblePhotos: groupedPhotos,
+    }),
+    {
+      activeGroup: groups[0],
+      activeIndex: 1,
+      activePhoto: groupedPhotos[1],
+      compareCandidates: groupedPhotos.slice(0, 2),
+    },
+  );
+});
+
+test("falls back to the first visible photo for stale active review selections", () => {
+  assert.deepEqual(
+    reviewSelectionState({
+      activeGroupId: null,
+      activePhotoId: "missing",
+      filteredPhotos: groupedPhotos,
+      groups,
+      visiblePhotos: groupedPhotos,
+    }),
+    {
+      activeGroup: groups[0],
+      activeIndex: 0,
+      activePhoto: groupedPhotos[0],
+      compareCandidates: groupedPhotos.slice(0, 2),
+    },
+  );
+});
+
+test("keeps a selected group when the current filter hides its photos", () => {
+  assert.deepEqual(
+    reviewSelectionState({
+      activeGroupId: "group-2",
+      activePhotoId: "third",
+      filteredPhotos: groupedPhotos.slice(0, 2),
+      groups,
+      visiblePhotos: [],
+    }),
+    {
+      activeGroup: groups[1],
+      activeIndex: 0,
+      activePhoto: null,
+      compareCandidates: [],
+    },
+  );
+});
+
+test("uses the active photo as the only compare candidate without an active group", () => {
+  assert.deepEqual(
+    reviewSelectionState({
+      activeGroupId: null,
+      activePhotoId: "ungrouped",
+      filteredPhotos: groupedPhotos,
+      groups,
+      visiblePhotos: groupedPhotos,
+    }),
+    {
+      activeGroup: null,
+      activeIndex: 3,
+      activePhoto: groupedPhotos[3],
+      compareCandidates: [groupedPhotos[3]],
+    },
+  );
 });
 
 test("returns every photo when the filmstrip fits inside the window", () => {

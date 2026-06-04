@@ -30,6 +30,7 @@ import { photoMatchesReviewFilter, REVIEW_FILTERS } from "@/lib/reviewFilters";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
+  reviewSelectionState,
   windowedCompareRefs,
   windowedGroupRefs,
   windowedPhotoRefs,
@@ -101,27 +102,24 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     }
     return filteredPhotos.filter((photo) => photo.group_id === activeGroupId);
   }, [activeGroupId, filteredPhotos]);
-  const activeIndex = Math.max(
-    0,
-    visiblePhotos.findIndex((photo) => photo.id === activePhotoId),
+  const selection = useMemo(
+    () =>
+      reviewSelectionState({
+        activeGroupId,
+        activePhotoId,
+        filteredPhotos,
+        groups,
+        visiblePhotos,
+      }),
+    [activeGroupId, activePhotoId, filteredPhotos, groups, visiblePhotos],
   );
-  const activePhoto = visiblePhotos[activeIndex] ?? visiblePhotos[0] ?? null;
-  const activeGroup = useMemo(() => {
-    const groupId = activePhoto?.group_id ?? activeGroupId;
-    return groupId ? (groups.find((group) => group.id === groupId) ?? null) : null;
-  }, [activeGroupId, activePhoto?.group_id, groups]);
+  const { activeGroup, activeIndex, activePhoto, compareCandidates } = selection;
   const groupIndexById = useMemo(() => new Map(groups.map((group, index) => [group.id, index])), [groups]);
   const activeGroupIndex = activeGroup ? (groupIndexById.get(activeGroup.id) ?? -1) : -1;
   const activeGroupSummary = useMemo(
     () => parseGroupScoreSummary(activeGroup?.score_summary),
     [activeGroup?.score_summary],
   );
-  const compareCandidates = useMemo(() => {
-    if (!activeGroup) {
-      return activePhoto ? [activePhoto] : [];
-    }
-    return filteredPhotos.filter((photo) => photo.group_id === activeGroup.id);
-  }, [activeGroup, activePhoto, filteredPhotos]);
   const comparePhotos = useMemo(
     () => windowedCompareRefs(compareCandidates, activePhoto?.id ?? null, COMPARE_WINDOW_SIZE),
     [activePhoto?.id, compareCandidates],
