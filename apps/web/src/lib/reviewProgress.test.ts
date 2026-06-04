@@ -5,6 +5,7 @@ import {
   DEFAULT_REVIEW_PROGRESS,
   normalizeReviewProgress,
   parseReviewProgress,
+  reviewProgressAfterFilterChange,
   reviewProgressForEntry,
   reviewProgressStorageKey,
 } from "./reviewProgress.ts";
@@ -113,4 +114,28 @@ test("applies requested review filters to fallback entry progress", () => {
     ...DEFAULT_REVIEW_PROGRESS,
     filter: "Maybes",
   });
+});
+
+test("clears active group when changing review filters", () => {
+  assert.deepEqual(
+    reviewProgressAfterFilterChange(
+      {
+        activeGroupId: "group-1",
+        activePhotoId: "photo-1",
+        compareMode: true,
+        filter: "Picks",
+        largePreview: true,
+        zoomPreview: true,
+      },
+      "Maybes",
+    ),
+    {
+      activeGroupId: null,
+      activePhotoId: "photo-1",
+      compareMode: true,
+      filter: "Maybes",
+      largePreview: true,
+      zoomPreview: true,
+    },
+  );
 });

@@ -72,3 +72,11 @@ export function reviewProgressForEntry(
     filter: validRequestedFilter ?? storedProgress.filter,
   };
 }
+
+export function reviewProgressAfterFilterChange(progress: ReviewProgress, filter: string): ReviewProgress {
+  return {
+    ...progress,
+    activeGroupId: null,
+    filter,
+  };
+}
