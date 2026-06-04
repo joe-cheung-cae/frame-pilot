@@ -1,5 +1,9 @@
 import hashlib
 import json
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO
@@ -18,6 +22,40 @@ PLANNED_RAW_EXTENSIONS = {".arw", ".cr3", ".dng", ".nef"}
 EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 CONTENT_HASH_CHUNK_SIZE = 1024 * 1024
 IMPORT_COPY_CHUNK_SIZE = 1024 * 1024
+
+
+@dataclass
+class ImportStageTiming:
+    calls: int = 0
+    seconds: float = 0.0
+
+
+@dataclass
+class ImportTimingCollector:
+    stages: dict[str, ImportStageTiming] = field(default_factory=dict)
+
+    def record(self, stage: str, seconds: float) -> None:
+        current = self.stages.setdefault(stage, ImportStageTiming())
+        current.calls += 1
+        current.seconds += seconds
+
+    def summary(self) -> dict[str, dict[str, int | float]]:
+        return {
+            stage: {"calls": timing.calls, "seconds": round(timing.seconds, 6)} for stage, timing in self.stages.items()
+        }
+
+
+@contextmanager
+def import_timing_stage(timing: ImportTimingCollector | None, stage: str) -> Iterator[None]:
+    if timing is None:
+        yield
+        return
+
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        timing.record(stage, time.perf_counter() - started)
 
 
 def is_supported_image(filename: str) -> bool:
@@ -107,7 +145,12 @@ def _extract_metadata(image: Image.Image) -> dict:
     }
 
 
-def _save_derivatives(project_root: Path, source: Path, image: Image.Image) -> tuple[Path, Path]:
+def _save_derivatives(
+    project_root: Path,
+    source: Path,
+    image: Image.Image,
+    timing: ImportTimingCollector | None = None,
+) -> tuple[Path, Path]:
     thumbnail_dir = project_root / "thumbnails"
     preview_dir = project_root / "previews"
     thumbnail_dir.mkdir(parents=True, exist_ok=True)
@@ -116,13 +159,15 @@ def _save_derivatives(project_root: Path, source: Path, image: Image.Image) -> t
     thumbnail_path = _unique_path(thumbnail_dir, f"{source.stem}.webp")
     preview_path = _unique_path(preview_dir, f"{source.stem}.webp")
 
-    thumb = image.copy()
-    thumb.thumbnail((320, 320))
-    thumb.save(thumbnail_path, "WEBP", quality=82)
+    with import_timing_stage(timing, "thumbnail_generation"):
+        thumb = image.copy()
+        thumb.thumbnail((320, 320))
+        thumb.save(thumbnail_path, "WEBP", quality=82)
 
-    preview = image.copy()
-    preview.thumbnail((1800, 1800))
-    preview.save(preview_path, "WEBP", quality=88)
+    with import_timing_stage(timing, "preview_generation"):
+        preview = image.copy()
+        preview.thumbnail((1800, 1800))
+        preview.save(preview_path, "WEBP", quality=88)
     return thumbnail_path, preview_path
 
 
@@ -201,73 +246,92 @@ def import_image_file(
     filename: str,
     file: BinaryIO,
     invalidate_processing: bool = True,
+    timing: ImportTimingCollector | None = None,
 ) -> Photo:
-    if not is_supported_image(filename):
-        raise ValueError(unsupported_image_reason(filename))
-
-    project_root = Path(project.root_path)
-    safe_name = Path(filename).name
-    originals_dir = project_root / "originals"
-    originals_dir.mkdir(parents=True, exist_ok=True)
-    source_path = _unique_path(originals_dir, safe_name)
-    _copy_file_to_path(file, source_path)
-
-    thumbnail_path: Path | None = None
-    preview_path: Path | None = None
+    total_started = time.perf_counter()
     try:
-        with Image.open(source_path) as opened:
-            metadata = _extract_metadata(opened)
-            image = ImageOps.exif_transpose(opened).convert("RGB")
-            width, height = image.size
-            thumbnail_path, preview_path = _save_derivatives(project_root, source_path, image)
-            scores = compute_quality_scores(np.asarray(image))
-            embedding = image_embedding(image)
-            p_hash = perceptual_hash(image)
-    except (UnidentifiedImageError, OSError) as error:
-        _cleanup_paths(source_path, thumbnail_path, preview_path)
-        raise ValueError("Uploaded file could not be opened as a supported image") from error
-    except Exception as error:
-        _cleanup_paths(source_path, thumbnail_path, preview_path)
-        raise ValueError("Uploaded image could not be processed") from error
+        if not is_supported_image(filename):
+            raise ValueError(unsupported_image_reason(filename))
 
-    source_stat = source_path.stat()
-    content_hash = _file_sha256(source_path)
+        project_root = Path(project.root_path)
+        safe_name = Path(filename).name
+        originals_dir = project_root / "originals"
+        originals_dir.mkdir(parents=True, exist_ok=True)
+        source_path = _unique_path(originals_dir, safe_name)
+        with import_timing_stage(timing, "file_copy"):
+            _copy_file_to_path(file, source_path)
 
-    photo = Photo(
-        project_id=project.id,
-        original_path=str(source_path),
-        project_copy_path=str(source_path),
-        source_identity=f"sha256:{content_hash}",
-        filename=source_path.name,
-        file_ext=source_path.suffix.lower(),
-        file_size=source_stat.st_size,
-        file_mtime=source_stat.st_mtime,
-        content_hash=content_hash,
-        width=width,
-        height=height,
-        thumbnail_path=str(thumbnail_path),
-        preview_path=str(preview_path),
-        perceptual_hash=p_hash,
-        sharpness_score=scores.sharpness_score,
-        blur_score=scores.blur_score,
-        exposure_score=scores.exposure_score,
-        contrast_score=scores.contrast_score,
-        noise_score=scores.noise_score,
-        face_presence=scores.face_presence,
-        face_sharpness_score=scores.face_sharpness_score,
-        eye_open_confidence=scores.eye_open_confidence,
-        face_quality_score=scores.face_quality_score,
-        aesthetic_score=scores.aesthetic_score,
-        overall_score=scores.overall_score,
-        embedding=json.dumps(embedding),
-        **metadata,
-    )
-    session.add(photo)
-    if invalidate_processing:
-        invalidate_project_processing(session, project)
-    project.total_images += 1
-    project.updated_at = utc_now()
-    session.add(project)
-    session.commit()
-    session.refresh(photo)
-    return photo
+        thumbnail_path: Path | None = None
+        preview_path: Path | None = None
+        try:
+            with import_timing_stage(timing, "image_open"):
+                opened_image = Image.open(source_path)
+            with opened_image as opened:
+                with import_timing_stage(timing, "metadata_extraction"):
+                    metadata = _extract_metadata(opened)
+                with import_timing_stage(timing, "image_decode"):
+                    image = ImageOps.exif_transpose(opened).convert("RGB")
+                width, height = image.size
+                thumbnail_path, preview_path = _save_derivatives(project_root, source_path, image, timing=timing)
+                with import_timing_stage(timing, "quality_scoring"):
+                    scores = compute_quality_scores(np.asarray(image))
+                with import_timing_stage(timing, "embedding_generation"):
+                    embedding = image_embedding(image)
+                with import_timing_stage(timing, "perceptual_hash"):
+                    p_hash = perceptual_hash(image)
+        except (UnidentifiedImageError, OSError) as error:
+            _cleanup_paths(source_path, thumbnail_path, preview_path)
+            raise ValueError("Uploaded file could not be opened as a supported image") from error
+        except Exception as error:
+            _cleanup_paths(source_path, thumbnail_path, preview_path)
+            raise ValueError("Uploaded image could not be processed") from error
+
+        with import_timing_stage(timing, "file_stat"):
+            source_stat = source_path.stat()
+        with import_timing_stage(timing, "content_hash"):
+            content_hash = _file_sha256(source_path)
+
+        with import_timing_stage(timing, "db_record_create"):
+            photo = Photo(
+                project_id=project.id,
+                original_path=str(source_path),
+                project_copy_path=str(source_path),
+                source_identity=f"sha256:{content_hash}",
+                filename=source_path.name,
+                file_ext=source_path.suffix.lower(),
+                file_size=source_stat.st_size,
+                file_mtime=source_stat.st_mtime,
+                content_hash=content_hash,
+                width=width,
+                height=height,
+                thumbnail_path=str(thumbnail_path),
+                preview_path=str(preview_path),
+                perceptual_hash=p_hash,
+                sharpness_score=scores.sharpness_score,
+                blur_score=scores.blur_score,
+                exposure_score=scores.exposure_score,
+                contrast_score=scores.contrast_score,
+                noise_score=scores.noise_score,
+                face_presence=scores.face_presence,
+                face_sharpness_score=scores.face_sharpness_score,
+                eye_open_confidence=scores.eye_open_confidence,
+                face_quality_score=scores.face_quality_score,
+                aesthetic_score=scores.aesthetic_score,
+                overall_score=scores.overall_score,
+                embedding=json.dumps(embedding),
+                **metadata,
+            )
+            session.add(photo)
+            if invalidate_processing:
+                invalidate_project_processing(session, project)
+            project.total_images += 1
+            project.updated_at = utc_now()
+            session.add(project)
+
+        with import_timing_stage(timing, "db_commit"):
+            session.commit()
+            session.refresh(photo)
+        return photo
+    finally:
+        if timing is not None:
+            timing.record("import_file_total", time.perf_counter() - total_started)

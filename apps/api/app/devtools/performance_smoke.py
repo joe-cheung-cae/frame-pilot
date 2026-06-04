@@ -18,6 +18,7 @@ from app.devtools.synthetic_dataset import SyntheticDatasetConfig, generate_synt
 from app.main import create_app
 
 DEFAULT_EXPORT_MODES = ("csv", "zip", "folder")
+IMPORT_TOTAL_STAGE_NAMES = {"import_endpoint_total", "import_file_total"}
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,51 @@ def _artifact_metric(output_path: str) -> dict[str, int]:
     raise FileNotFoundError(f"Export artifact was not written: {output_path}")
 
 
+def _aggregate_import_timing(batch_timings: list[dict]) -> dict:
+    totals = {
+        "batch_count": len(batch_timings),
+        "total_files": 0,
+        "imported_files": 0,
+        "skipped_files": 0,
+        "total_seconds": 0.0,
+    }
+    stages: dict[str, dict[str, int | float]] = {}
+
+    for batch in batch_timings:
+        totals["total_files"] += int(batch.get("total_files", 0))
+        totals["imported_files"] += int(batch.get("imported_files", 0))
+        totals["skipped_files"] += int(batch.get("skipped_files", 0))
+        totals["total_seconds"] += float(batch.get("total_seconds", 0.0))
+
+        for stage, timing in batch.get("stages", {}).items():
+            current = stages.setdefault(stage, {"calls": 0, "seconds": 0.0})
+            current["calls"] += int(timing.get("calls", 0))
+            current["seconds"] += float(timing.get("seconds", 0.0))
+
+    imported_files = int(totals["imported_files"])
+    normalized_stages = {}
+    for stage, timing in sorted(stages.items()):
+        seconds = round(float(timing["seconds"]), 3)
+        normalized_stages[stage] = {
+            "calls": int(timing["calls"]),
+            "seconds": seconds,
+            "seconds_per_imported_file": round(seconds / imported_files, 6) if imported_files else None,
+        }
+
+    slowest_stages = [
+        {"stage": stage, **timing}
+        for stage, timing in sorted(normalized_stages.items(), key=lambda item: item[1]["seconds"], reverse=True)
+        if stage not in IMPORT_TOTAL_STAGE_NAMES
+    ]
+
+    return {
+        **totals,
+        "total_seconds": round(float(totals["total_seconds"]), 3),
+        "stages": normalized_stages,
+        "slowest_stages": slowest_stages[:8],
+    }
+
+
 def _export_selected_photos(client: TestClient, project_id: str, photo_ids: list[str], modes: tuple[str, ...]) -> dict:
     if not modes:
         return {}
@@ -150,12 +196,21 @@ def run_performance_smoke(config: PerformanceSmokeConfig) -> dict:
 
         started = time.monotonic()
         imported_count = 0
+        import_timing_batches = []
         for batch in _chunked(paths, config.import_batch_size):
             with ExitStack() as stack:
-                response = client.post(f"/api/projects/{project['id']}/import", files=_upload_files(batch, stack))
+                response = client.post(
+                    f"/api/projects/{project['id']}/import",
+                    params={"include_timing": "true"},
+                    files=_upload_files(batch, stack),
+                )
             response.raise_for_status()
-            imported_count += len(response.json()["imported"])
+            import_result = response.json()
+            imported_count += len(import_result["imported"])
+            if import_result.get("timing"):
+                import_timing_batches.append(import_result["timing"])
         timings["import_seconds"] = round(time.monotonic() - started, 3)
+        import_timing = _aggregate_import_timing(import_timing_batches)
 
         started = time.monotonic()
         process_response = client.post(f"/api/projects/{project['id']}/process")
@@ -180,6 +235,7 @@ def run_performance_smoke(config: PerformanceSmokeConfig) -> dict:
             "failed_items": job["failed_items"],
             "group_count": len(groups),
             "imported_count": imported_count,
+            "import_timing": import_timing,
             "max_rss_mb": _max_rss_mb(),
             "output_dir": str(config.output_dir),
             "processed_images": project_response.json()["processed_images"],

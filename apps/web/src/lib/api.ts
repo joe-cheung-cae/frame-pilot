@@ -66,6 +66,13 @@ export type PhotoStatusCounts = {
 export type ImportResult = {
   imported: Photo[];
   skipped: { filename: string; reason: string }[];
+  timing?: {
+    total_files: number;
+    imported_files: number;
+    skipped_files: number;
+    total_seconds: number;
+    stages: Record<string, { calls: number; seconds: number }>;
+  } | null;
 };
 
 export type PhotoGroup = {
@@ -244,8 +251,7 @@ export const api = {
     request<ProcessingJob>(`/api/projects/${projectId}/process`, { method: "POST" }),
   listJobs,
   listAllJobs,
-  getJob: (projectId: string, jobId: string) =>
-    request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}`),
+  getJob: (projectId: string, jobId: string) => request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}`),
   listPhotos,
   getPhotoStatusCounts,
   listAllPhotos,

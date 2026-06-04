@@ -1,5 +1,7 @@
 import json
+import os
 import shutil
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
@@ -23,7 +25,12 @@ from app.schemas.api import (
     ProjectRead,
 )
 from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
-from app.services.importing import import_image_file, invalidate_project_processing
+from app.services.importing import (
+    ImportTimingCollector,
+    import_image_file,
+    import_timing_stage,
+    invalidate_project_processing,
+)
 from app.services.processing import (
     create_processing_job,
     fail_stale_processing_job,
@@ -125,29 +132,56 @@ def delete_project_endpoint(project_id: str, session: Session = Depends(get_sess
     return None
 
 
-@router.post("/projects/{project_id}/imports", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
-@router.post("/projects/{project_id}/import", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/projects/{project_id}/imports",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
+@router.post(
+    "/projects/{project_id}/import",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
 async def import_photos_endpoint(
     project_id: str,
     files: list[UploadFile] = File(...),
+    include_timing: bool = Query(default=False),
     session: Session = Depends(get_session),
 ):
+    timing_enabled = include_timing or os.environ.get("FRAMEPILOT_IMPORT_TIMING") == "1"
+    timing = ImportTimingCollector() if timing_enabled else None
+    started = time.perf_counter()
     project = _get_project(session, project_id)
     imported: list[Photo] = []
     skipped: list[dict[str, str]] = []
     for upload in files:
         filename = upload.filename or "image"
         try:
-            imported.append(import_image_file(session, project, filename, upload.file, invalidate_processing=False))
+            imported.append(
+                import_image_file(session, project, filename, upload.file, invalidate_processing=False, timing=timing)
+            )
         except ValueError as error:
             skipped.append({"filename": filename, "reason": str(error)})
     if not imported and skipped:
         details = "; ".join(f"{item['filename']}: {item['reason']}" for item in skipped)
         raise HTTPException(status_code=422, detail=details)
     if imported:
-        invalidate_project_processing(session, project)
-        session.commit()
-    return {"imported": imported, "skipped": skipped}
+        with import_timing_stage(timing, "processing_invalidation"):
+            invalidate_project_processing(session, project)
+        with import_timing_stage(timing, "import_endpoint_commit"):
+            session.commit()
+    response = {"imported": imported, "skipped": skipped}
+    if timing is not None:
+        total_seconds = round(time.perf_counter() - started, 6)
+        timing.record("import_endpoint_total", total_seconds)
+        response["timing"] = {
+            "total_files": len(files),
+            "imported_files": len(imported),
+            "skipped_files": len(skipped),
+            "total_seconds": total_seconds,
+            "stages": timing.summary(),
+        }
+    return response
 
 
 @router.post("/projects/{project_id}/process", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)

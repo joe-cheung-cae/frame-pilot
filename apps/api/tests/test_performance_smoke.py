@@ -4,6 +4,7 @@ from pathlib import Path
 from app.devtools.performance_smoke import (
     PerformanceSmokeConfig,
     PerformanceSmokeSuiteConfig,
+    _aggregate_import_timing,
     _list_all_pages,
     _upload_files,
     run_performance_smoke,
@@ -54,6 +55,10 @@ def test_performance_smoke_reports_local_workflow_metrics(tmp_path):
     assert result["timings"]["import_seconds"] >= 0
     assert result["timings"]["process_seconds"] >= 0
     assert result["timings"]["export_seconds"] >= 0
+    assert result["import_timing"]["batch_count"] == 2
+    assert result["import_timing"]["imported_files"] == 3
+    assert result["import_timing"]["stages"]["preview_generation"]["calls"] == 3
+    assert result["import_timing"]["slowest_stages"]
 
 
 def test_performance_smoke_upload_files_use_open_file_handles(tmp_path):
@@ -81,6 +86,48 @@ def test_performance_smoke_lists_records_in_pages():
         ("/items", {"limit": 2, "offset": 2}),
         ("/items", {"limit": 2, "offset": 4}),
     ]
+
+
+def test_performance_smoke_aggregates_import_timing_batches():
+    result = _aggregate_import_timing(
+        [
+            {
+                "total_files": 2,
+                "imported_files": 2,
+                "skipped_files": 0,
+                "total_seconds": 1.25,
+                "stages": {
+                    "preview_generation": {"calls": 2, "seconds": 0.8},
+                    "thumbnail_generation": {"calls": 2, "seconds": 0.2},
+                    "import_file_total": {"calls": 2, "seconds": 1.0},
+                },
+            },
+            {
+                "total_files": 1,
+                "imported_files": 1,
+                "skipped_files": 0,
+                "total_seconds": 0.75,
+                "stages": {
+                    "preview_generation": {"calls": 1, "seconds": 0.4},
+                    "content_hash": {"calls": 1, "seconds": 0.1},
+                    "import_endpoint_total": {"calls": 1, "seconds": 0.75},
+                },
+            },
+        ]
+    )
+
+    assert result["batch_count"] == 2
+    assert result["total_files"] == 3
+    assert result["imported_files"] == 3
+    assert result["total_seconds"] == 2.0
+    assert result["stages"]["preview_generation"] == {
+        "calls": 3,
+        "seconds": 1.2,
+        "seconds_per_imported_file": 0.4,
+    }
+    assert result["slowest_stages"][0]["stage"] == "preview_generation"
+    assert "import_file_total" not in {stage["stage"] for stage in result["slowest_stages"]}
+    assert "import_endpoint_total" not in {stage["stage"] for stage in result["slowest_stages"]}
 
 
 def test_performance_smoke_rejects_invalid_page_size():

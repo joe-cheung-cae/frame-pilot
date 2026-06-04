@@ -92,9 +92,23 @@ class ImportSkippedFile(BaseModel):
     reason: str
 
 
+class ImportTimingStageRead(BaseModel):
+    calls: int
+    seconds: float
+
+
+class ImportTimingRead(BaseModel):
+    total_files: int
+    imported_files: int
+    skipped_files: int
+    total_seconds: float
+    stages: dict[str, ImportTimingStageRead]
+
+
 class ImportResult(BaseModel):
     imported: list[PhotoRead]
     skipped: list[ImportSkippedFile]
+    timing: ImportTimingRead | None = None
 
 
 class PhotoUpdate(BaseModel):

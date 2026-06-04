@@ -122,12 +122,22 @@ test("measures a real browser-backend culling workflow with generated photos", a
     await expect(page.getByRole("heading", { name: "Import Images" })).toBeVisible();
     timings.projectCreateMs = nowMs() - started;
 
+    const importResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/api/projects/") &&
+        response.url().includes("/import") &&
+        response.status() === 201,
+    );
     started = nowMs();
     await page.getByLabel("Choose image files").setInputFiles(imagePaths);
     await expect(page.getByText(`${photoCount} images imported and previewed.`)).toBeVisible({
       timeout: operationTimeoutMs,
     });
     timings.importMs = nowMs() - started;
+    const importResponse = await importResponsePromise;
+    const importResponseBody = (await importResponse.json().catch(() => null)) as { timing?: unknown } | null;
+    const backendImportTiming = importResponseBody?.timing ?? null;
 
     await page.getByRole("link", { name: "Process Project" }).click();
     started = nowMs();
@@ -213,7 +223,9 @@ test("measures a real browser-backend culling workflow with generated photos", a
         initial: initialMetrics,
         afterFilter: filterMetrics,
         afterGroupNavigation: groupNavigationMetrics,
-      })} previewAssetTiming=${JSON.stringify(previewAssetTiming)} trace=${JSON.stringify({
+      })} importTiming=${JSON.stringify(backendImportTiming)} previewAssetTiming=${JSON.stringify(
+        previewAssetTiming,
+      )} trace=${JSON.stringify({
         enabled: traceStarted,
         outputPath: traceOutputPath,
       })}`,

@@ -84,6 +84,7 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
 
     assert import_response.status_code == 201
     import_result = import_response.json()
+    assert import_result["timing"] is None
     assert import_result["skipped"] == []
     photo = import_result["imported"][0]
     assert photo["filename"] == "frame.jpg"
@@ -147,6 +148,47 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     export_history = client.get(f"/api/projects/{project['id']}/export")
     assert export_history.status_code == 200
     assert [record["id"] for record in export_history.json()] == [export_record["id"]]
+
+
+def test_import_timing_is_returned_only_when_requested(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Import timing"}).json()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        params={"include_timing": "true"},
+        files=[("files", ("timed.jpg", _image_bytes(), "image/jpeg"))],
+    )
+
+    assert response.status_code == 201
+    timing = response.json()["timing"]
+    assert timing["total_files"] == 1
+    assert timing["imported_files"] == 1
+    assert timing["skipped_files"] == 0
+    assert timing["total_seconds"] >= 0
+
+    stages = timing["stages"]
+    for stage in [
+        "file_copy",
+        "image_open",
+        "metadata_extraction",
+        "image_decode",
+        "thumbnail_generation",
+        "preview_generation",
+        "quality_scoring",
+        "embedding_generation",
+        "perceptual_hash",
+        "content_hash",
+        "db_record_create",
+        "db_commit",
+        "processing_invalidation",
+        "import_endpoint_commit",
+        "import_endpoint_total",
+        "import_file_total",
+    ]:
+        assert stages[stage]["calls"] >= 1
+        assert stages[stage]["seconds"] >= 0
 
 
 def test_import_extracts_basic_exif_metadata(tmp_path, monkeypatch):

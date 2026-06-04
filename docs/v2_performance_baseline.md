@@ -73,7 +73,7 @@ Latest local run: 2026-06-04.
 
 | Photo Count | Real Backend | Real Import | Real Processing | Real Asset Serving | CSV Export | Project Create MS | Import MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes | Reported JS Heap MB |
 | ----------: | ------------ | ----------- | --------------- | ------------------ | ---------- | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ----------------: | ---------------------: | --------------------: | ------------------: |
-|         100 | yes          | yes         | yes             | yes                | yes        |               872 |      1339 |       2114 |              845 |               60 |               72 |                  37 |        49 |               619 |                    343 |                   557 |               48.07 |
+|         100 | yes          | yes         | yes             | yes                | yes        |               870 |      1328 |       2115 |              840 |               79 |               50 |                  33 |        48 |               621 |                    343 |                   557 |               48.07 |
 |         500 | yes          | yes         | yes             | yes                | yes        |               874 |      3939 |       3119 |              827 |               60 |              117 |                  12 |        55 |               839 |                    599 |                   600 |               68.86 |
 
 This smoke generates synthetic JPEG source photos at test time, creates a project with a temporary project data folder, imports the generated files through the frontend and real backend, runs real processing, opens the real culling workspace, waits for a preview served by `/api/assets`, marks one photo as Pick, switches to the Picks filter, navigates to another group, and creates a CSV export.
@@ -116,15 +116,38 @@ This run used 500 generated non-private JPEG files at 3000x2000 pixels with JPEG
 
 | Photo Count | Dimensions | JPEG Quality | Real Backend | Real Asset Serving | Image Generation MS | Project Create MS | Import MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes | Reported JS Heap MB |
 | ----------: | ---------- | -----------: | ------------ | ------------------ | ------------------: | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ----------------: | ---------------------: | --------------------: | ------------------: |
-|         500 | 3000x2000  |           88 | yes          | yes                |                8786 |               926 |    139259 |       2608 |              872 |               89 |               57 |                  10 |        57 |               675 |                    423 |                   427 |               54.17 |
+|         500 | 3000x2000  |           88 | yes          | yes                |                8341 |               875 |    134890 |       2628 |              846 |               88 |               55 |                  21 |        54 |               679 |                    423 |                   427 |               42.63 |
 
 Instrumentation note:
 
-- Chromium CDP metrics are collected at the first preview, after the Picks filter, and after group navigation. The latest 500 large-image run recorded initial CDP values including `JSHeapUsedSize=18466720`, `JSHeapTotalSize=28409856`, `Nodes=1327`, `Documents=1`, and `Frames=1`.
+- Chromium CDP metrics are collected at the first preview, after the Picks filter, and after group navigation. The latest 500 large-image run recorded initial CDP values including `JSHeapUsedSize=18538896`, `JSHeapTotalSize=28147712`, `Nodes=1248`, `Documents=1`, and `Frames=1`.
 - JS heap and DOM counts remain smoke signals only. They do not measure full browser RSS, decoded image memory, GPU memory, or OS memory pressure.
-- First preview asset timing is measured by listening for the first `/api/assets/.../previews/...` response during culling workspace render. The latest 500 large-image run recorded status `200`, content length `12426` bytes, and approximate response duration `3.56 ms`. Missing content length or browser timing values are allowed and recorded as unavailable.
+- First preview asset timing is measured by listening for the first `/api/assets/.../previews/...` response during culling workspace render. The latest 500 large-image run recorded status `200`, content length `8748` bytes, and approximate response duration `3.32 ms`. Missing content length or browser timing values are allowed and recorded as unavailable.
 - Optional Playwright trace capture is disabled by default. Use `FRAMEPILOT_BROWSER_PERF_TRACE=1 npm run test:e2e:real-browser` for the default smoke, `npm run test:e2e:real-browser:trace` for the script alias, or `npm run test:e2e:real-browser:large:trace` for the large-image trace. The trace is written under Playwright's per-test `test-results` output directory; inspect it with `npx playwright show-trace <trace.zip>`.
-- A 2,000-photo real browser-backend run should wait until after these instrumented 500-photo results are reviewed, because import/preview generation is still dominant and current browser measurements do not cover process RSS, decoded image memory, GPU memory, or long-session pressure.
+- The large-image script enables backend import timing with `FRAMEPILOT_IMPORT_TIMING=1`. The latest browser-visible import wait was `134.890 s`; the backend import endpoint accounted for `134.337 s`. The remaining `0.553 s` includes request/response, browser, and frontend bookkeeping that this benchmark does not split further.
+- A 2,000-photo real browser-backend run should wait until after the dominant import stages are optimized, because import/scoring/preview generation is still dominant and current browser measurements do not cover process RSS, decoded image memory, GPU memory, or long-session pressure.
+
+Instrumented 500 large-image backend import breakdown:
+
+| Stage                   | Calls | Seconds | Seconds / Photo |
+| ----------------------- | ----: | ------: | --------------: |
+| quality_scoring         |   500 |  59.459 |        0.118918 |
+| preview_generation      |   500 |  50.069 |        0.100138 |
+| embedding_generation    |   500 |  12.870 |        0.025741 |
+| thumbnail_generation    |   500 |   4.170 |        0.008341 |
+| image_decode            |   500 |   3.642 |        0.007284 |
+| perceptual_hash         |   500 |   2.028 |        0.004055 |
+| db_commit               |   500 |   1.363 |        0.002726 |
+| db_record_create        |   500 |   0.175 |        0.000350 |
+| file_copy               |   500 |   0.122 |        0.000244 |
+| content_hash            |   500 |   0.090 |        0.000179 |
+| image_open              |   500 |   0.059 |        0.000118 |
+| file_stat               |   500 |   0.029 |        0.000057 |
+| metadata_extraction     |   500 |   0.003 |        0.000006 |
+| processing_invalidation |     1 |   0.017 |               - |
+| import_endpoint_commit  |     1 |   0.020 |               - |
+
+Current large-image import conclusion: the top two actionable backend stages are `quality_scoring` and `preview_generation`. File copy, content hashing, database record creation, and database commits are not meaningful bottlenecks in this generated-image run.
 
 Validated real workflow steps:
 
@@ -149,4 +172,4 @@ What remains unverified:
 
 Browser memory caveat: the reported heap value comes from Chromium `performance.memory` and is a JS heap estimate only. It is not full browser process memory, decoded image memory, GPU memory, or a cross-browser metric.
 
-Recommended next performance step: first collect and review the new instrumentation for the 500 large-image run, including CDP metrics, first preview asset timing, and an opt-in Playwright trace if needed. If import and preview generation remain dominant, optimize that path next. Only after that should the project attempt 1,000-photo and then 2,000-photo real browser-backend validation as separate opt-in benchmarks.
+Recommended next performance step: optimize exactly one confirmed dominant backend import stage, starting with `quality_scoring` or `preview_generation`, then rerun the 500 large-image benchmark before attempting 1,000-photo or 2,000-photo real browser-backend validation.
