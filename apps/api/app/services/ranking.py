@@ -4,17 +4,39 @@ from typing import Any
 WEIGHTS = {
     "sharpness_score": 0.30,
     "exposure_score": 0.20,
-    "face_quality_score": 0.20,
-    "aesthetic_score": 0.20,
+    "contrast_score": 0.15,
+    "noise_quality_score": 0.10,
+    "face_quality_score": 0.15,
+    "aesthetic_score": 0.10,
     "duplicate_penalty": -0.10,
+}
+
+LANDSCAPE_WEIGHTS = {
+    **WEIGHTS,
+    "sharpness_score": 0.32,
+    "exposure_score": 0.23,
+    "contrast_score": 0.17,
+    "face_quality_score": 0.08,
+}
+
+PORTRAIT_WEIGHTS = {
+    **WEIGHTS,
+    "sharpness_score": 0.28,
+    "exposure_score": 0.18,
+    "contrast_score": 0.14,
+    "face_quality_score": 0.20,
 }
 
 QUALITY_LABELS = {
     "sharpness_score": "sharpness",
     "exposure_score": "exposure",
+    "contrast_score": "contrast",
+    "noise_quality_score": "low noise risk",
     "face_quality_score": "experimental face signal quality",
     "aesthetic_score": "aesthetic balance",
 }
+
+SINGLE_PICK_SCORE_THRESHOLD = 0.55
 
 
 @dataclass(frozen=True)
@@ -26,34 +48,94 @@ class RankedPhoto:
 
 
 def final_score(photo: dict[str, Any]) -> float:
-    score = sum(float(photo.get(field, 0.0) or 0.0) * weight for field, weight in WEIGHTS.items())
+    weights = _weights_for_photo(photo)
+    score = sum(_metric_value(photo, field) * weight for field, weight in weights.items())
     return round(max(0.0, min(1.0, score)), 4)
 
 
 def _metric_value(photo: dict[str, Any], field: str) -> float:
+    if field == "noise_quality_score":
+        if "noise_score" not in photo or photo.get("noise_score") is None:
+            return 0.0
+        return 1.0 - float(photo.get("noise_score", 0.0) or 0.0)
     return float(photo.get(field, 0.0) or 0.0)
 
 
+def _weights_for_photo(photo: dict[str, Any]) -> dict[str, float]:
+    if photo.get("face_presence") or _metric_value(photo, "face_quality_score") > 0:
+        return PORTRAIT_WEIGHTS
+    width = int(photo.get("width", 0) or 0)
+    height = int(photo.get("height", 0) or 0)
+    if width >= height and width > 0 and height > 0:
+        return LANDSCAPE_WEIGHTS
+    return WEIGHTS
+
+
 def _strongest_metric(photo: dict[str, Any]) -> str:
-    return max(QUALITY_LABELS, key=lambda field: _metric_value(photo, field))
+    weights = _weights_for_photo(photo)
+    return max(QUALITY_LABELS, key=lambda field: _metric_value(photo, field) * weights[field])
+
+
+def _top_metric_labels(photo: dict[str, Any], limit: int = 3) -> list[str]:
+    weights = _weights_for_photo(photo)
+    ranked_fields = sorted(
+        QUALITY_LABELS,
+        key=lambda field: _metric_value(photo, field) * weights[field],
+        reverse=True,
+    )
+    labels = []
+    for field in ranked_fields:
+        if _metric_value(photo, field) <= 0:
+            continue
+        label = QUALITY_LABELS[field]
+        if label == "experimental face signal quality" and float(photo.get("eye_open_confidence", 0.0) or 0.0) > 0:
+            label = "experimental face and open-eye signals"
+        labels.append(label)
+        if len(labels) >= limit:
+            return labels
+    return labels
 
 
 def _weakest_metric(photo: dict[str, Any]) -> str:
-    return min(QUALITY_LABELS, key=lambda field: _metric_value(photo, field))
+    weights = _weights_for_photo(photo)
+    return min(QUALITY_LABELS, key=lambda field: _metric_value(photo, field) * weights[field])
+
+
+def _largest_metric_gap(photo: dict[str, Any], best_photo: dict[str, Any]) -> str:
+    weights = _weights_for_photo(best_photo)
+    return max(
+        QUALITY_LABELS,
+        key=lambda field: max(0.0, _metric_value(best_photo, field) - _metric_value(photo, field)) * weights[field],
+    )
 
 
 def _pick_explanation(photo: dict[str, Any], group_size: int) -> str:
-    strongest = QUALITY_LABELS[_strongest_metric(photo)]
-    if strongest == "experimental face signal quality" and float(photo.get("eye_open_confidence", 0.0) or 0.0) > 0:
-        strongest = "experimental face and open-eye signals"
+    strongest = _top_metric_labels(photo, limit=3)
+    strongest_text = " and ".join(strongest) if strongest else QUALITY_LABELS[_strongest_metric(photo)]
     if group_size <= 1:
-        return f"Recommended because it has the strongest {strongest} score among the available quality signals."
-    return f"Recommended because it has the highest overall score in this group, led by its {strongest} score."
+        return f"Recommended because it has the strongest {strongest_text} scores among the available quality signals."
+    return f"Recommended because it has the highest overall score in this group, led by its {strongest_text} scores."
 
 
-def _secondary_explanation(photo: dict[str, Any], recommendation: str, score_gap: float) -> str:
-    weakest = QUALITY_LABELS[_weakest_metric(photo)]
-    if weakest == "experimental face signal quality" and photo.get("face_presence"):
+def _single_maybe_explanation(score: float) -> str:
+    return (
+        f"Marked as Maybe because it is a single-image group with a low overall score ({score:.2f}); "
+        "review it manually before picking."
+    )
+
+
+def _secondary_explanation(
+    photo: dict[str, Any],
+    best_photo: dict[str, Any],
+    recommendation: str,
+    score_gap: float,
+) -> str:
+    weakest_field = _largest_metric_gap(photo, best_photo)
+    if _metric_value(best_photo, weakest_field) <= _metric_value(photo, weakest_field):
+        weakest_field = _weakest_metric(photo)
+    weakest = QUALITY_LABELS[weakest_field]
+    has_face_context = photo.get("face_presence") or best_photo.get("face_presence")
+    if weakest == "experimental face signal quality" and has_face_context:
         weakest = "experimental face or eye signals"
     if recommendation == "Reject":
         return f"Rejected because it trails the strongest image by {score_gap:.2f}, with weaker {weakest}."
@@ -63,6 +145,20 @@ def _secondary_explanation(photo: dict[str, Any], recommendation: str, score_gap
 def rank_group(photos: list[dict[str, Any]]) -> list[RankedPhoto]:
     scored = [(photo, final_score(photo)) for photo in photos]
     scored.sort(key=lambda item: item[1], reverse=True)
+
+    if len(scored) == 1:
+        photo, score = scored[0]
+        recommendation = "Pick" if score >= SINGLE_PICK_SCORE_THRESHOLD else "Maybe"
+        explanation = _pick_explanation(photo, 1) if recommendation == "Pick" else _single_maybe_explanation(score)
+        return [
+            RankedPhoto(
+                photo_id=str(photo["id"]),
+                score=score,
+                recommendation=recommendation,
+                explanation=explanation,
+            )
+        ]
+
     ranked = [
         RankedPhoto(
             photo_id=str(photo["id"]),
@@ -75,8 +171,8 @@ def rank_group(photos: list[dict[str, Any]]) -> list[RankedPhoto]:
 
     if len(ranked) <= 1:
         return ranked
-
     best = ranked[0]
+    best_photo = scored[0][0]
     rest = [
         RankedPhoto(
             photo_id=item.photo_id,
@@ -84,6 +180,7 @@ def rank_group(photos: list[dict[str, Any]]) -> list[RankedPhoto]:
             recommendation="Reject" if item.score < best.score - 0.1 else "Maybe",
             explanation=_secondary_explanation(
                 scored[index][0],
+                best_photo,
                 "Reject" if item.score < best.score - 0.1 else "Maybe",
                 best.score - item.score,
             ),

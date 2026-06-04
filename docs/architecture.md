@@ -13,13 +13,59 @@ The backend stores each project under:
   thumbnails/
   previews/
   exports/
+    csv/
+    zip/
+    folders/
   cache/
+    hashes/
+    embeddings/
+    jobs/
+  logs/
 ```
 
 The browser talks only to the local API. Original files are copied into the local project folder during import and are not modified after that.
 
-Processing is synchronous in this first MVP scaffold. The API still creates `ProcessingJob` records so the workflow can be moved to background workers later without changing the UI contract.
+Projects record storage policy metadata with `source_mode`, `source_root_path`, and `schema_version`. v2 currently creates projects in `copy` mode; reference-mode metadata is reserved for later work and does not change the current copy-on-import safety behavior. During project creation, users can optionally choose a custom local project data folder; leaving it blank uses FramePilot's managed project directory.
+The home project list and import screen show the local project data path so users can see where generated metadata, previews, and exports are stored.
 
-Import is tolerant of mixed file selections: supported images are copied into `originals/`, derivatives are generated in `thumbnails/` and `previews/`, and unsupported or unreadable files are reported as skipped. Adding new imports invalidates existing grouping and recommendation metadata because the review set has changed.
+Import currently remains synchronous inside the upload request because the browser must still transfer selected local files to the local API before work can continue. The backend creates a `ProcessingJob` with `job_type` set to `import` at the start of each import request, updates `current_step`, `processed_items`, `failed_items`, and `progress_percent` while files are validated, copied, decoded, previewed, scored, hashed, embedded, and committed, and marks the job `complete`, `complete_with_errors`, or `failed` before returning the response. The import page polls job history while an upload is pending, so long imports expose file-count progress and skipped-file counts instead of only a pending spinner. If an active import job has not updated for more than 30 minutes, the jobs endpoints mark it failed as a stale interrupted local import. This does not yet make import durable across API process restarts or move expensive derivative/scoring work into a separate worker.
 
-Exports are local artifacts written under `exports/`. Each export record has a unique output path and records the selected statuses plus selected photo count. Empty exports are rejected before an artifact is written. CSV and ZIP artifacts can be downloaded through the local API; folder exports expose the local output path.
+Processing uses local FastAPI background tasks. `POST /api/projects/{project_id}/process` creates a `ProcessingJob` and returns it immediately, then the worker updates status, current step, item counts, failure counts, progress percentage, start time, and completion time in SQLite. The processing screen polls `GET /api/projects/{project_id}/jobs/{job_id}` until the job completes or fails.
+If a queued or running processing job has not updated for more than 30 minutes, the jobs endpoints treat it as interrupted, mark it failed, and reset in-progress photos to retryable imported state. A later process request can then start a replacement job.
+
+Decision as of 2026-06-04: v2.0 keeps this local in-process job architecture rather than adding a separate worker process before release. The current approach provides visible local progress, stale-job recovery, retryable processing state, and idempotent reruns while avoiding extra packaging and lifecycle complexity. A separate local worker should be reconsidered after 1,000- to 2,000-photo real browser-backend validation if imports or processing still show unacceptable blocking, memory pressure, or interruption recovery needs.
+
+Processing is idempotent for unchanged completed projects: if all photos are already marked `processed`, project counts match, generated thumbnails and previews still exist, and groups cover the full photo set, a new processing job completes without clearing or rebuilding groups. New imports or missing generated files still invalidate the shortcut and require local validation before grouping/ranking completes. Import is idempotent for the conservative same-upload case: if a selected file has the same uploaded filename and SHA-256 content hash as an existing project photo, and that photo's thumbnail and preview still exist, the existing record and derivatives are reused without resetting user status or creating another copy. Different filenames with identical bytes are still treated as distinct imports.
+
+Photos keep their own local `processing_state` and `processing_error` fields so incomplete or skipped items can be inspected without modifying original files. Import creates photos in the `imported` state, processing moves them through `processing`, and the job records each photo as `processed` or `failed`.
+
+The processing validation stage checks that generated thumbnails and previews still exist before grouping. Missing derived files are regenerated from the local copied original when possible. If the copied original is unavailable or regeneration fails, the error is recorded on the affected photo and counted as a failed item.
+
+Import is tolerant of mixed file selections: supported images are copied into `originals/`, derivatives are generated in `thumbnails/` and `previews/`, and unsupported or unreadable files are reported as skipped with expandable per-file reasons in the local UI. If at least one file succeeds and at least one file is skipped, the import job completes with `complete_with_errors`; if every file is skipped, the API returns `422` and records a failed import job. Browser folder selection imports file copies through the upload flow; source folders are not tracked for automatic rescan yet. Adding new imports invalidates existing grouping and recommendation metadata because the review set has changed.
+
+Imported photos record deterministic local file identity metadata for the copied original: extension, file size, copy modification time, SHA-256 content hash, project copy path, and source identity. This supports future resumable processing without changing or deleting original photo files.
+
+Grouping uses deterministic candidate windows and union-find. Candidate pairs are limited by capture-time or filename proximity, checked for compatible dimensions, camera model, and focal length when those fields are available, then merged when their stored perceptual hashes are close enough or, when hashes are unavailable, their local embedding similarity meets the grouping threshold. After merging, groups with capture-time spans larger than the burst window are split into smaller review groups.
+
+Ranking persists a deterministic `score_summary` JSON string on each group. The summary records the representative photo, best score, gap to the next candidate, recommendation counts, and a low, medium, or high confidence label so the review UI can inspect group-level ranking strength without recalculating scores.
+
+Exports are local artifacts written under `exports/`. Each export record has a unique output path and records the selected statuses plus selected photo count. Empty exports are rejected before an artifact is written. CSV and ZIP artifacts can be downloaded through the local API; export output paths can be copied from the web UI, and folder exports expose the local output path. Export creation and download resolve the export root and mode directories before writing or serving artifacts, and reject symlink escapes outside the local project root. Export records remain in SQLite and can be listed for local export history.
+
+Future sidecar-oriented export should write derived metadata files under project-controlled output directories, never next to or over original source files unless the user explicitly chooses that workflow in a later release.
+
+SQLite initialization also creates indexes for large-project review and export queries: photo review ordering by project, status-filtered export selection, processing-state recovery scans, project group listing, active processing-job lookup, newest-first processing history, and newest-first export history.
+
+The culling workspace keeps large projects responsive by requesting bounded first pages for photos and groups, then rendering bounded windows for the group sidebar, filmstrip, and compare-mode candidates instead of mounting every matching thumbnail or preview at once. Users can explicitly load the full photo or group list when a review task needs complete in-browser context.
+If a generated preview or thumbnail asset fails to load, the workspace records the failed asset URL and renders an explicit local fallback instead of leaving a broken image in the review surface.
+Generated asset serving resolves the project root, the asset directory, and the requested file before responding, and rejects symlink escapes outside the local project root.
+Dense culling controls expose active filter, group, photo, status, rating, compare, zoom, and preview states with ARIA attributes so keyboard and assistive-technology users can confirm the current review context. The culling filters include processing failures, and the detail panel shows per-photo processing errors when a record could not be fully processed.
+
+The processing page shows current and historical failed-item notices even when the overall job completed, so recoverable per-photo failures are visible before culling or export. Current failed-item notices link directly to the culling workspace with the processing-failures filter selected. It also shows recent local job history from a bounded newest-first query and can increase that limit when the user requests older jobs.
+
+The export page shows the local exports folder before export, keeps status totals lightweight through the status-count API, and keeps export history bounded by loading the most recent records first, with an explicit load-more action for older local export records.
+
+The shell links to a local help page that lists the keyboard shortcuts supported by the culling workspace.
+
+Recent project cards link to the next resumable workflow step and show whether the project should continue with import, processing, or culling. Each project also has a dashboard route at `/projects/{project_id}` with local storage details, processing counts, and direct links to import, processing, culling, and export.
+
+The settings page stores browser-local preferences in `localStorage`. The current preference controls the default export status selection and does not require an account or remote service.

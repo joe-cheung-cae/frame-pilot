@@ -1,8 +1,10 @@
 import csv
 import zipfile
 
+import pytest
+
 from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
-from app.services.ranking import rank_group
+from app.services.ranking import final_score, rank_group
 
 
 def test_rank_group_selects_highest_explainable_score():
@@ -30,6 +32,39 @@ def test_rank_group_selects_highest_explainable_score():
     assert ranked[0].photo_id == "high"
     assert "highest overall score" in ranked[0].explanation
     assert "sharpness" in ranked[0].explanation
+
+
+def test_final_score_adjusts_weights_for_landscape_like_photos():
+    photo = {
+        "id": "landscape",
+        "width": 6000,
+        "height": 4000,
+        "sharpness_score": 0.8,
+        "exposure_score": 0.7,
+        "contrast_score": 0.6,
+        "noise_score": 0.2,
+        "face_quality_score": 0.0,
+        "aesthetic_score": 0.5,
+        "duplicate_penalty": 0.0,
+    }
+
+    assert final_score(photo) == 0.649
+
+
+def test_final_score_adjusts_weights_for_portrait_like_photos():
+    photo = {
+        "id": "portrait",
+        "face_presence": True,
+        "sharpness_score": 0.8,
+        "exposure_score": 0.7,
+        "contrast_score": 0.6,
+        "noise_score": 0.2,
+        "face_quality_score": 0.8,
+        "aesthetic_score": 0.5,
+        "duplicate_penalty": 0.0,
+    }
+
+    assert final_score(photo) == 0.724
 
 
 def test_rank_group_prefers_sharp_well_exposed_photo_over_blurry_or_badly_exposed_similar_photo():
@@ -66,6 +101,64 @@ def test_rank_group_prefers_sharp_well_exposed_photo_over_blurry_or_badly_expose
     assert ranked[0].recommendation == "Pick"
     assert {ranked[1].photo_id, ranked[2].photo_id} == {"blurry", "underexposed"}
     assert all(item.recommendation == "Reject" for item in ranked[1:])
+    explanations = {item.photo_id: item.explanation for item in ranked}
+    assert "weaker sharpness" in explanations["blurry"]
+    assert "weaker exposure" in explanations["underexposed"]
+
+
+def test_rank_group_rewards_contrast_and_penalizes_noise_risk():
+    photos = [
+        {
+            "id": "clean-contrast",
+            "sharpness_score": 0.7,
+            "exposure_score": 0.7,
+            "contrast_score": 0.9,
+            "noise_score": 0.1,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.75,
+            "duplicate_penalty": 0.0,
+        },
+        {
+            "id": "flat-noisy",
+            "sharpness_score": 0.7,
+            "exposure_score": 0.7,
+            "contrast_score": 0.2,
+            "noise_score": 0.9,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.45,
+            "duplicate_penalty": 0.0,
+        },
+    ]
+
+    ranked = rank_group(photos)
+
+    assert ranked[0].photo_id == "clean-contrast"
+    assert "contrast" in ranked[0].explanation
+    assert ranked[1].recommendation == "Reject"
+
+
+def test_rank_group_marks_weak_single_image_groups_as_maybe():
+    ranked = rank_group(
+        [
+            {
+                "id": "weak-single",
+                "width": 6000,
+                "height": 4000,
+                "sharpness_score": 0.55,
+                "exposure_score": 0.45,
+                "contrast_score": 0.1,
+                "noise_score": 0.6,
+                "face_quality_score": 0.0,
+                "aesthetic_score": 0.2,
+                "duplicate_penalty": 0.0,
+            }
+        ]
+    )
+
+    assert ranked[0].photo_id == "weak-single"
+    assert ranked[0].recommendation == "Maybe"
+    assert "single-image group" in ranked[0].explanation
+    assert "review it manually" in ranked[0].explanation
 
 
 def test_rank_group_explains_face_and_eye_quality_when_it_leads():
@@ -93,6 +186,43 @@ def test_rank_group_explains_face_and_eye_quality_when_it_leads():
 
     assert ranked[0].photo_id == "face"
     assert "experimental face and open-eye signals" in ranked[0].explanation
+
+
+def test_rank_group_keeps_experimental_face_signal_secondary_to_technical_failures():
+    photos = [
+        {
+            "id": "technical-best",
+            "width": 6000,
+            "height": 4000,
+            "sharpness_score": 0.85,
+            "exposure_score": 0.85,
+            "contrast_score": 0.7,
+            "noise_score": 0.2,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.65,
+            "duplicate_penalty": 0.0,
+        },
+        {
+            "id": "face-but-soft",
+            "face_presence": True,
+            "sharpness_score": 0.1,
+            "exposure_score": 0.1,
+            "contrast_score": 0.2,
+            "noise_score": 0.4,
+            "face_quality_score": 1.0,
+            "eye_open_confidence": 0.9,
+            "aesthetic_score": 0.2,
+            "duplicate_penalty": 0.0,
+        },
+    ]
+
+    ranked = rank_group(photos)
+
+    assert ranked[0].photo_id == "technical-best"
+    assert ranked[0].recommendation == "Pick"
+    assert ranked[1].photo_id == "face-but-soft"
+    assert ranked[1].recommendation == "Reject"
+    assert "weaker sharpness" in ranked[1].explanation
 
 
 def test_rank_group_explains_maybe_and_reject_with_metric_context():
@@ -137,8 +267,21 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
     target = tmp_path / "selection.csv"
     photos = [
         {
+            "id": "photo-a",
             "filename": "a.jpg",
             "original_path": "/shoot/a.jpg",
+            "project_copy_path": "/project/originals/a.jpg",
+            "source_identity": "sha256:aaa",
+            "content_hash": "aaa",
+            "file_size": 12345,
+            "file_mtime": 1780411200.25,
+            "capture_time": "2026-01-02T03:04:05",
+            "camera_model": "FramePilotCam",
+            "lens_model": "FramePilot 35mm",
+            "focal_length": "35",
+            "aperture": "2.8",
+            "shutter_speed": "1/125",
+            "iso": 400,
             "user_status": "Pick",
             "star_rating": 5,
             "group_id": "g1",
@@ -154,8 +297,11 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "width": 4000,
             "height": 3000,
             "recommendation_explanation": "Recommended because it is sharp.",
+            "processing_state": "processed",
+            "processing_error": None,
         },
         {
+            "id": "photo-b",
             "filename": "b.jpg",
             "original_path": "/shoot/b.jpg",
             "user_status": "Reject",
@@ -173,6 +319,8 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "width": 4000,
             "height": 3000,
             "recommendation_explanation": "Rejected because it is weaker.",
+            "processing_state": "failed",
+            "processing_error": "Missing generated preview",
         },
     ]
 
@@ -184,7 +332,20 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
     assert rows == [
         {
             "filename": "a.jpg",
+            "photo_id": "photo-a",
             "original_path": "/shoot/a.jpg",
+            "project_copy_path": "/project/originals/a.jpg",
+            "source_identity": "sha256:aaa",
+            "content_hash": "aaa",
+            "file_size": "12345",
+            "file_mtime": "1780411200.25",
+            "capture_time": "2026-01-02T03:04:05",
+            "camera_model": "FramePilotCam",
+            "lens_model": "FramePilot 35mm",
+            "focal_length": "35",
+            "aperture": "2.8",
+            "shutter_speed": "1/125",
+            "iso": "400",
             "status": "Pick",
             "star_rating": "5",
             "group_id": "g1",
@@ -200,10 +361,25 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "width": "4000",
             "height": "3000",
             "recommendation_explanation": "Recommended because it is sharp.",
+            "processing_state": "processed",
+            "processing_error": "",
         },
         {
             "filename": "b.jpg",
+            "photo_id": "photo-b",
             "original_path": "/shoot/b.jpg",
+            "project_copy_path": "",
+            "source_identity": "",
+            "content_hash": "",
+            "file_size": "0",
+            "file_mtime": "",
+            "capture_time": "",
+            "camera_model": "",
+            "lens_model": "",
+            "focal_length": "",
+            "aperture": "",
+            "shutter_speed": "",
+            "iso": "",
             "status": "Reject",
             "star_rating": "1",
             "group_id": "g1",
@@ -219,6 +395,8 @@ def test_write_selection_csv_contains_user_decisions(tmp_path):
             "width": "4000",
             "height": "3000",
             "recommendation_explanation": "Rejected because it is weaker.",
+            "processing_state": "failed",
+            "processing_error": "Missing generated preview",
         },
     ]
 
@@ -239,6 +417,27 @@ def test_folder_export_preserves_files_with_duplicate_names(tmp_path):
     assert (tmp_path / "selected" / "frame-1.jpg").read_bytes() == b"second"
 
 
+def test_folder_export_rejects_missing_original_file(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        copy_selected_files(tmp_path / "selected", [{"original_path": str(tmp_path / "missing.jpg")}])
+
+
+def test_file_exports_prefer_project_copy_path(tmp_path):
+    original = tmp_path / "source-original.jpg"
+    project_copy = tmp_path / "project-copy.jpg"
+    original.write_bytes(b"source original")
+    project_copy.write_bytes(b"project copy")
+    photo = {"original_path": str(original), "project_copy_path": str(project_copy)}
+
+    copy_selected_files(tmp_path / "selected", [photo])
+    zip_path = zip_selected_files(tmp_path / "selected.zip", [photo])
+
+    assert (tmp_path / "selected" / "project-copy.jpg").read_bytes() == b"project copy"
+    with zipfile.ZipFile(zip_path) as archive:
+        assert archive.namelist() == ["project-copy.jpg"]
+        assert archive.read("project-copy.jpg") == b"project copy"
+
+
 def test_zip_export_preserves_files_with_duplicate_names(tmp_path):
     first_dir = tmp_path / "first"
     second_dir = tmp_path / "second"
@@ -257,3 +456,8 @@ def test_zip_export_preserves_files_with_duplicate_names(tmp_path):
         assert sorted(archive.namelist()) == ["frame-1.jpg", "frame.jpg"]
         assert archive.read("frame.jpg") == b"first"
         assert archive.read("frame-1.jpg") == b"second"
+
+
+def test_zip_export_rejects_missing_original_file(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        zip_selected_files(tmp_path / "selected.zip", [{"original_path": str(tmp_path / "missing.jpg")}])

@@ -36,6 +36,13 @@ def _unique_archive_name(used_names: set[str], filename: str) -> str:
         index += 1
 
 
+def _existing_original_path(photo: dict) -> Path:
+    source = Path(photo.get("project_copy_path") or photo["original_path"])
+    if not source.is_file():
+        raise FileNotFoundError(f"Original file is missing: {source}")
+    return source
+
+
 def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", newline="") as handle:
@@ -43,7 +50,20 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
             handle,
             fieldnames=[
                 "filename",
+                "photo_id",
                 "original_path",
+                "project_copy_path",
+                "source_identity",
+                "content_hash",
+                "file_size",
+                "file_mtime",
+                "capture_time",
+                "camera_model",
+                "lens_model",
+                "focal_length",
+                "aperture",
+                "shutter_speed",
+                "iso",
                 "status",
                 "star_rating",
                 "group_id",
@@ -59,6 +79,8 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
                 "width",
                 "height",
                 "recommendation_explanation",
+                "processing_state",
+                "processing_error",
             ],
         )
         writer.writeheader()
@@ -66,7 +88,20 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
             writer.writerow(
                 {
                     "filename": photo.get("filename", ""),
+                    "photo_id": photo.get("id", ""),
                     "original_path": photo.get("original_path", ""),
+                    "project_copy_path": photo.get("project_copy_path") or "",
+                    "source_identity": photo.get("source_identity") or "",
+                    "content_hash": photo.get("content_hash") or "",
+                    "file_size": photo.get("file_size", 0),
+                    "file_mtime": "" if photo.get("file_mtime") is None else photo.get("file_mtime"),
+                    "capture_time": photo.get("capture_time") or "",
+                    "camera_model": photo.get("camera_model") or "",
+                    "lens_model": photo.get("lens_model") or "",
+                    "focal_length": photo.get("focal_length") or "",
+                    "aperture": photo.get("aperture") or "",
+                    "shutter_speed": photo.get("shutter_speed") or "",
+                    "iso": "" if photo.get("iso") is None else photo.get("iso"),
                     "status": photo.get("user_status", "Unreviewed"),
                     "star_rating": photo.get("star_rating", 0),
                     "group_id": photo.get("group_id") or "",
@@ -84,6 +119,8 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
                     "width": photo.get("width", 0),
                     "height": photo.get("height", 0),
                     "recommendation_explanation": photo.get("recommendation_explanation", ""),
+                    "processing_state": photo.get("processing_state", ""),
+                    "processing_error": photo.get("processing_error") or "",
                 }
             )
     return target
@@ -92,9 +129,8 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
 def copy_selected_files(target_dir: Path, photos: Iterable[dict]) -> Path:
     target_dir.mkdir(parents=True, exist_ok=True)
     for photo in photos:
-        source = Path(photo["original_path"])
-        if source.exists():
-            shutil.copy2(source, _unique_destination(target_dir, source.name))
+        source = _existing_original_path(photo)
+        shutil.copy2(source, _unique_destination(target_dir, source.name))
     return target_dir
 
 
@@ -103,7 +139,6 @@ def zip_selected_files(target_zip: Path, photos: Iterable[dict]) -> Path:
     used_names: set[str] = set()
     with zipfile.ZipFile(target_zip, "w", zipfile.ZIP_DEFLATED) as archive:
         for photo in photos:
-            source = Path(photo["original_path"])
-            if source.exists():
-                archive.write(source, arcname=_unique_archive_name(used_names, source.name))
+            source = _existing_original_path(photo)
+            archive.write(source, arcname=_unique_archive_name(used_names, source.name))
     return target_zip

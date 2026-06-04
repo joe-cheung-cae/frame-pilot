@@ -7,22 +7,50 @@ import Link from "next/link";
 import { ChangeEvent, useState } from "react";
 import { FileImage, Loader2, Play } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
+import {
+  activeJobOfType,
+  processingProgressPercent,
+  processingProgressSummary,
+  processingStatusLabel,
+} from "@/lib/processingProgress";
+import { invalidateProjectWorkflowQueries } from "@/lib/queryInvalidation";
+
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return count === 1 ? singular : plural;
+}
 
 export function ImportPanel({ projectId }: { projectId: string }) {
   const [message, setMessage] = useState("");
   const [skipped, setSkipped] = useState<{ filename: string; reason: string }[]>([]);
+  const [showAllSkipped, setShowAllSkipped] = useState(false);
   const [recentImports, setRecentImports] = useState<Photo[]>([]);
   const queryClient = useQueryClient();
-  const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
+  const project = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => api.getProject(projectId),
+    retry: false,
+  });
   const mutation = useMutation({
     mutationFn: (files: FileList) => api.importPhotos(projectId, files),
+    onMutate: () => {
+      setMessage("");
+      setSkipped([]);
+      setShowAllSkipped(false);
+      setRecentImports([]);
+    },
     onSuccess: async (result) => {
-      setMessage(`${result.imported.length} images imported and previewed.`);
+      setMessage(`${result.imported.length} ${pluralize(result.imported.length, "image")} imported and previewed.`);
       setSkipped(result.skipped);
       setRecentImports(result.imported);
-      await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
-      await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
+  });
+  const importJobsQuery = useQuery({
+    queryKey: ["jobs", projectId, "import-active"],
+    queryFn: () => api.listJobs(projectId, { limit: 10, offset: 0 }),
+    enabled: mutation.isPending,
+    retry: false,
+    refetchInterval: 1000,
   });
 
   function onFiles(event: ChangeEvent<HTMLInputElement>) {
@@ -31,11 +59,20 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     }
   }
 
+  const visibleSkipped = showAllSkipped ? skipped : skipped.slice(0, 5);
+  const canProcessProject = Boolean(project.data?.total_images || recentImports.length);
+  const activeImportJob = mutation.isPending ? activeJobOfType(importJobsQuery.data, "import") : undefined;
+  const importJob = activeImportJob ?? mutation.data?.job;
+  const importProgress = processingProgressPercent(importJob);
+
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
       <div>
         <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
         <h1 className="mt-1 text-3xl font-semibold">Import Images</h1>
+        {project.data?.root_path ? (
+          <p className="mt-2 break-all text-sm text-neutral-600">Project data: {project.data.root_path}</p>
+        ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="focus-within:ring-2 focus-within:ring-leaf grid min-h-56 cursor-pointer place-items-center rounded border border-dashed border-line bg-white p-8 text-center">
@@ -59,6 +96,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             <FileImage className="mx-auto text-leaf" size={34} />
             <span className="font-medium">Choose a folder</span>
             <span className="text-sm text-neutral-600">Original files are copied into the local project folder.</span>
+            <span className="text-sm text-neutral-600">Source folders are not tracked for rescan yet.</span>
           </span>
         </label>
       </div>
@@ -68,19 +106,43 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           Importing and generating previews...
         </p>
       ) : null}
+      {importJob ? (
+        <div className="grid gap-2 rounded border border-line bg-white p-4 text-sm">
+          <div className="flex items-center justify-between gap-4">
+            <span className="font-medium">Import {processingStatusLabel(importJob.status)}</span>
+            <span className="text-neutral-600">{processingProgressSummary(importJob, project.data)}</span>
+          </div>
+          <p className="text-neutral-700">{importJob.current_step}</p>
+          <div className="h-2 rounded bg-mist">
+            <div
+              className={`h-2 rounded ${importJob.status === "failed" ? "bg-coral" : "bg-leaf"}`}
+              style={{ width: `${importProgress}%` }}
+            />
+          </div>
+          {importJob.error_message ? <p className="text-coral">{importJob.error_message}</p> : null}
+        </div>
+      ) : null}
       {message ? <p className="text-sm text-leaf">{message}</p> : null}
       {skipped.length ? (
         <div className="rounded border border-line bg-white p-3 text-sm text-neutral-700">
-          <p className="font-medium text-coral">{skipped.length} files skipped.</p>
+          <p className="font-medium text-coral">
+            {skipped.length} {pluralize(skipped.length, "file")} skipped.
+          </p>
           <ul className="mt-2 grid gap-1">
-            {skipped.slice(0, 5).map((item) => (
+            {visibleSkipped.map((item) => (
               <li key={`${item.filename}-${item.reason}`}>
                 {item.filename}: {item.reason}
               </li>
             ))}
           </ul>
           {skipped.length > 5 ? (
-            <p className="mt-2 text-neutral-600">Only the first 5 skipped files are shown.</p>
+            <button
+              className="focus-ring mt-3 rounded border border-line bg-white px-3 py-2 text-xs font-medium"
+              onClick={() => setShowAllSkipped((current) => !current)}
+              aria-expanded={showAllSkipped}
+            >
+              {showAllSkipped ? "Show first 5 skipped files" : `Show all ${skipped.length} skipped files`}
+            </button>
           ) : null}
         </div>
       ) : null}
@@ -97,6 +159,8 @@ export function ImportPanel({ projectId }: { projectId: string }) {
                       className="aspect-[4/3] w-full object-cover"
                       src={thumbnail}
                       alt={`Thumbnail for ${photo.filename}`}
+                      loading="lazy"
+                      decoding="async"
                     />
                   ) : (
                     <div className="grid aspect-[4/3] place-items-center text-xs text-neutral-600">No preview</div>
@@ -112,13 +176,28 @@ export function ImportPanel({ projectId }: { projectId: string }) {
         </div>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
-      <Link
-        className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
-        href={`/projects/${projectId}/process`}
-      >
-        <Play size={18} />
-        Process Project
-      </Link>
+      {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
+      {canProcessProject ? (
+        <Link
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
+          href={`/projects/${projectId}/process`}
+        >
+          <Play size={18} />
+          Process Project
+        </Link>
+      ) : (
+        <div className="grid gap-2">
+          <button
+            className="inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white opacity-50"
+            disabled
+            type="button"
+          >
+            <Play size={18} />
+            Process Project
+          </button>
+          <p className="text-sm text-neutral-600">Import images before processing this project.</p>
+        </div>
+      )}
     </section>
   );
 }

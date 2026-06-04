@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 
 import numpy as np
+from PIL import Image
+
+SCORING_LONG_EDGE = 1600
+SCORING_RESAMPLE = Image.Resampling.BICUBIC
+SCORING_REDUCING_GAP = 2.0
 
 
 @dataclass(frozen=True)
@@ -31,10 +36,40 @@ def _to_luminance(image: np.ndarray) -> np.ndarray:
     return 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
 
 
+def _bounded_scoring_size(width: int, height: int, long_edge: int = SCORING_LONG_EDGE) -> tuple[int, int]:
+    current_long_edge = max(width, height)
+    if current_long_edge <= long_edge:
+        return width, height
+
+    scale = long_edge / float(current_long_edge)
+    return max(1, round(width * scale)), max(1, round(height * scale))
+
+
+def scoring_image_array(image: Image.Image) -> np.ndarray:
+    width, height = image.size
+    target_size = _bounded_scoring_size(width, height)
+    scoring_image = image if target_size == image.size else image.resize(
+        target_size,
+        resample=SCORING_RESAMPLE,
+        reducing_gap=SCORING_REDUCING_GAP,
+    )
+    if scoring_image.mode not in {"L", "RGB"}:
+        scoring_image = scoring_image.convert("RGB")
+    return np.asarray(scoring_image)
+
+
 def _laplacian_variance(gray: np.ndarray) -> float:
     padded = np.pad(gray, 1, mode="edge")
     laplacian = -4 * padded[1:-1, 1:-1] + padded[:-2, 1:-1] + padded[2:, 1:-1] + padded[1:-1, :-2] + padded[1:-1, 2:]
     return float(laplacian.var())
+
+
+def _exposure_score(gray: np.ndarray, mean_luma: float | None = None) -> float:
+    mean_luma_value = float(gray.mean()) if mean_luma is None else mean_luma
+    mean_balance = 1.0 - min(abs(mean_luma_value / 255.0 - 0.5) * 2.0, 1.0)
+    clipped_ratio = float(((gray <= 5.0) | (gray >= 250.0)).mean())
+    clipping_quality = 1.0 - min(clipped_ratio, 1.0)
+    return round(float(np.clip(0.75 * mean_balance + 0.25 * clipping_quality, 0.0, 1.0)), 4)
 
 
 def _detect_face_signals(
@@ -43,7 +78,7 @@ def _detect_face_signals(
     if image.ndim < 3:
         return False, 0.0, None, 0.0
 
-    rgb = image[..., :3].astype(np.float32)
+    rgb = image[..., :3]
     red = rgb[..., 0]
     green = rgb[..., 1]
     blue = rgb[..., 2]
@@ -104,11 +139,11 @@ def compute_quality_scores(image: np.ndarray) -> QualityScores:
     sharpness_score = normalize_score(_laplacian_variance(gray), 1200.0)
     blur_score = round(1.0 - sharpness_score, 4)
 
-    mean_luma = float(gray.mean()) / 255.0
-    exposure_score = round(1.0 - min(abs(mean_luma - 0.5) * 2.0, 1.0), 4)
+    mean_luma = float(gray.mean())
+    exposure_score = _exposure_score(gray, mean_luma)
     contrast_score = normalize_score(float(gray.std()), 80.0)
 
-    high_freq = np.abs(gray - gray.mean())
+    high_freq = np.abs(gray - mean_luma)
     noise_score = normalize_score(float(np.percentile(high_freq, 95)), 130.0)
     face_presence, face_sharpness_score, eye_open_confidence, face_quality_score = _detect_face_signals(
         image, gray, sharpness_score
@@ -137,3 +172,7 @@ def compute_quality_scores(image: np.ndarray) -> QualityScores:
         aesthetic_score=aesthetic_score,
         overall_score=overall_score,
     )
+
+
+def compute_quality_scores_for_image(image: Image.Image) -> QualityScores:
+    return compute_quality_scores(scoring_image_array(image))

@@ -4,60 +4,95 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useEffect, useMemo } from "react";
-import { ArrowLeft, ArrowRight, Check, Eye, ImageOff, Loader2, Play, Star, Upload, X } from "lucide-react";
-import { api, assetUrl, Photo } from "@/lib/api";
-import { nextPhotoIdAfterMark } from "@/lib/reviewNavigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Columns2,
+  Eye,
+  ImageOff,
+  Loader2,
+  Play,
+  Star,
+  StarOff,
+  Upload,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
+import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
+import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
+import { groupConfidenceLabel, groupScoreSummaryRows, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
+import { reviewHeaderSummary } from "@/lib/reviewHeaderSummary";
+import { reviewMetadataRows } from "@/lib/reviewMetadata";
+import { reviewProgressForEntry, reviewProgressStorageKey } from "@/lib/reviewProgress";
+import { photoMatchesReviewFilter, REVIEW_FILTERS } from "@/lib/reviewFilters";
+import {
+  groupAfterMove,
+  nextPhotoIdAfterMark,
+  reviewSelectionState,
+  windowedCompareRefs,
+  windowedGroupRefs,
+  windowedPhotoRefs,
+} from "@/lib/reviewNavigation";
+import { reviewScoreRows } from "@/lib/reviewScores";
+import { reviewShortcutCommandForKey, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
 import { useReviewStore } from "@/store/reviewStore";
 
-const FILTERS = [
-  "All",
-  "Picks",
-  "Maybes",
-  "Rejects",
-  "Unreviewed",
-  "AI recommended",
-  "Blurry photos",
-  "Duplicate groups",
-  "Photos with faces",
-];
-
-function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<string>) {
-  if (filter === "All") return true;
-  if (filter === "Picks") return photo.user_status === "Pick";
-  if (filter === "Maybes") return photo.user_status === "Maybe";
-  if (filter === "Rejects") return photo.user_status === "Reject";
-  if (filter === "Unreviewed") return photo.user_status === "Unreviewed";
-  if (filter === "AI recommended") return photo.ai_recommendation === "Pick";
-  if (filter === "Blurry photos") return photo.blur_score >= 0.55;
-  if (filter === "Duplicate groups") return Boolean(photo.group_id && duplicateGroupIds.has(photo.group_id));
-  if (filter === "Photos with faces") return photo.face_presence;
-  return true;
-}
+const FILMSTRIP_WINDOW_SIZE = 80;
+const GROUP_WINDOW_SIZE = 80;
+const COMPARE_WINDOW_SIZE = 6;
+const CULLING_INITIAL_PAGE_LIMIT = 500;
 
 export function CullingWorkspace({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
-  const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId) });
-  const photosQuery = useQuery({ queryKey: ["photos", projectId], queryFn: () => api.listPhotos(projectId) });
-  const groupsQuery = useQuery({ queryKey: ["groups", projectId], queryFn: () => api.listGroups(projectId) });
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedFilter = searchParams.get("filter");
+  const filterButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const skipNextProgressSave = useRef<string | null>(null);
+  const [allPhotosLoaded, setAllPhotosLoaded] = useState(false);
+  const [allGroupsLoaded, setAllGroupsLoaded] = useState(false);
+  const [failedAssetUrls, setFailedAssetUrls] = useState<Set<string>>(() => new Set());
+  const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
+  const photosQuery = useQuery({
+    queryKey: ["photos", projectId],
+    queryFn: () => api.listPhotos(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+    retry: false,
+  });
+  const groupsQuery = useQuery({
+    queryKey: ["groups", projectId],
+    queryFn: () => api.listGroups(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+    retry: false,
+  });
   const {
     activeGroupId,
     activePhotoId,
+    compareMode,
     filter,
     largePreview,
+    zoomPreview,
     setActiveGroupId,
     setActivePhotoId,
     setFilter,
+    setReviewProgress,
+    toggleCompareMode,
     toggleLargePreview,
+    toggleZoomPreview,
   } = useReviewStore();
   const photos = useMemo(() => photosQuery.data ?? [], [photosQuery.data]);
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
+  const projectPhotoCount = project.data?.total_images ?? photos.length;
+  const photosPartiallyLoaded = projectPhotoCount > photos.length && !allPhotosLoaded;
+  const groupsMayBePartial = groups.length === CULLING_INITIAL_PAGE_LIMIT && !allGroupsLoaded;
   const duplicateGroupIds = useMemo(
     () => new Set(groups.filter((group) => group.photo_count > 1).map((group) => group.id)),
     [groups],
   );
   const filteredPhotos = useMemo(
-    () => photos.filter((photo) => statusForFilter(photo, filter, duplicateGroupIds)),
+    () => photos.filter((photo) => photoMatchesReviewFilter(photo, filter, duplicateGroupIds)),
     [duplicateGroupIds, filter, photos],
   );
   const visiblePhotos = useMemo(() => {
@@ -66,18 +101,169 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     }
     return filteredPhotos.filter((photo) => photo.group_id === activeGroupId);
   }, [activeGroupId, filteredPhotos]);
-  const activeIndex = Math.max(
-    0,
-    visiblePhotos.findIndex((photo) => photo.id === activePhotoId),
+  const selection = useMemo(
+    () =>
+      reviewSelectionState({
+        activeGroupId,
+        activePhotoId,
+        filteredPhotos,
+        groups,
+        visiblePhotos,
+      }),
+    [activeGroupId, activePhotoId, filteredPhotos, groups, visiblePhotos],
   );
-  const activePhoto = visiblePhotos[activeIndex] ?? visiblePhotos[0] ?? null;
-  const activeGroupIndex = activeGroupId ? groups.findIndex((group) => group.id === activeGroupId) : -1;
+  const { activeGroup, activeIndex, activePhoto, compareCandidates } = selection;
+  const groupIndexById = useMemo(() => new Map(groups.map((group, index) => [group.id, index])), [groups]);
+  const activeGroupIndex = activeGroup ? (groupIndexById.get(activeGroup.id) ?? -1) : -1;
+  const activeGroupSummary = useMemo(
+    () => parseGroupScoreSummary(activeGroup?.score_summary),
+    [activeGroup?.score_summary],
+  );
+  const comparePhotos = useMemo(
+    () => windowedCompareRefs(compareCandidates, activePhoto?.id ?? null, COMPARE_WINDOW_SIZE),
+    [activePhoto?.id, compareCandidates],
+  );
+  const filmstripPhotos = useMemo(
+    () => windowedPhotoRefs(visiblePhotos, activePhoto?.id ?? null, FILMSTRIP_WINDOW_SIZE),
+    [activePhoto?.id, visiblePhotos],
+  );
+  const sidebarGroups = useMemo(
+    () => windowedGroupRefs(groups, activeGroup?.id ?? activeGroupId, GROUP_WINDOW_SIZE),
+    [activeGroup?.id, activeGroupId, groups],
+  );
+  const visiblePhotoIds = useMemo(() => visiblePhotos.map((photo) => photo.id), [visiblePhotos]);
+  const metadataRows = useMemo(() => reviewMetadataRows(activePhoto), [activePhoto]);
+  const photoStatusCountsQueryKey = useMemo(() => ["photo-status-counts", projectId], [projectId]);
+
+  useEffect(() => {
+    setAllPhotosLoaded(false);
+    setAllGroupsLoaded(false);
+  }, [projectId]);
+
+  const loadAllPhotosMutation = useMutation({
+    mutationFn: () => api.listAllPhotos(projectId),
+    onSuccess: (allPhotos) => {
+      queryClient.setQueryData(["photos", projectId], allPhotos);
+      setAllPhotosLoaded(true);
+    },
+  });
+
+  const loadAllGroupsMutation = useMutation({
+    mutationFn: () => api.listAllGroups(projectId),
+    onSuccess: (allGroups) => {
+      queryClient.setQueryData(["groups", projectId], allGroups);
+      setAllGroupsLoaded(true);
+    },
+  });
+
+  useEffect(() => {
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(reviewProgressStorageKey(projectId));
+    } catch {
+      stored = null;
+    }
+    skipNextProgressSave.current = projectId;
+    setReviewProgress(reviewProgressForEntry(stored, REVIEW_FILTERS, requestedFilter));
+  }, [projectId, requestedFilter, setReviewProgress]);
+
+  useEffect(() => {
+    if (skipNextProgressSave.current === projectId) {
+      skipNextProgressSave.current = null;
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        reviewProgressStorageKey(projectId),
+        JSON.stringify({
+          activeGroupId,
+          activePhotoId,
+          compareMode,
+          filter,
+          largePreview,
+          zoomPreview,
+        }),
+      );
+    } catch {
+      // Keep review usable if browser storage is unavailable.
+    }
+  }, [activeGroupId, activePhotoId, compareMode, filter, largePreview, projectId, zoomPreview]);
 
   const updateMutation = useMutation({
-    mutationFn: ({ photo, patch }: { photo: Photo; patch: Partial<Pick<Photo, "user_status" | "star_rating">> }) =>
-      api.updatePhoto(projectId, photo.id, patch),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
+    mutationFn: ({ photo, patch }: { photo: Photo; patch: PhotoPatch }) => api.updatePhoto(projectId, photo.id, patch),
+    onMutate: async ({ photo, patch }) => {
+      const queryKey = ["photos", projectId];
+      await queryClient.cancelQueries({ queryKey });
+      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey);
+      const previousStatusCounts =
+        queryClient.getQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey);
+      queryClient.setQueryData<Photo[]>(queryKey, (currentPhotos) =>
+        currentPhotos?.map((item) => (item.id === photo.id ? { ...item, ...patch } : item)),
+      );
+      if (patch.user_status) {
+        const nextStatus = patch.user_status;
+        queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
+          currentCounts ? applyStatusCountChange(currentCounts, photo.user_status, nextStatus) : currentCounts,
+        );
+      }
+      return { previousPhotos, previousStatusCounts };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousPhotos) {
+        queryClient.setQueryData(["photos", projectId], context.previousPhotos);
+      }
+      if (context?.previousStatusCounts) {
+        queryClient.setQueryData(photoStatusCountsQueryKey, context.previousStatusCounts);
+      }
+    },
+    onSuccess: (updatedPhoto) => {
+      queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) =>
+        currentPhotos?.map((item) => (item.id === updatedPhoto.id ? updatedPhoto : item)),
+      );
+    },
+  });
+
+  const batchUpdateMutation = useMutation({
+    mutationFn: ({ photoIds, patch }: { photoIds: string[]; patch: PhotoPatch }) =>
+      api.batchUpdatePhotos(projectId, photoIds, patch),
+    onMutate: async ({ photoIds, patch }) => {
+      const queryKey = ["photos", projectId];
+      const targetIds = new Set(photoIds);
+      await queryClient.cancelQueries({ queryKey });
+      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey);
+      const previousStatusCounts =
+        queryClient.getQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey);
+      queryClient.setQueryData<Photo[]>(queryKey, (currentPhotos) =>
+        currentPhotos?.map((item) => (targetIds.has(item.id) ? { ...item, ...patch } : item)),
+      );
+      if (patch.user_status && previousPhotos) {
+        const nextStatus = patch.user_status;
+        const targetPhotos = previousPhotos.filter((photo) => targetIds.has(photo.id));
+        queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
+          currentCounts
+            ? targetPhotos.reduce(
+                (counts, photo) => applyStatusCountChange(counts, photo.user_status, nextStatus),
+                currentCounts,
+              )
+            : currentCounts,
+        );
+      }
+      return { previousPhotos, previousStatusCounts };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousPhotos) {
+        queryClient.setQueryData(["photos", projectId], context.previousPhotos);
+      }
+      if (context?.previousStatusCounts) {
+        queryClient.setQueryData(photoStatusCountsQueryKey, context.previousStatusCounts);
+      }
+    },
+    onSuccess: (updatedPhotos) => {
+      const updatedById = new Map(updatedPhotos.map((photo) => [photo.id, photo]));
+      queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) =>
+        currentPhotos?.map((item) => updatedById.get(item.id) ?? item),
+      );
     },
   });
 
@@ -113,6 +299,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     selectGroup(nextGroup.id, nextGroup.representative_photo_id);
   }
 
+  function moveGroup(delta: -1 | 1) {
+    const nextGroup = groupAfterMove(groups, activeGroup?.id ?? activeGroupId, delta);
+    if (nextGroup) {
+      selectGroup(nextGroup.id, nextGroup.representative_photo_id);
+    }
+  }
+
   function mark(status: Photo["user_status"]) {
     if (activePhoto) {
       const nextPhotoId = nextPhotoIdAfterMark(visiblePhotos, activePhoto.id);
@@ -123,38 +316,69 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     }
   }
 
+  function batchMark(status: Photo["user_status"]) {
+    if (visiblePhotoIds.length) {
+      batchUpdateMutation.mutate({ photoIds: visiblePhotoIds, patch: { user_status: status } });
+    }
+  }
+
   function rate(star_rating: number) {
     if (activePhoto) {
       updateMutation.mutate({ photo: activePhoto, patch: { star_rating } });
     }
   }
 
+  function focusFilterControls() {
+    const activeFilterIndex = Math.max(REVIEW_FILTERS.findIndex((item) => item === filter), 0);
+    filterButtonRefs.current[activeFilterIndex]?.focus();
+  }
+
+  function assetHasFailed(url: string | null): boolean {
+    return Boolean(url && failedAssetUrls.has(url));
+  }
+
+  function markAssetFailed(url: string) {
+    setFailedAssetUrls((current) => {
+      if (current.has(url)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(url);
+      return next;
+    });
+  }
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      if (event.key === "ArrowLeft") move(-1);
-      if (event.key === "ArrowRight") move(1);
-      if (event.key.toLowerCase() === "p") mark("Pick");
-      if (event.key.toLowerCase() === "m") mark("Maybe");
-      if (event.key.toLowerCase() === "x") mark("Reject");
-      if (event.key.toLowerCase() === "u") mark("Unreviewed");
-      if (event.key === " ") {
+      const command = reviewShortcutCommandForKey(event.key);
+      if (!command) return;
+      if (reviewShortcutNeedsPreventDefault(command)) {
         event.preventDefault();
-        toggleLargePreview();
       }
-      if (event.key.toLowerCase() === "g") cycleGroup();
-      const numeric = Number(event.key);
-      if (numeric >= 1 && numeric <= 5) rate(numeric);
+
+      if (command.type === "move_photo") move(command.delta);
+      if (command.type === "move_group") moveGroup(command.delta);
+      if (command.type === "mark") mark(command.status);
+      if (command.type === "rate") rate(command.rating);
+      if (command.type === "toggle_large_preview") toggleLargePreview();
+      if (command.type === "toggle_zoom") toggleZoomPreview();
+      if (command.type === "toggle_compare") toggleCompareMode();
+      if (command.type === "cycle_group") cycleGroup();
+      if (command.type === "focus_filters") focusFilterControls();
+      if (command.type === "export") {
+        router.push(`/projects/${projectId}/export`);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
   const preview = activePhoto ? assetUrl(projectId, activePhoto.preview_path) : null;
-  const picks = photos.filter((photo) => photo.user_status === "Pick").length;
-  const reviewed = photos.filter((photo) => photo.user_status !== "Unreviewed").length;
   const isLoading = project.isLoading || photosQuery.isLoading || groupsQuery.isLoading;
   const loadError = project.error ?? photosQuery.error ?? groupsQuery.error;
+  const loadErrorMessage = loadError instanceof Error ? loadError.message : "Start the local API and try again.";
+  const saveError = updateMutation.error ?? batchUpdateMutation.error;
 
   if (isLoading) {
     return (
@@ -171,7 +395,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     return (
       <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
         <h1 className="text-2xl font-semibold">Culling Workspace</h1>
-        <p className="text-sm text-coral">Could not load this project. Start the local API and try again.</p>
+        <p className="text-sm text-coral">Could not load this project: {loadErrorMessage}</p>
       </section>
     );
   }
@@ -222,32 +446,68 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         <div>
           <h1 className="text-lg font-semibold">{project.data?.name ?? "Culling Workspace"}</h1>
           <p className="text-sm text-neutral-600">
-            {reviewed}/{photos.length} reviewed · {picks} picks
-            {activeGroupIndex >= 0 ? ` · Group ${activeGroupIndex + 1} of ${groups.length}` : ""}
+            {reviewHeaderSummary({
+              activeGroupIndex,
+              groupCount: groups.length,
+              photos,
+              photosPartiallyLoaded,
+              projectPhotoCount,
+            })}
           </p>
+          {loadAllPhotosMutation.error || loadAllGroupsMutation.error ? (
+            <p className="mt-1 text-xs text-coral">
+              {(loadAllPhotosMutation.error ?? loadAllGroupsMutation.error)?.message}
+            </p>
+          ) : null}
         </div>
-        <Link
-          className="focus-ring rounded bg-ink px-4 py-2 text-sm font-medium text-white"
-          href={`/projects/${projectId}/export`}
-        >
-          Export
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {photosPartiallyLoaded ? (
+            <button
+              className="focus-ring rounded border border-line bg-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+              disabled={loadAllPhotosMutation.isPending}
+              onClick={() => loadAllPhotosMutation.mutate()}
+            >
+              {loadAllPhotosMutation.isPending ? "Loading..." : "Load all photos"}
+            </button>
+          ) : null}
+          <Link
+            className="focus-ring rounded bg-ink px-4 py-2 text-sm font-medium text-white"
+            href={`/projects/${projectId}/export`}
+          >
+            Export
+          </Link>
+        </div>
       </div>
       <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[260px_1fr_320px]">
         <aside className="border-b border-line bg-white p-4 lg:border-b-0 lg:border-r">
           <h2 className="mb-3 text-sm font-semibold">Filters</h2>
           <div className="grid gap-1">
-            {FILTERS.map((item) => (
+            {REVIEW_FILTERS.map((item, index) => (
               <button
                 className={`focus-ring rounded px-3 py-2 text-left text-sm ${filter === item ? "bg-leaf text-white" : "hover:bg-mist"}`}
                 key={item}
                 onClick={() => setFilter(item)}
+                aria-pressed={filter === item}
+                ref={(node) => {
+                  filterButtonRefs.current[index] = node;
+                }}
               >
                 {item}
               </button>
             ))}
           </div>
-          <h2 className="mb-3 mt-6 text-sm font-semibold">Groups</h2>
+          <div className="mb-3 mt-6 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold">Groups</h2>
+            {groupsMayBePartial ? (
+              <button
+                className="focus-ring rounded border border-line px-2 py-1 text-xs font-medium disabled:opacity-50"
+                disabled={loadAllGroupsMutation.isPending}
+                onClick={() => loadAllGroupsMutation.mutate()}
+              >
+                {loadAllGroupsMutation.isPending ? "Loading..." : "Load all"}
+              </button>
+            ) : null}
+          </div>
           <div className="grid gap-2 text-sm text-neutral-700">
             {activeGroupId ? (
               <button
@@ -257,27 +517,94 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 Show filtered photos
               </button>
             ) : null}
-            {groups.map((group, index) => (
-              <button
-                className={`focus-ring flex justify-between rounded border px-3 py-2 text-left ${activeGroupId === group.id ? "border-leaf bg-mist" : "border-line bg-white"}`}
-                key={group.id}
-                onClick={() => selectGroup(group.id, group.representative_photo_id)}
-              >
-                <span>Group {index + 1}</span>
-                <span>{group.photo_count}</span>
-              </button>
-            ))}
+            {groups.length > sidebarGroups.length ? (
+              <span className="rounded border border-line px-3 py-2 text-xs text-neutral-600">
+                {sidebarGroups.length} of {groups.length} groups
+              </span>
+            ) : null}
+            {sidebarGroups.map((group) => {
+              const summary = parseGroupScoreSummary(group.score_summary);
+              const groupNumber = (groupIndexById.get(group.id) ?? 0) + 1;
+              const isActiveGroup = activeGroup?.id === group.id;
+              const groupPhotoLabel = `${group.photo_count} ${group.photo_count === 1 ? "photo" : "photos"}`;
+              return (
+                <button
+                  className={`focus-ring rounded border px-3 py-2 text-left ${isActiveGroup ? "border-leaf bg-mist" : "border-line bg-white"}`}
+                  key={group.id}
+                  onClick={() => selectGroup(group.id, group.representative_photo_id)}
+                  aria-current={isActiveGroup ? "true" : undefined}
+                  aria-label={`Group ${groupNumber}, ${groupPhotoLabel}, ${groupConfidenceLabel(summary)}`}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span>Group {groupNumber}</span>
+                    <span>{group.photo_count}</span>
+                  </span>
+                  <span className="mt-1 block text-xs text-neutral-500">{groupConfidenceLabel(summary)}</span>
+                </button>
+              );
+            })}
           </div>
         </aside>
         <div
-          className={`grid min-h-[420px] place-items-center bg-neutral-900 p-4 ${largePreview ? "lg:col-span-2" : ""}`}
+          className={`grid min-h-[420px] place-items-center overflow-auto bg-neutral-900 p-4 ${
+            largePreview ? "lg:col-span-2" : ""
+          }`}
         >
-          {preview ? (
+          {compareMode && comparePhotos.length > 1 ? (
+            <div className="grid w-full gap-3 md:grid-cols-2">
+              {compareCandidates.length > comparePhotos.length ? (
+                <span className="md:col-span-2 justify-self-start rounded bg-white/90 px-2 py-1 text-xs text-ink">
+                  {comparePhotos.length} of {compareCandidates.length} compare candidates
+                </span>
+              ) : null}
+              {comparePhotos.map((photo) => {
+                const comparePreview = assetUrl(projectId, photo.preview_path);
+                return (
+                  <button
+                    className={`focus-ring grid min-h-72 place-items-center overflow-hidden rounded border bg-neutral-950 p-2 ${
+                      photo.id === activePhoto?.id ? "border-leaf" : "border-neutral-700"
+                    }`}
+                    key={photo.id}
+                    onClick={() => setActivePhotoId(photo.id)}
+                  >
+                    {comparePreview && !assetHasFailed(comparePreview) ? (
+                      <img
+                        className="max-h-[56vh] max-w-full object-contain"
+                        src={comparePreview}
+                        alt={`Compare ${photo.filename}`}
+                        loading="lazy"
+                        decoding="async"
+                        onError={() => markAssetFailed(comparePreview)}
+                      />
+                    ) : (
+                      <span className="text-sm text-white">
+                        {comparePreview ? "Preview failed to load" : "No preview"}
+                      </span>
+                    )}
+                    <span className="mt-2 justify-self-start rounded bg-white/90 px-2 py-1 text-xs text-ink">
+                      {photo.filename} · {photo.ai_recommendation}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : preview && !assetHasFailed(preview) ? (
             <img
-              className="max-h-[72vh] max-w-full object-contain"
+              className={
+                zoomPreview
+                  ? "mx-auto max-w-none object-contain"
+                  : "mx-auto max-h-[72vh] max-w-full object-contain"
+              }
               src={preview}
               alt={activePhoto?.filename ?? "Preview"}
+              decoding="async"
+              onError={() => markAssetFailed(preview)}
             />
+          ) : preview ? (
+            <div className="grid place-items-center gap-3 text-center text-white">
+              <ImageOff size={38} />
+              <p>Preview failed to load.</p>
+            </div>
           ) : (
             <div className="grid place-items-center gap-3 text-center text-white">
               <ImageOff size={38} />
@@ -297,21 +624,44 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     {activePhoto.width} x {activePhoto.height}
                   </p>
                 </div>
+                {metadataRows.length ? (
+                  <div className="rounded border border-line p-3 text-sm">
+                    <p className="font-semibold">Metadata</p>
+                    <div className="mt-2 grid gap-1 text-neutral-700">
+                      {metadataRows.map(([label, value]) => (
+                        <p className="flex justify-between gap-3" key={label}>
+                          <span className="text-neutral-500">{label}</span>
+                          <span className="text-right">{value}</span>
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {activeGroup ? (
+                  <div className="rounded border border-line bg-mist p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-semibold">{groupConfidenceLabel(activeGroupSummary)}</p>
+                      <p className="text-neutral-600">{activeGroup.photo_count} photos</p>
+                    </div>
+                    {activeGroupSummary ? (
+                      <>
+                        <p className="mt-2 text-neutral-700">{activeGroupSummary.explanation}</p>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-neutral-700">
+                          {groupScoreSummaryRows(activeGroupSummary).map(([label, value]) => (
+                            <span key={label}>
+                              {label} {value}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  {[
-                    ["Sharpness", activePhoto.sharpness_score],
-                    ["Exposure", activePhoto.exposure_score],
-                    ["Contrast", activePhoto.contrast_score],
-                    ["Blur risk", activePhoto.blur_score],
-                    ["Face sharpness", activePhoto.face_sharpness_score],
-                    ["Eye open", activePhoto.eye_open_confidence ?? 0],
-                    ["Face quality", activePhoto.face_quality_score],
-                    ["Aesthetic", activePhoto.aesthetic_score],
-                    ["Overall", activePhoto.overall_score],
-                  ].map(([label, value]) => (
+                  {reviewScoreRows(activePhoto).map(([label, value]) => (
                     <div className="rounded border border-line p-3" key={label}>
                       <p className="text-neutral-600">{label}</p>
-                      <p className="mt-1 font-semibold">{Number(value).toFixed(2)}</p>
+                      <p className="mt-1 font-semibold">{value}</p>
                     </div>
                   ))}
                 </div>
@@ -323,39 +673,103 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 <p className="rounded border border-line bg-mist p-3 text-sm">
                   {activePhoto.recommendation_explanation}
                 </p>
+                {activePhoto.processing_error ? (
+                  <div className="rounded border border-coral/40 bg-coral/10 p-3 text-sm">
+                    <p className="font-semibold text-coral">Processing error</p>
+                    <p className="mt-1 text-neutral-700">{activePhoto.processing_error}</p>
+                  </div>
+                ) : null}
+                <div className="rounded border border-line p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold">Batch visible</p>
+                    <p className="text-xs text-neutral-600">{visiblePhotos.length} photos</p>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      className="focus-ring rounded bg-leaf px-2 py-2 text-xs font-medium text-white disabled:opacity-50"
+                      disabled={!visiblePhotos.length || batchUpdateMutation.isPending}
+                      onClick={() => batchMark("Pick")}
+                      aria-label="Set visible photos to selected"
+                    >
+                      Pick
+                    </button>
+                    <button
+                      className="focus-ring rounded bg-gold px-2 py-2 text-xs font-medium text-white disabled:opacity-50"
+                      disabled={!visiblePhotos.length || batchUpdateMutation.isPending}
+                      onClick={() => batchMark("Maybe")}
+                      aria-label="Set visible photos to tentative"
+                    >
+                      Maybe
+                    </button>
+                    <button
+                      className="focus-ring rounded bg-coral px-2 py-2 text-xs font-medium text-white disabled:opacity-50"
+                      disabled={!visiblePhotos.length || batchUpdateMutation.isPending}
+                      onClick={() => batchMark("Reject")}
+                      aria-label="Set visible photos to rejected"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      className="focus-ring rounded border border-line px-2 py-2 text-xs font-medium disabled:opacity-50"
+                      disabled={!visiblePhotos.length || batchUpdateMutation.isPending}
+                      onClick={() => batchMark("Unreviewed")}
+                      aria-label="Set visible photos to unreviewed"
+                    >
+                      Unreviewed
+                    </button>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     className="focus-ring rounded bg-leaf px-3 py-2 text-sm font-medium text-white"
                     onClick={() => mark("Pick")}
+                    aria-pressed={activePhoto.user_status === "Pick"}
+                    aria-label="Set active photo to Pick"
                   >
                     Pick
                   </button>
                   <button
                     className="focus-ring rounded bg-gold px-3 py-2 text-sm font-medium text-white"
                     onClick={() => mark("Maybe")}
+                    aria-pressed={activePhoto.user_status === "Maybe"}
+                    aria-label="Set active photo to Maybe"
                   >
                     Maybe
                   </button>
                   <button
                     className="focus-ring rounded bg-coral px-3 py-2 text-sm font-medium text-white"
                     onClick={() => mark("Reject")}
+                    aria-pressed={activePhoto.user_status === "Reject"}
+                    aria-label="Set active photo to Reject"
                   >
                     Reject
                   </button>
                   <button
                     className="focus-ring rounded border border-line px-3 py-2 text-sm font-medium"
                     onClick={() => mark("Unreviewed")}
+                    aria-pressed={activePhoto.user_status === "Unreviewed"}
+                    aria-label="Set active photo to Unreviewed"
                   >
                     Unreviewed
                   </button>
                 </div>
+                {saveError ? <p className="text-sm text-coral">{saveError.message}</p> : null}
                 <div className="flex gap-1">
+                  <button
+                    className="focus-ring rounded p-2 text-neutral-600"
+                    onClick={() => rate(0)}
+                    aria-label="Clear rating"
+                    aria-pressed={activePhoto.star_rating === 0}
+                  >
+                    <StarOff size={20} />
+                  </button>
                   {[1, 2, 3, 4, 5].map((rating) => (
                     <button
                       className="focus-ring rounded p-2 text-gold"
                       key={rating}
                       onClick={() => rate(rating)}
                       aria-label={`${rating} stars`}
+                      aria-pressed={activePhoto.star_rating === rating}
                     >
                       <Star fill={activePhoto.star_rating >= rating ? "currentColor" : "none"} size={20} />
                     </button>
@@ -374,18 +788,34 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         >
           <ArrowLeft size={18} />
         </button>
-        {visiblePhotos.map((photo) => {
+        {visiblePhotos.length > filmstripPhotos.length ? (
+          <span className="shrink-0 rounded border border-line px-3 py-2 text-xs text-neutral-600">
+            {filmstripPhotos.length} of {visiblePhotos.length}
+          </span>
+        ) : null}
+        {filmstripPhotos.map((photo) => {
           const thumbnail = assetUrl(projectId, photo.thumbnail_path);
           return (
             <button
               className={`focus-ring relative h-20 w-28 shrink-0 overflow-hidden rounded border ${photo.id === activePhoto?.id ? "border-leaf" : "border-line"}`}
               key={photo.id}
               onClick={() => setActivePhotoId(photo.id)}
+              aria-current={photo.id === activePhoto?.id ? "true" : undefined}
+              aria-label={`Select ${photo.filename}`}
             >
-              {thumbnail ? (
-                <img className="h-full w-full object-cover" src={thumbnail} alt={photo.filename} />
+              {thumbnail && !assetHasFailed(thumbnail) ? (
+                <img
+                  className="h-full w-full object-cover"
+                  src={thumbnail}
+                  alt={photo.filename}
+                  loading="lazy"
+                  decoding="async"
+                  onError={() => markAssetFailed(thumbnail)}
+                />
               ) : (
-                <span className="grid h-full place-items-center text-xs">No preview</span>
+                <span className="grid h-full place-items-center text-xs">
+                  {thumbnail ? "Preview failed" : "No preview"}
+                </span>
               )}
               <span className="absolute bottom-1 left-1 rounded bg-white/90 px-1 text-xs">{photo.user_status}</span>
               {photo.ai_recommendation === "Pick" ? (
@@ -404,9 +834,30 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         <button
           className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line"
           onClick={toggleLargePreview}
-          aria-label="Toggle preview"
+          aria-label="Toggle large preview"
+          aria-pressed={largePreview}
         >
           {largePreview ? <X size={18} /> : <Eye size={18} />}
+        </button>
+        <button
+          className={`focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border ${
+            compareMode ? "border-leaf bg-mist text-leaf" : "border-line"
+          }`}
+          onClick={toggleCompareMode}
+          aria-label="Toggle compare"
+          aria-pressed={compareMode}
+        >
+          <Columns2 size={18} />
+        </button>
+        <button
+          className={`focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border ${
+            zoomPreview ? "border-leaf bg-mist text-leaf" : "border-line"
+          }`}
+          onClick={toggleZoomPreview}
+          aria-label="Toggle zoom"
+          aria-pressed={zoomPreview}
+        >
+          {zoomPreview ? <ZoomOut size={18} /> : <ZoomIn size={18} />}
         </button>
       </div>
     </section>

@@ -1,35 +1,267 @@
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlmodel import Session, select
 
+from app.db.session import get_engine
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.services.grouping import group_similar_photos
-from app.services.ranking import rank_group
+from app.services.importing import ensure_photo_derivatives
+from app.services.ranking import RankedPhoto, rank_group
+
+STALE_PROCESSING_JOB_AFTER = timedelta(minutes=30)
 
 
-def _save_job(session: Session, job: ProcessingJob, current_step: str, processed_items: int | None = None) -> None:
+def _progress_percent(processed_items: int, failed_items: int, total_items: int) -> float:
+    if total_items <= 0:
+        return 100.0
+    return round(min(100.0, ((processed_items + failed_items) / total_items) * 100), 2)
+
+
+def _failed_photo_count_message(count: int) -> str:
+    noun = "photo" if count == 1 else "photos"
+    return f"{count} {noun} could not be processed"
+
+
+def _save_job(
+    session: Session,
+    job: ProcessingJob,
+    current_step: str,
+    processed_items: int | None = None,
+    failed_items: int | None = None,
+) -> None:
     job.current_step = current_step
     if processed_items is not None:
         job.processed_items = processed_items
+    if failed_items is not None:
+        job.failed_items = failed_items
+    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
     job.updated_at = utc_now()
     session.add(job)
     session.commit()
     session.refresh(job)
 
 
-def process_project(session: Session, project: Project) -> ProcessingJob:
-    photos = list(session.exec(select(Photo).where(Photo.project_id == project.id)).all())
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _photo_embedding(photo: Photo) -> list[float]:
+    raw_embedding = json.loads(photo.embedding or "[]")
+    if not isinstance(raw_embedding, list):
+        raise ValueError("Stored similarity data is not a list")
+    embedding: list[float] = []
+    for value in raw_embedding:
+        if not isinstance(value, int | float):
+            raise ValueError("Stored similarity data contains a non-numeric value")
+        embedding.append(float(value))
+    return embedding
+
+
+def _build_group_inputs(photos: list[Photo]) -> tuple[list[dict], list[Photo]]:
+    group_inputs = []
+    failed_photos = []
+    for photo in photos:
+        try:
+            embedding = _photo_embedding(photo)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            failed_photos.append(photo)
+            continue
+        group_inputs.append(
+            {
+                "id": photo.id,
+                "filename": photo.filename,
+                "capture_time": photo.capture_time,
+                "embedding": embedding,
+                "perceptual_hash": photo.perceptual_hash,
+                "width": photo.width,
+                "height": photo.height,
+                "camera_model": photo.camera_model,
+                "lens_model": photo.lens_model,
+                "focal_length": photo.focal_length,
+            }
+        )
+    return group_inputs, failed_photos
+
+
+def _missing_derivative_paths(photo: Photo) -> list[str]:
+    missing = []
+    for label, raw_path in (("thumbnail", photo.thumbnail_path), ("preview", photo.preview_path)):
+        if not raw_path or not Path(raw_path).is_file():
+            missing.append(label)
+    return missing
+
+
+def _mark_photo_failed(session: Session, photo: Photo, reason: str, explanation: str) -> None:
+    photo.ai_recommendation = "Unreviewed"
+    photo.recommendation_explanation = explanation
+    photo.processing_state = "failed"
+    photo.processing_error = reason
+    photo.updated_at = utc_now()
+    session.add(photo)
+
+
+def _reset_incomplete_photos_after_job_failure(session: Session, project_id: str, reason: str) -> None:
+    interrupted_photos = list(
+        session.exec(
+            select(Photo).where(Photo.project_id == project_id).where(Photo.processing_state == "processing")
+        ).all()
+    )
+    for photo in interrupted_photos:
+        photo.processing_state = "imported"
+        photo.processing_error = reason
+        photo.recommendation_explanation = (
+            "Processing was interrupted before this photo completed. Run processing again to retry local analysis."
+        )
+        photo.updated_at = utc_now()
+        session.add(photo)
+
+
+def _group_score_summary(group_type: str, ranked: list[RankedPhoto]) -> str:
+    recommendation_counts = {"Pick": 0, "Maybe": 0, "Reject": 0, "Unreviewed": 0}
+    for item in ranked:
+        recommendation_counts[item.recommendation] = recommendation_counts.get(item.recommendation, 0) + 1
+
+    best_score = ranked[0].score if ranked else 0.0
+    score_gap = round(best_score - ranked[1].score, 4) if len(ranked) > 1 else 0.0
+    if len(ranked) <= 1 or group_type == "single":
+        confidence = "low"
+        explanation = "Low confidence because this group has no similar alternative to compare."
+    elif score_gap >= 0.15:
+        confidence = "high"
+        explanation = f"High confidence because the top photo leads the next candidate by {score_gap:.2f}."
+    elif score_gap >= 0.05:
+        confidence = "medium"
+        explanation = f"Medium confidence because the top photo leads the next candidate by {score_gap:.2f}."
+    else:
+        confidence = "low"
+        explanation = f"Low confidence because the top candidates are separated by only {score_gap:.2f}."
+
+    summary = {
+        "best_score": round(best_score, 4),
+        "confidence": confidence,
+        "explanation": explanation,
+        "recommendation_counts": recommendation_counts,
+        "score_gap": score_gap,
+        "top_photo_id": ranked[0].photo_id if ranked else None,
+    }
+    return json.dumps(summary, sort_keys=True)
+
+
+def _project_processing_is_current(session: Session, project: Project, photos: list[Photo]) -> bool:
+    if not photos or project.processed_images != len(photos) or project.total_images != len(photos):
+        return False
+    if any(photo.processing_state != "processed" or photo.processing_error or not photo.group_id for photo in photos):
+        return False
+    if any(_missing_derivative_paths(photo) for photo in photos):
+        return False
+
+    groups = list(session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all())
+    return bool(groups) and sum(group.photo_count for group in groups) == len(photos)
+
+
+def _complete_unchanged_job(session: Session, job: ProcessingJob, total_items: int) -> ProcessingJob:
+    now = utc_now()
+    job.status = "complete"
+    job.current_step = "complete - no changes"
+    job.total_items = total_items
+    job.processed_items = total_items
+    job.failed_items = 0
+    job.progress_percent = 100.0
+    job.error_message = None
+    job.completed_at = now
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def processing_job_is_stale(job: ProcessingJob, now: datetime | None = None) -> bool:
+    if job.job_type != "processing":
+        return False
+    if job.status not in {"queued", "running"}:
+        return False
+    current_time = _as_utc(now or utc_now())
+    return current_time - _as_utc(job.updated_at) >= STALE_PROCESSING_JOB_AFTER
+
+
+def fail_stale_processing_job(session: Session, job: ProcessingJob) -> ProcessingJob:
+    reason = "Processing job was interrupted before completion"
+    _reset_incomplete_photos_after_job_failure(session, job.project_id, reason)
+    now = utc_now()
+    job.status = "failed"
+    job.current_step = "failed - stale"
+    job.error_message = reason
+    job.failed_items = max(0, job.total_items - job.processed_items) if job.total_items else 1
+    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
+    job.completed_at = now
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def create_processing_job(session: Session, project: Project) -> ProcessingJob:
     job = ProcessingJob(
         project_id=project.id,
-        status="running",
-        current_step="starting",
-        total_items=len(photos),
+        job_type="processing",
+        status="queued",
+        current_step="queued",
+        total_items=project.total_images,
         processed_items=0,
+        failed_items=0,
+        progress_percent=0.0,
     )
     session.add(job)
     session.commit()
     session.refresh(job)
+    return job
+
+
+def run_processing_job(job_id: str) -> None:
+    with Session(get_engine()) as session:
+        job = session.get(ProcessingJob, job_id)
+        if job is None:
+            return
+        project = session.get(Project, job.project_id)
+        if project is None:
+            job.status = "failed"
+            job.current_step = "failed"
+            job.error_message = "Project not found"
+            job.completed_at = utc_now()
+            job.updated_at = utc_now()
+            session.add(job)
+            session.commit()
+            return
+        process_project(session, project, job)
+
+
+def process_project(session: Session, project: Project, job: ProcessingJob | None = None) -> ProcessingJob:
+    photos = list(session.exec(select(Photo).where(Photo.project_id == project.id)).all())
+    if job is None:
+        job = create_processing_job(session, project)
+
+    job.status = "running"
+    job.current_step = "starting"
+    job.total_items = len(photos)
+    job.processed_items = 0
+    job.failed_items = 0
+    job.progress_percent = _progress_percent(0, 0, len(photos))
+    job.error_message = None
+    job.started_at = utc_now()
+    job.completed_at = None
+    job.updated_at = utc_now()
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+
+    if _project_processing_is_current(session, project, photos):
+        return _complete_unchanged_job(session, job, len(photos))
 
     try:
         _save_job(session, job, "clearing stale groups", 0)
@@ -37,20 +269,52 @@ def process_project(session: Session, project: Project) -> ProcessingJob:
             session.delete(existing)
         for photo in photos:
             photo.group_id = None
+            photo.processing_state = "processing"
+            photo.processing_error = None
             session.add(photo)
         session.commit()
 
-        _save_job(session, job, "grouping photos", 0)
-        group_inputs = [
-            {
-                "id": photo.id,
-                "filename": photo.filename,
-                "capture_time": photo.capture_time,
-                "embedding": json.loads(photo.embedding or "[]"),
-            }
-            for photo in photos
-        ]
-        photo_map = {photo.id: photo for photo in photos}
+        _save_job(session, job, "validating generated files", 0)
+        derivative_failed_photos = []
+        derivative_failed_ids = set()
+        for photo in photos:
+            missing_derivatives = _missing_derivative_paths(photo)
+            if not missing_derivatives:
+                continue
+            try:
+                ensure_photo_derivatives(project, photo)
+                session.add(photo)
+            except (OSError, ValueError):
+                derivative_failed_photos.append(photo)
+                derivative_failed_ids.add(photo.id)
+                reason = f"Missing generated {' and '.join(missing_derivatives)}"
+                _mark_photo_failed(
+                    session,
+                    photo,
+                    reason,
+                    "Processing skipped this photo because its generated files could not be rebuilt from the local "
+                    "copied original. Reimport the photo to rebuild local derived files.",
+                )
+        session.commit()
+
+        _save_job(session, job, "validating similarity data", 0, len(derivative_failed_photos))
+        candidate_photos = [photo for photo in photos if photo.id not in derivative_failed_ids]
+        group_inputs, similarity_failed_photos = _build_group_inputs(candidate_photos)
+        for photo in similarity_failed_photos:
+            _mark_photo_failed(
+                session,
+                photo,
+                "Stored similarity data is invalid",
+                "Processing skipped this photo because its stored similarity data is invalid. Reimport the photo "
+                "to rebuild local analysis data.",
+            )
+        session.commit()
+
+        failed_photos = derivative_failed_photos + similarity_failed_photos
+
+        _save_job(session, job, "grouping photos", 0, len(failed_photos))
+        failed_photo_ids = {failed.id for failed in failed_photos}
+        photo_map = {photo.id: photo for photo in candidate_photos if photo.id not in failed_photo_ids}
         grouped_photos = group_similar_photos(group_inputs)
 
         for index, grouped in enumerate(grouped_photos, start=1):
@@ -69,6 +333,8 @@ def process_project(session: Session, project: Project) -> ProcessingJob:
                         "id": photo.id,
                         "sharpness_score": photo.sharpness_score,
                         "exposure_score": photo.exposure_score,
+                        "contrast_score": photo.contrast_score,
+                        "noise_score": photo.noise_score,
                         "face_presence": photo.face_presence,
                         "eye_open_confidence": photo.eye_open_confidence,
                         "face_quality_score": photo.face_quality_score,
@@ -79,11 +345,14 @@ def process_project(session: Session, project: Project) -> ProcessingJob:
 
             ranked = rank_group(ranking_input)
             group.representative_photo_id = ranked[0].photo_id if ranked else None
+            group.score_summary = _group_score_summary(grouped.group_type, ranked)
             for item in ranked:
                 photo = photo_map[item.photo_id]
                 photo.ai_recommendation = item.recommendation
                 photo.recommendation_explanation = item.explanation
                 photo.overall_score = max(photo.overall_score, item.score)
+                photo.processing_state = "processed"
+                photo.processing_error = None
                 photo.updated_at = utc_now()
                 session.add(photo)
 
@@ -97,15 +366,26 @@ def process_project(session: Session, project: Project) -> ProcessingJob:
 
         job.status = "complete"
         job.current_step = "complete"
-        job.processed_items = len(photos)
-        project.processed_images = len(photos)
+        job.processed_items = len(group_inputs)
+        job.failed_items = len(failed_photos)
+        job.progress_percent = 100.0
+        if failed_photos:
+            job.error_message = _failed_photo_count_message(len(failed_photos))
+        job.completed_at = utc_now()
+        project.processed_images = len(group_inputs)
+        project.last_processed_at = job.completed_at
         project.updated_at = utc_now()
         session.add(project)
     except Exception as error:
         session.rollback()
+        failure_reason = str(error)
+        _reset_incomplete_photos_after_job_failure(session, project.id, failure_reason)
         job.status = "failed"
         job.current_step = "failed"
-        job.error_message = str(error)
+        job.error_message = failure_reason
+        job.failed_items = max(1, job.total_items - job.processed_items) if job.total_items else 1
+        job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
+        job.completed_at = utc_now()
 
     job.updated_at = utc_now()
     session.add(job)
@@ -115,6 +395,22 @@ def process_project(session: Session, project: Project) -> ProcessingJob:
 
 
 def project_export_root(project: Project) -> Path:
-    target = Path(project.root_path) / "exports"
-    target.mkdir(parents=True, exist_ok=True)
-    return target
+    try:
+        project_root = Path(project.root_path).resolve(strict=True)
+    except FileNotFoundError as error:
+        raise ValueError("Project root path is unavailable") from error
+
+    export_root = project_root / "exports"
+    export_root.mkdir(parents=True, exist_ok=True)
+    resolved_export_root = export_root.resolve(strict=True)
+    if not resolved_export_root.is_dir() or not resolved_export_root.is_relative_to(project_root):
+        raise ValueError("Project export directory must stay inside the project root")
+
+    for child in ("csv", "zip", "folders"):
+        child_root = export_root / child
+        child_root.mkdir(parents=True, exist_ok=True)
+        resolved_child_root = child_root.resolve(strict=True)
+        if not resolved_child_root.is_dir() or not resolved_child_root.is_relative_to(resolved_export_root):
+            raise ValueError("Project export directory must stay inside the project root")
+
+    return resolved_export_root

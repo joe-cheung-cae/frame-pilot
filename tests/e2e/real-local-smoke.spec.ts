@@ -36,11 +36,27 @@ test("runs a real local import, process, pick, and CSV export smoke flow", async
 
   await page.getByRole("link", { name: "Open Culling Workspace" }).click();
   await expect(page.getByRole("heading", { name: /real-smoke-/ })).toBeVisible();
-  await page.getByRole("button", { name: "Pick", exact: true }).click();
+  await page.getByRole("button", { name: "Set active photo to Pick" }).click();
 
   await page.getByRole("link", { name: "Export" }).click();
-  await page.getByLabel("Maybe").uncheck();
+  await expect(page.getByRole("heading", { name: "Export Selection" })).toBeVisible();
+  await page.getByRole("checkbox", { name: "Maybe" }).uncheck();
   await page.getByRole("button", { name: "Export" }).click();
 
-  await expect(page.getByRole("link", { name: "Download CSV" })).toBeVisible();
+  const downloadLink = page.getByRole("link", { name: "Download CSV" });
+  await expect(downloadLink).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await downloadLink.click();
+  const download = await downloadPromise;
+  const stream = await download.createReadStream();
+  expect(stream).not.toBeNull();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream!) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const csv = Buffer.concat(chunks).toString("utf8");
+
+  expect(csv).toContain("filename,photo_id,original_path,project_copy_path,source_identity,content_hash,file_size,file_mtime");
+  expect(csv).toContain("Pick");
+  expect(csv).toContain("real-smoke-");
 });
