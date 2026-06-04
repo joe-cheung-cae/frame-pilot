@@ -164,6 +164,43 @@ def test_rank_group_explains_face_and_eye_quality_when_it_leads():
     assert "experimental face and open-eye signals" in ranked[0].explanation
 
 
+def test_rank_group_keeps_experimental_face_signal_secondary_to_technical_failures():
+    photos = [
+        {
+            "id": "technical-best",
+            "width": 6000,
+            "height": 4000,
+            "sharpness_score": 0.85,
+            "exposure_score": 0.85,
+            "contrast_score": 0.7,
+            "noise_score": 0.2,
+            "face_quality_score": 0.0,
+            "aesthetic_score": 0.65,
+            "duplicate_penalty": 0.0,
+        },
+        {
+            "id": "face-but-soft",
+            "face_presence": True,
+            "sharpness_score": 0.1,
+            "exposure_score": 0.1,
+            "contrast_score": 0.2,
+            "noise_score": 0.4,
+            "face_quality_score": 1.0,
+            "eye_open_confidence": 0.9,
+            "aesthetic_score": 0.2,
+            "duplicate_penalty": 0.0,
+        },
+    ]
+
+    ranked = rank_group(photos)
+
+    assert ranked[0].photo_id == "technical-best"
+    assert ranked[0].recommendation == "Pick"
+    assert ranked[1].photo_id == "face-but-soft"
+    assert ranked[1].recommendation == "Reject"
+    assert "weaker sharpness" in ranked[1].explanation
+
+
 def test_rank_group_explains_maybe_and_reject_with_metric_context():
     photos = [
         {

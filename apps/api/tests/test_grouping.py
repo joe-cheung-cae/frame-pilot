@@ -146,6 +146,46 @@ def test_grouping_uses_filename_proximity_without_capture_time():
     assert [group.photo_ids for group in groups] == [["a", "b"], ["c"]]
 
 
+def test_grouping_uses_filename_proximity_when_burst_metadata_is_incomplete():
+    photos = [
+        {
+            "id": "missing-middle",
+            "filename": "IMG_0101.jpg",
+            "embedding": [1.0, 0.0],
+            "perceptual_hash": "0000000000000000",
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        },
+        {
+            "id": "dated-neighbor",
+            "filename": "IMG_0102.jpg",
+            "capture_time": "2026-01-01T10:00:02",
+            "embedding": [0.0, 1.0],
+            "perceptual_hash": "0000000000000001",
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        },
+        {
+            "id": "unrelated",
+            "filename": "IMG_0200.jpg",
+            "embedding": [1.0, 0.0],
+            "perceptual_hash": "0000000000000000",
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        },
+    ]
+
+    groups = group_similar_photos(photos, max_filename_gap=3, max_hash_distance=4)
+
+    assert [group.photo_ids for group in groups] == [["missing-middle", "dated-neighbor"], ["unrelated"]]
+
+
 def test_grouping_uses_perceptual_hash_distance_when_available():
     photos = [
         {
