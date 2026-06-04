@@ -31,7 +31,7 @@ The home project list and import screen show the local project data path so user
 Processing uses local FastAPI background tasks. `POST /api/projects/{project_id}/process` creates a `ProcessingJob` and returns it immediately, then the worker updates status, current step, item counts, failure counts, progress percentage, start time, and completion time in SQLite. The processing screen polls `GET /api/projects/{project_id}/jobs/{job_id}` until the job completes or fails.
 If a queued or running processing job has not updated for more than 30 minutes, the next process request treats it as interrupted, marks it failed, resets in-progress photos to retryable imported state, and starts a replacement job.
 
-Processing is idempotent for unchanged completed projects: if all photos are already marked `processed`, project counts match, and groups cover the full photo set, a new processing job completes without clearing or rebuilding groups. New imports still invalidate processing state and require a full grouping/ranking run.
+Processing is idempotent for unchanged completed projects: if all photos are already marked `processed`, project counts match, generated thumbnails and previews still exist, and groups cover the full photo set, a new processing job completes without clearing or rebuilding groups. New imports or missing generated files still invalidate the shortcut and require local validation before grouping/ranking completes.
 
 Photos keep their own local `processing_state` and `processing_error` fields so incomplete or skipped items can be inspected without modifying original files. Import creates photos in the `imported` state, processing moves them through `processing`, and the job records each photo as `processed` or `failed`.
 

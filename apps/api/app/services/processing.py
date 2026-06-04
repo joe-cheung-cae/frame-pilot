@@ -156,6 +156,8 @@ def _project_processing_is_current(session: Session, project: Project, photos: l
         return False
     if any(photo.processing_state != "processed" or photo.processing_error or not photo.group_id for photo in photos):
         return False
+    if any(_missing_derivative_paths(photo) for photo in photos):
+        return False
 
     groups = list(session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all())
     return bool(groups) and sum(group.photo_count for group in groups) == len(photos)

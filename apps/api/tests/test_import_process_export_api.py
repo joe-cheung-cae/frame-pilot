@@ -616,6 +616,39 @@ def test_process_skips_unchanged_project_without_rebuilding_groups(tmp_path, mon
     assert client.get(f"/api/projects/{project['id']}").json()["last_processed_at"] == first_last_processed_at
 
 
+def test_process_rerun_regenerates_missing_derivative_for_processed_project(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Processed missing derivative"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    photo = import_response.json()["imported"][0]
+
+    first_job = _wait_for_job(client, project["id"], client.post(f"/api/projects/{project['id']}/process").json())
+    assert first_job["status"] == "complete"
+    processed_photo = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
+    thumbnail_path = Path(processed_photo["thumbnail_path"])
+    preview_path = Path(processed_photo["preview_path"])
+    thumbnail_path.unlink()
+
+    rerun_job = _wait_for_job(client, project["id"], client.post(f"/api/projects/{project['id']}/process").json())
+
+    assert rerun_job["status"] == "complete"
+    assert rerun_job["current_step"] == "complete"
+    assert rerun_job["processed_items"] == 1
+    assert rerun_job["failed_items"] == 0
+    recovered_photo = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
+    assert recovered_photo["processing_state"] == "processed"
+    assert recovered_photo["processing_error"] is None
+    assert Path(recovered_photo["thumbnail_path"]) == thumbnail_path
+    assert Path(recovered_photo["thumbnail_path"]).exists()
+    assert Path(recovered_photo["preview_path"]) == preview_path
+
+
 def test_processing_can_recover_after_failed_job(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
