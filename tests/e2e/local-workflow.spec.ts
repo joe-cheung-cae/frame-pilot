@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 const project = {
   id: "project-1",
@@ -200,6 +200,72 @@ function photoStatusCounts(currentPhotos: readonly { user_status: string }[]) {
     },
     { Pick: 0, Maybe: 0, Reject: 0, Unreviewed: 0 },
   );
+}
+
+function largeCullingPhoto(index: number) {
+  const source = photos[index % photos.length];
+  const sequence = String(index + 1).padStart(4, "0");
+  const groupSequence = String(Math.floor(index / 2) + 1).padStart(4, "0");
+  return {
+    ...source,
+    id: `scale-photo-${sequence}`,
+    filename: `scale-frame-${sequence}.jpg`,
+    file_size: 2000 + index,
+    width: 160,
+    height: 120,
+    thumbnail_path: `thumbnails/scale-frame-${sequence}.webp`,
+    preview_path: `previews/scale-frame-${sequence}.webp`,
+    overall_score: Number((0.5 + (index % 50) / 100).toFixed(2)),
+    ai_recommendation: index % 2 === 0 ? "Pick" : "Maybe",
+    recommendation_explanation:
+      index % 2 === 0
+        ? "Recommended because it has the strongest available quality signals."
+        : "Marked as Maybe because it is close to the strongest image.",
+    user_status: "Unreviewed",
+    star_rating: 0,
+    group_id: `scale-group-${groupSequence}`,
+    processing_state: "processed",
+    processing_error: null,
+  };
+}
+
+function largeCullingGroup(index: number) {
+  const sequence = String(index + 1).padStart(4, "0");
+  const representativeSequence = String(index * 2 + 1).padStart(4, "0");
+  return {
+    id: `scale-group-${sequence}`,
+    project_id: project.id,
+    group_type: "duplicate",
+    representative_photo_id: `scale-photo-${representativeSequence}`,
+    photo_count: 2,
+    score_summary: JSON.stringify({
+      best_score: 0.8,
+      confidence: index % 3 === 0 ? "high" : "medium",
+      explanation: "Synthetic large-browser validation group.",
+      recommendation_counts: { Maybe: 1, Pick: 1, Reject: 0, Unreviewed: 0 },
+      score_gap: 0.12,
+      top_photo_id: `scale-photo-${representativeSequence}`,
+    }),
+  };
+}
+
+async function browserScaleMetrics(page: Page) {
+  return page.evaluate(() => {
+    const performanceMemory = (
+      performance as Performance & {
+        memory?: { totalJSHeapSize: number; usedJSHeapSize: number };
+      }
+    ).memory;
+    return {
+      domNodeCount: document.querySelectorAll("*").length,
+      totalJSHeapSizeMB: performanceMemory
+        ? Math.round((performanceMemory.totalJSHeapSize / (1024 * 1024)) * 100) / 100
+        : null,
+      usedJSHeapSizeMB: performanceMemory
+        ? Math.round((performanceMemory.usedJSHeapSize / (1024 * 1024)) * 100) / 100
+        : null,
+    };
+  });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -920,6 +986,117 @@ test("loads the full culling photo list only on request", async ({ page }) => {
   await expect.poll(() => requestedOffsets).toEqual([0, 0, 500]);
   await expect(page.getByText("500 of 501 loaded")).toHaveCount(0);
   await expect(page.getByText("0/501 loaded reviewed")).toBeVisible();
+});
+
+test("validates the culling workspace with 2,000 seeded photos", async ({ page }) => {
+  let scalePhotos = Array.from({ length: 2000 }, (_value, index) => largeCullingPhoto(index));
+  const scaleGroups = Array.from({ length: 1000 }, (_value, index) => largeCullingGroup(index));
+  const photoOffsets: number[] = [];
+  const groupOffsets: number[] = [];
+  const largePhotoPatches: { patch: { star_rating?: number; user_status?: string }; photoId: string | undefined }[] =
+    [];
+
+  await page.unroute(`**/api/projects/${project.id}`);
+  await page.unroute(projectListRoute("photos"));
+  await page.unroute(projectListRoute("groups"));
+  await page.unroute(`**/api/projects/${project.id}/photos/*`);
+
+  await page.route(`**/api/projects/${project.id}`, async (route) => {
+    await route.fulfill({
+      json: {
+        ...project,
+        name: "Browser Scale Shoot",
+        total_images: scalePhotos.length,
+        processed_images: scalePhotos.length,
+      },
+    });
+  });
+  await page.route(projectListRoute("photos"), async (route) => {
+    const url = new URL(route.request().url());
+    const limit = Number(url.searchParams.get("limit") ?? scalePhotos.length);
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    photoOffsets.push(offset);
+    await route.fulfill({ json: scalePhotos.slice(offset, offset + limit) });
+  });
+  await page.route(projectListRoute("groups"), async (route) => {
+    const url = new URL(route.request().url());
+    const limit = Number(url.searchParams.get("limit") ?? scaleGroups.length);
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    groupOffsets.push(offset);
+    await route.fulfill({ json: scaleGroups.slice(offset, offset + limit) });
+  });
+  await page.route(`**/api/projects/${project.id}/photos/*`, async (route) => {
+    if (route.request().url().endsWith("/photos/batch") || route.request().url().endsWith("/photos/status-counts")) {
+      await route.fallback();
+      return;
+    }
+    const photoId = route.request().url().split("/").at(-1);
+    const patch = route.request().postDataJSON() as { star_rating?: number; user_status?: string };
+    largePhotoPatches.push({ patch, photoId });
+    scalePhotos = scalePhotos.map((photo) => (photo.id === photoId ? { ...photo, ...patch } : photo));
+    await route.fulfill({ json: scalePhotos.find((photo) => photo.id === photoId) });
+  });
+
+  const timings: Record<string, number> = {};
+  const start = performance.now();
+  await page.goto(`/projects/${project.id}/cull`);
+
+  await expect(page.getByRole("heading", { name: "scale-frame-0001.jpg" })).toBeVisible();
+  await expect(page.locator('img[alt="scale-frame-0001.jpg"][src*="/previews/"]')).toBeVisible();
+  timings.firstPreviewMs = Math.round(performance.now() - start);
+  expect(timings.firstPreviewMs).toBeLessThan(15_000);
+  await expect(page.getByText("500 of 2000 loaded")).toBeVisible();
+  await expect(page.getByText("80 of 500 groups")).toBeVisible();
+  await expect(page.getByText("80 of 500", { exact: true })).toBeVisible();
+  expect(photoOffsets).toEqual([0]);
+  expect(groupOffsets).toEqual([0]);
+  const initialMetrics = await browserScaleMetrics(page);
+
+  const statusStart = performance.now();
+  await page.getByRole("button", { name: "Set active photo to Pick" }).click();
+  await expect.poll(() => largePhotoPatches.length).toBe(1);
+  timings.statusUpdateMs = Math.round(performance.now() - statusStart);
+  expect(timings.statusUpdateMs).toBeLessThan(5_000);
+  expect(largePhotoPatches[0]).toEqual({ patch: { user_status: "Pick" }, photoId: "scale-photo-0001" });
+  await expect(page.getByRole("heading", { name: "scale-frame-0002.jpg" })).toBeVisible();
+
+  const filterStart = performance.now();
+  await page.getByRole("button", { name: "Picks" }).click();
+  await expect(page.getByRole("button", { name: "Picks" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "scale-frame-0001.jpg" })).toBeVisible();
+  timings.filterSwitchMs = Math.round(performance.now() - filterStart);
+  expect(timings.filterSwitchMs).toBeLessThan(5_000);
+
+  await page.getByRole("button", { name: "All", exact: true }).click();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("heading", { name: "scale-frame-0003.jpg" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Group 2, 2 photos, Medium confidence" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await page.getByRole("button", { name: "Show filtered photos" }).click();
+
+  const loadAllStart = performance.now();
+  await page.getByRole("button", { name: "Load all photos" }).click();
+  await expect.poll(() => photoOffsets.includes(1500)).toBe(true);
+  await expect.poll(() => photoOffsets.includes(2000)).toBe(true);
+  await page.getByRole("button", { name: "Load all", exact: true }).click();
+  await expect.poll(() => groupOffsets.includes(500)).toBe(true);
+  await expect.poll(() => groupOffsets.includes(1000)).toBe(true);
+  await expect(page.getByText("500 of 2000 loaded")).toHaveCount(0);
+  await expect(page.getByText("1/2000 loaded reviewed")).toBeVisible();
+  await expect(page.getByText("80 of 2000", { exact: true })).toBeVisible();
+  await expect(page.getByText("80 of 1000 groups")).toBeVisible();
+  timings.loadAllMs = Math.round(performance.now() - loadAllStart);
+  expect(timings.loadAllMs).toBeLessThan(15_000);
+  const loadedMetrics = await browserScaleMetrics(page);
+
+  console.info(
+    `browser-scale-culling timings=${JSON.stringify(timings)} metrics=${JSON.stringify({
+      initial: initialMetrics,
+      loaded: loadedMetrics,
+    })}`,
+  );
 });
 
 test("resumes polling an active processing job on the processing page", async ({ page }) => {
