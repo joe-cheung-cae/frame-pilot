@@ -18,7 +18,7 @@ Recent high-value changes:
 - Stale job failed counts are bounded by remaining unprocessed items.
 - Real browser-backend import/performance commands now cover 100 small images and 500 large generated images.
 - Mocked browser culling validation covers a 2,000-photo seeded project with bounded rendering and load-all behavior.
-- Culling workspace entry, selection, filter-reset, metadata row, and score row state rules now live in tested helper modules.
+- Culling workspace entry, selection, filter-reset, metadata row, score row, group summary, and header summary rules now live in tested helper modules.
 - Grouping now considers filename-sorted candidate windows as well as capture-time order, which protects burst-like frames with missing capture metadata.
 - Weak single-image groups now receive conservative Maybe recommendations instead of overconfident Pick recommendations.
 - v2.0 accepts the current local in-process job architecture; a separate worker is deferred until real-scale validation proves it is needed.
@@ -29,6 +29,9 @@ Current branch: `feature/v2-performance-iteration`
 
 Recent commits reviewed:
 
+- `c40c3b9 test: cover culling header summary`
+- `7539d93 test: cover culling group summary rows`
+- `8c6ae02 docs: refresh culling score row coverage`
 - `cc6e3b3 test: cover culling score rows`
 - `ad69e70 test: cover culling metadata rows`
 - `bd486a9 v2: keep weak singletons as maybe`
@@ -81,7 +84,7 @@ Commands run for this review:
 | command | result | summary |
 | --- | --- | --- |
 | `npm run verify` | passed | API lint, web lint, TypeScript, all backend tests, web unit tests, and Next production build passed |
-| `npm --prefix apps/web run test:unit` | passed | 78 frontend helper/unit tests passed after culling state extractions |
+| `npm --prefix apps/web run test:unit` | passed | 82 frontend helper/unit tests passed after culling state extractions |
 | `npm run typecheck` | passed | TypeScript passed after culling state extractions |
 | `npm run lint` | passed | API ruff and web ESLint passed after culling state extractions |
 | `.venv/bin/pytest apps/api/tests/test_grouping.py apps/api/tests/test_ranking_export.py` | passed | 24 deterministic grouping, ranking, and export tests passed after grouping candidate changes |
@@ -92,7 +95,7 @@ Commands run for this review:
 Current verification details:
 
 - Backend tests: 116 passed.
-- Frontend unit tests: 78 passed.
+- Frontend unit tests: 82 passed.
 - Next build: passed.
 - Seeded 2,000-photo browser culling smoke: 1 passed.
 - Latest 2,000-photo smoke timings: first preview `1446 ms`, status update `110 ms`, filter switch `28 ms`, load-all `247 ms`.
@@ -126,7 +129,7 @@ These warnings are not current failures, but they remain useful cleanup candidat
 | P1 | Durable jobs | Import and processing work can still be interrupted by local API process exits | v2.0 accepts in-process jobs; revisit a worker after 1,000- to 2,000-photo real browser-backend validation |
 | P1 | Real-photo validation | Synthetic images do not prove photographer-quality grouping/ranking | Add non-private realistic fixture families and threshold notes |
 | P1 | Real browser scale | Seeded 2,000-photo UI passes, but 2,000 real browser-backend import/process/review is unmeasured | Run/manual-document a 2,000 real browser-backend validation after import bottlenecks are acceptable |
-| P2 | Workspace maintainability | `CullingWorkspace.tsx` is still 861 lines | Extract controller/helper logic and add focused tests |
+| P2 | Workspace maintainability | `CullingWorkspace.tsx` is still 865 lines | Extract controller/helper logic and add focused tests |
 | P2 | Route/test size | `routes.py`, `processing.py`, API tests, and E2E tests are large | Split by route/workflow only after behavior stabilizes |
 | P2 | Export blocking | CSV/ZIP/folder exports are synchronous | Queue exports only if larger export validation shows user-visible blocking |
 | P3 | Docs drift | Historical v1 docs can be confused with current state | Keep current-state review and API/architecture docs updated |
@@ -135,7 +138,7 @@ These warnings are not current failures, but they remain useful cleanup candidat
 
 Current large files:
 
-- `apps/web/src/components/CullingWorkspace.tsx`: 861 lines.
+- `apps/web/src/components/CullingWorkspace.tsx`: 865 lines.
 - `apps/api/app/api/routes.py`: 572 lines.
 - `apps/api/app/services/processing.py`: 416 lines.
 - `apps/api/tests/test_import_process_export_api.py`: 2182 lines.
