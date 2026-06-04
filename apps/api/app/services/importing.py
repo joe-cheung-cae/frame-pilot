@@ -30,6 +30,7 @@ PREVIEW_WEBP_METHOD = 2
 DERIVATIVE_RESAMPLE = Image.Resampling.BICUBIC
 DERIVATIVE_REDUCING_GAP = 2.0
 IMPORT_JOB_UPDATE_MIN_SECONDS = 0.75
+STALE_IMPORT_JOB_AFTER = 30 * 60
 
 ImportProgressCallback = Callable[[str], None]
 
@@ -137,6 +138,30 @@ def complete_import_job(
     job.failed_items = skipped_count
     job.progress_percent = 100.0
     job.error_message = _skipped_files_message(skipped)
+    job.completed_at = now
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def import_job_is_stale(job: ProcessingJob, now: datetime | None = None) -> bool:
+    if job.job_type != "import" or job.status not in {"queued", "running"}:
+        return False
+    current_time = _as_utc(now or utc_now())
+    return (current_time - _as_utc(job.updated_at)).total_seconds() >= STALE_IMPORT_JOB_AFTER
+
+
+def fail_stale_import_job(session: Session, job: ProcessingJob) -> ProcessingJob:
+    now = utc_now()
+    reason = "Import job was interrupted before completion"
+    job.status = "failed"
+    job.current_step = "failed - stale"
+    job.error_message = reason
+    remaining_items = job.total_items - job.processed_items - job.failed_items
+    job.failed_items += max(1, remaining_items) if job.total_items else 1
+    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
     job.completed_at = now
     job.updated_at = now
     session.add(job)

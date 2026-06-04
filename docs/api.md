@@ -138,7 +138,7 @@ HEIC and RAW extensions such as `.heic`, `.dng`, `.arw`, `.cr3`, and `.nef` are 
 `POST /api/projects/{project_id}/process` creates a local background processing job and returns a `ProcessingJob` with `202 Accepted`. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the job reaches `complete` or `failed`.
 If an earlier queued or running processing job has not updated for more than 30 minutes, the next process request marks that stale job as failed and starts a replacement job.
 
-`GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls this list while an upload is in flight to show the active import job, and the processing UI uses it to resume polling a queued or running processing job after page reloads or navigation.
+`GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls this list while an upload is in flight to show the active import job, and the processing UI uses it to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job has not updated for more than 30 minutes, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
 
 A job includes:
 

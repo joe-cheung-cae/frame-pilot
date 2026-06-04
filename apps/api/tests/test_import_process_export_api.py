@@ -711,6 +711,88 @@ def test_list_jobs_returns_project_jobs_newest_first(tmp_path, monkeypatch):
     assert [job["id"] for job in page_response.json()] == [newer_job_id]
 
 
+def test_list_jobs_marks_stale_import_jobs_failed(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Stale import history"}).json()
+    stale_time = datetime.now(UTC) - timedelta(hours=1)
+
+    with Session(get_engine()) as session:
+        stale_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="running",
+            current_step="preview_generation 2 of 5",
+            total_items=5,
+            processed_items=2,
+            failed_items=0,
+            progress_percent=40,
+            updated_at=stale_time,
+        )
+        recent_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="running",
+            current_step="preview_generation 1 of 3",
+            total_items=3,
+            processed_items=1,
+            failed_items=0,
+            progress_percent=33.33,
+        )
+        session.add(stale_job)
+        session.add(recent_job)
+        session.commit()
+        stale_job_id = stale_job.id
+        recent_job_id = recent_job.id
+
+    response = client.get(f"/api/projects/{project['id']}/jobs")
+
+    assert response.status_code == 200
+    jobs = {job["id"]: job for job in response.json()}
+    assert jobs[stale_job_id]["status"] == "failed"
+    assert jobs[stale_job_id]["current_step"] == "failed - stale"
+    assert jobs[stale_job_id]["processed_items"] == 2
+    assert jobs[stale_job_id]["failed_items"] == 3
+    assert jobs[stale_job_id]["progress_percent"] == 100.0
+    assert jobs[stale_job_id]["error_message"] == "Import job was interrupted before completion"
+    assert jobs[stale_job_id]["completed_at"] is not None
+    assert jobs[recent_job_id]["status"] == "running"
+    assert jobs[recent_job_id]["current_step"] == "preview_generation 1 of 3"
+
+
+def test_get_job_marks_stale_import_job_failed(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Stale import detail"}).json()
+    stale_time = datetime.now(UTC) - timedelta(hours=1)
+
+    with Session(get_engine()) as session:
+        stale_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="running",
+            current_step="quality_scoring 1 of 2",
+            total_items=2,
+            processed_items=1,
+            failed_items=0,
+            progress_percent=50,
+            updated_at=stale_time,
+        )
+        session.add(stale_job)
+        session.commit()
+        stale_job_id = stale_job.id
+
+    response = client.get(f"/api/projects/{project['id']}/jobs/{stale_job_id}")
+
+    assert response.status_code == 200
+    job = response.json()
+    assert job["status"] == "failed"
+    assert job["current_step"] == "failed - stale"
+    assert job["failed_items"] == 1
+    assert job["progress_percent"] == 100.0
+    assert job["error_message"] == "Import job was interrupted before completion"
+
+
 def test_process_fails_stale_active_job_and_starts_replacement(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(routes, "run_processing_job", lambda _job_id: None)
