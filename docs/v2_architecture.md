@@ -94,6 +94,14 @@ Processing uses local FastAPI background tasks with durable SQLite job records:
 
 Rerunning an unchanged fully processed project completes without rebuilding groups. Stale active jobs are marked failed and replaced on the next process request.
 
+## v2.0 Worker Decision
+
+Decision date: 2026-06-04.
+
+FramePilot v2.0 will keep the current local in-process job architecture instead of adding a separate worker process before release. Imports remain upload-bound because the browser still needs to transfer selected local files to the local API; during that request, import jobs expose local progress and skipped-file counts. Processing uses FastAPI background tasks with SQLite job records, stale-job recovery, retryable photo states, and idempotent reruns for unchanged completed projects.
+
+This is an accepted v2.0 limitation, not a permanent architecture target. The decision avoids adding packaging, lifecycle, and migration complexity before the deterministic local workflow is validated with more real-photo evidence. A separate local worker should be reconsidered when 1,000- to 2,000-photo real browser-backend runs show unacceptable blocking, memory pressure, or frequent interruption recovery needs.
+
 ## Algorithm Boundaries
 
 Grouping and ranking are deterministic by default:
