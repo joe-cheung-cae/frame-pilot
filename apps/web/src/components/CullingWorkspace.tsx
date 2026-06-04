@@ -25,6 +25,7 @@ import {
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
+import { reviewMetadataRows } from "@/lib/reviewMetadata";
 import { reviewProgressForEntry, reviewProgressStorageKey } from "@/lib/reviewProgress";
 import { photoMatchesReviewFilter, REVIEW_FILTERS } from "@/lib/reviewFilters";
 import {
@@ -42,10 +43,6 @@ const FILMSTRIP_WINDOW_SIZE = 80;
 const GROUP_WINDOW_SIZE = 80;
 const COMPARE_WINDOW_SIZE = 6;
 const CULLING_INITIAL_PAGE_LIMIT = 500;
-
-function formatCaptureTime(value: string | null): string | null {
-  return value ? value.replace("T", " ").slice(0, 16) : null;
-}
 
 export function CullingWorkspace({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -133,20 +130,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     [activeGroup?.id, activeGroupId, groups],
   );
   const visiblePhotoIds = useMemo(() => visiblePhotos.map((photo) => photo.id), [visiblePhotos]);
-  const metadataRows = useMemo(() => {
-    if (!activePhoto) {
-      return [];
-    }
-    return [
-      ["Captured", formatCaptureTime(activePhoto.capture_time)],
-      ["Camera", activePhoto.camera_model],
-      ["Lens", activePhoto.lens_model],
-      ["Focal length", activePhoto.focal_length ? `${activePhoto.focal_length} mm` : null],
-      ["Aperture", activePhoto.aperture ? `f/${activePhoto.aperture}` : null],
-      ["Shutter", activePhoto.shutter_speed],
-      ["ISO", activePhoto.iso ? String(activePhoto.iso) : null],
-    ].filter((row): row is [string, string] => Boolean(row[1]));
-  }, [activePhoto]);
+  const metadataRows = useMemo(() => reviewMetadataRows(activePhoto), [activePhoto]);
   const photoStatusCountsQueryKey = useMemo(() => ["photo-status-counts", projectId], [projectId]);
 
   useEffect(() => {
