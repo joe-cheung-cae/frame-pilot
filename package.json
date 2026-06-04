@@ -18,6 +18,7 @@
     "test:api": ".venv/bin/pytest apps/api/tests",
     "test:web": "npm --prefix apps/web run test:unit && npm --prefix apps/web run build",
     "test:e2e": "bash scripts/run-e2e.sh",
+    "test:e2e:real-browser": "npm run test:e2e -- tests/e2e/real-browser-backend-performance.spec.ts --project=chromium",
     "generate:synthetic": ".venv/bin/python -m app.devtools.synthetic_dataset",
     "perf:api": ".venv/bin/python -m app.devtools.performance_smoke",
     "install:all": "python3 -m venv .venv && .venv/bin/python -m pip install -e 'apps/api[dev]' && npm install && npm --prefix apps/web install",

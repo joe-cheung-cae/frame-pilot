@@ -32,7 +32,7 @@ Latest local run: 2026-06-04.
 
 | Seeded Photos | Seeded Groups | First Preview MS | Status Update MS | Filter Switch MS | Load-All MS | Initial DOM Nodes | Loaded DOM Nodes | Reported JS Heap MB |
 | ------------: | ------------: | ---------------: | ---------------: | ---------------: | ----------: | ----------------: | ---------------: | ------------------: |
-|          2000 |          1000 |              377 |               89 |               54 |         248 |               941 |              915 |               40.15 |
+|          2000 |          1000 |              378 |               88 |               55 |         250 |               941 |              915 |               54.17 |
 
 This smoke uses seeded non-private project, photo, and group records through Playwright route mocks. The generated asset route returns the existing tiny synthetic image response, so this validates culling workspace browser behavior rather than import throughput, real-photo decoding, or large preview image transfer cost.
 
@@ -48,3 +48,50 @@ Validated browser actions:
 Browser memory caveat: Chromium exposed `performance.memory` during this local Playwright run, but it is a JS heap estimate, not full browser process RSS, image decode memory, GPU memory, or a cross-browser metric. Treat the reported heap as a smoke signal only. Real photo dimensions and browser process memory remain unmeasured.
 
 Current browser-scale conclusion: 2,000-photo culling is acceptable for seeded metadata records and tiny generated assets on this machine. The remaining risk is real-photo browser cost from larger previews, decode memory, and realistic network/file serving behavior.
+
+## Real Browser-Backend Smoke
+
+Command:
+
+```bash
+npm run test:e2e:real-browser
+```
+
+Opt-in 500-photo command:
+
+```bash
+FRAMEPILOT_BROWSER_PERF_COUNT=500 npm run test:e2e:real-browser
+```
+
+Latest local run: 2026-06-04.
+
+| Photo Count | Real Backend | Real Import | Real Processing | Real Asset Serving | CSV Export | Project Create MS | Import MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes | Reported JS Heap MB |
+| ----------: | ------------ | ----------- | --------------- | ------------------ | ---------- | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ----------------: | ---------------------: | --------------------: | ------------------: |
+|         100 | yes          | yes         | yes             | yes                | yes        |               863 |      1336 |       2099 |              830 |               56 |               75 |                  32 |       112 |               607 |                    343 |                   557 |               61.04 |
+|         500 | yes          | yes         | yes             | yes                | yes        |               874 |      3939 |       3119 |              827 |               60 |              117 |                  12 |        55 |               839 |                    599 |                   600 |               68.86 |
+
+This smoke generates synthetic JPEG source photos at test time, creates a project with a temporary project data folder, imports the generated files through the frontend and real backend, runs real processing, opens the real culling workspace, waits for a preview served by `/api/assets`, marks one photo as Pick, switches to the Picks filter, navigates to another group, and creates a CSV export.
+
+Default scope: `npm run test:e2e:real-browser` keeps the real browser-backend smoke at 100 generated photos so local E2E stays reasonably fast. The 500-photo workflow is an opt-in local validation target through `FRAMEPILOT_BROWSER_PERF_COUNT=500 npm run test:e2e:real-browser`. A 2,000-photo real browser-backend workflow remains a future/manual target and is intentionally not part of the default E2E path.
+
+Validated real workflow steps:
+
+- Project creation with a local project data folder.
+- Import of 100 default or 500 opt-in generated synthetic JPEG files through the real backend.
+- Real backend processing and grouping completion with zero failed items.
+- Real preview asset serving into the browser culling workspace.
+- Pick status update through the real API.
+- Picks filter switch in the real workspace.
+- Group navigation in the real workspace.
+- CSV export readiness with a browser download link.
+
+What remains unverified:
+
+- Real browser-backend runs at 2,000 photos.
+- Full-resolution camera JPEG decode, transfer, and browser memory behavior.
+- Full browser process RSS, GPU memory, image decode memory, and operating system memory pressure.
+- Long review sessions with repeated filter changes, status updates, compare mode, and load-all behavior.
+
+Browser memory caveat: the reported heap value comes from Chromium `performance.memory` and is a JS heap estimate only. It is not full browser process memory, decoded image memory, GPU memory, or a cross-browser metric.
+
+Recommended next performance step: repeat the opt-in 500-photo smoke with larger generated JPEG dimensions before attempting a full 2,000-photo real browser-backend smoke outside the default E2E path.
