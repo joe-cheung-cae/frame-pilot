@@ -20,8 +20,8 @@ Unsupported HEIC and RAW files are skipped with explicit messages until preview 
 
 Grouping is intentionally conservative. The current pipeline:
 
-1. Sorts photos by capture time, falling back to filename.
-2. Builds candidate windows instead of comparing every photo pair.
+1. Sorts photos by capture time, falling back to filename for stable review order.
+2. Builds candidate windows from both capture-time order and filename-sequence order instead of comparing every photo pair.
 3. Requires compatible dimensions, camera model, and focal length when both sides provide those fields.
 4. Uses capture-time proximity when available.
 5. Falls back to filename sequence proximity when capture time is unavailable.
@@ -31,6 +31,15 @@ Grouping is intentionally conservative. The current pipeline:
 9. Splits merged groups when their capture-time span exceeds the burst window.
 
 The goal is to group burst-like and near-duplicate frames without over-merging unrelated photos from the same shoot.
+
+Current deterministic thresholds:
+
+- Candidate window: compare up to the next `8` photos in capture-time order and filename-sequence order.
+- Capture-time proximity: candidate pairs must be within `30` seconds when both capture times are available.
+- Filename proximity: candidate pairs must be within `3` filename sequence numbers when capture time is missing on either side.
+- Perceptual hash similarity: pairs match when Hamming distance is `8` bits or lower.
+- Embedding fallback similarity: pairs match when cosine similarity is at least `0.96`.
+- Time-span splitting: merged groups split when a dated sub-sequence spans more than `30` seconds.
 
 ## Ranking
 
@@ -53,7 +62,7 @@ These adjustments are intentionally modest. They should improve ordering within 
 
 ## Recommendations And Explanations
 
-The top-ranked photo in a duplicate group receives a `Pick` recommendation. Other photos receive `Maybe` or `Reject` based on score distance from the best candidate. Single-image groups receive `Pick` only when their deterministic score is solid enough; weak singletons receive `Maybe` rather than an automatic rejection.
+The top-ranked photo in a duplicate group receives a `Pick` recommendation. Other photos receive `Maybe` or `Reject` based on score distance from the best candidate. Single-image groups receive `Pick` only when their deterministic score is at least `0.55`; weak singletons receive `Maybe` rather than an automatic rejection. Non-top duplicate candidates receive `Reject` only when they trail the best score by more than `0.10`; closer candidates receive `Maybe`.
 
 Explanations should stay conservative and traceable:
 

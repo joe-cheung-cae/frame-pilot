@@ -42,7 +42,7 @@ final_score =
   - 0.10 * duplicate_penalty
 ```
 
-`noise_quality_score` is computed as the inverse of local noise risk. The top-ranked photo in a duplicate group receives a Pick recommendation, and other photos in the same group receive Maybe or Reject based on their distance from the best score. Single-image groups receive Pick only when their deterministic score is solid enough; weak singletons receive Maybe so the user can review them manually. User decisions always override recommendations.
+`noise_quality_score` is computed as the inverse of local noise risk. The top-ranked photo in a duplicate group receives a Pick recommendation, and other photos in the same group receive Maybe or Reject based on their distance from the best score. Non-top duplicate candidates receive Reject only when they trail the best score by more than `0.10`; closer candidates receive Maybe. Single-image groups receive Pick only when their deterministic score is at least `0.55`; weak singletons receive Maybe so the user can review them manually. User decisions always override recommendations.
 
 Ranking applies small deterministic weight adjustments by photo context:
 
