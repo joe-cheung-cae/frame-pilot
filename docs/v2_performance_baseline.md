@@ -118,6 +118,78 @@ This run used 500 generated non-private JPEG files at 3000x2000 pixels with JPEG
 | ----------: | ---------- | -----------: | ------------ | ------------------ | ------------------: | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ----------------: | ---------------------: | --------------------: | ------------------: |
 |         500 | 3000x2000  |           88 | yes          | yes                |                8504 |               870 |     96062 |       2605 |              825 |               90 |               54 |                  22 |        43 |               677 |                    423 |                   427 |               42.63 |
 
+#### Repeated 500-Photo and 1,000-Photo Validation
+
+Commands:
+
+```bash
+FRAMEPILOT_BROWSER_PERF_REPEAT=3 npm run test:e2e:real-browser:large
+FRAMEPILOT_BROWSER_PERF_COUNT=1000 npm run test:e2e:real-browser
+FRAMEPILOT_BROWSER_PERF_COUNT=1000 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT_BROWSER_PERF_HEIGHT=2000 FRAMEPILOT_BROWSER_PERF_QUALITY=88 npm run test:e2e:real-browser
+```
+
+Local run date: 2026-06-04.
+
+The first command uses 500 generated non-private JPEG files at 3000x2000 pixels and JPEG quality 88. The second command uses 1,000 generated non-private JPEG files at 160x120 pixels and JPEG quality 88. Both passing runs used the real backend, real browser import, real backend processing, real `/api/assets` preview serving, and real CSV export creation. The third command documents the supported opt-in 1,000-photo large-image shape, but it was not run in this iteration because the goal was to validate repeat stability at 500 large images and add a 1,000-photo opt-in target without making larger slow runs part of default E2E.
+
+The browser benchmark now supports `FRAMEPILOT_BROWSER_PERF_REPEAT`; the default remains a single run. Repeat runs are emitted as separate serial Playwright tests, and a `real-browser-backend-repeat-summary` console line reports min, max, mean, and median values. Playwright writes generated sources, project data, exports, and optional traces under `test-results/...`; the E2E backend writes `.framepilot-e2e-data`. These locations are ignored by Git.
+
+Repeated 500 large-image run summary:
+
+| Run | Status | Image Generation MS | Project Create MS | Import Wait MS | Backend Import Seconds | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Reported JS Heap MB | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes |
+| --: | ------ | ------------------: | ----------------: | -------------: | ---------------------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ------------------: | ----------------: | ---------------------: | --------------------: |
+|   1 | pass   |                8230 |               875 |          94941 |                 94.547 |       2105 |              837 |               86 |               50 |                  21 |        53 |               51.02 |               691 |                    423 |                   427 |
+|   2 | pass   |                9013 |               140 |          98466 |                 97.615 |       1390 |              224 |               93 |               54 |                   9 |        43 |               42.63 |               679 |                    423 |                   427 |
+|   3 | pass   |                8460 |               106 |          95902 |                 95.281 |       1387 |              225 |               56 |               81 |                   7 |        42 |               42.63 |               677 |                    423 |                   427 |
+
+Repeated 500 large-image dominant import stage breakdown:
+
+| Run | Preview Generation Seconds | Quality Scoring Seconds | Embedding Generation Seconds | Thumbnail Generation Seconds | Image Decode Seconds | DB Commit Seconds |
+| --: | -------------------------: | ----------------------: | ---------------------------: | ---------------------------: | -------------------: | ----------------: |
+|   1 |                     36.409 |                  33.713 |                       12.767 |                        3.998 |                3.578 |             1.380 |
+|   2 |                     37.658 |                  34.869 |                       13.145 |                        3.926 |                3.749 |             1.417 |
+|   3 |                     36.996 |                  33.897 |                       12.790 |                        3.840 |                3.640 |             1.386 |
+
+Repeated 500 summary values:
+
+| Metric                          |    Min |      Mean | Median |    Max |
+| ------------------------------- | -----: | --------: | -----: | -----: |
+| Import wait, browser MS         |  94941 | 96436.333 |  95902 |  98466 |
+| Backend import endpoint seconds | 94.547 |    95.814 | 95.281 | 97.615 |
+| Preview generation seconds      | 36.409 |    37.021 | 36.996 | 37.658 |
+| Quality scoring seconds         | 33.713 |    34.160 | 33.897 | 34.869 |
+| Embedding generation seconds    | 12.767 |    12.901 | 12.790 | 13.145 |
+| Thumbnail generation seconds    |  3.840 |     3.921 |  3.926 |  3.998 |
+| Image decode seconds            |  3.578 |     3.656 |  3.640 |  3.749 |
+| DB commit seconds               |  1.380 |     1.394 |  1.386 |  1.417 |
+
+1,000-photo opt-in result:
+
+| Photo Count | Dimensions | JPEG Quality | Status  | Real Backend | Real Asset Serving | Backend Import Timing | Image Generation MS | Project Create MS | Import MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Reported JS Heap MB | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes |
+| ----------: | ---------- | -----------: | ------- | ------------ | ------------------ | --------------------- | ------------------: | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ------------------: | ----------------: | ---------------------: | --------------------: |
+|        1000 | 160x120    |           88 | pass    | yes          | yes                | not enabled           |                 334 |               869 |      7040 |       5111 |              838 |               67 |              101 |                  13 |        57 |               54.17 |               870 |                    600 |                   839 |
+|        1000 | 3000x2000  |           88 | skipped | yes          | yes                | not run               |                   - |                 - |         - |          - |                - |                - |                - |                   - |         - |                   - |                 - |                      - |                     - |
+
+The first 1,000-photo run exposed a benchmark assertion that expected all 1,000 records to be represented in the initially loaded culling text. The culling workspace intentionally starts with a 500-photo window for larger projects, so the harness now validates the Pick filter state and the partial-load indicator instead of assuming all records are loaded up front. No product behavior was changed for this fix.
+
+Pass/fail/skipped status:
+
+- 500 large-image repeated validation: passed, 3 of 3 runs.
+- 1,000 small-image opt-in validation: passed after the benchmark assertion fix above.
+- 1,000 large-image opt-in validation: skipped for this iteration to keep the validation focused and avoid turning a slow manual target into an expected gate.
+
+Caveats:
+
+- The benchmark uses generated synthetic JPEGs, not a curated real-photo set.
+- Reported JS heap is Chromium `performance.memory` JS heap only, not full browser process memory, decoded image memory, GPU memory, or OS memory pressure.
+- DOM node counts are document element counts only.
+- Backend import timing was enabled for the repeated 500 large-image command through `FRAMEPILOT_IMPORT_TIMING=1` in the `test:e2e:real-browser:large` script. It was not enabled for the 1,000 small-image validation command.
+- The first run in a repeat sequence can include cold browser or route-load cost; the dominant backend import stages are the more useful stability signal.
+
+Conclusion: the repeated 500 large-image backend import endpoint varied from 94.547s to 97.615s, about 3.2% around the mean, and the browser import wait varied from 94.941s to 98.466s, about 3.7% around the mean. Dominant import stages were similarly stable and well below the 15% variability threshold. The opt-in 1,000-photo small-image real browser-backend workflow passed, while the 1,000-photo large-image run remains an explicit manual target.
+
+Recommended next step: because the 500 large-image baseline is stable and 1,000 small images pass, run a manual 1,000 large-image validation only if a longer local benchmark window is acceptable; otherwise start import architecture and resumable job work before attempting 2,000-photo real browser-backend validation.
+
 Instrumentation note:
 
 - Chromium CDP metrics are collected at the first preview, after the Picks filter, and after group navigation. The latest 500 large-image run recorded initial CDP values including `JSHeapUsedSize=18512844`, `JSHeapTotalSize=27361280`, `Nodes=1246`, `Documents=1`, and `Frames=1`.
@@ -191,15 +263,15 @@ Local run date: 2026-06-04.
 
 Dataset: 500 generated non-private JPEG files at 3000x2000 pixels with JPEG quality 88 for the browser-backend smoke; 30 generated JPEG files with the same dimensions and quality for the scoring microbench.
 
-| Measurement                                      |   Before |   After | Result                         |
-| ------------------------------------------------ | -------: | ------: | ------------------------------ |
-| 3000x2000 scoring microbench seconds / image     |   0.1124 |  0.0745 | faster by about 34% per image  |
-| Microbench `overall_score` mean absolute delta   |   0.0000 |  0.0021 | small bounded sampling drift   |
-| Microbench `overall_score` maximum absolute delta |   0.0000 |  0.0079 | small bounded sampling drift   |
-| Microbench face/eye presence changes             |        0 |       0 | no changes in generated sample |
-| 500-image `quality_scoring`                      |   57.245 |  34.104 | faster by 23.141 s             |
-| 500-image backend import total                   |  121.113 |  96.138 | faster by 24.975 s             |
-| 500-image browser import wait                    |  121.699 |  96.632 | faster by 25.067 s             |
+| Measurement                                       |  Before |  After | Result                         |
+| ------------------------------------------------- | ------: | -----: | ------------------------------ |
+| 3000x2000 scoring microbench seconds / image      |  0.1124 | 0.0745 | faster by about 34% per image  |
+| Microbench `overall_score` mean absolute delta    |  0.0000 | 0.0021 | small bounded sampling drift   |
+| Microbench `overall_score` maximum absolute delta |  0.0000 | 0.0079 | small bounded sampling drift   |
+| Microbench face/eye presence changes              |       0 |      0 | no changes in generated sample |
+| 500-image `quality_scoring`                       |  57.245 | 34.104 | faster by 23.141 s             |
+| 500-image backend import total                    | 121.113 | 96.138 | faster by 24.975 s             |
+| 500-image browser import wait                     | 121.699 | 96.632 | faster by 25.067 s             |
 
 Microbench stage summary after optimization:
 
@@ -247,16 +319,16 @@ Dataset: 500 generated non-private JPEG files at 3000x2000 pixels with JPEG qual
 
 Preview output settings: WebP, long edge bounded to 1800px, quality `88`, Pillow WebP `method=2`. Thumbnail output remains WebP, long edge bounded to 320px, quality `82`.
 
-| Measurement                                            |  Before |   After | Result                            |
-| ------------------------------------------------------ | ------: | ------: | --------------------------------- |
-| 3000x2000 derivative microbench seconds / image        |  0.0808 |  0.0800 | faster by about 1% per image      |
-| Microbench preview resize seconds / image              |  0.0384 |  0.0378 | faster by about 1% per image      |
-| Microbench thumbnail generation seconds / image        |  0.0081 |  0.0076 | faster by about 6% per image      |
-| Microbench preview bytes mean                          | 11913.9 | 11913.9 | unchanged                         |
-| Microbench preview dimensions                          | 1800x1200 | 1800x1200 | unchanged                       |
-| 500-image `preview_generation`                         |  36.984 |  36.726 | faster by 0.258 s                 |
-| 500-image backend import total                         |  95.875 |  95.441 | faster by 0.434 s                 |
-| 500-image browser import wait                          |  96.427 |  96.062 | faster by 0.365 s                 |
+| Measurement                                     |    Before |     After | Result                       |
+| ----------------------------------------------- | --------: | --------: | ---------------------------- |
+| 3000x2000 derivative microbench seconds / image |    0.0808 |    0.0800 | faster by about 1% per image |
+| Microbench preview resize seconds / image       |    0.0384 |    0.0378 | faster by about 1% per image |
+| Microbench thumbnail generation seconds / image |    0.0081 |    0.0076 | faster by about 6% per image |
+| Microbench preview bytes mean                   |   11913.9 |   11913.9 | unchanged                    |
+| Microbench preview dimensions                   | 1800x1200 | 1800x1200 | unchanged                    |
+| 500-image `preview_generation`                  |    36.984 |    36.726 | faster by 0.258 s            |
+| 500-image backend import total                  |    95.875 |    95.441 | faster by 0.434 s            |
+| 500-image browser import wait                   |    96.427 |    96.062 | faster by 0.365 s            |
 
 Microbench stage summary after optimization:
 

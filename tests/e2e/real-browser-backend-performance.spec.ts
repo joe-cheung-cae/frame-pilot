@@ -1,10 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 
 import {
+  type BrowserSmokeMetrics,
+  type PreviewAssetTiming,
   collectBrowserSmokeMetrics,
   startOptionalPerformanceTrace,
   stopOptionalPerformanceTrace,
@@ -16,12 +18,42 @@ const DEFAULT_PHOTO_COUNT = 100;
 const DEFAULT_PHOTO_WIDTH = 160;
 const DEFAULT_PHOTO_HEIGHT = 120;
 const DEFAULT_JPEG_QUALITY = 88;
+const CULLING_INITIAL_PAGE_LIMIT = 500;
 
 type RealBrowserPerfConfig = {
   count: number;
   width: number;
   height: number;
   quality: number;
+};
+
+type BackendImportTiming = {
+  imported_files?: number;
+  skipped_files?: number;
+  stages?: Record<string, { calls?: number; seconds?: number }>;
+  total_files?: number;
+  total_seconds?: number;
+};
+
+type RealBrowserPerfRunResult = {
+  config: RealBrowserPerfConfig;
+  importTiming: BackendImportTiming | null;
+  metrics: {
+    afterFilter: BrowserSmokeMetrics;
+    afterGroupNavigation: BrowserSmokeMetrics;
+    initial: BrowserSmokeMetrics;
+  };
+  previewAssetTiming: PreviewAssetTiming | null;
+  repeatCount: number;
+  runIndex: number;
+  timings: Record<string, number>;
+};
+
+type NumericSummary = {
+  max: number;
+  mean: number;
+  median: number;
+  min: number;
 };
 
 function positiveIntegerFromEnv(name: string, fallback: number) {
@@ -35,6 +67,10 @@ function positiveIntegerFromEnv(name: string, fallback: number) {
     throw new Error(`${name} must be a positive integer.`);
   }
   return value;
+}
+
+function realBrowserPerfRepeatCount(): number {
+  return positiveIntegerFromEnv("FRAMEPILOT_BROWSER_PERF_REPEAT", 1);
 }
 
 function realBrowserPerfConfig(): RealBrowserPerfConfig {
@@ -94,7 +130,99 @@ function nowMs() {
   return Math.round(performance.now());
 }
 
-test("measures a real browser-backend culling workflow with generated photos", async ({ page }, testInfo) => {
+function roundThree(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+function summarizeNumbers(values: number[]): NumericSummary | null {
+  if (values.length === 0) {
+    return null;
+  }
+
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+  const mean = sorted.reduce((sum, value) => sum + value, 0) / sorted.length;
+  return {
+    max: roundThree(sorted[sorted.length - 1]),
+    mean: roundThree(mean),
+    median: roundThree(median),
+    min: roundThree(sorted[0]),
+  };
+}
+
+function summarizeNumericRecords(records: Record<string, number>[]): Record<string, NumericSummary> {
+  const keys = [...new Set(records.flatMap((record) => Object.keys(record)))].sort();
+  return Object.fromEntries(
+    keys.flatMap((key) => {
+      const values = records
+        .map((record) => record[key])
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+      const summary = summarizeNumbers(values);
+      return summary ? [[key, summary]] : [];
+    }),
+  );
+}
+
+function backendStageSeconds(importTiming: BackendImportTiming | null): Record<string, number> {
+  if (!importTiming?.stages) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(importTiming.stages).flatMap(([stage, timing]) =>
+      typeof timing.seconds === "number" && Number.isFinite(timing.seconds) ? [[stage, timing.seconds]] : [],
+    ),
+  );
+}
+
+function browserMetricsSummary(results: RealBrowserPerfRunResult[], name: keyof RealBrowserPerfRunResult["metrics"]) {
+  return summarizeNumericRecords(
+    results.map((result) => {
+      const metrics = result.metrics[name];
+      const record: Record<string, number> = {
+        domNodeCount: metrics.domNodeCount,
+      };
+      if (metrics.usedJSHeapSizeMB !== null) {
+        record.usedJSHeapSizeMB = metrics.usedJSHeapSizeMB;
+      }
+      if (metrics.totalJSHeapSizeMB !== null) {
+        record.totalJSHeapSizeMB = metrics.totalJSHeapSizeMB;
+      }
+      if (metrics.cdp.JSHeapUsedSize !== null) {
+        record.cdpJSHeapUsedSize = metrics.cdp.JSHeapUsedSize;
+      }
+      if (metrics.cdp.Nodes !== null) {
+        record.cdpNodes = metrics.cdp.Nodes;
+      }
+      return record;
+    }),
+  );
+}
+
+function repeatSummary(results: RealBrowserPerfRunResult[]) {
+  return {
+    backendImportTotalSeconds: summarizeNumbers(
+      results
+        .map((result) => result.importTiming?.total_seconds)
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value)),
+    ),
+    backendStagesSeconds: summarizeNumericRecords(results.map((result) => backendStageSeconds(result.importTiming))),
+    metrics: {
+      afterFilter: browserMetricsSummary(results, "afterFilter"),
+      afterGroupNavigation: browserMetricsSummary(results, "afterGroupNavigation"),
+      initial: browserMetricsSummary(results, "initial"),
+    },
+    timings: summarizeNumericRecords(results.map((result) => result.timings)),
+  };
+}
+
+async function runRealBrowserBackendWorkflow(
+  page: Page,
+  testInfo: TestInfo,
+  runIndex: number,
+  repeatCount: number,
+): Promise<RealBrowserPerfRunResult> {
   const config = realBrowserPerfConfig();
   const photoCount = config.count;
   const operationTimeoutMs = realBrowserOperationTimeoutMs(config);
@@ -114,7 +242,7 @@ test("measures a real browser-backend culling workflow with generated photos", a
     expect(imagePaths).toHaveLength(photoCount);
 
     await page.goto("/projects/new");
-    await page.getByLabel("Project name").fill(`Real Browser Backend ${Date.now()}`);
+    await page.getByLabel("Project name").fill(`Real Browser Backend ${Date.now()} Run ${runIndex}`);
     await page.getByLabel("Project data folder").fill(projectRoot);
 
     started = nowMs();
@@ -136,7 +264,9 @@ test("measures a real browser-backend culling workflow with generated photos", a
     });
     timings.importMs = nowMs() - started;
     const importResponse = await importResponsePromise;
-    const importResponseBody = (await importResponse.json().catch(() => null)) as { timing?: unknown } | null;
+    const importResponseBody = (await importResponse.json().catch(() => null)) as {
+      timing?: BackendImportTiming;
+    } | null;
     const backendImportTiming = importResponseBody?.timing ?? null;
 
     await page.getByRole("link", { name: "Process Project" }).click();
@@ -181,7 +311,10 @@ test("measures a real browser-backend culling workflow with generated photos", a
     started = nowMs();
     await page.getByRole("button", { name: "Picks" }).click();
     await expect(page.getByRole("button", { name: "Picks" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByText(`1/${photoCount} loaded reviewed`)).toBeVisible();
+    await expect(page.getByText(/1\/\d+ loaded reviewed · 1 loaded picks/)).toBeVisible();
+    if (photoCount > CULLING_INITIAL_PAGE_LIMIT) {
+      await expect(page.getByText(new RegExp(`\\d+ of ${photoCount} loaded`))).toBeVisible();
+    }
     timings.filterSwitchMs = nowMs() - started;
     const filterMetrics = await collectBrowserSmokeMetrics(page, testInfo.project.name);
 
@@ -216,8 +349,22 @@ test("measures a real browser-backend culling workflow with generated photos", a
     traceOutputPath = await stopOptionalPerformanceTrace(page, testInfo, traceStarted);
     traceStopped = true;
 
+    const result = {
+      config,
+      importTiming: backendImportTiming,
+      metrics: {
+        initial: initialMetrics,
+        afterFilter: filterMetrics,
+        afterGroupNavigation: groupNavigationMetrics,
+      },
+      previewAssetTiming,
+      repeatCount,
+      runIndex,
+      timings,
+    };
+    const repeatLabel = repeatCount > 1 ? ` run=${runIndex}/${repeatCount}` : "";
     console.info(
-      `real-browser-backend-smoke config=${JSON.stringify(config)} timings=${JSON.stringify(
+      `real-browser-backend-smoke${repeatLabel} config=${JSON.stringify(config)} timings=${JSON.stringify(
         timings,
       )} metrics=${JSON.stringify({
         initial: initialMetrics,
@@ -230,9 +377,46 @@ test("measures a real browser-backend culling workflow with generated photos", a
         outputPath: traceOutputPath,
       })}`,
     );
+    return result;
   } finally {
     if (traceStarted && !traceStopped) {
       await stopOptionalPerformanceTrace(page, testInfo, true).catch(() => null);
     }
   }
+}
+
+test.describe("real browser-backend culling workflow", () => {
+  test.describe.configure({ mode: "serial" });
+
+  const repeatCount = realBrowserPerfRepeatCount();
+  const repeatResults: RealBrowserPerfRunResult[] = [];
+
+  for (let runIndex = 1; runIndex <= repeatCount; runIndex += 1) {
+    const testName =
+      repeatCount === 1
+        ? "measures a real browser-backend culling workflow with generated photos"
+        : `measures a real browser-backend culling workflow with generated photos (run ${runIndex} of ${repeatCount})`;
+
+    test(testName, async ({ page }, testInfo) => {
+      repeatResults.push(await runRealBrowserBackendWorkflow(page, testInfo, runIndex, repeatCount));
+    });
+  }
+
+  test.afterAll(() => {
+    if (repeatResults.length <= 1) {
+      return;
+    }
+
+    console.info(
+      `real-browser-backend-repeat-summary config=${JSON.stringify(repeatResults[0].config)} runs=${JSON.stringify(
+        repeatResults.map((result) => ({
+          importTiming: result.importTiming,
+          metrics: result.metrics,
+          previewAssetTiming: result.previewAssetTiming,
+          runIndex: result.runIndex,
+          timings: result.timings,
+        })),
+      )} summary=${JSON.stringify(repeatSummary(repeatResults))}`,
+    );
+  });
 });
