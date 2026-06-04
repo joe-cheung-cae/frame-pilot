@@ -1,5 +1,6 @@
 import hashlib
 import json
+import math
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -21,7 +22,13 @@ PLANNED_RAW_EXTENSIONS = {".arw", ".cr3", ".dng", ".nef"}
 EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 CONTENT_HASH_CHUNK_SIZE = 1024 * 1024
 IMPORT_COPY_CHUNK_SIZE = 1024 * 1024
+THUMBNAIL_LONG_EDGE = 320
+PREVIEW_LONG_EDGE = 1800
+THUMBNAIL_WEBP_QUALITY = 82
+PREVIEW_WEBP_QUALITY = 88
 PREVIEW_WEBP_METHOD = 2
+DERIVATIVE_RESAMPLE = Image.Resampling.BICUBIC
+DERIVATIVE_REDUCING_GAP = 2.0
 
 
 @dataclass
@@ -160,15 +167,51 @@ def _save_derivatives(
     preview_path = _unique_path(preview_dir, f"{source.stem}.webp")
 
     with import_timing_stage(timing, "thumbnail_generation"):
-        thumb = image.copy()
-        thumb.thumbnail((320, 320))
-        thumb.save(thumbnail_path, "WEBP", quality=82)
+        thumb = _make_derivative_image(image, THUMBNAIL_LONG_EDGE)
+        thumb.save(thumbnail_path, "WEBP", quality=THUMBNAIL_WEBP_QUALITY)
 
     with import_timing_stage(timing, "preview_generation"):
-        preview = image.copy()
-        preview.thumbnail((1800, 1800))
-        preview.save(preview_path, "WEBP", quality=88, method=PREVIEW_WEBP_METHOD)
+        preview = _make_derivative_image(image, PREVIEW_LONG_EDGE)
+        preview.save(preview_path, "WEBP", quality=PREVIEW_WEBP_QUALITY, method=PREVIEW_WEBP_METHOD)
     return thumbnail_path, preview_path
+
+
+def _make_derivative_image(image: Image.Image, max_long_edge: int) -> Image.Image:
+    target_size = _bounded_derivative_size(image.width, image.height, max_long_edge)
+    if target_size == image.size:
+        return image.copy()
+    return image.resize(
+        target_size,
+        resample=DERIVATIVE_RESAMPLE,
+        reducing_gap=DERIVATIVE_REDUCING_GAP,
+    )
+
+
+def _bounded_derivative_size(width: int, height: int, max_long_edge: int) -> tuple[int, int]:
+    requested_edge = math.floor(max_long_edge)
+    if requested_edge <= 0:
+        raise ValueError("max_long_edge must be greater than zero")
+    if requested_edge >= width and requested_edge >= height:
+        return width, height
+
+    aspect = width / height
+    target_width = requested_edge
+    target_height = requested_edge
+
+    def round_aspect(number: float, key) -> int:
+        return max(min(math.floor(number), math.ceil(number), key=key), 1)
+
+    if target_width / target_height >= aspect:
+        target_width = round_aspect(
+            target_height * aspect,
+            key=lambda value: abs(aspect - value / target_height),
+        )
+    else:
+        target_height = round_aspect(
+            target_width / aspect,
+            key=lambda value: 0 if value == 0 else abs(aspect - target_width / value),
+        )
+    return target_width, target_height
 
 
 def ensure_photo_derivatives(project: Project, photo: Photo) -> list[str]:

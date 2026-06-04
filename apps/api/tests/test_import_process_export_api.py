@@ -16,7 +16,16 @@ from app.db.session import get_engine
 from app.main import create_app
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project
 from app.services.grouping import SimilarPhotoGroup
-from app.services.importing import import_image_file, invalidate_project_processing
+from app.services.importing import (
+    PREVIEW_LONG_EDGE,
+    PREVIEW_WEBP_METHOD,
+    PREVIEW_WEBP_QUALITY,
+    THUMBNAIL_LONG_EDGE,
+    THUMBNAIL_WEBP_QUALITY,
+    _make_derivative_image,
+    import_image_file,
+    invalidate_project_processing,
+)
 
 
 def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
@@ -164,20 +173,52 @@ def test_import_writes_bounded_webp_derivatives(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
     project = client.post("/api/projects", json={"name": "Derivative bounds"}).json()
+    source_bytes = _large_image_bytes()
+    source_path = tmp_path / "external-large.jpg"
+    source_path.write_bytes(source_bytes)
+    source_mtime_ns = source_path.stat().st_mtime_ns
 
-    response = client.post(
-        f"/api/projects/{project['id']}/import",
-        files=[("files", ("large.jpg", _large_image_bytes(), "image/jpeg"))],
-    )
+    with source_path.open("rb") as source_file:
+        response = client.post(
+            f"/api/projects/{project['id']}/import",
+            files=[("files", ("large.jpg", source_file, "image/jpeg"))],
+        )
 
     assert response.status_code == 201
     photo = response.json()["imported"][0]
+    assert source_path.read_bytes() == source_bytes
+    assert source_path.stat().st_mtime_ns == source_mtime_ns
+    assert Path(photo["project_copy_path"]) != source_path
+    assert Path(photo["thumbnail_path"]).is_file()
+    assert Path(photo["preview_path"]).is_file()
     with Image.open(photo["thumbnail_path"]) as thumbnail:
         assert thumbnail.format == "WEBP"
-        assert max(thumbnail.size) <= 320
+        thumbnail.load()
+        assert max(thumbnail.size) <= THUMBNAIL_LONG_EDGE
     with Image.open(photo["preview_path"]) as preview:
         assert preview.format == "WEBP"
-        assert max(preview.size) <= 1800
+        preview.load()
+        assert max(preview.size) <= PREVIEW_LONG_EDGE
+
+
+def test_derivative_helper_matches_pillow_thumbnail_output(tmp_path):
+    image = Image.open(BytesIO(_large_image_bytes())).convert("RGB")
+
+    for max_long_edge, quality, save_kwargs in [
+        (THUMBNAIL_LONG_EDGE, THUMBNAIL_WEBP_QUALITY, {}),
+        (PREVIEW_LONG_EDGE, PREVIEW_WEBP_QUALITY, {"method": PREVIEW_WEBP_METHOD}),
+    ]:
+        legacy = image.copy()
+        legacy.thumbnail((max_long_edge, max_long_edge))
+        current = _make_derivative_image(image, max_long_edge)
+
+        legacy_path = tmp_path / f"legacy-{max_long_edge}.webp"
+        current_path = tmp_path / f"current-{max_long_edge}.webp"
+        legacy.save(legacy_path, "WEBP", quality=quality, **save_kwargs)
+        current.save(current_path, "WEBP", quality=quality, **save_kwargs)
+
+        assert current.size == legacy.size
+        assert current_path.read_bytes() == legacy_path.read_bytes()
 
 
 def test_import_timing_is_returned_only_when_requested(tmp_path, monkeypatch):
