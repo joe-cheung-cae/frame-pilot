@@ -2,7 +2,7 @@
 
 Review date: 2026-06-04
 
-This document records the current FramePilot v2 repository state after the latest performance, import-progress, stale-job recovery, culling-state, and worker-decision iterations. It is a current-state engineering review, not a historical v1 review.
+This document records the current FramePilot v2 repository state after the latest performance, import-progress, stale-job recovery, culling-state, worker-decision, and deterministic algorithm iterations. It is a current-state engineering review, not a historical v1 review.
 
 ## Summary
 
@@ -18,7 +18,9 @@ Recent high-value changes:
 - Stale job failed counts are bounded by remaining unprocessed items.
 - Real browser-backend import/performance commands now cover 100 small images and 500 large generated images.
 - Mocked browser culling validation covers a 2,000-photo seeded project with bounded rendering and load-all behavior.
-- Culling workspace entry, selection, and filter-reset state rules now live in tested helper modules.
+- Culling workspace entry, selection, filter-reset, and metadata row state rules now live in tested helper modules.
+- Grouping now considers filename-sorted candidate windows as well as capture-time order, which protects burst-like frames with missing capture metadata.
+- Weak single-image groups now receive conservative Maybe recommendations instead of overconfident Pick recommendations.
 - v2.0 accepts the current local in-process job architecture; a separate worker is deferred until real-scale validation proves it is needed.
 
 ## Repository State
@@ -27,6 +29,10 @@ Current branch: `feature/v2-performance-iteration`
 
 Recent commits reviewed:
 
+- `ad69e70 test: cover culling metadata rows`
+- `bd486a9 v2: keep weak singletons as maybe`
+- `6c77321 v2: use filename windows for grouping candidates`
+- `cd48806 docs: record import worker decision`
 - `5759a31 test: cover review filter progress reset`
 - `91c4f4d test: cover culling selection state`
 - `23f476b test: cover culling entry progress state`
@@ -59,7 +65,7 @@ Tracked generated/private-file check:
 | v2.1 Processing and Progress | Strong | `ProcessingJob`, `/jobs`, import progress, stale recovery tests | In-process jobs are accepted for v2.0; a separate worker is deferred pending real-scale evidence |
 | v2.2 Culling Workspace | Mostly complete | keyboard shortcuts, compare/zoom, bounded filmstrip/group windows, tested state helpers, 2,000 seeded E2E | `CullingWorkspace.tsx` remains large and not component-tested |
 | v2.3 Export and Interoperability | Mostly complete | CSV/ZIP/folder export, history, download endpoints, path safety tests | XMP sidecar export remains planned only; exports are synchronous |
-| v2.4 Algorithm Quality | Mostly complete for deterministic MVP | grouping/ranking/scoring tests and docs | Needs real-photo-like fixture validation and threshold reporting |
+| v2.4 Algorithm Quality | Mostly complete for deterministic MVP | grouping/ranking/scoring tests and docs, filename-window grouping, conservative singleton ranking | Needs real-photo-like fixture validation and threshold reporting |
 | v2.5 Performance and Reliability | Improved | API perf smoke, browser perf instrumentation, stale recovery, 100/500 real browser-backend runs | 2,000 real browser-backend run remains unattempted |
 | v2.6 Optional Advanced Support | Deferred | unsupported HEIC/RAW messages and docs | HEIC/RAW/model support intentionally not implemented |
 
@@ -74,16 +80,18 @@ Commands run for this review:
 | command | result | summary |
 | --- | --- | --- |
 | `npm run verify` | passed | API lint, web lint, TypeScript, all backend tests, web unit tests, and Next production build passed |
-| `npm --prefix apps/web run test:unit` | passed | 73 frontend helper/unit tests passed after culling state extractions |
+| `npm --prefix apps/web run test:unit` | passed | 76 frontend helper/unit tests passed after culling state extractions |
 | `npm run typecheck` | passed | TypeScript passed after culling state extractions |
 | `npm run lint` | passed | API ruff and web ESLint passed after culling state extractions |
+| `.venv/bin/pytest apps/api/tests/test_grouping.py apps/api/tests/test_ranking_export.py` | passed | 24 deterministic grouping, ranking, and export tests passed after grouping candidate changes |
+| `.venv/bin/pytest apps/api/tests/test_ranking_export.py apps/api/tests/test_import_process_export_api.py::test_import_process_update_and_export_csv` | passed | 16 ranking/export and workflow tests passed after singleton recommendation changes |
 | `npm run test:e2e -- tests/e2e/local-workflow.spec.ts --project=chromium --grep "filters culling photos with processing failures"` | passed | URL-filtered culling entry smoke passed |
 | `npm run test:e2e -- tests/e2e/local-workflow.spec.ts --project=chromium --grep "validates the culling workspace with 2,000 seeded photos"` | passed | Seeded 2,000-photo culling browser smoke passed |
 
 Current verification details:
 
 - Backend tests: 116 passed.
-- Frontend unit tests: 73 passed.
+- Frontend unit tests: 76 passed.
 - Next build: passed.
 - Seeded 2,000-photo browser culling smoke: 1 passed.
 - Latest 2,000-photo smoke timings: first preview `1446 ms`, status update `110 ms`, filter switch `28 ms`, load-all `247 ms`.
@@ -105,7 +113,7 @@ These warnings are not current failures, but they remain useful cleanup candidat
 - Import jobs now provide visible local progress and failure accounting.
 - Mixed imports are tolerant: supported images proceed while skipped files are reported.
 - Reimporting the same uploaded filename and SHA-256 content can reuse existing records and derivatives.
-- Deterministic grouping is stronger than v1: candidate windows, metadata compatibility, perceptual hash, embedding fallback, union-find, and time-span splitting are present.
+- Deterministic grouping is stronger than v1: capture-time and filename candidate windows, metadata compatibility, perceptual hash, embedding fallback, union-find, and time-span splitting are present.
 - Ranking explanations are conservative and traceable to scoring factors.
 - Export paths and asset paths are guarded by local path resolution checks and tests.
 - The frontend supports keyboard-first review, status/rating updates, zoom, compare mode, filters, persistent review progress, and bounded large-list rendering.
@@ -117,7 +125,7 @@ These warnings are not current failures, but they remain useful cleanup candidat
 | P1 | Durable jobs | Import and processing work can still be interrupted by local API process exits | v2.0 accepts in-process jobs; revisit a worker after 1,000- to 2,000-photo real browser-backend validation |
 | P1 | Real-photo validation | Synthetic images do not prove photographer-quality grouping/ranking | Add non-private realistic fixture families and threshold notes |
 | P1 | Real browser scale | Seeded 2,000-photo UI passes, but 2,000 real browser-backend import/process/review is unmeasured | Run/manual-document a 2,000 real browser-backend validation after import bottlenecks are acceptable |
-| P2 | Workspace maintainability | `CullingWorkspace.tsx` is still 886 lines | Extract controller/helper logic and add focused tests |
+| P2 | Workspace maintainability | `CullingWorkspace.tsx` is still 870 lines | Extract controller/helper logic and add focused tests |
 | P2 | Route/test size | `routes.py`, `processing.py`, API tests, and E2E tests are large | Split by route/workflow only after behavior stabilizes |
 | P2 | Export blocking | CSV/ZIP/folder exports are synchronous | Queue exports only if larger export validation shows user-visible blocking |
 | P3 | Docs drift | Historical v1 docs can be confused with current state | Keep current-state review and API/architecture docs updated |
@@ -126,7 +134,7 @@ These warnings are not current failures, but they remain useful cleanup candidat
 
 Current large files:
 
-- `apps/web/src/components/CullingWorkspace.tsx`: 886 lines.
+- `apps/web/src/components/CullingWorkspace.tsx`: 870 lines.
 - `apps/api/app/api/routes.py`: 572 lines.
 - `apps/api/app/services/processing.py`: 416 lines.
 - `apps/api/tests/test_import_process_export_api.py`: 2182 lines.
