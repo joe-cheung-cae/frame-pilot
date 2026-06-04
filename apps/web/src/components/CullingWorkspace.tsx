@@ -36,6 +36,7 @@ import {
   windowedGroupRefs,
   windowedPhotoRefs,
 } from "@/lib/reviewNavigation";
+import { reviewScoreRows } from "@/lib/reviewScores";
 import { reviewShortcutCommandForKey, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
 import { useReviewStore } from "@/store/reviewStore";
 
@@ -653,20 +654,10 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   </div>
                 ) : null}
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  {[
-                    ["Sharpness", activePhoto.sharpness_score],
-                    ["Exposure", activePhoto.exposure_score],
-                    ["Contrast", activePhoto.contrast_score],
-                    ["Blur risk", activePhoto.blur_score],
-                    ["Face sharpness", activePhoto.face_sharpness_score],
-                    ["Eye open", activePhoto.eye_open_confidence ?? 0],
-                    ["Face quality", activePhoto.face_quality_score],
-                    ["Aesthetic", activePhoto.aesthetic_score],
-                    ["Overall", activePhoto.overall_score],
-                  ].map(([label, value]) => (
+                  {reviewScoreRows(activePhoto).map(([label, value]) => (
                     <div className="rounded border border-line p-3" key={label}>
                       <p className="text-neutral-600">{label}</p>
-                      <p className="mt-1 font-semibold">{Number(value).toFixed(2)}</p>
+                      <p className="mt-1 font-semibold">{value}</p>
                     </div>
                   ))}
                 </div>
