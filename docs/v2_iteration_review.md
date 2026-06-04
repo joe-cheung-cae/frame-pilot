@@ -1,0 +1,154 @@
+# FramePilot v2 Iteration Review
+
+Review date: 2026-06-04
+
+This document records the current FramePilot v2 repository state after the latest performance, import-progress, and stale-job recovery iterations. It is a current-state engineering review, not a historical v1 review.
+
+## Summary
+
+FramePilot is now a substantial local-first v2 foundation for JPEG, PNG, and WebP photo culling. The current branch has job-based processing, import job visibility, stale import and processing job recovery, deterministic scoring/grouping/ranking, a keyboard-first culling workspace, CSV/ZIP/folder export, export history, local path safety, and opt-in large-batch performance validation.
+
+The repository is close to a v2.0 local MVP-plus release, but not yet production-ready. The main remaining risks are durable long-running work, real-photo validation, culling workspace maintainability, and advanced interoperability such as XMP sidecars.
+
+Recent high-value changes:
+
+- Import requests now create `job_type=import` records with stage/count progress, mixed-import `complete_with_errors`, failed all-skipped jobs, and same-file reuse.
+- Import job progress is visible in the import UI while uploads are pending.
+- Stale import and processing jobs are recovered from job polling/history, not only from a later process request.
+- Stale job failed counts are bounded by remaining unprocessed items.
+- Real browser-backend import/performance commands now cover 100 small images and 500 large generated images.
+- Mocked browser culling validation covers a 2,000-photo seeded project with bounded rendering and load-all behavior.
+
+## Repository State
+
+Current branch: `feature/v2-performance-iteration`
+
+Recent commits reviewed:
+
+- `07f00f9 test: bound stale job failure counts`
+- `6a8d782 v2: recover stale processing jobs on poll`
+- `70ab936 v2: fail stale import jobs`
+- `3892053 test: cover live import job polling`
+- `cfc292e test: cover active import progress`
+- `0dd858f v2: show import job progress`
+- `b447252 test: validate repeated and 1000-photo browser benchmarks`
+- `8f6a599 perf: optimize preview generation path`
+- `0153752 perf: optimize quality scoring path`
+- `1249e3c perf: optimize preview webp encoding`
+
+Working tree at review start:
+
+- `docs/v2_iteration_review.md` was the only untracked file.
+- This iteration updates that document so it can be reviewed and committed as current documentation.
+
+Tracked generated/private-file check:
+
+- Command: `git ls-files | rg "(node_modules|\\.venv|exports|cache|\\.zip$|\\.jpe?g$|\\.png$|\\.webp$|\\.arw$|\\.cr3$|\\.nef$|\\.dng$|\\.heic$|\\.sqlite$|\\.db$)"`
+- Result: no tracked generated folders, private photos, large image datasets, archives, SQLite databases, `node_modules`, or virtualenv files were found.
+
+## Milestone Status
+
+| milestone | current status | evidence | remaining gap |
+| --- | --- | --- | --- |
+| v2.0 Foundation | Mostly complete | `README.md`, `AGENTS.md`, root scripts, v2 docs, passing verify | Release-oriented docs and packaging remain outside this branch |
+| v2.1 Processing and Progress | Strong | `ProcessingJob`, `/jobs`, import progress, stale recovery tests | Work is still in-process, not a durable worker |
+| v2.2 Culling Workspace | Mostly complete | keyboard shortcuts, compare/zoom, bounded filmstrip/group windows, 2,000 seeded E2E | `CullingWorkspace.tsx` remains large and not component-tested |
+| v2.3 Export and Interoperability | Mostly complete | CSV/ZIP/folder export, history, download endpoints, path safety tests | XMP sidecar export remains planned only; exports are synchronous |
+| v2.4 Algorithm Quality | Mostly complete for deterministic MVP | grouping/ranking/scoring tests and docs | Needs real-photo-like fixture validation and threshold reporting |
+| v2.5 Performance and Reliability | Improved | API perf smoke, browser perf instrumentation, stale recovery, 100/500 real browser-backend runs | 2,000 real browser-backend run remains unattempted |
+| v2.6 Optional Advanced Support | Deferred | unsupported HEIC/RAW messages and docs | HEIC/RAW/model support intentionally not implemented |
+
+Approximate v2.0 readiness: 86%.
+
+Production readiness: about 60%, mainly limited by real-world validation, durable worker design, and UI maintainability.
+
+## Verification
+
+Commands run for this review:
+
+| command | result | summary |
+| --- | --- | --- |
+| `npm run verify` | passed | API lint, web lint, TypeScript, all backend tests, web unit tests, and Next production build passed |
+| `npm run test:e2e -- tests/e2e/local-workflow.spec.ts --project=chromium --grep "validates the culling workspace with 2,000 seeded photos"` | passed | Seeded 2,000-photo culling browser smoke passed |
+
+Current verification details:
+
+- Backend tests: 116 passed.
+- Frontend unit tests: 58 passed.
+- Next build: passed.
+- Seeded 2,000-photo browser culling smoke: 1 passed.
+- 2,000-photo smoke timings: first preview `1224 ms`, status update `99 ms`, filter switch `65 ms`, load-all `246 ms`.
+- 2,000-photo smoke DOM/heap signals: initial DOM nodes `941`, loaded DOM nodes `915`, reported JS heap `40.15 MB`.
+
+Warnings observed:
+
+- `StarletteDeprecationWarning` from FastAPI/TestClient dependency stack.
+- Node `NO_COLOR`/`FORCE_COLOR` warnings in Playwright server output.
+- Next dev cross-origin warning for `_next/*` resources.
+
+These warnings are not current failures, but they remain useful cleanup candidates.
+
+## Current Strengths
+
+- Local-first behavior remains intact. No cloud upload, login, payment, telemetry, or remote photo processing is present.
+- Original photos are copied into project storage and source originals are not modified.
+- Processing jobs can be started, polled, recovered from stale state, and retried.
+- Import jobs now provide visible local progress and failure accounting.
+- Mixed imports are tolerant: supported images proceed while skipped files are reported.
+- Reimporting the same uploaded filename and SHA-256 content can reuse existing records and derivatives.
+- Deterministic grouping is stronger than v1: candidate windows, metadata compatibility, perceptual hash, embedding fallback, union-find, and time-span splitting are present.
+- Ranking explanations are conservative and traceable to scoring factors.
+- Export paths and asset paths are guarded by local path resolution checks and tests.
+- The frontend supports keyboard-first review, status/rating updates, zoom, compare mode, filters, persistent review progress, and bounded large-list rendering.
+
+## Current Risks
+
+| priority | area | risk | next mitigation |
+| --- | --- | --- | --- |
+| P1 | Durable jobs | Import and processing work can still be interrupted by local API process exits | Decide whether v2.0 accepts in-process jobs or needs a worker slice |
+| P1 | Real-photo validation | Synthetic images do not prove photographer-quality grouping/ranking | Add non-private realistic fixture families and threshold notes |
+| P1 | Real browser scale | Seeded 2,000-photo UI passes, but 2,000 real browser-backend import/process/review is unmeasured | Run/manual-document a 2,000 real browser-backend validation after import bottlenecks are acceptable |
+| P2 | Workspace maintainability | `CullingWorkspace.tsx` is still 909 lines | Extract controller/helper logic and add focused tests |
+| P2 | Route/test size | `routes.py`, `processing.py`, API tests, and E2E tests are large | Split by route/workflow only after behavior stabilizes |
+| P2 | Export blocking | CSV/ZIP/folder exports are synchronous | Queue exports only if larger export validation shows user-visible blocking |
+| P3 | Docs drift | Historical v1 docs can be confused with current state | Keep current-state review and API/architecture docs updated |
+
+## File Size Signals
+
+Current large files:
+
+- `apps/web/src/components/CullingWorkspace.tsx`: 909 lines.
+- `apps/api/app/api/routes.py`: 572 lines.
+- `apps/api/app/services/processing.py`: 416 lines.
+- `apps/api/tests/test_import_process_export_api.py`: 2182 lines.
+- `tests/e2e/local-workflow.spec.ts`: 1336 lines.
+
+These are not blockers by themselves, but they explain where future regressions are most likely.
+
+## Recommended Next Iterations
+
+1. Culling workspace state hardening
+   - Extract and test partial-load review state, filter reset behavior, and compare/zoom state.
+   - Suggested commit: `test: harden culling workspace state coverage`
+
+2. Realistic deterministic fixture validation
+   - Add non-private generated scene families for burst grouping, similar-unrelated scenes, exposure failures, and explanation consistency.
+   - Suggested commit: `test: expand deterministic culling fixture coverage`
+
+3. Import/export blocking decision
+   - Use current import timing data to decide whether v2.0 keeps upload-bound import work or starts a local worker architecture slice.
+   - Suggested commit: `docs: record import worker decision`
+
+4. Current README wording
+   - Clarify that the branch is a v2 local MVP-plus foundation, while historical v1 docs remain historical.
+   - Suggested commit: `docs: clarify current v2 repository state`
+
+5. Route/test organization
+   - Split large route/test modules only after the next validation slices, preserving API behavior and tests.
+   - Suggested commit: `refactor: split project job routes`
+
+## Verdict
+
+Continue automatic Codex iteration.
+
+The branch is moving in the right direction: verification is green, stale-job recovery is stronger, import progress is visible, and seeded large-browser culling is measured. The next work should keep prioritizing validation, reliability, and maintainability over new feature surface. RAW, HEIC preview extraction, optional AI models, desktop packaging, accounts, cloud sync, and payment features should remain deferred.
