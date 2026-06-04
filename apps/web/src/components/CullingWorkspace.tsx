@@ -25,8 +25,8 @@ import {
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
-import { parseReviewProgress, reviewProgressStorageKey } from "@/lib/reviewProgress";
-import { isReviewFilter, photoMatchesReviewFilter, REVIEW_FILTERS } from "@/lib/reviewFilters";
+import { reviewProgressForEntry, reviewProgressStorageKey } from "@/lib/reviewProgress";
+import { photoMatchesReviewFilter, REVIEW_FILTERS } from "@/lib/reviewFilters";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
@@ -180,14 +180,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       stored = null;
     }
     skipNextProgressSave.current = projectId;
-    const storedProgress = parseReviewProgress(stored, REVIEW_FILTERS);
-    const validRequestedFilter = isReviewFilter(requestedFilter) ? requestedFilter : null;
-    setReviewProgress({
-      ...storedProgress,
-      activeGroupId: validRequestedFilter ? null : storedProgress.activeGroupId,
-      activePhotoId: validRequestedFilter ? null : storedProgress.activePhotoId,
-      filter: validRequestedFilter ?? storedProgress.filter,
-    });
+    setReviewProgress(reviewProgressForEntry(stored, REVIEW_FILTERS, requestedFilter));
   }, [projectId, requestedFilter, setReviewProgress]);
 
   useEffect(() => {

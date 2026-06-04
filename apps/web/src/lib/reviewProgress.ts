@@ -55,3 +55,20 @@ export function parseReviewProgress(rawValue: string | null, allowedFilters: rea
     return DEFAULT_REVIEW_PROGRESS;
   }
 }
+
+export function reviewProgressForEntry(
+  rawValue: string | null,
+  allowedFilters: readonly string[],
+  requestedFilter: string | null | undefined,
+): ReviewProgress {
+  const storedProgress = parseReviewProgress(rawValue, allowedFilters);
+  const validRequestedFilter =
+    typeof requestedFilter === "string" && allowedFilters.includes(requestedFilter) ? requestedFilter : null;
+
+  return {
+    ...storedProgress,
+    activeGroupId: validRequestedFilter ? null : storedProgress.activeGroupId,
+    activePhotoId: validRequestedFilter ? null : storedProgress.activePhotoId,
+    filter: validRequestedFilter ?? storedProgress.filter,
+  };
+}

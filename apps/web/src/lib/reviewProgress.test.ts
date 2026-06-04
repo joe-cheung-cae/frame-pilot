@@ -5,6 +5,7 @@ import {
   DEFAULT_REVIEW_PROGRESS,
   normalizeReviewProgress,
   parseReviewProgress,
+  reviewProgressForEntry,
   reviewProgressStorageKey,
 } from "./reviewProgress.ts";
 
@@ -51,5 +52,65 @@ test("normalizes partial or stale review progress", () => {
     filter: "All",
     largePreview: false,
     zoomPreview: true,
+  });
+});
+
+test("uses valid requested filters for review entry progress", () => {
+  assert.deepEqual(
+    reviewProgressForEntry(
+      JSON.stringify({
+        activeGroupId: "group-1",
+        activePhotoId: "photo-1",
+        compareMode: true,
+        filter: "Picks",
+        largePreview: true,
+        zoomPreview: true,
+      }),
+      filters,
+      "Maybes",
+    ),
+    {
+      activeGroupId: null,
+      activePhotoId: null,
+      compareMode: true,
+      filter: "Maybes",
+      largePreview: true,
+      zoomPreview: true,
+    },
+  );
+});
+
+test("preserves stored review entry progress without a valid requested filter", () => {
+  const stored = JSON.stringify({
+    activeGroupId: "group-1",
+    activePhotoId: "photo-1",
+    compareMode: true,
+    filter: "Picks",
+    largePreview: true,
+    zoomPreview: true,
+  });
+
+  assert.deepEqual(reviewProgressForEntry(stored, filters, "Missing"), {
+    activeGroupId: "group-1",
+    activePhotoId: "photo-1",
+    compareMode: true,
+    filter: "Picks",
+    largePreview: true,
+    zoomPreview: true,
+  });
+  assert.deepEqual(reviewProgressForEntry(stored, filters, null), {
+    activeGroupId: "group-1",
+    activePhotoId: "photo-1",
+    compareMode: true,
+    filter: "Picks",
+    largePreview: true,
+    zoomPreview: true,
+  });
+});
+
+test("applies requested review filters to fallback entry progress", () => {
+  assert.deepEqual(reviewProgressForEntry("not json", filters, "Maybes"), {
+    ...DEFAULT_REVIEW_PROGRESS,
+    filter: "Maybes",
   });
 });
