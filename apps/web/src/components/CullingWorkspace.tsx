@@ -26,7 +26,7 @@ import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
 import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
 import { parseReviewProgress, reviewProgressStorageKey } from "@/lib/reviewProgress";
-import { PROCESSING_FAILURE_FILTER, REVIEW_FILTERS } from "@/lib/reviewFilters";
+import { isReviewFilter, photoMatchesReviewFilter, REVIEW_FILTERS } from "@/lib/reviewFilters";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
@@ -41,20 +41,6 @@ const FILMSTRIP_WINDOW_SIZE = 80;
 const GROUP_WINDOW_SIZE = 80;
 const COMPARE_WINDOW_SIZE = 6;
 const CULLING_INITIAL_PAGE_LIMIT = 500;
-
-function statusForFilter(photo: Photo, filter: string, duplicateGroupIds: Set<string>) {
-  if (filter === "All") return true;
-  if (filter === "Picks") return photo.user_status === "Pick";
-  if (filter === "Maybes") return photo.user_status === "Maybe";
-  if (filter === "Rejects") return photo.user_status === "Reject";
-  if (filter === "Unreviewed") return photo.user_status === "Unreviewed";
-  if (filter === "AI recommended") return photo.ai_recommendation === "Pick";
-  if (filter === "Blurry photos") return photo.blur_score >= 0.55;
-  if (filter === PROCESSING_FAILURE_FILTER) return photo.processing_state === "failed" || Boolean(photo.processing_error);
-  if (filter === "Duplicate groups") return Boolean(photo.group_id && duplicateGroupIds.has(photo.group_id));
-  if (filter === "Photos with faces") return photo.face_presence;
-  return true;
-}
 
 function formatCaptureTime(value: string | null): string | null {
   return value ? value.replace("T", " ").slice(0, 16) : null;
@@ -106,7 +92,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     [groups],
   );
   const filteredPhotos = useMemo(
-    () => photos.filter((photo) => statusForFilter(photo, filter, duplicateGroupIds)),
+    () => photos.filter((photo) => photoMatchesReviewFilter(photo, filter, duplicateGroupIds)),
     [duplicateGroupIds, filter, photos],
   );
   const visiblePhotos = useMemo(() => {
@@ -195,7 +181,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     }
     skipNextProgressSave.current = projectId;
     const storedProgress = parseReviewProgress(stored, REVIEW_FILTERS);
-    const validRequestedFilter = requestedFilter && REVIEW_FILTERS.includes(requestedFilter) ? requestedFilter : null;
+    const validRequestedFilter = isReviewFilter(requestedFilter) ? requestedFilter : null;
     setReviewProgress({
       ...storedProgress,
       activeGroupId: validRequestedFilter ? null : storedProgress.activeGroupId,
@@ -366,7 +352,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   }
 
   function focusFilterControls() {
-    const activeFilterIndex = Math.max(REVIEW_FILTERS.indexOf(filter), 0);
+    const activeFilterIndex = Math.max(REVIEW_FILTERS.findIndex((item) => item === filter), 0);
     filterButtonRefs.current[activeFilterIndex]?.focus();
   }
 
