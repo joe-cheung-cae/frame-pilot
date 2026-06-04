@@ -1593,7 +1593,7 @@ def test_processing_recommendation_explains_face_and_eye_quality(tmp_path, monke
                 exposure_score=0.45,
                 face_quality_score=0.0,
                 aesthetic_score=0.45,
-                embedding="[0, 1]",
+                embedding="[0.99, 0.01]",
             ),
         ]
         session.add_all(photos)

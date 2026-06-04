@@ -22,6 +22,7 @@ Recent high-value changes:
 - Grouping now considers filename-sorted candidate windows as well as capture-time order, which protects burst-like frames with missing capture metadata.
 - Weak single-image groups now receive conservative Maybe recommendations instead of overconfident Pick recommendations.
 - Deterministic grouping and ranking thresholds are documented in the algorithm and scoring docs.
+- Non-private in-memory fixture families now validate missing-metadata burst grouping, lookalike scenes that should not over-merge, and blur/exposure explanation behavior.
 - v2.0 accepts the current local in-process job architecture; a separate worker is deferred until real-scale validation proves it is needed.
 
 ## Repository State
@@ -30,6 +31,7 @@ Current branch: `feature/v2-performance-iteration`
 
 Recent commits reviewed:
 
+- `7cb8b61 docs: refresh deterministic threshold review`
 - `63b34e9 docs: document deterministic culling thresholds`
 - `c40c3b9 test: cover culling header summary`
 - `7539d93 test: cover culling group summary rows`
@@ -55,8 +57,8 @@ Recent commits reviewed:
 
 Working tree at review start:
 
-- `docs/v2_iteration_review.md` was the only untracked file.
-- This iteration updates that document so it can be reviewed and committed as current documentation.
+- `docs/v2_iteration_review.md` was the only changed file before the fixture-validation slice.
+- That review refresh is committed, and this iteration adds deterministic fixture validation plus these review updates.
 
 Tracked generated/private-file check:
 
@@ -71,7 +73,7 @@ Tracked generated/private-file check:
 | v2.1 Processing and Progress | Strong | `ProcessingJob`, `/jobs`, import progress, stale recovery tests | In-process jobs are accepted for v2.0; a separate worker is deferred pending real-scale evidence |
 | v2.2 Culling Workspace | Mostly complete | keyboard shortcuts, compare/zoom, bounded filmstrip/group windows, tested state helpers, 2,000 seeded E2E | `CullingWorkspace.tsx` remains large and not component-tested |
 | v2.3 Export and Interoperability | Mostly complete | CSV/ZIP/folder export, history, download endpoints, path safety tests | XMP sidecar export remains planned only; exports are synchronous |
-| v2.4 Algorithm Quality | Mostly complete for deterministic MVP | grouping/ranking/scoring tests and docs, filename-window grouping, conservative singleton ranking, documented thresholds | Needs real-photo-like fixture validation |
+| v2.4 Algorithm Quality | Mostly complete for deterministic MVP | grouping/ranking/scoring tests and docs, filename-window grouping, conservative singleton ranking, documented thresholds, realistic in-memory fixture validation | Needs real-world/manual validation notes |
 | v2.5 Performance and Reliability | Improved | API perf smoke, browser perf instrumentation, stale recovery, 100/500 real browser-backend runs | 2,000 real browser-backend run remains unattempted |
 | v2.6 Optional Advanced Support | Deferred | unsupported HEIC/RAW messages and docs | HEIC/RAW/model support intentionally not implemented |
 
@@ -90,13 +92,14 @@ Commands run for this review:
 | `npm run typecheck` | passed | TypeScript passed after culling state extractions |
 | `npm run lint` | passed | API ruff and web ESLint passed after culling state extractions |
 | `.venv/bin/pytest apps/api/tests/test_grouping.py apps/api/tests/test_ranking_export.py` | passed | 24 deterministic grouping, ranking, and export tests passed after grouping candidate changes |
+| `.venv/bin/pytest apps/api/tests/test_deterministic_culling_fixtures.py apps/api/tests/test_grouping.py apps/api/tests/test_ranking_export.py` | passed | 28 deterministic fixture, grouping, ranking, and export tests passed after realistic fixture coverage |
 | `.venv/bin/pytest apps/api/tests/test_ranking_export.py apps/api/tests/test_import_process_export_api.py::test_import_process_update_and_export_csv` | passed | 16 ranking/export and workflow tests passed after singleton recommendation changes |
 | `npm run test:e2e -- tests/e2e/local-workflow.spec.ts --project=chromium --grep "filters culling photos with processing failures"` | passed | URL-filtered culling entry smoke passed |
 | `npm run test:e2e -- tests/e2e/local-workflow.spec.ts --project=chromium --grep "validates the culling workspace with 2,000 seeded photos"` | passed | Seeded 2,000-photo culling browser smoke passed |
 
 Current verification details:
 
-- Backend tests: 116 passed.
+- Backend tests: 123 passed.
 - Frontend unit tests: 82 passed.
 - Next build: passed.
 - Seeded 2,000-photo browser culling smoke: 1 passed.
@@ -129,7 +132,7 @@ These warnings are not current failures, but they remain useful cleanup candidat
 | priority | area | risk | next mitigation |
 | --- | --- | --- | --- |
 | P1 | Durable jobs | Import and processing work can still be interrupted by local API process exits | v2.0 accepts in-process jobs; revisit a worker after 1,000- to 2,000-photo real browser-backend validation |
-| P1 | Real-photo validation | Synthetic images do not prove photographer-quality grouping/ranking | Add non-private realistic fixture families and validation notes |
+| P1 | Real-photo validation | Generated fixtures do not prove photographer-quality grouping/ranking | Add validation notes from non-private manual or real-world-like local sets |
 | P1 | Real browser scale | Seeded 2,000-photo UI passes, but 2,000 real browser-backend import/process/review is unmeasured | Run/manual-document a 2,000 real browser-backend validation after import bottlenecks are acceptable |
 | P2 | Workspace maintainability | `CullingWorkspace.tsx` is still 865 lines | Extract controller/helper logic and add focused tests |
 | P2 | Route/test size | `routes.py`, `processing.py`, API tests, and E2E tests are large | Split by route/workflow only after behavior stabilizes |
@@ -154,9 +157,9 @@ These are not blockers by themselves, but they explain where future regressions 
    - Extract remaining rendering/controller logic only where it creates testable behavior or reduces regression risk.
    - Suggested commit: `test: harden culling workspace state coverage`
 
-2. Realistic deterministic fixture validation
-   - Add non-private generated scene families for burst grouping, similar-unrelated scenes, exposure failures, and explanation consistency.
-   - Suggested commit: `test: expand deterministic culling fixture coverage`
+2. Real-world/manual algorithm validation notes
+   - Document outcomes from non-private local culling sets after the deterministic fixture coverage, especially grouping misses and explanation mismatches.
+   - Suggested commit: `docs: record algorithm validation notes`
 
 3. Real browser-backend scale decision
    - Run or manually document a 1,000- to 2,000-photo real browser-backend import/process/review validation before reopening the worker decision.

@@ -86,6 +86,9 @@ Algorithm changes should add or update deterministic tests for:
 
 Use generated synthetic images and small hand-built metadata records. Do not commit private photo datasets.
 
+Current deterministic fixture coverage includes small in-memory scene families for missing-metadata burst grouping,
+similar-looking unrelated scenes that should not over-merge, and ranking explanations for blur and exposure failures.
+
 ## Optional Models
 
 Optional local AI models remain deferred. If added later, they must:
