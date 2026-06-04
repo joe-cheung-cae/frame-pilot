@@ -94,4 +94,43 @@ What remains unverified:
 
 Browser memory caveat: the reported heap value comes from Chromium `performance.memory` and is a JS heap estimate only. It is not full browser process memory, decoded image memory, GPU memory, or a cross-browser metric.
 
-Recommended next performance step: repeat the opt-in 500-photo smoke with larger generated JPEG dimensions before attempting a full 2,000-photo real browser-backend smoke outside the default E2E path.
+### Larger Generated JPEG Validation
+
+Command:
+
+```bash
+FRAMEPILOT_BROWSER_PERF_COUNT=500 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT_BROWSER_PERF_HEIGHT=2000 FRAMEPILOT_BROWSER_PERF_QUALITY=88 npm run test:e2e:real-browser
+```
+
+Latest local run: 2026-06-04.
+
+This run used 500 generated non-private JPEG files at 3000x2000 pixels with JPEG quality 88. It used the real backend, real browser import, real backend processing, real `/api/assets` preview serving, and real CSV export creation. The default `npm run test:e2e:real-browser` command still uses 100 generated 160x120 JPEG files at quality 88 so the normal E2E path remains fast.
+
+| Photo Count | Dimensions | JPEG Quality | Real Backend | Real Asset Serving | Image Generation MS | Project Create MS | Import MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes | Reported JS Heap MB |
+| ----------: | ---------- | -----------: | ------------ | ------------------ | ------------------: | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ----------------: | ---------------------: | --------------------: | ------------------: |
+|         500 | 3000x2000  |           88 | yes          | yes                |                8721 |               863 |    139232 |       2600 |              835 |               86 |               55 |                   7 |        54 |               673 |                    423 |                   427 |               54.17 |
+
+Validated real workflow steps:
+
+- Project creation with a local project data folder.
+- Generation of 500 synthetic JPEG files at larger preview-source dimensions.
+- Real import and preview generation for all 500 files.
+- Real processing and grouping completion with zero failed items.
+- First preview render from a real `/api/assets` preview URL.
+- Pick status update through the real API.
+- Picks filter switch in the real workspace.
+- Group navigation in the real workspace.
+- CSV export readiness with a browser download link.
+
+Issue exposed and fixed: the first 500-photo 3000x2000 run exceeded the smoke's fixed 120-second import wait after importing 427 of 500 images. The benchmark harness now scales the import and processing wait with the generated image workload while keeping the default small-image command unchanged.
+
+What remains unverified:
+
+- Real browser-backend runs at 2,000 photos.
+- Full browser process RSS, decoded image memory, GPU memory, and operating system memory pressure.
+- Full-resolution camera JPEG behavior beyond generated synthetic scene content.
+- Long review sessions with repeated filter changes, status updates, compare mode, and load-all behavior.
+
+Browser memory caveat: the reported heap value comes from Chromium `performance.memory` and is a JS heap estimate only. It is not full browser process memory, decoded image memory, GPU memory, or a cross-browser metric.
+
+Recommended next performance step: do not put a 2,000-photo real browser-backend run into default E2E yet. Attempt it as a separate opt-in benchmark after adding external process RSS or browser trace measurement, because JS heap alone does not prove full browser memory safety for realistic previews.

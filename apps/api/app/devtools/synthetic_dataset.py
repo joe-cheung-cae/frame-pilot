@@ -15,6 +15,7 @@ class SyntheticDatasetConfig:
     count: int
     width: int = 160
     height: int = 120
+    jpeg_quality: int = 88
     image_format: str = "jpg"
     burst_size: int = 5
 
@@ -24,6 +25,8 @@ def _validate_config(config: SyntheticDatasetConfig) -> str:
         raise ValueError("count must be greater than zero")
     if config.width < 32 or config.height < 32:
         raise ValueError("width and height must be at least 32 pixels")
+    if config.jpeg_quality < 1 or config.jpeg_quality > 100:
+        raise ValueError("jpeg_quality must be between 1 and 100")
     if config.burst_size <= 0:
         raise ValueError("burst_size must be greater than zero")
 
@@ -89,7 +92,7 @@ def generate_synthetic_dataset(config: SyntheticDatasetConfig) -> list[Path]:
     for index in range(config.count):
         path = config.output_dir / f"frame_{index + 1:06d}.{extension}"
         image = _render_frame(index, config)
-        save_kwargs = {"quality": 88} if SUPPORTED_FORMATS[normalized_format] == "JPEG" else {}
+        save_kwargs = {"quality": config.jpeg_quality} if SUPPORTED_FORMATS[normalized_format] == "JPEG" else {}
         image.save(path, format=SUPPORTED_FORMATS[normalized_format], **save_kwargs)
         paths.append(path)
 
@@ -104,6 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--count", required=True, type=int, help="Number of images to generate.")
     parser.add_argument("--width", default=160, type=int, help="Generated image width in pixels.")
     parser.add_argument("--height", default=120, type=int, help="Generated image height in pixels.")
+    parser.add_argument("--quality", default=88, type=int, help="Generated JPEG quality, from 1 to 100.")
     parser.add_argument("--format", default="jpg", choices=sorted(SUPPORTED_FORMATS), help="Generated image format.")
     parser.add_argument("--burst-size", default=5, type=int, help="Near-duplicate burst size.")
     return parser
@@ -117,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
             count=args.count,
             width=args.width,
             height=args.height,
+            jpeg_quality=args.quality,
             image_format=args.format,
             burst_size=args.burst_size,
         )

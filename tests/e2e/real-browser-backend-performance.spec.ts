@@ -6,21 +6,50 @@ import path from "node:path";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_PHOTO_COUNT = 100;
+const DEFAULT_PHOTO_WIDTH = 160;
+const DEFAULT_PHOTO_HEIGHT = 120;
+const DEFAULT_JPEG_QUALITY = 88;
 
-function realBrowserPhotoCount() {
-  const rawCount = process.env.FRAMEPILOT_BROWSER_PERF_COUNT;
-  if (!rawCount) {
-    return DEFAULT_PHOTO_COUNT;
+type RealBrowserPerfConfig = {
+  count: number;
+  width: number;
+  height: number;
+  quality: number;
+};
+
+function positiveIntegerFromEnv(name: string, fallback: number) {
+  const rawValue = process.env[name];
+  if (!rawValue) {
+    return fallback;
   }
 
-  const count = Number(rawCount);
-  if (!Number.isInteger(count) || count <= 0) {
-    throw new Error("FRAMEPILOT_BROWSER_PERF_COUNT must be a positive integer.");
+  const value = Number(rawValue);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer.`);
   }
-  return count;
+  return value;
 }
 
-async function generateSyntheticJpegs(outputDir: string, count: number) {
+function realBrowserPerfConfig(): RealBrowserPerfConfig {
+  const quality = positiveIntegerFromEnv("FRAMEPILOT_BROWSER_PERF_QUALITY", DEFAULT_JPEG_QUALITY);
+  if (quality > 100) {
+    throw new Error("FRAMEPILOT_BROWSER_PERF_QUALITY must be between 1 and 100.");
+  }
+
+  return {
+    count: positiveIntegerFromEnv("FRAMEPILOT_BROWSER_PERF_COUNT", DEFAULT_PHOTO_COUNT),
+    width: positiveIntegerFromEnv("FRAMEPILOT_BROWSER_PERF_WIDTH", DEFAULT_PHOTO_WIDTH),
+    height: positiveIntegerFromEnv("FRAMEPILOT_BROWSER_PERF_HEIGHT", DEFAULT_PHOTO_HEIGHT),
+    quality,
+  };
+}
+
+function realBrowserOperationTimeoutMs(config: RealBrowserPerfConfig) {
+  const totalMegapixels = (config.count * config.width * config.height) / 1_000_000;
+  return Math.max(120_000, Math.min(900_000, Math.round(totalMegapixels * 100)));
+}
+
+async function generateSyntheticJpegs(outputDir: string, config: RealBrowserPerfConfig) {
   await mkdir(outputDir, { recursive: true });
   await execFileAsync(
     path.join(process.cwd(), ".venv/bin/python"),
@@ -30,11 +59,13 @@ async function generateSyntheticJpegs(outputDir: string, count: number) {
       "--output",
       outputDir,
       "--count",
-      String(count),
+      String(config.count),
       "--width",
-      "160",
+      String(config.width),
       "--height",
-      "120",
+      String(config.height),
+      "--quality",
+      String(config.quality),
     ],
     {
       cwd: process.cwd(),
@@ -77,35 +108,41 @@ function nowMs() {
 }
 
 test("measures a real browser-backend culling workflow with generated photos", async ({ page }, testInfo) => {
-  const photoCount = realBrowserPhotoCount();
+  const config = realBrowserPerfConfig();
+  const photoCount = config.count;
+  const operationTimeoutMs = realBrowserOperationTimeoutMs(config);
   test.setTimeout(Math.max(180_000, photoCount * 1_500));
 
   const sourceDir = testInfo.outputPath("synthetic-source");
   const projectRoot = testInfo.outputPath("project-data");
-  const imagePaths = await generateSyntheticJpegs(sourceDir, photoCount);
-  expect(imagePaths).toHaveLength(photoCount);
-
   const timings: Record<string, number> = {};
+
+  let started = nowMs();
+  const imagePaths = await generateSyntheticJpegs(sourceDir, config);
+  timings.imageGenerationMs = nowMs() - started;
+  expect(imagePaths).toHaveLength(photoCount);
 
   await page.goto("/projects/new");
   await page.getByLabel("Project name").fill(`Real Browser Backend ${Date.now()}`);
   await page.getByLabel("Project data folder").fill(projectRoot);
 
-  let started = nowMs();
+  started = nowMs();
   await page.getByRole("button", { name: "Create and Import" }).click();
   await expect(page.getByRole("heading", { name: "Import Images" })).toBeVisible();
   timings.projectCreateMs = nowMs() - started;
 
   started = nowMs();
   await page.getByLabel("Choose image files").setInputFiles(imagePaths);
-  await expect(page.getByText(`${photoCount} images imported and previewed.`)).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(`${photoCount} images imported and previewed.`)).toBeVisible({
+    timeout: operationTimeoutMs,
+  });
   timings.importMs = nowMs() - started;
 
   await page.getByRole("link", { name: "Process Project" }).click();
   started = nowMs();
   await page.getByRole("button", { name: "Run Grouping and Ranking" }).click();
   await expect(page.getByText(`${photoCount} of ${photoCount} photos · 0 failed · 100%`).first()).toBeVisible({
-    timeout: 120_000,
+    timeout: operationTimeoutMs,
   });
   await expect(page.getByRole("link", { name: "Open Culling Workspace" })).toBeVisible();
   timings.processMs = nowMs() - started;
@@ -154,10 +191,9 @@ test("measures a real browser-backend culling workflow with generated photos", a
   await firstVisibleGroup.click();
   started = nowMs();
   await page.keyboard.press("ArrowDown");
-  await expect(page.getByRole("button", { name: new RegExp(`^Group ${firstVisibleGroupNumber + 1},`) })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
+  await expect(
+    page.getByRole("button", { name: new RegExp(`^Group ${firstVisibleGroupNumber + 1},`) }),
+  ).toHaveAttribute("aria-current", "true");
   timings.groupNavigationMs = nowMs() - started;
   const groupNavigationMetrics = await browserSmokeMetrics(page);
 
@@ -175,10 +211,12 @@ test("measures a real browser-backend culling workflow with generated photos", a
   timings.exportMs = nowMs() - started;
 
   console.info(
-    `real-browser-backend-smoke photoCount=${photoCount} timings=${JSON.stringify(timings)} metrics=${JSON.stringify({
-      initial: initialMetrics,
-      afterFilter: filterMetrics,
-      afterGroupNavigation: groupNavigationMetrics,
-    })}`,
+    `real-browser-backend-smoke config=${JSON.stringify(config)} timings=${JSON.stringify(timings)} metrics=${JSON.stringify(
+      {
+        initial: initialMetrics,
+        afterFilter: filterMetrics,
+        afterGroupNavigation: groupNavigationMetrics,
+      },
+    )}`,
   );
 });

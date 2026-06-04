@@ -29,6 +29,17 @@ def test_generate_synthetic_dataset_supports_png(tmp_path):
         assert image.format == "PNG"
 
 
+def test_generate_synthetic_dataset_accepts_jpeg_quality(tmp_path):
+    low_quality_paths = generate_synthetic_dataset(
+        SyntheticDatasetConfig(output_dir=tmp_path / "low", count=1, width=160, height=120, jpeg_quality=35)
+    )
+    high_quality_paths = generate_synthetic_dataset(
+        SyntheticDatasetConfig(output_dir=tmp_path / "high", count=1, width=160, height=120, jpeg_quality=95)
+    )
+
+    assert low_quality_paths[0].stat().st_size != high_quality_paths[0].stat().st_size
+
+
 def test_generate_synthetic_dataset_rejects_invalid_count(tmp_path):
     try:
         generate_synthetic_dataset(SyntheticDatasetConfig(output_dir=tmp_path, count=0))
@@ -36,3 +47,12 @@ def test_generate_synthetic_dataset_rejects_invalid_count(tmp_path):
         assert "count" in str(error)
     else:
         raise AssertionError("Expected invalid count to be rejected")
+
+
+def test_generate_synthetic_dataset_rejects_invalid_jpeg_quality(tmp_path):
+    try:
+        generate_synthetic_dataset(SyntheticDatasetConfig(output_dir=tmp_path, count=1, jpeg_quality=101))
+    except ValueError as error:
+        assert "jpeg_quality" in str(error)
+    else:
+        raise AssertionError("Expected invalid JPEG quality to be rejected")
