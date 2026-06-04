@@ -181,6 +181,8 @@ def _complete_unchanged_job(session: Session, job: ProcessingJob, total_items: i
 
 
 def processing_job_is_stale(job: ProcessingJob, now: datetime | None = None) -> bool:
+    if job.job_type != "processing":
+        return False
     if job.status not in {"queued", "running"}:
         return False
     current_time = _as_utc(now or utc_now())

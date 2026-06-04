@@ -793,6 +793,87 @@ def test_get_job_marks_stale_import_job_failed(tmp_path, monkeypatch):
     assert job["error_message"] == "Import job was interrupted before completion"
 
 
+def test_list_jobs_marks_stale_processing_jobs_failed(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Stale processing history"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    photo_id = import_response.json()["imported"][0]["id"]
+    stale_time = datetime.now(UTC) - timedelta(hours=1)
+
+    with Session(get_engine()) as session:
+        stale_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="running",
+            current_step="grouping photos",
+            total_items=1,
+            processed_items=0,
+            failed_items=0,
+            progress_percent=0,
+            updated_at=stale_time,
+        )
+        photo = session.get(Photo, photo_id)
+        assert photo is not None
+        photo.processing_state = "processing"
+        session.add(stale_job)
+        session.add(photo)
+        session.commit()
+        stale_job_id = stale_job.id
+
+    response = client.get(f"/api/projects/{project['id']}/jobs")
+
+    assert response.status_code == 200
+    jobs = {job["id"]: job for job in response.json()}
+    assert jobs[stale_job_id]["status"] == "failed"
+    assert jobs[stale_job_id]["current_step"] == "failed - stale"
+    assert jobs[stale_job_id]["failed_items"] == 1
+    assert jobs[stale_job_id]["progress_percent"] == 100.0
+    assert jobs[stale_job_id]["error_message"] == "Processing job was interrupted before completion"
+    with Session(get_engine()) as session:
+        photo_after = session.get(Photo, photo_id)
+    assert photo_after is not None
+    assert photo_after.processing_state == "imported"
+    assert photo_after.processing_error == "Processing job was interrupted before completion"
+
+
+def test_get_job_marks_stale_processing_job_failed(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Stale processing detail"}).json()
+    stale_time = datetime.now(UTC) - timedelta(hours=1)
+
+    with Session(get_engine()) as session:
+        stale_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="running",
+            current_step="ranking group 1 of 1",
+            total_items=4,
+            processed_items=2,
+            failed_items=0,
+            progress_percent=50,
+            updated_at=stale_time,
+        )
+        session.add(stale_job)
+        session.commit()
+        stale_job_id = stale_job.id
+
+    response = client.get(f"/api/projects/{project['id']}/jobs/{stale_job_id}")
+
+    assert response.status_code == 200
+    job = response.json()
+    assert job["status"] == "failed"
+    assert job["current_step"] == "failed - stale"
+    assert job["processed_items"] == 2
+    assert job["failed_items"] == 2
+    assert job["progress_percent"] == 100.0
+    assert job["error_message"] == "Processing job was interrupted before completion"
+
+
 def test_process_fails_stale_active_job_and_starts_replacement(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(routes, "run_processing_job", lambda _job_id: None)

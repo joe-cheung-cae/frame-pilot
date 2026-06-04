@@ -108,16 +108,17 @@ def _get_active_processing_job(session: Session, project_id: str) -> ProcessingJ
     ).first()
 
 
-def _fail_stale_import_jobs(session: Session, project_id: str) -> None:
-    active_import_jobs = session.exec(
+def _fail_stale_active_jobs(session: Session, project_id: str) -> None:
+    active_jobs = session.exec(
         select(ProcessingJob)
         .where(ProcessingJob.project_id == project_id)
-        .where(ProcessingJob.job_type == "import")
         .where(ProcessingJob.status.in_(["queued", "running"]))
     ).all()
-    for job in active_import_jobs:
-        if import_job_is_stale(job):
+    for job in active_jobs:
+        if job.job_type == "import" and import_job_is_stale(job):
             fail_stale_import_job(session, job)
+        elif job.job_type == "processing" and processing_job_is_stale(job):
+            fail_stale_processing_job(session, job)
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -286,6 +287,8 @@ def get_job_endpoint(project_id: str, job_id: str, session: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Processing job not found")
     if import_job_is_stale(job):
         job = fail_stale_import_job(session, job)
+    elif processing_job_is_stale(job):
+        job = fail_stale_processing_job(session, job)
     return job
 
 
@@ -297,7 +300,7 @@ def list_jobs_endpoint(
     session: Session = Depends(get_session),
 ):
     _get_project(session, project_id)
-    _fail_stale_import_jobs(session, project_id)
+    _fail_stale_active_jobs(session, project_id)
     statement = (
         select(ProcessingJob)
         .where(ProcessingJob.project_id == project_id)
