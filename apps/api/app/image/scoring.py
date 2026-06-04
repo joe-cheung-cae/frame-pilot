@@ -37,9 +37,9 @@ def _laplacian_variance(gray: np.ndarray) -> float:
     return float(laplacian.var())
 
 
-def _exposure_score(gray: np.ndarray) -> float:
-    mean_luma = float(gray.mean()) / 255.0
-    mean_balance = 1.0 - min(abs(mean_luma - 0.5) * 2.0, 1.0)
+def _exposure_score(gray: np.ndarray, mean_luma: float | None = None) -> float:
+    mean_luma_value = float(gray.mean()) if mean_luma is None else mean_luma
+    mean_balance = 1.0 - min(abs(mean_luma_value / 255.0 - 0.5) * 2.0, 1.0)
     clipped_ratio = float(((gray <= 5.0) | (gray >= 250.0)).mean())
     clipping_quality = 1.0 - min(clipped_ratio, 1.0)
     return round(float(np.clip(0.75 * mean_balance + 0.25 * clipping_quality, 0.0, 1.0)), 4)
@@ -51,7 +51,7 @@ def _detect_face_signals(
     if image.ndim < 3:
         return False, 0.0, None, 0.0
 
-    rgb = image[..., :3].astype(np.float32)
+    rgb = image[..., :3]
     red = rgb[..., 0]
     green = rgb[..., 1]
     blue = rgb[..., 2]
@@ -112,10 +112,11 @@ def compute_quality_scores(image: np.ndarray) -> QualityScores:
     sharpness_score = normalize_score(_laplacian_variance(gray), 1200.0)
     blur_score = round(1.0 - sharpness_score, 4)
 
-    exposure_score = _exposure_score(gray)
+    mean_luma = float(gray.mean())
+    exposure_score = _exposure_score(gray, mean_luma)
     contrast_score = normalize_score(float(gray.std()), 80.0)
 
-    high_freq = np.abs(gray - gray.mean())
+    high_freq = np.abs(gray - mean_luma)
     noise_score = normalize_score(float(np.percentile(high_freq, 95)), 130.0)
     face_presence, face_sharpness_score, eye_open_confidence, face_quality_score = _detect_face_signals(
         image, gray, sharpness_score

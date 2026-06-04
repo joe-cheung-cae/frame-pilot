@@ -59,3 +59,13 @@ def test_plain_image_has_no_face_signals():
     assert scores.face_sharpness_score == 0.0
     assert scores.eye_open_confidence is None
     assert scores.face_quality_score == 0.0
+
+
+def test_scoring_does_not_mutate_rgb_input():
+    image = np.full((96, 96, 3), 180, dtype=np.uint8)
+    image[24:72, 32:64] = [205, 142, 96]
+    original = image.copy()
+
+    compute_quality_scores(image)
+
+    assert np.array_equal(image, original)
