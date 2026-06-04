@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
-import { groupConfidenceLabel, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
+import { groupConfidenceLabel, groupScoreSummaryRows, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
 import { reviewMetadataRows } from "@/lib/reviewMetadata";
 import { reviewProgressForEntry, reviewProgressStorageKey } from "@/lib/reviewProgress";
 import { photoMatchesReviewFilter, REVIEW_FILTERS } from "@/lib/reviewFilters";
@@ -644,10 +644,11 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                       <>
                         <p className="mt-2 text-neutral-700">{activeGroupSummary.explanation}</p>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-neutral-700">
-                          <span>Best {activeGroupSummary.best_score.toFixed(2)}</span>
-                          <span>Gap {activeGroupSummary.score_gap.toFixed(2)}</span>
-                          <span>Pick {activeGroupSummary.recommendation_counts.Pick ?? 0}</span>
-                          <span>Reject {activeGroupSummary.recommendation_counts.Reject ?? 0}</span>
+                          {groupScoreSummaryRows(activeGroupSummary).map(([label, value]) => (
+                            <span key={label}>
+                              {label} {value}
+                            </span>
+                          ))}
                         </div>
                       </>
                     ) : null}

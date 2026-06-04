@@ -7,6 +7,8 @@ export type GroupScoreSummary = {
   top_photo_id: string | null;
 };
 
+export type GroupScoreSummaryRow = [label: string, value: string];
+
 const CONFIDENCE_LABELS = {
   high: "High confidence",
   medium: "Medium confidence",
@@ -44,4 +46,13 @@ export function parseGroupScoreSummary(raw: string | null | undefined): GroupSco
 
 export function groupConfidenceLabel(summary: GroupScoreSummary | null): string {
   return summary ? CONFIDENCE_LABELS[summary.confidence] : "Confidence pending";
+}
+
+export function groupScoreSummaryRows(summary: GroupScoreSummary): GroupScoreSummaryRow[] {
+  return [
+    ["Best", summary.best_score.toFixed(2)],
+    ["Gap", summary.score_gap.toFixed(2)],
+    ["Pick", String(summary.recommendation_counts.Pick ?? 0)],
+    ["Reject", String(summary.recommendation_counts.Reject ?? 0)],
+  ];
 }
