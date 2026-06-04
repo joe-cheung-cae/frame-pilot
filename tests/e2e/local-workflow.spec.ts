@@ -1186,6 +1186,78 @@ test("shows imported thumbnails before processing", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Process Project" })).toBeVisible();
 });
 
+test("shows active import job progress while an upload is pending", async ({ page }) => {
+  const runningImportJob = {
+    ...completedJob,
+    id: "import-job-running",
+    job_type: "import",
+    status: "running",
+    current_step: "preview_generation 2 of 5",
+    total_items: 5,
+    processed_items: 2,
+    failed_items: 0,
+    progress_percent: 40,
+    error_message: null,
+    completed_at: null,
+  };
+  const completedImportJob = {
+    ...runningImportJob,
+    status: "complete",
+    current_step: "complete",
+    processed_items: 5,
+    progress_percent: 100,
+    completed_at: "2026-01-01T00:00:01Z",
+  };
+  const imported = {
+    ...photos[0],
+    id: "slow-imported-photo",
+    filename: "slow-upload.jpg",
+    thumbnail_path: "thumbnails/slow-upload.webp",
+    preview_path: "previews/slow-upload.webp",
+    processing_state: "imported",
+    processing_error: null,
+  };
+  let finishImport: () => void = () => {};
+  const importCanFinish = new Promise<void>((resolve) => {
+    finishImport = resolve;
+  });
+
+  await page.unroute(projectListRoute("jobs"));
+  await page.route(projectListRoute("jobs"), async (route) => {
+    await route.fulfill({ json: [runningImportJob] });
+  });
+  await page.unroute(`**/api/projects/${project.id}/imports`);
+  await page.route(`**/api/projects/${project.id}/imports`, async (route) => {
+    await importCanFinish;
+    await route.fulfill({
+      json: {
+        imported: [imported],
+        skipped: [],
+        job: completedImportJob,
+      },
+      status: 201,
+    });
+  });
+
+  await page.goto(`/projects/${project.id}/import`);
+  await page.getByLabel("Choose image files").setInputFiles({
+    name: "slow-upload.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([255, 216, 255, 217]),
+  });
+
+  await expect(page.getByText("Import Running")).toBeVisible();
+  await expect(page.getByText("2 of 5 files · 0 failed · 40%")).toBeVisible();
+  await expect(page.getByText("preview_generation 2 of 5")).toBeVisible();
+
+  finishImport();
+
+  await expect(page.getByText("1 image imported and previewed.")).toBeVisible();
+  await expect(page.getByText("Import Complete")).toBeVisible();
+  await expect(page.getByText("5 of 5 files · 0 failed · 100%")).toBeVisible();
+  await expect(page.getByText("preview_generation 2 of 5")).toHaveCount(0);
+});
+
 test("shows skipped files after a mixed import", async ({ page }) => {
   skipNextImport = true;
   await page.goto(`/projects/${project.id}/import`);

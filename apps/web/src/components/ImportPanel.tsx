@@ -61,7 +61,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
 
   const visibleSkipped = showAllSkipped ? skipped : skipped.slice(0, 5);
   const canProcessProject = Boolean(project.data?.total_images || recentImports.length);
-  const activeImportJob = activeJobOfType(importJobsQuery.data, "import");
+  const activeImportJob = mutation.isPending ? activeJobOfType(importJobsQuery.data, "import") : undefined;
   const importJob = activeImportJob ?? mutation.data?.job;
   const importProgress = processingProgressPercent(importJob);
 
