@@ -36,6 +36,8 @@ QUALITY_LABELS = {
     "aesthetic_score": "aesthetic balance",
 }
 
+SINGLE_PICK_SCORE_THRESHOLD = 0.55
+
 
 @dataclass(frozen=True)
 class RankedPhoto:
@@ -115,6 +117,13 @@ def _pick_explanation(photo: dict[str, Any], group_size: int) -> str:
     return f"Recommended because it has the highest overall score in this group, led by its {strongest_text} scores."
 
 
+def _single_maybe_explanation(score: float) -> str:
+    return (
+        f"Marked as Maybe because it is a single-image group with a low overall score ({score:.2f}); "
+        "review it manually before picking."
+    )
+
+
 def _secondary_explanation(
     photo: dict[str, Any],
     best_photo: dict[str, Any],
@@ -136,6 +145,20 @@ def _secondary_explanation(
 def rank_group(photos: list[dict[str, Any]]) -> list[RankedPhoto]:
     scored = [(photo, final_score(photo)) for photo in photos]
     scored.sort(key=lambda item: item[1], reverse=True)
+
+    if len(scored) == 1:
+        photo, score = scored[0]
+        recommendation = "Pick" if score >= SINGLE_PICK_SCORE_THRESHOLD else "Maybe"
+        explanation = _pick_explanation(photo, 1) if recommendation == "Pick" else _single_maybe_explanation(score)
+        return [
+            RankedPhoto(
+                photo_id=str(photo["id"]),
+                score=score,
+                recommendation=recommendation,
+                explanation=explanation,
+            )
+        ]
+
     ranked = [
         RankedPhoto(
             photo_id=str(photo["id"]),
@@ -148,7 +171,6 @@ def rank_group(photos: list[dict[str, Any]]) -> list[RankedPhoto]:
 
     if len(ranked) <= 1:
         return ranked
-
     best = ranked[0]
     best_photo = scored[0][0]
     rest = [

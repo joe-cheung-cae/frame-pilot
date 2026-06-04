@@ -137,6 +137,30 @@ def test_rank_group_rewards_contrast_and_penalizes_noise_risk():
     assert ranked[1].recommendation == "Reject"
 
 
+def test_rank_group_marks_weak_single_image_groups_as_maybe():
+    ranked = rank_group(
+        [
+            {
+                "id": "weak-single",
+                "width": 6000,
+                "height": 4000,
+                "sharpness_score": 0.55,
+                "exposure_score": 0.45,
+                "contrast_score": 0.1,
+                "noise_score": 0.6,
+                "face_quality_score": 0.0,
+                "aesthetic_score": 0.2,
+                "duplicate_penalty": 0.0,
+            }
+        ]
+    )
+
+    assert ranked[0].photo_id == "weak-single"
+    assert ranked[0].recommendation == "Maybe"
+    assert "single-image group" in ranked[0].explanation
+    assert "review it manually" in ranked[0].explanation
+
+
 def test_rank_group_explains_face_and_eye_quality_when_it_leads():
     photos = [
         {

@@ -53,7 +53,7 @@ These adjustments are intentionally modest. They should improve ordering within 
 
 ## Recommendations And Explanations
 
-The top-ranked photo in a group receives a `Pick` recommendation. Other photos receive `Maybe` or `Reject` based on score distance from the best candidate.
+The top-ranked photo in a duplicate group receives a `Pick` recommendation. Other photos receive `Maybe` or `Reject` based on score distance from the best candidate. Single-image groups receive `Pick` only when their deterministic score is solid enough; weak singletons receive `Maybe` rather than an automatic rejection.
 
 Explanations should stay conservative and traceable:
 
