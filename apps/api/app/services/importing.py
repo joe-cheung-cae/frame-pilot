@@ -8,12 +8,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO
 
-import numpy as np
 from PIL import ExifTags, Image, ImageOps, UnidentifiedImageError
 from sqlmodel import Session, select
 
 from app.ai.embeddings import image_embedding, perceptual_hash
-from app.image.scoring import compute_quality_scores
+from app.image.scoring import compute_quality_scores_for_image
 from app.models.entities import Photo, PhotoGroup, Project, utc_now
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -275,7 +274,7 @@ def import_image_file(
                 width, height = image.size
                 thumbnail_path, preview_path = _save_derivatives(project_root, source_path, image, timing=timing)
                 with import_timing_stage(timing, "quality_scoring"):
-                    scores = compute_quality_scores(np.asarray(image))
+                    scores = compute_quality_scores_for_image(image)
                 with import_timing_stage(timing, "embedding_generation"):
                     embedding = image_embedding(image)
                 with import_timing_stage(timing, "perceptual_hash"):

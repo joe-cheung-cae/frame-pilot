@@ -116,38 +116,38 @@ This run used 500 generated non-private JPEG files at 3000x2000 pixels with JPEG
 
 | Photo Count | Dimensions | JPEG Quality | Real Backend | Real Asset Serving | Image Generation MS | Project Create MS | Import MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes | Reported JS Heap MB |
 | ----------: | ---------- | -----------: | ------------ | ------------------ | ------------------: | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ----------------: | ---------------------: | --------------------: | ------------------: |
-|         500 | 3000x2000  |           88 | yes          | yes                |                8429 |               855 |    121699 |       2612 |              838 |               59 |               88 |                  23 |        44 |               693 |                    423 |                   427 |               42.63 |
+|         500 | 3000x2000  |           88 | yes          | yes                |                8523 |               874 |     96632 |       2102 |              835 |               93 |               53 |                  23 |        60 |               683 |                    423 |                   427 |               42.63 |
 
 Instrumentation note:
 
-- Chromium CDP metrics are collected at the first preview, after the Picks filter, and after group navigation. The latest 500 large-image run recorded initial CDP values including `JSHeapUsedSize=18600508`, `JSHeapTotalSize=27099136`, `Nodes=1262`, `Documents=1`, and `Frames=1`.
+- Chromium CDP metrics are collected at the first preview, after the Picks filter, and after group navigation. The latest 500 large-image run recorded initial CDP values including `JSHeapUsedSize=18671904`, `JSHeapTotalSize=28672000`, `Nodes=1339`, `Documents=1`, and `Frames=1`.
 - JS heap and DOM counts remain smoke signals only. They do not measure full browser RSS, decoded image memory, GPU memory, or OS memory pressure.
-- First preview asset timing is measured by listening for the first `/api/assets/.../previews/...` response during culling workspace render. The latest 500 large-image run recorded status `200`, content length `9212` bytes, and approximate response duration `4.05 ms`. Missing content length or browser timing values are allowed and recorded as unavailable.
+- First preview asset timing is measured by listening for the first `/api/assets/.../previews/...` response during culling workspace render. The latest 500 large-image run recorded status `200`, content length `9552` bytes, and approximate response duration `3.49 ms`. Missing content length or browser timing values are allowed and recorded as unavailable.
 - Optional Playwright trace capture is disabled by default. Use `FRAMEPILOT_BROWSER_PERF_TRACE=1 npm run test:e2e:real-browser` for the default smoke, `npm run test:e2e:real-browser:trace` for the script alias, or `npm run test:e2e:real-browser:large:trace` for the large-image trace. The trace is written under Playwright's per-test `test-results` output directory; inspect it with `npx playwright show-trace <trace.zip>`.
-- The large-image script enables backend import timing with `FRAMEPILOT_IMPORT_TIMING=1`. The latest browser-visible import wait was `121.699 s`; the backend import endpoint accounted for `121.113 s`. The remaining `0.586 s` includes request/response, browser, and frontend bookkeeping that this benchmark does not split further.
+- The large-image script enables backend import timing with `FRAMEPILOT_IMPORT_TIMING=1`. The latest browser-visible import wait was `96.632 s`; the backend import endpoint accounted for `96.138 s`. The remaining `0.494 s` includes request/response, browser, and frontend bookkeeping that this benchmark does not split further.
 - A 2,000-photo real browser-backend run should wait until after the dominant import stages are optimized, because import/scoring/preview generation is still dominant and current browser measurements do not cover process RSS, decoded image memory, GPU memory, or long-session pressure.
 
 Instrumented 500 large-image backend import breakdown:
 
 | Stage                   | Calls | Seconds | Seconds / Photo |
 | ----------------------- | ----: | ------: | --------------: |
-| quality_scoring         |   500 |  57.245 |        0.114490 |
-| preview_generation      |   500 |  38.076 |        0.076153 |
-| embedding_generation    |   500 |  13.255 |        0.026510 |
-| thumbnail_generation    |   500 |   4.345 |        0.008691 |
-| image_decode            |   500 |   3.858 |        0.007717 |
-| perceptual_hash         |   500 |   2.118 |        0.004235 |
-| db_commit               |   500 |   1.421 |        0.002841 |
-| db_record_create        |   500 |   0.185 |        0.000370 |
-| file_copy               |   500 |   0.120 |        0.000240 |
-| content_hash            |   500 |   0.094 |        0.000187 |
-| image_open              |   500 |   0.060 |        0.000120 |
-| file_stat               |   500 |   0.031 |        0.000061 |
-| metadata_extraction     |   500 |   0.003 |        0.000006 |
-| processing_invalidation |     1 |   0.021 |               - |
-| import_endpoint_commit  |     1 |   0.022 |               - |
+| preview_generation      |   500 |  37.051 |        0.074102 |
+| quality_scoring         |   500 |  34.104 |        0.068208 |
+| embedding_generation    |   500 |  12.949 |        0.025898 |
+| thumbnail_generation    |   500 |   4.197 |        0.008395 |
+| image_decode            |   500 |   3.735 |        0.007470 |
+| perceptual_hash         |   500 |   2.078 |        0.004155 |
+| db_commit               |   500 |   1.310 |        0.002619 |
+| db_record_create        |   500 |   0.176 |        0.000352 |
+| file_copy               |   500 |   0.098 |        0.000197 |
+| content_hash            |   500 |   0.092 |        0.000183 |
+| image_open              |   500 |   0.057 |        0.000115 |
+| file_stat               |   500 |   0.029 |        0.000058 |
+| metadata_extraction     |   500 |   0.002 |        0.000005 |
+| processing_invalidation |     1 |   0.024 |               - |
+| import_endpoint_commit  |     1 |   0.024 |               - |
 
-Current large-image import conclusion: the top two actionable backend stages are `quality_scoring` and `preview_generation`. File copy, content hashing, database record creation, and database commits are not meaningful bottlenecks in this generated-image run.
+Current large-image import conclusion: `preview_generation` is now the largest import stage, with `quality_scoring` close behind. File copy, content hashing, database record creation, and database commits are not meaningful bottlenecks in this generated-image run.
 
 #### Scoring Array-Copy Cleanup Attempt
 
@@ -176,6 +176,59 @@ Preview WebP output now uses Pillow WebP `method=2` instead of the default encod
 
 Conclusion: the preview encoder effort change materially improves the 500 large-image import path while preserving preview dimensions and local-only cache behavior. `quality_scoring` is now the largest remaining import stage in this generated-image benchmark.
 
+#### Quality Scoring Optimization
+
+Quality scoring now uses a scoring-only Pillow image bounded to a 1600px long edge before converting to NumPy. Sharpness, blur, exposure, contrast, noise, and heuristic face signals are computed on that bounded scoring image. Preview generation output, thumbnail output, stored score field names, scoring weights, score ranges, API response shape, and local-only project behavior are unchanged.
+
+Commands:
+
+```bash
+.venv/bin/python -m app.devtools.quality_scoring_bench --output /tmp/framepilot-scoring-after --count 30 --width 3000 --height 2000 --quality 88
+npm run test:e2e:real-browser:large
+```
+
+Local run date: 2026-06-04.
+
+Dataset: 500 generated non-private JPEG files at 3000x2000 pixels with JPEG quality 88 for the browser-backend smoke; 30 generated JPEG files with the same dimensions and quality for the scoring microbench.
+
+| Measurement                                      |   Before |   After | Result                         |
+| ------------------------------------------------ | -------: | ------: | ------------------------------ |
+| 3000x2000 scoring microbench seconds / image     |   0.1124 |  0.0745 | faster by about 34% per image  |
+| Microbench `overall_score` mean absolute delta   |   0.0000 |  0.0021 | small bounded sampling drift   |
+| Microbench `overall_score` maximum absolute delta |   0.0000 |  0.0079 | small bounded sampling drift   |
+| Microbench face/eye presence changes             |        0 |       0 | no changes in generated sample |
+| 500-image `quality_scoring`                      |   57.245 |  34.104 | faster by 23.141 s             |
+| 500-image backend import total                   |  121.113 |  96.138 | faster by 24.975 s             |
+| 500-image browser import wait                    |  121.699 |  96.632 | faster by 25.067 s             |
+
+Microbench stage summary after optimization:
+
+| Stage                   | Seconds / Image |
+| ----------------------- | --------------: |
+| scoring_image_array     |        0.037167 |
+| face_signals            |        0.014491 |
+| exposure_contrast_noise |        0.007798 |
+| luminance_conversion    |        0.004497 |
+| sharpness_blur          |        0.002940 |
+
+Score behavior and regression summary:
+
+- Output fields, score weights, normalization ranges, recommendation formulas, and API response shape are unchanged.
+- The scoring pixel source changed from the full 3000x2000 image to a deterministic 1600px-long-edge scoring image, so exact numeric scores can drift slightly.
+- The generated 30-image microbench recorded `overall_score` mean absolute delta `0.002067`, maximum absolute delta `0.0079`, `sharpness_score` maximum absolute delta `0.0285`, and zero face/eye presence changes against the legacy full-resolution calculation.
+- Regression tests cover required score fields and ranges, sharp image ranking over blur, exposure penalties, deterministic scoring, PIL scoring without mutating the source image, and no source file modification.
+
+Caveats:
+
+- The benchmark uses generated synthetic JPEGs, not a curated real-photo set.
+- Downscaled sharpness can differ from full-resolution Laplacian variance on unusual textures, fine detail, moire, or creative blur.
+- Browser heap and DOM measurements remain smoke signals only and do not measure full browser RSS, decoded image memory, GPU memory, or OS memory pressure.
+- The 2,000-photo real browser-backend run remains intentionally unattempted in this iteration.
+
+Conclusion: the bounded scoring image materially reduces the dominant `quality_scoring` cost while preserving stored fields and user-facing semantics. The tradeoff is a small, measured numeric drift versus legacy full-resolution scoring.
+
+Recommended next step: treat `preview_generation` as the next import-stage bottleneck, or run a 1,000-photo real browser-backend validation before attempting a 2,000-photo real browser-backend workflow.
+
 Validated real workflow steps:
 
 - Project creation with a local project data folder.
@@ -199,4 +252,4 @@ What remains unverified:
 
 Browser memory caveat: the reported heap value comes from Chromium `performance.memory` and is a JS heap estimate only. It is not full browser process memory, decoded image memory, GPU memory, or a cross-browser metric.
 
-Recommended next performance step: optimize exactly one confirmed dominant backend import stage, now `quality_scoring`, or validate a 1,000-photo opt-in browser run using the faster preview path before attempting 2,000-photo real browser-backend validation.
+Recommended next performance step: optimize exactly one confirmed dominant backend import stage, now `preview_generation`, or validate a 1,000-photo opt-in browser run using the faster scoring path before attempting 2,000-photo real browser-backend validation.

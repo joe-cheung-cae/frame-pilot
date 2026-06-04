@@ -1388,7 +1388,7 @@ def test_import_cleans_original_and_derivatives_when_processing_fails(tmp_path, 
     def fail_scoring(_image):
         raise RuntimeError("scoring failed")
 
-    monkeypatch.setattr("app.services.importing.compute_quality_scores", fail_scoring)
+    monkeypatch.setattr("app.services.importing.compute_quality_scores_for_image", fail_scoring)
 
     response = client.post(
         f"/api/projects/{project['id']}/import",

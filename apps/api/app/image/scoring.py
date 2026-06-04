@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 
 import numpy as np
+from PIL import Image
+
+SCORING_LONG_EDGE = 1600
+SCORING_RESAMPLE = Image.Resampling.BICUBIC
+SCORING_REDUCING_GAP = 2.0
 
 
 @dataclass(frozen=True)
@@ -29,6 +34,28 @@ def _to_luminance(image: np.ndarray) -> np.ndarray:
         return image.astype(np.float32)
     rgb = image[..., :3].astype(np.float32)
     return 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+
+
+def _bounded_scoring_size(width: int, height: int, long_edge: int = SCORING_LONG_EDGE) -> tuple[int, int]:
+    current_long_edge = max(width, height)
+    if current_long_edge <= long_edge:
+        return width, height
+
+    scale = long_edge / float(current_long_edge)
+    return max(1, round(width * scale)), max(1, round(height * scale))
+
+
+def scoring_image_array(image: Image.Image) -> np.ndarray:
+    width, height = image.size
+    target_size = _bounded_scoring_size(width, height)
+    scoring_image = image if target_size == image.size else image.resize(
+        target_size,
+        resample=SCORING_RESAMPLE,
+        reducing_gap=SCORING_REDUCING_GAP,
+    )
+    if scoring_image.mode not in {"L", "RGB"}:
+        scoring_image = scoring_image.convert("RGB")
+    return np.asarray(scoring_image)
 
 
 def _laplacian_variance(gray: np.ndarray) -> float:
@@ -145,3 +172,7 @@ def compute_quality_scores(image: np.ndarray) -> QualityScores:
         aesthetic_score=aesthetic_score,
         overall_score=overall_score,
     )
+
+
+def compute_quality_scores_for_image(image: Image.Image) -> QualityScores:
+    return compute_quality_scores(scoring_image_array(image))
