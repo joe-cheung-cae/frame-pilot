@@ -25,6 +25,7 @@ import {
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
 import { groupConfidenceLabel, groupScoreSummaryRows, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
+import { reviewHeaderSummary } from "@/lib/reviewHeaderSummary";
 import { reviewMetadataRows } from "@/lib/reviewMetadata";
 import { reviewProgressForEntry, reviewProgressStorageKey } from "@/lib/reviewProgress";
 import { photoMatchesReviewFilter, REVIEW_FILTERS } from "@/lib/reviewFilters";
@@ -374,8 +375,6 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   });
 
   const preview = activePhoto ? assetUrl(projectId, activePhoto.preview_path) : null;
-  const picks = photos.filter((photo) => photo.user_status === "Pick").length;
-  const reviewed = photos.filter((photo) => photo.user_status !== "Unreviewed").length;
   const isLoading = project.isLoading || photosQuery.isLoading || groupsQuery.isLoading;
   const loadError = project.error ?? photosQuery.error ?? groupsQuery.error;
   const loadErrorMessage = loadError instanceof Error ? loadError.message : "Start the local API and try again.";
@@ -447,9 +446,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         <div>
           <h1 className="text-lg font-semibold">{project.data?.name ?? "Culling Workspace"}</h1>
           <p className="text-sm text-neutral-600">
-            {reviewed}/{photos.length} loaded reviewed · {picks} loaded picks
-            {photosPartiallyLoaded ? ` · ${photos.length} of ${projectPhotoCount} loaded` : ""}
-            {activeGroupIndex >= 0 ? ` · Group ${activeGroupIndex + 1} of ${groups.length}` : ""}
+            {reviewHeaderSummary({
+              activeGroupIndex,
+              groupCount: groups.length,
+              photos,
+              photosPartiallyLoaded,
+              projectPhotoCount,
+            })}
           </p>
           {loadAllPhotosMutation.error || loadAllGroupsMutation.error ? (
             <p className="mt-1 text-xs text-coral">
