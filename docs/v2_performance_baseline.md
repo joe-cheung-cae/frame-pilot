@@ -63,11 +63,17 @@ Opt-in 500-photo command:
 FRAMEPILOT_BROWSER_PERF_COUNT=500 npm run test:e2e:real-browser
 ```
 
+Opt-in trace command:
+
+```bash
+npm run test:e2e:real-browser:trace
+```
+
 Latest local run: 2026-06-04.
 
 | Photo Count | Real Backend | Real Import | Real Processing | Real Asset Serving | CSV Export | Project Create MS | Import MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes | Reported JS Heap MB |
 | ----------: | ------------ | ----------- | --------------- | ------------------ | ---------- | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ----------------: | ---------------------: | --------------------: | ------------------: |
-|         100 | yes          | yes         | yes             | yes                | yes        |               863 |      1336 |       2099 |              830 |               56 |               75 |                  32 |       112 |               607 |                    343 |                   557 |               61.04 |
+|         100 | yes          | yes         | yes             | yes                | yes        |               872 |      1339 |       2114 |              845 |               60 |               72 |                  37 |        49 |               619 |                    343 |                   557 |               48.07 |
 |         500 | yes          | yes         | yes             | yes                | yes        |               874 |      3939 |       3119 |              827 |               60 |              117 |                  12 |        55 |               839 |                    599 |                   600 |               68.86 |
 
 This smoke generates synthetic JPEG source photos at test time, creates a project with a temporary project data folder, imports the generated files through the frontend and real backend, runs real processing, opens the real culling workspace, waits for a preview served by `/api/assets`, marks one photo as Pick, switches to the Picks filter, navigates to another group, and creates a CSV export.
@@ -92,14 +98,16 @@ What remains unverified:
 - Full browser process RSS, GPU memory, image decode memory, and operating system memory pressure.
 - Long review sessions with repeated filter changes, status updates, compare mode, and load-all behavior.
 
-Browser memory caveat: the reported heap value comes from Chromium `performance.memory` and is a JS heap estimate only. It is not full browser process memory, decoded image memory, GPU memory, or a cross-browser metric.
+Instrumentation note: Chromium runs now collect `Performance.getMetrics` through Playwright CDP when available. The smoke records `JSHeapUsedSize`, `JSHeapTotalSize`, `Nodes`, `Documents`, `Frames`, `LayoutCount`, `RecalcStyleCount`, `TaskDuration`, `ScriptDuration`, `LayoutDuration`, and `RecalcStyleDuration`; unavailable metrics are recorded as `null` rather than failing the test. The smoke also records a document DOM node count and the browser-exposed `performance.memory` JS heap estimate when available.
+
+Browser memory caveat: the reported heap value comes from Chromium `performance.memory` and is a JS heap estimate only. It is not full browser process memory, decoded image memory, GPU memory, or a cross-browser metric. The DOM node count is a document element count only; it does not measure decoded image memory, GPU resources, offscreen browser internals, or operating system memory pressure.
 
 ### Larger Generated JPEG Validation
 
 Command:
 
 ```bash
-FRAMEPILOT_BROWSER_PERF_COUNT=500 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT_BROWSER_PERF_HEIGHT=2000 FRAMEPILOT_BROWSER_PERF_QUALITY=88 npm run test:e2e:real-browser
+npm run test:e2e:real-browser:large
 ```
 
 Latest local run: 2026-06-04.
@@ -108,7 +116,15 @@ This run used 500 generated non-private JPEG files at 3000x2000 pixels with JPEG
 
 | Photo Count | Dimensions | JPEG Quality | Real Backend | Real Asset Serving | Image Generation MS | Project Create MS | Import MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes | Reported JS Heap MB |
 | ----------: | ---------- | -----------: | ------------ | ------------------ | ------------------: | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ----------------: | ---------------------: | --------------------: | ------------------: |
-|         500 | 3000x2000  |           88 | yes          | yes                |                8721 |               863 |    139232 |       2600 |              835 |               86 |               55 |                   7 |        54 |               673 |                    423 |                   427 |               54.17 |
+|         500 | 3000x2000  |           88 | yes          | yes                |                8786 |               926 |    139259 |       2608 |              872 |               89 |               57 |                  10 |        57 |               675 |                    423 |                   427 |               54.17 |
+
+Instrumentation note:
+
+- Chromium CDP metrics are collected at the first preview, after the Picks filter, and after group navigation. The latest 500 large-image run recorded initial CDP values including `JSHeapUsedSize=18466720`, `JSHeapTotalSize=28409856`, `Nodes=1327`, `Documents=1`, and `Frames=1`.
+- JS heap and DOM counts remain smoke signals only. They do not measure full browser RSS, decoded image memory, GPU memory, or OS memory pressure.
+- First preview asset timing is measured by listening for the first `/api/assets/.../previews/...` response during culling workspace render. The latest 500 large-image run recorded status `200`, content length `12426` bytes, and approximate response duration `3.56 ms`. Missing content length or browser timing values are allowed and recorded as unavailable.
+- Optional Playwright trace capture is disabled by default. Use `FRAMEPILOT_BROWSER_PERF_TRACE=1 npm run test:e2e:real-browser` for the default smoke, `npm run test:e2e:real-browser:trace` for the script alias, or `npm run test:e2e:real-browser:large:trace` for the large-image trace. The trace is written under Playwright's per-test `test-results` output directory; inspect it with `npx playwright show-trace <trace.zip>`.
+- A 2,000-photo real browser-backend run should wait until after these instrumented 500-photo results are reviewed, because import/preview generation is still dominant and current browser measurements do not cover process RSS, decoded image memory, GPU memory, or long-session pressure.
 
 Validated real workflow steps:
 
@@ -133,4 +149,4 @@ What remains unverified:
 
 Browser memory caveat: the reported heap value comes from Chromium `performance.memory` and is a JS heap estimate only. It is not full browser process memory, decoded image memory, GPU memory, or a cross-browser metric.
 
-Recommended next performance step: do not put a 2,000-photo real browser-backend run into default E2E yet. Attempt it as a separate opt-in benchmark after adding external process RSS or browser trace measurement, because JS heap alone does not prove full browser memory safety for realistic previews.
+Recommended next performance step: first collect and review the new instrumentation for the 500 large-image run, including CDP metrics, first preview asset timing, and an opt-in Playwright trace if needed. If import and preview generation remain dominant, optimize that path next. Only after that should the project attempt 1,000-photo and then 2,000-photo real browser-backend validation as separate opt-in benchmarks.
