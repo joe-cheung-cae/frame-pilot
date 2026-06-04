@@ -2,6 +2,7 @@ import csv
 import hashlib
 import json
 import shutil
+import threading
 import zipfile
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
@@ -174,6 +175,60 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     export_history = client.get(f"/api/projects/{project['id']}/export")
     assert export_history.status_code == 200
     assert [record["id"] for record in export_history.json()] == [export_record["id"]]
+
+
+def test_import_job_is_visible_while_import_request_is_running(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    import_client = TestClient(create_app())
+    polling_client = TestClient(create_app())
+    project = import_client.post("/api/projects", json={"name": "Import polling"}).json()
+    import_started = threading.Event()
+    release_import = threading.Event()
+    import_result: dict[str, object] = {}
+    original_import_image_file = routes.import_image_file
+
+    def held_import_image_file(*args, **kwargs):
+        import_started.set()
+        if not release_import.wait(timeout=10):
+            raise RuntimeError("Timed out waiting to release held import")
+        return original_import_image_file(*args, **kwargs)
+
+    monkeypatch.setattr(routes, "import_image_file", held_import_image_file)
+
+    def post_import() -> None:
+        try:
+            import_result["response"] = import_client.post(
+                f"/api/projects/{project['id']}/import",
+                files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+            )
+        except Exception as error:  # pragma: no cover - surfaced by assertions below
+            import_result["error"] = error
+
+    import_thread = threading.Thread(target=post_import)
+    import_thread.start()
+    try:
+        assert import_started.wait(timeout=10)
+        jobs_response = polling_client.get(f"/api/projects/{project['id']}/jobs")
+        assert jobs_response.status_code == 200
+        jobs = jobs_response.json()
+        running_import_jobs = [job for job in jobs if job["job_type"] == "import" and job["status"] == "running"]
+        assert len(running_import_jobs) == 1
+        assert running_import_jobs[0]["current_step"] == "receive_files"
+        assert running_import_jobs[0]["total_items"] == 1
+        assert running_import_jobs[0]["processed_items"] == 0
+        assert running_import_jobs[0]["failed_items"] == 0
+    finally:
+        release_import.set()
+        import_thread.join(timeout=10)
+
+    assert not import_thread.is_alive()
+    assert "error" not in import_result
+    response = import_result["response"]
+    assert response.status_code == 201
+    completed_job = response.json()["job"]
+    assert completed_job["job_type"] == "import"
+    assert completed_job["status"] == "complete"
+    assert completed_job["processed_items"] == 1
 
 
 def test_import_writes_bounded_webp_derivatives(tmp_path, monkeypatch):
