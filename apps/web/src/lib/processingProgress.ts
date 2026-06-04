@@ -2,21 +2,34 @@ import type { ProcessingJob, Project } from "./api.ts";
 
 type ProcessingProgressJob = Pick<
   ProcessingJob,
-  "failed_items" | "processed_items" | "progress_percent" | "status" | "total_items"
+  "failed_items" | "job_type" | "processed_items" | "progress_percent" | "status" | "total_items"
 >;
 
-type ProcessingFailureJob = Pick<ProcessingJob, "error_message" | "failed_items">;
+type ProcessingFailureJob = Pick<ProcessingJob, "error_message" | "failed_items" | "job_type">;
 
 type ProcessingProgressProject = Pick<Project, "processed_images" | "total_images">;
 
 type ProcessingJobCandidate = Pick<ProcessingJob, "job_type" | "status">;
 
 export function processingStatusLabel(status: ProcessingJob["status"] | null | undefined): string {
-  return status ? status[0].toUpperCase() + status.slice(1) : "Ready";
+  if (!status) {
+    return "Ready";
+  }
+  if (status === "complete_with_errors") {
+    return "Complete with errors";
+  }
+  return status[0].toUpperCase() + status.slice(1);
+}
+
+export function activeJobOfType<T extends ProcessingJobCandidate>(
+  jobs: readonly T[] | null | undefined,
+  jobType: string,
+): T | undefined {
+  return jobs?.find((job) => job.job_type === jobType && (job.status === "queued" || job.status === "running"));
 }
 
 export function activeProcessingJob<T extends ProcessingJobCandidate>(jobs: readonly T[] | null | undefined): T | undefined {
-  return jobs?.find((job) => job.job_type === "processing" && (job.status === "queued" || job.status === "running"));
+  return activeJobOfType(jobs, "processing");
 }
 
 export function processingProgressPercent(job: Pick<ProcessingJob, "progress_percent"> | null | undefined): number {
@@ -31,7 +44,8 @@ export function processingProgressSummary(
   project: ProcessingProgressProject | null | undefined,
 ): string {
   if (job) {
-    return `${job.processed_items} of ${job.total_items} photos · ${job.failed_items} failed · ${processingProgressPercent(job)}%`;
+    const noun = job.job_type === "import" ? "files" : "photos";
+    return `${job.processed_items} of ${job.total_items} ${noun} · ${job.failed_items} failed · ${processingProgressPercent(job)}%`;
   }
   return `${project?.processed_images ?? 0} of ${project?.total_images ?? 0} processed`;
 }
@@ -43,6 +57,7 @@ export function processingFailureNotice(job: ProcessingFailureJob | null | undef
   if (job.error_message) {
     return job.error_message;
   }
-  const noun = job.failed_items === 1 ? "photo" : "photos";
-  return `${job.failed_items} ${noun} could not be processed.`;
+  const noun = job.job_type === "import" ? (job.failed_items === 1 ? "file" : "files") : job.failed_items === 1 ? "photo" : "photos";
+  const verb = job.job_type === "import" ? "imported" : "processed";
+  return `${job.failed_items} ${noun} could not be ${verb}.`;
 }

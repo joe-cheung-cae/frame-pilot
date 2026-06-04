@@ -105,6 +105,13 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     import_result = import_response.json()
     assert import_result["timing"] is None
     assert import_result["skipped"] == []
+    assert import_result["job"]["job_type"] == "import"
+    assert import_result["job"]["status"] == "complete"
+    assert import_result["job"]["current_step"] == "complete"
+    assert import_result["job"]["total_items"] == 1
+    assert import_result["job"]["processed_items"] == 1
+    assert import_result["job"]["failed_items"] == 0
+    assert import_result["job"]["progress_percent"] == 100.0
     photo = import_result["imported"][0]
     assert photo["filename"] == "frame.jpg"
     assert photo["file_ext"] == ".jpg"
@@ -599,7 +606,7 @@ def test_process_returns_existing_active_job_without_creating_duplicate(tmp_path
     assert response.json()["id"] == active_job_id
     with Session(get_engine()) as session:
         jobs = list(session.exec(select(ProcessingJob).where(ProcessingJob.project_id == project["id"])).all())
-    assert len(jobs) == 1
+    assert len([job for job in jobs if job.job_type == "processing"]) == 1
 
 
 def test_list_jobs_returns_project_jobs_newest_first(tmp_path, monkeypatch):
@@ -691,7 +698,7 @@ def test_process_fails_stale_active_job_and_starts_replacement(tmp_path, monkeyp
         stale_after_retry = session.get(ProcessingJob, stale_job_id)
         photo_after_retry = session.get(Photo, photo_id)
 
-    assert len(jobs) == 2
+    assert len([job for job in jobs if job.job_type == "processing"]) == 2
     assert stale_after_retry is not None
     assert stale_after_retry.status == "failed"
     assert stale_after_retry.current_step == "failed - stale"
@@ -997,7 +1004,7 @@ def test_import_renames_duplicate_filenames_without_overwriting(tmp_path, monkey
     )
     second = client.post(
         f"/api/projects/{project['id']}/import",
-        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+        files=[("files", ("frame.jpg", _image_bytes(color=(80, 120, 180)), "image/jpeg"))],
     )
 
     assert first.status_code == 201
@@ -1010,6 +1017,46 @@ def test_import_renames_duplicate_filenames_without_overwriting(tmp_path, monkey
     assert (root / "originals" / "frame-1.jpg").exists()
     assert (root / "thumbnails" / "frame.webp").exists()
     assert (root / "thumbnails" / "frame-1.webp").exists()
+
+
+def test_repeated_same_file_import_reuses_existing_record_and_derivatives(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Repeated import"}).json()
+    image = _image_bytes()
+
+    first = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", image, "image/jpeg"))],
+    )
+    first_photo = first.json()["imported"][0]
+    thumbnail_mtime = Path(first_photo["thumbnail_path"]).stat().st_mtime_ns
+    preview_mtime = Path(first_photo["preview_path"]).stat().st_mtime_ns
+
+    client.patch(
+        f"/api/projects/{project['id']}/photos/{first_photo['id']}",
+        json={"user_status": "Pick"},
+    )
+    second = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", image, "image/jpeg"))],
+    )
+
+    assert second.status_code == 201
+    second_result = second.json()
+    assert second_result["imported"][0]["id"] == first_photo["id"]
+    assert second_result["job"]["job_type"] == "import"
+    assert second_result["job"]["status"] == "complete"
+    assert second_result["job"]["processed_items"] == 1
+    assert second_result["job"]["failed_items"] == 0
+    assert client.get(f"/api/projects/{project['id']}").json()["total_images"] == 1
+    photos = client.get(f"/api/projects/{project['id']}/photos").json()
+    assert len(photos) == 1
+    assert photos[0]["user_status"] == "Pick"
+    root = Path(project["root_path"])
+    assert not (root / "originals" / "frame-1.jpg").exists()
+    assert Path(first_photo["thumbnail_path"]).stat().st_mtime_ns == thumbnail_mtime
+    assert Path(first_photo["preview_path"]).stat().st_mtime_ns == preview_mtime
 
 
 def test_import_after_processing_invalidates_stale_groups_and_recommendations(tmp_path, monkeypatch):
@@ -1419,6 +1466,15 @@ def test_import_rejects_invalid_image_and_cleans_written_file(tmp_path, monkeypa
 
     assert response.status_code == 422
     assert not (Path(project["root_path"]) / "originals" / "broken.jpg").exists()
+    with Session(get_engine()) as session:
+        jobs = list(session.exec(select(ProcessingJob).where(ProcessingJob.project_id == project["id"])).all())
+    assert len(jobs) == 1
+    assert jobs[0].job_type == "import"
+    assert jobs[0].status == "failed"
+    assert jobs[0].current_step == "failed"
+    assert jobs[0].processed_items == 0
+    assert jobs[0].failed_items == 1
+    assert jobs[0].progress_percent == 100.0
 
 
 def test_import_cleans_original_and_derivatives_when_processing_fails(tmp_path, monkeypatch):
@@ -1463,6 +1519,16 @@ def test_import_skips_invalid_files_when_other_images_import_successfully(tmp_pa
     result = response.json()
     assert [photo["filename"] for photo in result["imported"]] == ["good.jpg"]
     assert {item["filename"] for item in result["skipped"]} == {"notes.txt", "broken.jpg"}
+    assert result["job"]["job_type"] == "import"
+    assert result["job"]["status"] == "complete_with_errors"
+    assert result["job"]["current_step"] == "complete"
+    assert result["job"]["total_items"] == 3
+    assert result["job"]["processed_items"] == 1
+    assert result["job"]["failed_items"] == 2
+    assert result["job"]["progress_percent"] == 100.0
+    job_response = client.get(f"/api/projects/{project['id']}/jobs/{result['job']['id']}")
+    assert job_response.status_code == 200
+    assert job_response.json()["status"] == "complete_with_errors"
     assert client.get(f"/api/projects/{project['id']}").json()["total_images"] == 1
     root = Path(project["root_path"])
     assert (root / "originals" / "good.jpg").exists()

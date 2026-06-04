@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  activeJobOfType,
   activeProcessingJob,
   processingFailureNotice,
   processingProgressPercent,
@@ -12,6 +13,7 @@ import {
 test("formats processing status labels", () => {
   assert.equal(processingStatusLabel(undefined), "Ready");
   assert.equal(processingStatusLabel("running"), "Running");
+  assert.equal(processingStatusLabel("complete_with_errors"), "Complete with errors");
   assert.equal(processingStatusLabel("failed"), "Failed");
 });
 
@@ -32,6 +34,7 @@ test("formats active job progress with failed item counts", () => {
     processingProgressSummary(
       {
         failed_items: 2,
+        job_type: "processing",
         processed_items: 8,
         progress_percent: 83.2,
         status: "running",
@@ -45,12 +48,23 @@ test("formats active job progress with failed item counts", () => {
 
 test("formats processing failure notices", () => {
   assert.equal(processingFailureNotice(undefined), null);
-  assert.equal(processingFailureNotice({ error_message: null, failed_items: 0 }), null);
+  assert.equal(processingFailureNotice({ error_message: null, failed_items: 0, job_type: "processing" }), null);
   assert.equal(
-    processingFailureNotice({ error_message: "1 photo could not be processed during scoring.", failed_items: 1 }),
+    processingFailureNotice({
+      error_message: "1 photo could not be processed during scoring.",
+      failed_items: 1,
+      job_type: "processing",
+    }),
     "1 photo could not be processed during scoring.",
   );
-  assert.equal(processingFailureNotice({ error_message: null, failed_items: 2 }), "2 photos could not be processed.");
+  assert.equal(
+    processingFailureNotice({ error_message: null, failed_items: 2, job_type: "processing" }),
+    "2 photos could not be processed.",
+  );
+  assert.equal(
+    processingFailureNotice({ error_message: null, failed_items: 1, job_type: "import" }),
+    "1 file could not be imported.",
+  );
 });
 
 test("selects the newest active processing job from ordered jobs", () => {
@@ -67,4 +81,16 @@ test("selects the newest active processing job from ordered jobs", () => {
     undefined,
   );
   assert.equal(activeProcessingJob(undefined), undefined);
+});
+
+test("selects the newest active job by type from ordered jobs", () => {
+  const activeImport = { id: "job-2", job_type: "import", status: "running" as const };
+  const jobs = [
+    { id: "job-3", job_type: "processing", status: "running" as const },
+    activeImport,
+    { id: "job-1", job_type: "import", status: "queued" as const },
+  ];
+
+  assert.equal(activeJobOfType(jobs, "import"), activeImport);
+  assert.equal(activeJobOfType(jobs, "export"), undefined);
 });

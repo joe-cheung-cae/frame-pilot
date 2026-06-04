@@ -2,10 +2,10 @@ import hashlib
 import json
 import math
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO
 
@@ -14,7 +14,7 @@ from sqlmodel import Session, select
 
 from app.ai.embeddings import image_embedding, perceptual_hash
 from app.image.scoring import compute_quality_scores_for_image
-from app.models.entities import Photo, PhotoGroup, Project, utc_now
+from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 PLANNED_HEIC_EXTENSIONS = {".heic", ".heif"}
@@ -29,6 +29,9 @@ PREVIEW_WEBP_QUALITY = 88
 PREVIEW_WEBP_METHOD = 2
 DERIVATIVE_RESAMPLE = Image.Resampling.BICUBIC
 DERIVATIVE_REDUCING_GAP = 2.0
+IMPORT_JOB_UPDATE_MIN_SECONDS = 0.75
+
+ImportProgressCallback = Callable[[str], None]
 
 
 @dataclass
@@ -50,6 +53,96 @@ class ImportTimingCollector:
         return {
             stage: {"calls": timing.calls, "seconds": round(timing.seconds, 6)} for stage, timing in self.stages.items()
         }
+
+
+def _progress_percent(processed_items: int, failed_items: int, total_items: int) -> float:
+    if total_items <= 0:
+        return 100.0
+    return round(min(100.0, ((processed_items + failed_items) / total_items) * 100), 2)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _skipped_files_message(skipped: list[dict[str, str]]) -> str | None:
+    if not skipped:
+        return None
+    noun = "file" if len(skipped) == 1 else "files"
+    names = ", ".join(item["filename"] for item in skipped[:5])
+    suffix = "" if len(skipped) <= 5 else f", and {len(skipped) - 5} more"
+    return f"{len(skipped)} {noun} skipped: {names}{suffix}"
+
+
+def create_import_job(session: Session, project: Project, total_items: int) -> ProcessingJob:
+    now = utc_now()
+    job = ProcessingJob(
+        project_id=project.id,
+        job_type="import",
+        status="running",
+        current_step="receive_files",
+        total_items=total_items,
+        processed_items=0,
+        failed_items=0,
+        progress_percent=_progress_percent(0, 0, total_items),
+        started_at=now,
+        updated_at=now,
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def update_import_job(
+    session: Session,
+    job: ProcessingJob,
+    current_step: str,
+    processed_items: int | None = None,
+    failed_items: int | None = None,
+    force: bool = False,
+) -> None:
+    now = utc_now()
+    should_commit = force or (now - _as_utc(job.updated_at)).total_seconds() >= IMPORT_JOB_UPDATE_MIN_SECONDS
+    job.current_step = current_step
+    if processed_items is not None:
+        job.processed_items = processed_items
+    if failed_items is not None:
+        job.failed_items = failed_items
+    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
+    job.updated_at = now
+    session.add(job)
+    if should_commit:
+        session.commit()
+        session.refresh(job)
+
+
+def complete_import_job(
+    session: Session,
+    job: ProcessingJob,
+    imported_count: int,
+    skipped: list[dict[str, str]],
+) -> ProcessingJob:
+    now = utc_now()
+    skipped_count = len(skipped)
+    if imported_count:
+        job.status = "complete_with_errors" if skipped_count else "complete"
+        job.current_step = "complete"
+    else:
+        job.status = "failed"
+        job.current_step = "failed"
+    job.processed_items = imported_count
+    job.failed_items = skipped_count
+    job.progress_percent = 100.0
+    job.error_message = _skipped_files_message(skipped)
+    job.completed_at = now
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
 
 
 @contextmanager
@@ -157,6 +250,7 @@ def _save_derivatives(
     source: Path,
     image: Image.Image,
     timing: ImportTimingCollector | None = None,
+    progress_callback: ImportProgressCallback | None = None,
 ) -> tuple[Path, Path]:
     thumbnail_dir = project_root / "thumbnails"
     preview_dir = project_root / "previews"
@@ -166,10 +260,14 @@ def _save_derivatives(
     thumbnail_path = _unique_path(thumbnail_dir, f"{source.stem}.webp")
     preview_path = _unique_path(preview_dir, f"{source.stem}.webp")
 
+    if progress_callback:
+        progress_callback("thumbnail_generation")
     with import_timing_stage(timing, "thumbnail_generation"):
         thumb = _make_derivative_image(image, THUMBNAIL_LONG_EDGE)
         thumb.save(thumbnail_path, "WEBP", quality=THUMBNAIL_WEBP_QUALITY)
 
+    if progress_callback:
+        progress_callback("preview_generation")
     with import_timing_stage(timing, "preview_generation"):
         preview = _make_derivative_image(image, PREVIEW_LONG_EDGE)
         preview.save(preview_path, "WEBP", quality=PREVIEW_WEBP_QUALITY, method=PREVIEW_WEBP_METHOD)
@@ -266,6 +364,33 @@ def _copy_file_to_path(file: BinaryIO, path: Path) -> None:
             handle.write(chunk)
 
 
+def _existing_photo_for_content_hash(
+    session: Session,
+    project_id: str,
+    content_hash: str,
+    filename: str,
+) -> Photo | None:
+    candidates = session.exec(
+        select(Photo)
+        .where(Photo.project_id == project_id)
+        .where(Photo.source_identity == f"sha256:{content_hash}")
+        .order_by(Photo.created_at, Photo.id)
+    ).all()
+    for photo in candidates:
+        if photo.filename == filename:
+            return photo
+    return None
+
+
+def _photo_derivatives_exist(photo: Photo) -> bool:
+    return bool(
+        photo.thumbnail_path
+        and Path(photo.thumbnail_path).is_file()
+        and photo.preview_path
+        and Path(photo.preview_path).is_file()
+    )
+
+
 def invalidate_project_processing(session: Session, project: Project) -> None:
     for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
         session.delete(group)
@@ -290,9 +415,12 @@ def import_image_file(
     file: BinaryIO,
     invalidate_processing: bool = True,
     timing: ImportTimingCollector | None = None,
+    progress_callback: ImportProgressCallback | None = None,
 ) -> Photo:
     total_started = time.perf_counter()
     try:
+        if progress_callback:
+            progress_callback("file_validation")
         if not is_supported_image(filename):
             raise ValueError(unsupported_image_reason(filename))
 
@@ -301,25 +429,54 @@ def import_image_file(
         originals_dir = project_root / "originals"
         originals_dir.mkdir(parents=True, exist_ok=True)
         source_path = _unique_path(originals_dir, safe_name)
+        if progress_callback:
+            progress_callback("file_copy_or_register")
         with import_timing_stage(timing, "file_copy"):
             _copy_file_to_path(file, source_path)
+
+        if progress_callback:
+            progress_callback("content_hash")
+        with import_timing_stage(timing, "content_hash"):
+            content_hash = _file_sha256(source_path)
+        existing_photo = _existing_photo_for_content_hash(session, project.id, content_hash, safe_name)
+        if existing_photo is not None and _photo_derivatives_exist(existing_photo):
+            _cleanup_paths(source_path)
+            return existing_photo
 
         thumbnail_path: Path | None = None
         preview_path: Path | None = None
         try:
+            if progress_callback:
+                progress_callback("image_open")
             with import_timing_stage(timing, "image_open"):
                 opened_image = Image.open(source_path)
             with opened_image as opened:
+                if progress_callback:
+                    progress_callback("metadata_extraction")
                 with import_timing_stage(timing, "metadata_extraction"):
                     metadata = _extract_metadata(opened)
+                if progress_callback:
+                    progress_callback("image_decode")
                 with import_timing_stage(timing, "image_decode"):
                     image = ImageOps.exif_transpose(opened).convert("RGB")
                 width, height = image.size
-                thumbnail_path, preview_path = _save_derivatives(project_root, source_path, image, timing=timing)
+                thumbnail_path, preview_path = _save_derivatives(
+                    project_root,
+                    source_path,
+                    image,
+                    timing=timing,
+                    progress_callback=progress_callback,
+                )
+                if progress_callback:
+                    progress_callback("quality_scoring")
                 with import_timing_stage(timing, "quality_scoring"):
                     scores = compute_quality_scores_for_image(image)
+                if progress_callback:
+                    progress_callback("embedding_generation")
                 with import_timing_stage(timing, "embedding_generation"):
                     embedding = image_embedding(image)
+                if progress_callback:
+                    progress_callback("perceptual_hash")
                 with import_timing_stage(timing, "perceptual_hash"):
                     p_hash = perceptual_hash(image)
         except (UnidentifiedImageError, OSError) as error:
@@ -331,9 +488,9 @@ def import_image_file(
 
         with import_timing_stage(timing, "file_stat"):
             source_stat = source_path.stat()
-        with import_timing_stage(timing, "content_hash"):
-            content_hash = _file_sha256(source_path)
 
+        if progress_callback:
+            progress_callback("db_commit")
         with import_timing_stage(timing, "db_record_create"):
             photo = Photo(
                 project_id=project.id,

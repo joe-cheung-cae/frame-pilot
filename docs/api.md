@@ -67,7 +67,7 @@ When `POST /api/projects` omits `root_path` or sends it blank, FramePilot uses t
 
 `POST /api/projects/{project_id}/imports` accepts multiple files under the `files` form field.
 
-The response contains both imported photos and skipped files:
+The response contains imported photos, skipped files, and a completed import job summary:
 
 ```json
 {
@@ -102,23 +102,45 @@ The response contains both imported photos and skipped files:
       "filename": "notes.txt",
       "reason": "Only JPEG, PNG, and WebP files are supported"
     }
-  ]
+  ],
+  "job": {
+    "id": "job-id",
+    "project_id": "project-id",
+    "job_type": "import",
+    "status": "complete_with_errors",
+    "current_step": "complete",
+    "total_items": 2,
+    "processed_items": 1,
+    "failed_items": 1,
+    "progress_percent": 100.0,
+    "error_message": "1 file skipped: notes.txt",
+    "started_at": "2026-06-02T12:00:00Z",
+    "completed_at": "2026-06-02T12:00:03Z"
+  }
 }
 ```
 
-If every file is skipped, the endpoint returns `422`. Importing new photos invalidates previous groups and AI recommendations, so processing should be run again.
+The import endpoint is still upload-bound and synchronous: the HTTP request returns only after local copy, derivative generation, metadata extraction, scoring, hash, embedding, and database writes finish for the submitted batch. During that request, FramePilot creates a local `ProcessingJob` with `job_type` set to `import`, updates `current_step`, `processed_items`, `failed_items`, and `progress_percent`, and exposes it through the jobs endpoints. This is queryable progress for the current FastAPI process, not a durable external queue.
+
+Import job statuses are:
+
+- `complete`: all selected files imported or were safely reused.
+- `complete_with_errors`: at least one file imported or was safely reused, and at least one file was skipped.
+- `failed`: every selected file was skipped or failed validation.
+
+If every file is skipped, the endpoint returns `422` and the failed import job remains visible through `GET /api/projects/{project_id}/jobs`. Importing new photos invalidates previous groups and AI recommendations, so processing should be run again. Re-importing a file with the same uploaded filename and SHA-256 content hash reuses the existing project photo record and existing generated thumbnail/preview when they are still present; this does not create a duplicate record or reset user review status.
 The singular `/api/projects/{project_id}/import` route remains available as a backward-compatible alias.
 When EXIF data is available, import records basic capture time, camera, lens, focal length, aperture, shutter speed, and ISO metadata. Numeric EXIF rationals are normalized into stable display strings.
 HEIC and RAW extensions such as `.heic`, `.dng`, `.arw`, `.cr3`, and `.nef` are recognized as planned future formats, but v2 currently skips them with explicit unsupported-format reasons instead of attempting local decoding.
 
-## Processing
+## Jobs
 
 `POST /api/projects/{project_id}/process` creates a local background processing job and returns a `ProcessingJob` with `202 Accepted`. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the job reaches `complete` or `failed`.
 If an earlier queued or running processing job has not updated for more than 30 minutes, the next process request marks that stale job as failed and starts a replacement job.
 
-`GET /api/projects/{project_id}/jobs` returns processing jobs newest-first. Optional `limit` and `offset` query parameters can page large job histories. The processing UI uses this to resume polling a queued or running job after page reloads or navigation, and to show recent local processing history with an explicit load-more action for older jobs.
+`GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls this list while an upload is in flight to show the active import job, and the processing UI uses it to resume polling a queued or running processing job after page reloads or navigation.
 
-A processing job includes:
+A job includes:
 
 ```json
 {

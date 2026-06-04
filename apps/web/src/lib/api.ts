@@ -66,6 +66,7 @@ export type PhotoStatusCounts = {
 export type ImportResult = {
   imported: Photo[];
   skipped: { filename: string; reason: string }[];
+  job?: ProcessingJob | null;
   timing?: {
     total_files: number;
     imported_files: number;
@@ -88,7 +89,7 @@ export type ProcessingJob = {
   id: string;
   project_id: string;
   job_type: string;
-  status: "queued" | "running" | "complete" | "failed";
+  status: "queued" | "running" | "complete" | "complete_with_errors" | "failed";
   current_step: string;
   total_items: number;
   processed_items: number;

@@ -390,4 +390,38 @@ What remains unverified:
 
 Browser memory caveat: the reported heap value comes from Chromium `performance.memory` and is a JS heap estimate only. It is not full browser process memory, decoded image memory, GPU memory, or a cross-browser metric.
 
-Recommended next performance step: validate the remaining preview WebP encode and quality-scoring costs across repeated 500/1,000-photo runs, then consider moving derivative and scoring work into a resumable import job before attempting 2,000-photo real browser-backend validation.
+Recommended next performance step: validate the remaining preview WebP encode and quality-scoring costs across repeated 500/1,000-photo runs, then consider moving derivative and scoring work into a truly non-blocking durable import worker before attempting 2,000-photo real browser-backend validation.
+
+## Import Job Progress Iteration
+
+Command:
+
+```bash
+npm run test:e2e:real-browser
+npm run test:e2e:real-browser:large
+```
+
+Local run date: 2026-06-04.
+
+This iteration added a queryable `job_type=import` record for each import request, stage/count progress updates, `complete_with_errors` for mixed imports, failed import jobs for all-skipped batches, frontend import-progress visibility, and conservative same-file reuse. The import request is still synchronous and upload-bound; derivative generation, scoring, hashing, and embedding still happen inside the import endpoint.
+
+| Photo Count | Dimensions | JPEG Quality | Import Job | Import MS | Backend Import Seconds | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Reported JS Heap MB |
+| ----------: | ---------- | -----------: | ---------- | --------: | ---------------------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ------------------: |
+|         100 | 160x120    |           88 | yes        |      1348 |                      - |       2119 |              847 |               85 |               47 |                  32 |        43 |               45.20 |
+|         500 | 3000x2000  |           88 | yes        |     97459 |                 96.819 |       2629 |              839 |               79 |               51 |                  21 |        52 |               42.63 |
+
+500 large-image dominant import stage breakdown after import job progress:
+
+| Stage                | Calls | Seconds |
+| -------------------- | ----: | ------: |
+| preview_generation   |   500 |  36.824 |
+| quality_scoring      |   500 |  33.939 |
+| embedding_generation |   500 |  12.952 |
+| thumbnail_generation |   500 |   3.873 |
+| image_decode         |   500 |   3.653 |
+| perceptual_hash      |   500 |   2.057 |
+| db_commit            |   500 |   1.498 |
+
+Compared with the previous 500 large-image record in this document, browser import wait increased from `96.062 s` to `97.459 s`, and backend import endpoint time increased from `95.441 s` to `96.819 s`. This iteration was expected to improve queryable progress and safe rerun behavior rather than reduce compute time; the timing change is within the repeated 500-image baseline range already recorded above.
+
+Current import architecture conclusion: long imports now have local job visibility and safer same-file rerun behavior, but the request is not fully asynchronous and import jobs are not durable across API process exits. A future architecture slice should split upload registration from derivative/scoring work or introduce a local worker if large real-photo imports need resumable background execution beyond the current FastAPI process.

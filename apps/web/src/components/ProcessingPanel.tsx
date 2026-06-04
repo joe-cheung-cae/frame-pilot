@@ -146,8 +146,8 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
         <p className="text-sm text-coral">Could not load processing job status: {jobQuery.error.message}</p>
       ) : null}
       <div className="grid gap-3">
-        <h2 className="text-sm font-semibold">Processing History</h2>
-        {jobsQuery.isLoading ? <p className="text-sm text-neutral-600">Loading processing history...</p> : null}
+        <h2 className="text-sm font-semibold">Job History</h2>
+        {jobsQuery.isLoading ? <p className="text-sm text-neutral-600">Loading job history...</p> : null}
         {jobsQuery.isError ? <p className="text-sm text-coral">{jobsQuery.error.message}</p> : null}
         {jobsQuery.data?.length ? (
           <div className="grid gap-2">
@@ -184,7 +184,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           </button>
         ) : null}
         {!jobsQuery.isLoading && !jobsQuery.isError && !jobsQuery.data?.length ? (
-          <p className="text-sm text-neutral-600">No processing jobs yet.</p>
+          <p className="text-sm text-neutral-600">No jobs yet.</p>
         ) : null}
       </div>
     </section>

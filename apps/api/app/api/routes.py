@@ -27,9 +27,12 @@ from app.schemas.api import (
 from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
 from app.services.importing import (
     ImportTimingCollector,
+    complete_import_job,
+    create_import_job,
     import_image_file,
     import_timing_stage,
     invalidate_project_processing,
+    update_import_job,
 )
 from app.services.processing import (
     create_processing_job,
@@ -142,7 +145,7 @@ def delete_project_endpoint(project_id: str, session: Session = Depends(get_sess
     response_model=ImportResult,
     status_code=status.HTTP_201_CREATED,
 )
-async def import_photos_endpoint(
+def import_photos_endpoint(
     project_id: str,
     files: list[UploadFile] = File(...),
     include_timing: bool = Query(default=False),
@@ -152,25 +155,83 @@ async def import_photos_endpoint(
     timing = ImportTimingCollector() if timing_enabled else None
     started = time.perf_counter()
     project = _get_project(session, project_id)
+    total_files = len(files)
+    job = create_import_job(session, project, total_files)
     imported: list[Photo] = []
     skipped: list[dict[str, str]] = []
-    for upload in files:
+    new_import_count = 0
+    processed_count = 0
+    failed_count = 0
+    for index, upload in enumerate(files, start=1):
         filename = upload.filename or "image"
+
+        def update_stage(
+            stage: str,
+            current_index: int = index,
+            current_processed_count: int = processed_count,
+            current_failed_count: int = failed_count,
+        ) -> None:
+            update_import_job(
+                session,
+                job,
+                f"{stage} {current_index} of {total_files}",
+                current_processed_count,
+                current_failed_count,
+            )
+
         try:
-            imported.append(
-                import_image_file(session, project, filename, upload.file, invalidate_processing=False, timing=timing)
+            before_total = project.total_images
+            photo = import_image_file(
+                session,
+                project,
+                filename,
+                upload.file,
+                invalidate_processing=False,
+                timing=timing,
+                progress_callback=update_stage,
+            )
+            imported.append(photo)
+            if project.total_images > before_total:
+                new_import_count += 1
+            processed_count += 1
+            update_import_job(
+                session,
+                job,
+                f"db_commit {index} of {total_files}",
+                processed_count,
+                failed_count,
+                force=True,
             )
         except ValueError as error:
             skipped.append({"filename": filename, "reason": str(error)})
+            failed_count += 1
+            update_import_job(
+                session,
+                job,
+                f"file_skipped {index} of {total_files}",
+                processed_count,
+                failed_count,
+                force=True,
+            )
     if not imported and skipped:
+        complete_import_job(session, job, len(imported), skipped)
         details = "; ".join(f"{item['filename']}: {item['reason']}" for item in skipped)
         raise HTTPException(status_code=422, detail=details)
-    if imported:
+    if new_import_count:
+        update_import_job(
+            session,
+            job,
+            "processing_invalidation",
+            processed_count,
+            failed_count,
+            force=True,
+        )
         with import_timing_stage(timing, "processing_invalidation"):
             invalidate_project_processing(session, project)
         with import_timing_stage(timing, "import_endpoint_commit"):
             session.commit()
-    response = {"imported": imported, "skipped": skipped}
+    job = complete_import_job(session, job, len(imported), skipped)
+    response = {"imported": imported, "skipped": skipped, "job": job}
     if timing is not None:
         total_seconds = round(time.perf_counter() - started, 6)
         timing.record("import_endpoint_total", total_seconds)

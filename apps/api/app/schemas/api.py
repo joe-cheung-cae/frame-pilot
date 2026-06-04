@@ -105,9 +105,25 @@ class ImportTimingRead(BaseModel):
     stages: dict[str, ImportTimingStageRead]
 
 
+class JobRead(BaseModel):
+    id: str
+    project_id: str
+    job_type: str
+    status: str
+    current_step: str
+    total_items: int
+    processed_items: int
+    failed_items: int
+    progress_percent: float
+    error_message: str | None
+    started_at: datetime | None
+    completed_at: datetime | None
+
+
 class ImportResult(BaseModel):
     imported: list[PhotoRead]
     skipped: list[ImportSkippedFile]
+    job: JobRead | None = None
     timing: ImportTimingRead | None = None
 
 
@@ -143,21 +159,6 @@ class GroupRead(BaseModel):
     representative_photo_id: str | None
     photo_count: int
     score_summary: str
-
-
-class JobRead(BaseModel):
-    id: str
-    project_id: str
-    job_type: str
-    status: str
-    current_step: str
-    total_items: int
-    processed_items: int
-    failed_items: int
-    progress_percent: float
-    error_message: str | None
-    started_at: datetime | None
-    completed_at: datetime | None
 
 
 class ExportCreate(BaseModel):

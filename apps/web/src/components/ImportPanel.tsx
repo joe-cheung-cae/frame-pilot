@@ -7,6 +7,12 @@ import Link from "next/link";
 import { ChangeEvent, useState } from "react";
 import { FileImage, Loader2, Play } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
+import {
+  activeJobOfType,
+  processingProgressPercent,
+  processingProgressSummary,
+  processingStatusLabel,
+} from "@/lib/processingProgress";
 import { invalidateProjectWorkflowQueries } from "@/lib/queryInvalidation";
 
 function pluralize(count: number, singular: string, plural = `${singular}s`) {
@@ -39,6 +45,13 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
   });
+  const importJobsQuery = useQuery({
+    queryKey: ["jobs", projectId, "import-active"],
+    queryFn: () => api.listJobs(projectId, { limit: 10, offset: 0 }),
+    enabled: mutation.isPending,
+    retry: false,
+    refetchInterval: 1000,
+  });
 
   function onFiles(event: ChangeEvent<HTMLInputElement>) {
     if (event.target.files?.length) {
@@ -48,6 +61,9 @@ export function ImportPanel({ projectId }: { projectId: string }) {
 
   const visibleSkipped = showAllSkipped ? skipped : skipped.slice(0, 5);
   const canProcessProject = Boolean(project.data?.total_images || recentImports.length);
+  const activeImportJob = activeJobOfType(importJobsQuery.data, "import");
+  const importJob = activeImportJob ?? mutation.data?.job;
+  const importProgress = processingProgressPercent(importJob);
 
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
@@ -89,6 +105,22 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           <Loader2 className="animate-spin" size={16} />
           Importing and generating previews...
         </p>
+      ) : null}
+      {importJob ? (
+        <div className="grid gap-2 rounded border border-line bg-white p-4 text-sm">
+          <div className="flex items-center justify-between gap-4">
+            <span className="font-medium">Import {processingStatusLabel(importJob.status)}</span>
+            <span className="text-neutral-600">{processingProgressSummary(importJob, project.data)}</span>
+          </div>
+          <p className="text-neutral-700">{importJob.current_step}</p>
+          <div className="h-2 rounded bg-mist">
+            <div
+              className={`h-2 rounded ${importJob.status === "failed" ? "bg-coral" : "bg-leaf"}`}
+              style={{ width: `${importProgress}%` }}
+            />
+          </div>
+          {importJob.error_message ? <p className="text-coral">{importJob.error_message}</p> : null}
+        </div>
       ) : null}
       {message ? <p className="text-sm text-leaf">{message}</p> : null}
       {skipped.length ? (

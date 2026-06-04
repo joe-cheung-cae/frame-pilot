@@ -407,7 +407,27 @@ test.beforeEach(async ({ page }) => {
       : [];
     skipNextImport = false;
     skipManyNextImport = false;
-    await route.fulfill({ json: { imported: [imported], skipped }, status: 201 });
+    await route.fulfill({
+      json: {
+        imported: [imported],
+        job: {
+          id: "import-job-1",
+          project_id: project.id,
+          job_type: "import",
+          status: skipped.length ? "complete_with_errors" : "complete",
+          current_step: "complete",
+          total_items: 1 + skipped.length,
+          processed_items: 1,
+          failed_items: skipped.length,
+          progress_percent: 100,
+          error_message: skipped.length ? `${skipped.length} file${skipped.length === 1 ? "" : "s"} skipped` : null,
+          started_at: "2026-01-01T00:00:00Z",
+          completed_at: "2026-01-01T00:00:01Z",
+        },
+        skipped,
+      },
+      status: 201,
+    });
   });
 
   await page.route(projectListRoute("photos"), async (route) => {
@@ -1179,6 +1199,8 @@ test("shows skipped files after a mixed import", async ({ page }) => {
   await expect(page.getByText("1 image imported and previewed.")).toBeVisible();
   await expect(page.getByText("1 file skipped.")).toBeVisible();
   await expect(page.getByText("notes.txt: Only JPEG, PNG, and WebP files are supported")).toBeVisible();
+  await expect(page.getByText("Import Complete with errors")).toBeVisible();
+  await expect(page.getByText("1 of 2 files · 1 failed · 100%")).toBeVisible();
 });
 
 test("expands long skipped file lists after import", async ({ page }) => {

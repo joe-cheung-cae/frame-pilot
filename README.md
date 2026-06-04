@@ -8,6 +8,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The MVP keeps ori
 - FastAPI, Pydantic, SQLModel, SQLite backend.
 - Local project folders with originals, thumbnails, previews, structured export/cache subdirectories, and logs.
 - JPEG, PNG, and WebP imports. HEIC and RAW files are skipped with explicit local messages until preview extraction is added in a later v2.x slice.
+- Import jobs expose local progress, skipped-file counts, and safe same-file reuse during long upload-bound imports.
 - Deterministic thumbnail and preview generation.
 - Basic metadata extraction and explainable image quality scoring.
 - Experimental local face and eye-open heuristic signals.
@@ -36,7 +37,7 @@ Backend data is written to `.framepilot-data` by default. Set `FRAMEPILOT_DATA_D
 Typical workflow:
 
 1. Create a project.
-2. Import JPEG, PNG, or WebP files. Valid files are imported even if some selected files are skipped.
+2. Import JPEG, PNG, or WebP files. Valid files are imported even if some selected files are skipped, and same-file reimports can reuse existing local records and generated previews.
 3. Run processing to rebuild groups and recommendations.
 4. Review photos by group and mark Pick, Maybe, Reject, or Unreviewed.
 5. Export one or more selected statuses to CSV, folder, or ZIP. CSV and ZIP exports can be downloaded from the browser, and previous exports remain visible in export history.
