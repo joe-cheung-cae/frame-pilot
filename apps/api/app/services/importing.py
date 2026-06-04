@@ -159,8 +159,7 @@ def fail_stale_import_job(session: Session, job: ProcessingJob) -> ProcessingJob
     job.status = "failed"
     job.current_step = "failed - stale"
     job.error_message = reason
-    remaining_items = job.total_items - job.processed_items - job.failed_items
-    job.failed_items += max(1, remaining_items) if job.total_items else 1
+    job.failed_items = max(0, job.total_items - job.processed_items) if job.total_items else 1
     job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
     job.completed_at = now
     job.updated_at = now

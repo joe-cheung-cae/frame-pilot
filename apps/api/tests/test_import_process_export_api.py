@@ -874,6 +874,55 @@ def test_get_job_marks_stale_processing_job_failed(tmp_path, monkeypatch):
     assert job["error_message"] == "Processing job was interrupted before completion"
 
 
+def test_stale_jobs_do_not_overcount_failed_items_after_full_progress(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Stale count bounds"}).json()
+    stale_time = datetime.now(UTC) - timedelta(hours=1)
+
+    with Session(get_engine()) as session:
+        import_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="running",
+            current_step="processing_invalidation",
+            total_items=3,
+            processed_items=3,
+            failed_items=0,
+            progress_percent=100,
+            updated_at=stale_time,
+        )
+        processing_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="running",
+            current_step="complete",
+            total_items=2,
+            processed_items=2,
+            failed_items=0,
+            progress_percent=100,
+            updated_at=stale_time,
+        )
+        session.add(import_job)
+        session.add(processing_job)
+        session.commit()
+        import_job_id = import_job.id
+        processing_job_id = processing_job.id
+
+    response = client.get(f"/api/projects/{project['id']}/jobs")
+
+    assert response.status_code == 200
+    jobs = {job["id"]: job for job in response.json()}
+    assert jobs[import_job_id]["status"] == "failed"
+    assert jobs[import_job_id]["processed_items"] == 3
+    assert jobs[import_job_id]["failed_items"] == 0
+    assert jobs[import_job_id]["progress_percent"] == 100.0
+    assert jobs[processing_job_id]["status"] == "failed"
+    assert jobs[processing_job_id]["processed_items"] == 2
+    assert jobs[processing_job_id]["failed_items"] == 0
+    assert jobs[processing_job_id]["progress_percent"] == 100.0
+
+
 def test_process_fails_stale_active_job_and_starts_replacement(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(routes, "run_processing_job", lambda _job_id: None)
