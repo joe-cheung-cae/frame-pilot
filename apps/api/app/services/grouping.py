@@ -37,6 +37,11 @@ def _filename_sequence(filename: str | None) -> int | None:
     return int(matches[-1])
 
 
+def _filename_sort_key(photo: dict[str, Any]) -> tuple[int, int, str]:
+    sequence = _filename_sequence(photo.get("filename"))
+    return (0 if sequence is not None else 1, sequence or 0, photo.get("filename", ""))
+
+
 def _time_gap_seconds(left: dict[str, Any], right: dict[str, Any]) -> float | None:
     left_time = _parse_time(left.get("capture_time"))
     right_time = _parse_time(right.get("capture_time"))
@@ -89,6 +94,26 @@ def _is_candidate_pair(
         return filename_gap <= max_filename_gap
 
     return True
+
+
+def _candidate_pairs(
+    photos: list[dict[str, Any]],
+    candidate_window_size: int,
+) -> set[tuple[int, int]]:
+    indexed_photos = list(enumerate(photos))
+    candidate_pairs: set[tuple[int, int]] = set()
+
+    for ordered_photos in (
+        indexed_photos,
+        sorted(indexed_photos, key=lambda item: _filename_sort_key(item[1])),
+    ):
+        for left_offset, (left_index, _left_photo) in enumerate(ordered_photos):
+            window_end = min(len(ordered_photos), left_offset + candidate_window_size + 1)
+            for right_offset in range(left_offset + 1, window_end):
+                right_index = ordered_photos[right_offset][0]
+                candidate_pairs.add(tuple(sorted((left_index, right_index))))
+
+    return candidate_pairs
 
 
 def _find(parent: list[int], index: int) -> int:
@@ -147,20 +172,19 @@ def group_similar_photos(
     sorted_photos = sorted(photos, key=_sort_key)
     parent = list(range(len(sorted_photos)))
 
-    for left_index, left_photo in enumerate(sorted_photos):
-        window_end = min(len(sorted_photos), left_index + candidate_window_size + 1)
-        for right_index in range(left_index + 1, window_end):
-            right_photo = sorted_photos[right_index]
-            if not _is_candidate_pair(left_photo, right_photo, max_time_gap_seconds, max_filename_gap):
-                continue
-            hash_distance = _hash_distance(left_photo.get("perceptual_hash"), right_photo.get("perceptual_hash"))
-            if hash_distance is not None:
-                is_similar = hash_distance <= max_hash_distance
-            else:
-                similarity = cosine_similarity(left_photo.get("embedding") or [], right_photo.get("embedding") or [])
-                is_similar = similarity >= similarity_threshold
-            if is_similar:
-                _union(parent, left_index, right_index)
+    for left_index, right_index in sorted(_candidate_pairs(sorted_photos, candidate_window_size)):
+        left_photo = sorted_photos[left_index]
+        right_photo = sorted_photos[right_index]
+        if not _is_candidate_pair(left_photo, right_photo, max_time_gap_seconds, max_filename_gap):
+            continue
+        hash_distance = _hash_distance(left_photo.get("perceptual_hash"), right_photo.get("perceptual_hash"))
+        if hash_distance is not None:
+            is_similar = hash_distance <= max_hash_distance
+        else:
+            similarity = cosine_similarity(left_photo.get("embedding") or [], right_photo.get("embedding") or [])
+            is_similar = similarity >= similarity_threshold
+        if is_similar:
+            _union(parent, left_index, right_index)
 
     grouped_by_root: dict[int, list[dict[str, Any]]] = {}
     for index, photo in enumerate(sorted_photos):

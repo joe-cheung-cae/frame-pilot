@@ -186,6 +186,71 @@ def test_grouping_uses_filename_proximity_when_burst_metadata_is_incomplete():
     assert [group.photo_ids for group in groups] == [["missing-middle", "dated-neighbor"], ["unrelated"]]
 
 
+def test_grouping_uses_filename_window_when_missing_dates_sort_apart():
+    photos = [
+        {
+            "id": "missing-target",
+            "filename": "IMG_0101.jpg",
+            "embedding": [1.0, 0.0],
+            "perceptual_hash": "0000000000000000",
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        },
+        {
+            "id": "noise-a",
+            "filename": "IMG_0103.jpg",
+            "embedding": [0.0, 1.0],
+            "perceptual_hash": "ffffffffffffffff",
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        },
+        {
+            "id": "noise-b",
+            "filename": "IMG_0104.jpg",
+            "embedding": [0.0, 1.0],
+            "perceptual_hash": "eeeeeeeeeeeeeeee",
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        },
+        {
+            "id": "noise-c",
+            "filename": "IMG_0105.jpg",
+            "embedding": [0.0, 1.0],
+            "perceptual_hash": "dddddddddddddddd",
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        },
+        {
+            "id": "dated-neighbor",
+            "filename": "IMG_0102.jpg",
+            "capture_time": "2026-01-01T10:00:02",
+            "embedding": [0.0, 1.0],
+            "perceptual_hash": "0000000000000001",
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        },
+    ]
+
+    groups = group_similar_photos(photos, candidate_window_size=3, max_filename_gap=3, max_hash_distance=4)
+
+    assert [group.photo_ids for group in groups] == [
+        ["missing-target", "dated-neighbor"],
+        ["noise-a"],
+        ["noise-b"],
+        ["noise-c"],
+    ]
+
+
 def test_grouping_uses_perceptual_hash_distance_when_available():
     photos = [
         {
