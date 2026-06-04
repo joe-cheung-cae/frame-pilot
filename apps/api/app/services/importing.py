@@ -22,6 +22,7 @@ PLANNED_RAW_EXTENSIONS = {".arw", ".cr3", ".dng", ".nef"}
 EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 CONTENT_HASH_CHUNK_SIZE = 1024 * 1024
 IMPORT_COPY_CHUNK_SIZE = 1024 * 1024
+PREVIEW_WEBP_METHOD = 2
 
 
 @dataclass
@@ -167,7 +168,7 @@ def _save_derivatives(
     with import_timing_stage(timing, "preview_generation"):
         preview = image.copy()
         preview.thumbnail((1800, 1800))
-        preview.save(preview_path, "WEBP", quality=88)
+        preview.save(preview_path, "WEBP", quality=88, method=PREVIEW_WEBP_METHOD)
     return thumbnail_path, preview_path
 
 

@@ -57,6 +57,16 @@ def _image_bytes_with_exif() -> bytes:
     return buffer.getvalue()
 
 
+def _large_image_bytes() -> bytes:
+    buffer = BytesIO()
+    image = Image.new("RGB", (2400, 1600), color=(120, 150, 90))
+    draw = ImageDraw.Draw(image)
+    for offset in range(0, 2400, 80):
+        draw.line((offset, 0, 2399 - offset, 1599), fill=(240, 240, 240), width=8)
+    image.save(buffer, format="JPEG", quality=88)
+    return buffer.getvalue()
+
+
 def _write_test_derivatives(tmp_path: Path, stem: str) -> tuple[str, str]:
     thumbnail_path = tmp_path / f"{stem}-thumb.webp"
     preview_path = tmp_path / f"{stem}-preview.webp"
@@ -148,6 +158,26 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     export_history = client.get(f"/api/projects/{project['id']}/export")
     assert export_history.status_code == 200
     assert [record["id"] for record in export_history.json()] == [export_record["id"]]
+
+
+def test_import_writes_bounded_webp_derivatives(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Derivative bounds"}).json()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("large.jpg", _large_image_bytes(), "image/jpeg"))],
+    )
+
+    assert response.status_code == 201
+    photo = response.json()["imported"][0]
+    with Image.open(photo["thumbnail_path"]) as thumbnail:
+        assert thumbnail.format == "WEBP"
+        assert max(thumbnail.size) <= 320
+    with Image.open(photo["preview_path"]) as preview:
+        assert preview.format == "WEBP"
+        assert max(preview.size) <= 1800
 
 
 def test_import_timing_is_returned_only_when_requested(tmp_path, monkeypatch):
