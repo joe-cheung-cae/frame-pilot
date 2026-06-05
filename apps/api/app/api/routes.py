@@ -29,10 +29,12 @@ from app.services.importing import (
     ImportTimingCollector,
     complete_import_job,
     create_import_job,
+    create_import_retry_job,
     fail_stale_import_job,
     import_job_is_stale,
     import_timing_stage,
     invalidate_project_processing,
+    photo_needs_import_retry,
     register_import_file,
     run_import_derivative_job,
     update_import_job,
@@ -104,6 +106,16 @@ def _get_active_processing_job(session: Session, project_id: str) -> ProcessingJ
         select(ProcessingJob)
         .where(ProcessingJob.project_id == project_id)
         .where(ProcessingJob.job_type == "processing")
+        .where(ProcessingJob.status.in_(["queued", "running"]))
+        .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
+    ).first()
+
+
+def _get_active_import_job(session: Session, project_id: str) -> ProcessingJob | None:
+    return session.exec(
+        select(ProcessingJob)
+        .where(ProcessingJob.project_id == project_id)
+        .where(ProcessingJob.job_type == "import")
         .where(ProcessingJob.status.in_(["queued", "running"]))
         .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
     ).first()
@@ -304,6 +316,43 @@ def get_job_endpoint(project_id: str, job_id: str, session: Session = Depends(ge
     elif processing_job_is_stale(job):
         job = fail_stale_processing_job(session, job)
     return job
+
+
+@router.post("/projects/{project_id}/jobs/{job_id}/retry", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)
+def retry_job_endpoint(
+    project_id: str,
+    job_id: str,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    project = _get_project(session, project_id)
+    job = session.get(ProcessingJob, job_id)
+    if job is None or job.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Processing job not found")
+    if import_job_is_stale(job):
+        job = fail_stale_import_job(session, job)
+    if job.job_type != "import":
+        raise HTTPException(status_code=422, detail="Only import jobs can be retried")
+    if not job.retryable:
+        raise HTTPException(status_code=409, detail="Import job is not in a retryable state")
+
+    active_job = _get_active_import_job(session, project_id)
+    if active_job is not None:
+        if import_job_is_stale(active_job):
+            fail_stale_import_job(session, active_job)
+        else:
+            raise HTTPException(status_code=409, detail="An import job is already running")
+
+    photos = list(
+        session.exec(select(Photo).where(Photo.project_id == project_id).order_by(Photo.created_at, Photo.id)).all()
+    )
+    retry_photo_ids = [photo.id for photo in photos if photo_needs_import_retry(photo)]
+    retry_job = create_import_retry_job(session, project, retry_photo_ids)
+    if retry_photo_ids:
+        background_tasks.add_task(run_import_derivative_job, retry_job.id, retry_photo_ids, [])
+    else:
+        retry_job = complete_import_job(session, retry_job, len(photos), [])
+    return retry_job
 
 
 @router.get("/projects/{project_id}/jobs", response_model=list[JobRead])

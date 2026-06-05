@@ -5,7 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { ChangeEvent, useEffect, useState } from "react";
-import { FileImage, Loader2, Play } from "lucide-react";
+import { FileImage, Loader2, Play, RotateCcw } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import {
   activeJobOfType,
@@ -55,12 +55,27 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
   });
+  const retryMutation = useMutation({
+    mutationFn: (jobId: string) => api.retryJob(projectId, jobId),
+    onSuccess: async (job) => {
+      setMessage("Retry started. Generating missing previews...");
+      setSkipped([]);
+      setShowAllSkipped(false);
+      setCurrentImportJobId(job.id);
+      setCompletedImportJobId(null);
+      await invalidateProjectWorkflowQueries(queryClient, projectId);
+    },
+  });
   const importJobsQuery = useQuery({
     queryKey: ["jobs", projectId, "import-active"],
     queryFn: () => api.listJobs(projectId, { limit: 10, offset: 0 }),
-    enabled: mutation.isPending,
     retry: false,
-    refetchInterval: 1000,
+    refetchInterval: (query) => {
+      const jobs = query.state.data;
+      return jobs?.some((job) => job.job_type === "import" && (job.status === "queued" || job.status === "running"))
+        ? 1000
+        : false;
+    },
   });
   const currentImportJobQuery = useQuery({
     queryKey: ["job", projectId, currentImportJobId],
@@ -106,11 +121,13 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   }
 
   const visibleSkipped = showAllSkipped ? skipped : skipped.slice(0, 5);
-  const activeImportJob = mutation.isPending ? activeJobOfType(importJobsQuery.data, "import") : undefined;
-  const importJob = currentImportJobQuery.data ?? activeImportJob ?? mutation.data?.job;
+  const activeImportJob = activeJobOfType(importJobsQuery.data, "import");
+  const latestImportJob = importJobsQuery.data?.find((job) => job.job_type === "import");
+  const importJob = currentImportJobQuery.data ?? activeImportJob ?? mutation.data?.job ?? latestImportJob;
   const isImportRunning = importJob?.status === "queued" || importJob?.status === "running" || mutation.isPending;
   const canProcessProject =
     !isImportRunning && importJob?.status !== "failed" && Boolean(project.data?.total_images || recentImports.length);
+  const canRetryImport = Boolean(importJob?.retryable) && !isImportRunning && !retryMutation.isPending;
   const importProgress = processingProgressPercent(importJob);
 
   return (
@@ -168,6 +185,16 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             />
           </div>
           {importJob.error_message ? <p className="text-coral">{importJob.error_message}</p> : null}
+          {canRetryImport ? (
+            <button
+              className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line bg-white px-3 py-2 font-medium"
+              onClick={() => retryMutation.mutate(importJob.id)}
+              type="button"
+            >
+              <RotateCcw size={16} />
+              Retry Import
+            </button>
+          ) : null}
         </div>
       ) : null}
       {message ? <p className="text-sm text-leaf">{message}</p> : null}
@@ -224,6 +251,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
         </div>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
+      {retryMutation.isError ? <p className="text-sm text-coral">{retryMutation.error.message}</p> : null}
       {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
       {canProcessProject ? (
         <Link

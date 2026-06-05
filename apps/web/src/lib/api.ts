@@ -102,6 +102,7 @@ export type ProcessingJob = {
   error_message: string | null;
   started_at: string | null;
   completed_at: string | null;
+  retryable: boolean;
 };
 
 export type ExportRecord = {
@@ -258,6 +259,8 @@ export const api = {
   listJobs,
   listAllJobs,
   getJob: (projectId: string, jobId: string) => request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}`),
+  retryJob: (projectId: string, jobId: string) =>
+    request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}/retry`, { method: "POST" }),
   listPhotos,
   getPhotoStatusCounts,
   listAllPhotos,

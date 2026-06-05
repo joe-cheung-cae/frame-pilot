@@ -36,6 +36,7 @@ const completedJob = {
   error_message: null,
   started_at: "2026-06-02T00:00:00Z",
   completed_at: "2026-06-02T00:00:01Z",
+  retryable: false,
 };
 
 const photos = [
@@ -366,7 +367,25 @@ test.beforeEach(async ({ page }) => {
     await route.fulfill({ json: currentJob ? [currentJob] : [] });
   });
 
-  await page.route(`**/api/projects/${project.id}/jobs/*`, async (route) => {
+  await page.route(`**/api/projects/${project.id}/jobs/**`, async (route) => {
+    if (route.request().method() === "POST" && route.request().url().endsWith("/retry")) {
+      const retryJob = {
+        ...completedJob,
+        id: "import-retry-job-1",
+        job_type: "import",
+        status: "complete",
+        current_step: "complete",
+        total_items: currentProject.total_images,
+        processed_items: currentProject.total_images,
+        failed_items: 0,
+        progress_percent: 100,
+        error_message: null,
+        retryable: false,
+      };
+      currentJob = retryJob;
+      await route.fulfill({ json: retryJob, status: 202 });
+      return;
+    }
     if (failJobDetail) {
       failJobDetail = false;
       await route.fulfill({ json: { detail: "Processing job status endpoint failed" }, status: 500 });
@@ -420,6 +439,7 @@ test.beforeEach(async ({ page }) => {
       error_message: skipped.length ? `${skipped.length} file${skipped.length === 1 ? "" : "s"} skipped` : null,
       started_at: "2026-01-01T00:00:00Z",
       completed_at: "2026-01-01T00:00:01Z",
+      retryable: Boolean(skipped.length),
     };
     await route.fulfill({
       json: {
@@ -1298,6 +1318,23 @@ test("shows skipped files after a mixed import", async ({ page }) => {
   await expect(page.getByText("notes.txt: Only JPEG, PNG, and WebP files are supported")).toBeVisible();
   await expect(page.getByText("Import Complete with errors")).toBeVisible();
   await expect(page.getByText("1 of 2 files · 1 failed · 100%")).toBeVisible();
+});
+
+test("shows retry action for retryable import jobs", async ({ page }) => {
+  skipNextImport = true;
+  await page.goto(`/projects/${project.id}/import`);
+
+  await page.getByLabel("Choose image files").setInputFiles({
+    name: "uploaded-frame.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from([255, 216, 255, 217]),
+  });
+
+  await expect(page.getByText("Import Complete with errors")).toBeVisible();
+  await page.getByRole("button", { name: "Retry Import" }).click();
+
+  await expect(page.getByText("Import Complete")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Process Project" })).toBeVisible();
 });
 
 test("expands long skipped file lists after import", async ({ page }) => {

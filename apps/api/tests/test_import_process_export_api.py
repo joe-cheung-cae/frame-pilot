@@ -1045,6 +1045,213 @@ def test_process_fails_stale_active_job_and_starts_replacement(tmp_path, monkeyp
     assert photo_after_retry.processing_error == "Processing job was interrupted before completion"
 
 
+def test_retry_stale_import_job_recovers_missing_derivatives_and_preserves_review_state(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    scheduled_tasks: list[tuple[object, tuple, dict]] = []
+
+    def capture_background_task(self, func, *args, **kwargs):
+        scheduled_tasks.append((func, args, kwargs))
+
+    monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Retry stale import"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    import_result = import_response.json()
+    original_job_id = import_result["job"]["id"]
+    photo_id = import_result["imported"][0]["id"]
+
+    update_response = client.patch(
+        f"/api/projects/{project['id']}/photos/{photo_id}",
+        json={"user_status": "Pick", "star_rating": 4},
+    )
+    assert update_response.status_code == 200
+    stale_time = datetime.now(UTC) - timedelta(hours=1)
+    with Session(get_engine()) as session:
+        job = session.get(ProcessingJob, original_job_id)
+        assert job is not None
+        job.updated_at = stale_time
+        photo = session.get(Photo, photo_id)
+        assert photo is not None
+        original_path = Path(photo.project_copy_path or photo.original_path)
+        original_bytes = original_path.read_bytes()
+        session.add(job)
+        session.commit()
+
+    stale_response = client.get(f"/api/projects/{project['id']}/jobs/{original_job_id}")
+    assert stale_response.status_code == 200
+    stale_job = stale_response.json()
+    assert stale_job["status"] == "failed"
+    assert stale_job["error_message"] == "Import job was interrupted before completion"
+    assert stale_job["retryable"] is True
+
+    retry_response = client.post(f"/api/projects/{project['id']}/jobs/{original_job_id}/retry")
+    assert retry_response.status_code == 202
+    retry_job = retry_response.json()
+    assert retry_job["id"] != original_job_id
+    assert retry_job["job_type"] == "import"
+    assert retry_job["status"] == "running"
+    assert retry_job["total_items"] == 1
+
+    assert len(scheduled_tasks) == 2
+    task, args, kwargs = scheduled_tasks[-1]
+    task(*args, **kwargs)
+
+    completed_job = client.get(f"/api/projects/{project['id']}/jobs/{retry_job['id']}").json()
+    assert completed_job["status"] == "complete"
+    assert completed_job["retryable"] is False
+    assert completed_job["processed_items"] == 1
+    assert completed_job["failed_items"] == 0
+
+    photos_response = client.get(f"/api/projects/{project['id']}/photos")
+    assert photos_response.status_code == 200
+    photos = photos_response.json()
+    assert [photo["id"] for photo in photos] == [photo_id]
+    recovered_photo = photos[0]
+    assert recovered_photo["processing_state"] == "imported"
+    assert recovered_photo["processing_error"] is None
+    assert recovered_photo["user_status"] == "Pick"
+    assert recovered_photo["star_rating"] == 4
+    assert recovered_photo["thumbnail_path"]
+    assert recovered_photo["preview_path"]
+    assert Path(recovered_photo["thumbnail_path"]).is_file()
+    assert Path(recovered_photo["preview_path"]).is_file()
+    assert original_path.read_bytes() == original_bytes
+
+
+def test_retry_import_job_reuses_existing_derivatives_and_clears_failed_photo_state(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    scheduled_tasks: list[tuple[object, tuple, dict]] = []
+
+    def capture_background_task(self, func, *args, **kwargs):
+        scheduled_tasks.append((func, args, kwargs))
+
+    monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Retry reused derivatives"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    import_result = import_response.json()
+    task, args, kwargs = scheduled_tasks[-1]
+    task(*args, **kwargs)
+
+    photo = client.get(f"/api/projects/{project['id']}/photos/{import_result['imported'][0]['id']}").json()
+    thumbnail_path = photo["thumbnail_path"]
+    preview_path = photo["preview_path"]
+    with Session(get_engine()) as session:
+        failed_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="failed",
+            current_step="failed - stale",
+            total_items=1,
+            failed_items=1,
+            progress_percent=100,
+            error_message="Import job was interrupted before completion",
+        )
+        stored_photo = session.get(Photo, photo["id"])
+        assert stored_photo is not None
+        stored_photo.processing_state = "failed"
+        stored_photo.processing_error = "Retry should clear this"
+        stored_photo.user_status = "Maybe"
+        stored_photo.star_rating = 3
+        session.add(failed_job)
+        session.add(stored_photo)
+        session.commit()
+        failed_job_id = failed_job.id
+
+    retry_response = client.post(f"/api/projects/{project['id']}/jobs/{failed_job_id}/retry")
+    assert retry_response.status_code == 202
+    retry_job = retry_response.json()
+    task, args, kwargs = scheduled_tasks[-1]
+    task(*args, **kwargs)
+
+    completed_job = client.get(f"/api/projects/{project['id']}/jobs/{retry_job['id']}").json()
+    assert completed_job["status"] == "complete"
+    recovered_photo = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
+    assert recovered_photo["thumbnail_path"] == thumbnail_path
+    assert recovered_photo["preview_path"] == preview_path
+    assert recovered_photo["processing_state"] == "imported"
+    assert recovered_photo["processing_error"] is None
+    assert recovered_photo["user_status"] == "Maybe"
+    assert recovered_photo["star_rating"] == 3
+
+
+def test_retry_import_job_can_complete_with_errors_for_mixed_recovery(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    scheduled_tasks: list[tuple[object, tuple, dict]] = []
+
+    def capture_background_task(self, func, *args, **kwargs):
+        scheduled_tasks.append((func, args, kwargs))
+
+    monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Retry mixed recovery"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[
+            ("files", ("valid.jpg", _image_bytes(), "image/jpeg")),
+            ("files", ("missing.jpg", _image_bytes(color=(80, 90, 120)), "image/jpeg")),
+        ],
+    )
+    assert import_response.status_code == 201
+    import_result = import_response.json()
+    valid_photo_id = import_result["imported"][0]["id"]
+    missing_photo_id = import_result["imported"][1]["id"]
+    original_job_id = import_result["job"]["id"]
+
+    with Session(get_engine()) as session:
+        original_job = session.get(ProcessingJob, original_job_id)
+        assert original_job is not None
+        original_job.status = "failed"
+        original_job.current_step = "failed - stale"
+        original_job.error_message = "Import job was interrupted before completion"
+        failed_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="failed",
+            current_step="failed - stale",
+            total_items=2,
+            failed_items=2,
+            progress_percent=100,
+            error_message="Import job was interrupted before completion",
+        )
+        missing_photo = session.get(Photo, missing_photo_id)
+        assert missing_photo is not None
+        missing_photo.project_copy_path = str(tmp_path / "does-not-exist.jpg")
+        missing_photo.original_path = str(tmp_path / "does-not-exist.jpg")
+        session.add(original_job)
+        session.add(failed_job)
+        session.add(missing_photo)
+        session.commit()
+        failed_job_id = failed_job.id
+
+    retry_response = client.post(f"/api/projects/{project['id']}/jobs/{failed_job_id}/retry")
+    assert retry_response.status_code == 202
+    retry_job = retry_response.json()
+    task, args, kwargs = scheduled_tasks[-1]
+    task(*args, **kwargs)
+
+    completed_job = client.get(f"/api/projects/{project['id']}/jobs/{retry_job['id']}").json()
+    assert completed_job["status"] == "complete_with_errors"
+    assert completed_job["processed_items"] == 1
+    assert completed_job["failed_items"] == 1
+    assert completed_job["error_message"] == "1 file skipped: missing.jpg"
+    valid_photo = client.get(f"/api/projects/{project['id']}/photos/{valid_photo_id}").json()
+    missing_photo = client.get(f"/api/projects/{project['id']}/photos/{missing_photo_id}").json()
+    assert valid_photo["processing_state"] == "imported"
+    assert valid_photo["thumbnail_path"]
+    assert missing_photo["processing_state"] == "failed"
+    assert missing_photo["processing_error"] == "Copied original file is missing"
+
+
 def test_process_skips_unchanged_project_without_rebuilding_groups(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())

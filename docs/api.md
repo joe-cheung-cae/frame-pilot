@@ -16,6 +16,7 @@ POST   /api/projects/{project_id}/imports
 POST   /api/projects/{project_id}/process
 GET    /api/projects/{project_id}/jobs
 GET    /api/projects/{project_id}/jobs/{job_id}
+POST   /api/projects/{project_id}/jobs/{job_id}/retry
 
 GET    /api/projects/{project_id}/photos
 GET    /api/projects/{project_id}/photos/status-counts
@@ -119,7 +120,8 @@ The response contains accepted photo records, synchronously skipped files, impor
     "progress_percent": 50.0,
     "error_message": null,
     "started_at": "2026-06-02T12:00:00Z",
-    "completed_at": null
+    "completed_at": null,
+    "retryable": false
   }
 }
 ```
@@ -146,6 +148,8 @@ If an earlier queued or running processing job has not updated for more than 30 
 
 `GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls the returned import job after upload/register returns, and the processing UI uses job history to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job has not updated for more than 30 minutes, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
 
+`POST /api/projects/{project_id}/jobs/{job_id}/retry` retries failed or `complete_with_errors` import jobs. It creates a new local import job and reruns derivative/scoring/hash/embedding work for project photos whose generated thumbnail or preview is missing, or whose import state is still `processing` or `failed`. It does not re-register uploaded files, duplicate photo records, reset `user_status`, reset `star_rating`, delete generated derivatives, delete copied originals, or modify source photos. Existing valid thumbnail and preview files are reused; missing derivatives are regenerated from the local copied original when possible. If some photos recover and others cannot be rebuilt, the retry job finishes as `complete_with_errors` and records failed items on the affected photos. If another import job is already queued or running, retry returns `409`.
+
 A job includes:
 
 ```json
@@ -161,7 +165,8 @@ A job includes:
   "progress_percent": 33.33,
   "error_message": null,
   "started_at": "2026-06-02T12:00:00Z",
-  "completed_at": null
+  "completed_at": null,
+  "retryable": false
 }
 ```
 

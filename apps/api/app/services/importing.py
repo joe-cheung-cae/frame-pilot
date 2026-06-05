@@ -105,6 +105,26 @@ def create_import_job(session: Session, project: Project, total_items: int) -> P
     return job
 
 
+def create_import_retry_job(session: Session, project: Project, photo_ids: list[str]) -> ProcessingJob:
+    now = utc_now()
+    job = ProcessingJob(
+        project_id=project.id,
+        job_type="import",
+        status="running",
+        current_step="retry_queued",
+        total_items=len(photo_ids),
+        processed_items=0,
+        failed_items=0,
+        progress_percent=_progress_percent(0, 0, len(photo_ids)),
+        started_at=now,
+        updated_at=now,
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
 def update_import_job(
     session: Session,
     job: ProcessingJob,
@@ -421,6 +441,10 @@ def _photo_derivatives_exist(photo: Photo) -> bool:
         and photo.preview_path
         and Path(photo.preview_path).is_file()
     )
+
+
+def photo_needs_import_retry(photo: Photo) -> bool:
+    return photo.processing_state in {"processing", "failed"} or not _photo_derivatives_exist(photo)
 
 
 def invalidate_project_processing(session: Session, project: Project) -> None:
@@ -782,6 +806,12 @@ def run_import_derivative_job(
                 )
                 continue
             if _photo_derivatives_exist(photo):
+                photo.processing_state = "imported"
+                photo.processing_error = None
+                photo.recommendation_explanation = "Import derivatives are available."
+                photo.updated_at = utc_now()
+                session.add(photo)
+                session.commit()
                 processed_count += 1
                 update_import_job(
                     session,

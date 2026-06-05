@@ -118,6 +118,7 @@ class JobRead(BaseModel):
     error_message: str | None
     started_at: datetime | None
     completed_at: datetime | None
+    retryable: bool = False
 
 
 class ImportResult(BaseModel):

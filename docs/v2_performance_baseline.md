@@ -494,3 +494,41 @@ Interpretation:
 - The browser showed import progress until the background derivative job completed, then allowed processing and culling to continue.
 - The backend timing attached to the import response now covers upload/register work only. Derivative/scoring/hash/embedding stage timing is no longer part of the import response timing payload.
 - Generated images were non-private synthetic JPEGs. The 2,000-photo real browser-backend run remains intentionally unattempted in this iteration.
+
+### Import Job Recovery and Retry Iteration
+
+Commands:
+
+```bash
+npm run test:e2e:real-browser
+npm run test:e2e:real-browser:large
+```
+
+Local run date: 2026-06-05.
+
+This reliability iteration added import retry for failed and `complete_with_errors` jobs, kept stale import detection query-driven, and exposed retryable import jobs in the import UI. Retry creates a new local import job, reuses existing valid derivatives, regenerates missing derivatives from the local copied original, preserves photo IDs, preserves `user_status`, preserves `star_rating`, and records unrecoverable photos as failed items. FastAPI `BackgroundTasks` remain local in-process work and are still not durable across API process exits.
+
+| Photo Count | Dimensions | JPEG Quality | Upload/Register Response MS | Background Derivative Completion MS | Total Import Ready MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Reported JS Heap MB |
+| ----------: | ---------- | -----------: | --------------------------: | ----------------------------------: | --------------------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ------------------: |
+|         100 | 160x120    |           88 |                         447 |                                1309 |                  1756 |       2110 |              823 |               60 |               72 |                  40 |        44 |               51.02 |
+|         500 | 3000x2000  |           88 |                        2471 |                               96061 |                 98532 |       2099 |              826 |               85 |               56 |                  21 |        46 |               51.02 |
+
+500 large-image upload/register backend timing:
+
+| Stage                   | Calls | Seconds |
+| ----------------------- | ----: | ------: |
+| db_commit               |   500 |   0.756 |
+| db_record_create        |   500 |   0.079 |
+| file_copy               |   500 |   0.079 |
+| content_hash            |   500 |   0.053 |
+| import_endpoint_total   |     1 |   2.131 |
+| import_endpoint_commit  |     1 |   0.014 |
+| processing_invalidation |     1 |   0.013 |
+| file_stat               |   500 |   0.004 |
+
+Interpretation:
+
+- The 500 large-image upload/register response stayed in the same range as the previous background-import baseline (`2.471 s` now versus `2.734 s` previously).
+- Total import-ready time remained similar (`98.532 s` now versus `99.662 s` previously), which is expected because this iteration improves recovery and retry semantics rather than preview/scoring throughput.
+- The retry behavior was verified through backend tests and a mocked browser workflow; the real browser-backend smoke confirms the normal import/progress path still passes.
+- A 2,000-photo real browser-backend run remains intentionally unattempted in this iteration.

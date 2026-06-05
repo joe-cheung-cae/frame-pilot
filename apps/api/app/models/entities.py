@@ -99,6 +99,10 @@ class ProcessingJob(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
+    @property
+    def retryable(self) -> bool:
+        return self.job_type == "import" and self.status in {"failed", "complete_with_errors"}
+
 
 class ExportRecord(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)

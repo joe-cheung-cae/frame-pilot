@@ -21,7 +21,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 Known v2.0 limitations:
 
 - HEIC and RAW files are deferred and are skipped with explicit local messages.
-- Import and processing jobs run in the local API process. Progress and stale-job recovery are available, but jobs are not durable across API process restarts.
+- Import and processing jobs run in the local API process. Progress, stale-job detection, and safe import retry are available, but jobs are not durable across API process restarts.
 - Experimental face and eye-open signals are deterministic local heuristics, not professional face detection, eye-state detection, identity recognition, or biometric analysis.
 - Grouping and ranking remain recommendation aids. The user keeps final control through manual statuses and star ratings.
 
@@ -44,7 +44,7 @@ Backend data is written to `.framepilot-data` by default. Set `FRAMEPILOT_DATA_D
 Typical workflow:
 
 1. Create a project.
-2. Import JPEG, PNG, or WebP files. Valid files are registered locally, preview generation continues through a visible import job, and same-file reimports can reuse existing local records and generated previews.
+2. Import JPEG, PNG, or WebP files. Valid files are registered locally, preview generation continues through a visible import job, and same-file reimports or import retries can reuse existing local records and generated previews.
 3. Run processing to rebuild groups and recommendations.
 4. Review photos by group and mark Pick, Maybe, Reject, or Unreviewed.
 5. Export one or more selected statuses to CSV, folder, or ZIP. CSV and ZIP exports can be downloaded from the browser, and previous exports remain visible in export history.
