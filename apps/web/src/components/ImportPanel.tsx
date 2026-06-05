@@ -4,7 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import { FileImage, Loader2, Play } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import {
@@ -24,6 +24,9 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   const [skipped, setSkipped] = useState<{ filename: string; reason: string }[]>([]);
   const [showAllSkipped, setShowAllSkipped] = useState(false);
   const [recentImports, setRecentImports] = useState<Photo[]>([]);
+  const [currentImportJobId, setCurrentImportJobId] = useState<string | null>(null);
+  const [completedImportJobId, setCompletedImportJobId] = useState<string | null>(null);
+  const [lastImportPhotoIds, setLastImportPhotoIds] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const project = useQuery({
     queryKey: ["project", projectId],
@@ -37,11 +40,18 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       setSkipped([]);
       setShowAllSkipped(false);
       setRecentImports([]);
+      setCurrentImportJobId(null);
+      setCompletedImportJobId(null);
+      setLastImportPhotoIds([]);
     },
     onSuccess: async (result) => {
-      setMessage(`${result.imported.length} ${pluralize(result.imported.length, "image")} imported and previewed.`);
+      setMessage(
+        `${result.imported.length} ${pluralize(result.imported.length, "image")} registered. Generating previews...`,
+      );
       setSkipped(result.skipped);
       setRecentImports(result.imported);
+      setLastImportPhotoIds(result.imported.map((photo) => photo.id));
+      setCurrentImportJobId(result.job?.id ?? null);
       await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
   });
@@ -52,6 +62,42 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     retry: false,
     refetchInterval: 1000,
   });
+  const currentImportJobQuery = useQuery({
+    queryKey: ["job", projectId, currentImportJobId],
+    queryFn: () => api.getJob(projectId, currentImportJobId ?? ""),
+    enabled: Boolean(currentImportJobId),
+    retry: false,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "queued" || status === "running" ? 1000 : false;
+    },
+  });
+
+  useEffect(() => {
+    const job = currentImportJobQuery.data;
+    if (!job || job.id === completedImportJobId) {
+      return;
+    }
+    if (!["complete", "complete_with_errors", "failed"].includes(job.status)) {
+      return;
+    }
+
+    setCompletedImportJobId(job.id);
+    void (async () => {
+      await invalidateProjectWorkflowQueries(queryClient, projectId);
+      if (job.status === "failed") {
+        setMessage("");
+        return;
+      }
+      const refreshed = await Promise.all(
+        lastImportPhotoIds.slice(0, 12).map((photoId) => api.getPhoto(projectId, photoId)),
+      );
+      setRecentImports(refreshed);
+      setMessage(
+        `${lastImportPhotoIds.length} ${pluralize(lastImportPhotoIds.length, "image")} imported and previewed.`,
+      );
+    })();
+  }, [completedImportJobId, currentImportJobQuery.data, lastImportPhotoIds, projectId, queryClient]);
 
   function onFiles(event: ChangeEvent<HTMLInputElement>) {
     if (event.target.files?.length) {
@@ -60,9 +106,11 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   }
 
   const visibleSkipped = showAllSkipped ? skipped : skipped.slice(0, 5);
-  const canProcessProject = Boolean(project.data?.total_images || recentImports.length);
   const activeImportJob = mutation.isPending ? activeJobOfType(importJobsQuery.data, "import") : undefined;
-  const importJob = activeImportJob ?? mutation.data?.job;
+  const importJob = currentImportJobQuery.data ?? activeImportJob ?? mutation.data?.job;
+  const isImportRunning = importJob?.status === "queued" || importJob?.status === "running" || mutation.isPending;
+  const canProcessProject =
+    !isImportRunning && importJob?.status !== "failed" && Boolean(project.data?.total_images || recentImports.length);
   const importProgress = processingProgressPercent(importJob);
 
   return (
@@ -103,7 +151,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       {mutation.isPending ? (
         <p className="inline-flex items-center gap-2 text-sm">
           <Loader2 className="animate-spin" size={16} />
-          Importing and generating previews...
+          Uploading and registering files...
         </p>
       ) : null}
       {importJob ? (

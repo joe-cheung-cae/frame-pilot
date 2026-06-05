@@ -67,6 +67,10 @@ export type ImportResult = {
   imported: Photo[];
   skipped: { filename: string; reason: string }[];
   job?: ProcessingJob | null;
+  total_files: number;
+  accepted_files: number;
+  skipped_files: number;
+  failed_files: number;
   timing?: {
     total_files: number;
     imported_files: number;
@@ -243,6 +247,7 @@ export const api = {
     return request<Project>("/api/projects", { method: "POST", body: JSON.stringify(payload) });
   },
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
+  getPhoto: (projectId: string, photoId: string) => request<Photo>(`/api/projects/${projectId}/photos/${photoId}`),
   importPhotos: (projectId: string, files: FileList) => {
     const body = new FormData();
     Array.from(files).forEach((file) => body.append("files", file));
