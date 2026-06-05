@@ -13,6 +13,7 @@ from PIL import ExifTags, Image, ImageOps, UnidentifiedImageError
 from sqlmodel import Session, select
 
 from app.ai.embeddings import image_embedding, perceptual_hash
+from app.db.session import get_engine
 from app.image.scoring import compute_quality_scores_for_image
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 
@@ -54,6 +55,13 @@ class ImportTimingCollector:
         return {
             stage: {"calls": timing.calls, "seconds": round(timing.seconds, 6)} for stage, timing in self.stages.items()
         }
+
+
+@dataclass
+class ImportRegistration:
+    photo: Photo
+    requires_derivatives: bool
+    is_new: bool
 
 
 def _progress_percent(processed_items: int, failed_items: int, total_items: int) -> float:
@@ -559,3 +567,268 @@ def import_image_file(
     finally:
         if timing is not None:
             timing.record("import_file_total", time.perf_counter() - total_started)
+
+
+def register_import_file(
+    session: Session,
+    project: Project,
+    filename: str,
+    file: BinaryIO,
+    timing: ImportTimingCollector | None = None,
+    progress_callback: ImportProgressCallback | None = None,
+) -> ImportRegistration:
+    if progress_callback:
+        progress_callback("file_validation")
+    if not is_supported_image(filename):
+        raise ValueError(unsupported_image_reason(filename))
+
+    project_root = Path(project.root_path)
+    safe_name = Path(filename).name
+    originals_dir = project_root / "originals"
+    originals_dir.mkdir(parents=True, exist_ok=True)
+    source_path = _unique_path(originals_dir, safe_name)
+    if progress_callback:
+        progress_callback("file_copy_or_register")
+    with import_timing_stage(timing, "file_copy"):
+        _copy_file_to_path(file, source_path)
+
+    if progress_callback:
+        progress_callback("content_hash")
+    with import_timing_stage(timing, "content_hash"):
+        content_hash = _file_sha256(source_path)
+    existing_photo = _existing_photo_for_content_hash(session, project.id, content_hash, safe_name)
+    if existing_photo is not None and _photo_derivatives_exist(existing_photo):
+        _cleanup_paths(source_path)
+        return ImportRegistration(photo=existing_photo, requires_derivatives=False, is_new=False)
+
+    with import_timing_stage(timing, "file_stat"):
+        source_stat = source_path.stat()
+
+    if progress_callback:
+        progress_callback("db_record_create")
+    with import_timing_stage(timing, "db_record_create"):
+        photo = Photo(
+            project_id=project.id,
+            original_path=str(source_path),
+            project_copy_path=str(source_path),
+            source_identity=f"sha256:{content_hash}",
+            filename=source_path.name,
+            file_ext=source_path.suffix.lower(),
+            file_size=source_stat.st_size,
+            file_mtime=source_stat.st_mtime,
+            content_hash=content_hash,
+            processing_state="processing",
+            recommendation_explanation="Import derivatives are still being generated.",
+        )
+        session.add(photo)
+        project.total_images += 1
+        project.updated_at = utc_now()
+        session.add(project)
+
+    with import_timing_stage(timing, "db_commit"):
+        session.commit()
+        session.refresh(photo)
+    return ImportRegistration(photo=photo, requires_derivatives=True, is_new=True)
+
+
+def process_registered_import_photo(
+    session: Session,
+    project: Project,
+    photo: Photo,
+    timing: ImportTimingCollector | None = None,
+    progress_callback: ImportProgressCallback | None = None,
+) -> Photo:
+    source_path = Path(photo.project_copy_path or photo.original_path)
+    if not source_path.is_file():
+        raise ValueError("Copied original file is missing")
+
+    project_root = Path(project.root_path)
+    thumbnail_path: Path | None = None
+    preview_path: Path | None = None
+    try:
+        if progress_callback:
+            progress_callback("image_open")
+        with import_timing_stage(timing, "image_open"):
+            opened_image = Image.open(source_path)
+        with opened_image as opened:
+            if progress_callback:
+                progress_callback("metadata_extraction")
+            with import_timing_stage(timing, "metadata_extraction"):
+                metadata = _extract_metadata(opened)
+            if progress_callback:
+                progress_callback("image_decode")
+            with import_timing_stage(timing, "image_decode"):
+                image = ImageOps.exif_transpose(opened).convert("RGB")
+            width, height = image.size
+            thumbnail_path, preview_path = _save_derivatives(
+                project_root,
+                source_path,
+                image,
+                timing=timing,
+                progress_callback=progress_callback,
+            )
+            if progress_callback:
+                progress_callback("quality_scoring")
+            with import_timing_stage(timing, "quality_scoring"):
+                scores = compute_quality_scores_for_image(image)
+            if progress_callback:
+                progress_callback("embedding_generation")
+            with import_timing_stage(timing, "embedding_generation"):
+                embedding = image_embedding(image)
+            if progress_callback:
+                progress_callback("perceptual_hash")
+            with import_timing_stage(timing, "perceptual_hash"):
+                p_hash = perceptual_hash(image)
+    except (UnidentifiedImageError, OSError) as error:
+        _cleanup_paths(thumbnail_path, preview_path)
+        raise ValueError("Uploaded file could not be opened as a supported image") from error
+    except Exception as error:
+        _cleanup_paths(thumbnail_path, preview_path)
+        raise ValueError("Uploaded image could not be processed") from error
+
+    if progress_callback:
+        progress_callback("db_commit")
+    with import_timing_stage(timing, "db_commit"):
+        photo.width = width
+        photo.height = height
+        photo.thumbnail_path = str(thumbnail_path)
+        photo.preview_path = str(preview_path)
+        photo.perceptual_hash = p_hash
+        photo.sharpness_score = scores.sharpness_score
+        photo.blur_score = scores.blur_score
+        photo.exposure_score = scores.exposure_score
+        photo.contrast_score = scores.contrast_score
+        photo.noise_score = scores.noise_score
+        photo.face_presence = scores.face_presence
+        photo.face_sharpness_score = scores.face_sharpness_score
+        photo.eye_open_confidence = scores.eye_open_confidence
+        photo.face_quality_score = scores.face_quality_score
+        photo.aesthetic_score = scores.aesthetic_score
+        photo.overall_score = scores.overall_score
+        photo.embedding = json.dumps(embedding)
+        photo.processing_state = "imported"
+        photo.processing_error = None
+        photo.updated_at = utc_now()
+        for field_name, value in metadata.items():
+            setattr(photo, field_name, value)
+        session.add(photo)
+        session.commit()
+        session.refresh(photo)
+    return photo
+
+
+def _fail_import_job(session: Session, job: ProcessingJob, reason: str) -> ProcessingJob:
+    now = utc_now()
+    job.status = "failed"
+    job.current_step = "failed"
+    job.error_message = reason
+    job.failed_items = max(1, job.total_items - job.processed_items)
+    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
+    job.completed_at = now
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def _mark_import_photo_failed(session: Session, photo: Photo, reason: str) -> None:
+    photo.processing_state = "failed"
+    photo.processing_error = reason
+    photo.recommendation_explanation = "Import derivative generation failed for this photo."
+    photo.updated_at = utc_now()
+    session.add(photo)
+    session.commit()
+
+
+def run_import_derivative_job(
+    job_id: str,
+    photo_ids: list[str],
+    initial_skipped: list[dict[str, str]] | None = None,
+) -> None:
+    skipped = list(initial_skipped or [])
+    with Session(get_engine()) as session:
+        job = session.get(ProcessingJob, job_id)
+        if job is None:
+            return
+        project = session.get(Project, job.project_id)
+        if project is None:
+            _fail_import_job(session, job, "Project not found")
+            return
+
+        processed_count = 0
+        failed_count = len(skipped)
+        update_import_job(
+            session,
+            job,
+            "derivative_generation",
+            processed_count,
+            failed_count,
+            force=True,
+        )
+
+        for index, photo_id in enumerate(photo_ids, start=1):
+            photo = session.get(Photo, photo_id)
+            if photo is None or photo.project_id != project.id:
+                skipped.append({"filename": photo_id, "reason": "Registered photo was not found"})
+                failed_count += 1
+                update_import_job(
+                    session,
+                    job,
+                    f"photo_missing {index} of {len(photo_ids)}",
+                    processed_count,
+                    failed_count,
+                    force=True,
+                )
+                continue
+            if _photo_derivatives_exist(photo):
+                processed_count += 1
+                update_import_job(
+                    session,
+                    job,
+                    f"derivative_generation {index} of {len(photo_ids)}",
+                    processed_count,
+                    failed_count,
+                    force=True,
+                )
+                continue
+
+            def progress_callback(
+                stage: str,
+                current_index: int = index,
+                current_processed_count: int = processed_count,
+                current_failed_count: int = failed_count,
+            ) -> None:
+                update_import_job(
+                    session,
+                    job,
+                    f"{stage} {current_index} of {len(photo_ids)}",
+                    current_processed_count,
+                    current_failed_count,
+                )
+
+            try:
+                process_registered_import_photo(session, project, photo, progress_callback=progress_callback)
+                processed_count += 1
+                update_import_job(
+                    session,
+                    job,
+                    f"derivative_generation {index} of {len(photo_ids)}",
+                    processed_count,
+                    failed_count,
+                    force=True,
+                )
+            except ValueError as error:
+                _mark_import_photo_failed(session, photo, str(error))
+                skipped.append({"filename": photo.filename, "reason": str(error)})
+                failed_count += 1
+                update_import_job(
+                    session,
+                    job,
+                    f"file_failed {index} of {len(photo_ids)}",
+                    processed_count,
+                    failed_count,
+                    force=True,
+                )
+
+        complete_import_job(session, job, processed_count, skipped)

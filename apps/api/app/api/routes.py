@@ -30,10 +30,11 @@ from app.services.importing import (
     complete_import_job,
     create_import_job,
     fail_stale_import_job,
-    import_image_file,
     import_job_is_stale,
     import_timing_stage,
     invalidate_project_processing,
+    register_import_file,
+    run_import_derivative_job,
     update_import_job,
 )
 from app.services.processing import (
@@ -162,6 +163,7 @@ def delete_project_endpoint(project_id: str, session: Session = Depends(get_sess
 )
 def import_photos_endpoint(
     project_id: str,
+    background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
     include_timing: bool = Query(default=False),
     session: Session = Depends(get_session),
@@ -173,9 +175,9 @@ def import_photos_endpoint(
     total_files = len(files)
     job = create_import_job(session, project, total_files)
     imported: list[Photo] = []
+    derivative_photo_ids: list[str] = []
     skipped: list[dict[str, str]] = []
     new_import_count = 0
-    processed_count = 0
     failed_count = 0
     for index, upload in enumerate(files, start=1):
         filename = upload.filename or "image"
@@ -183,37 +185,37 @@ def import_photos_endpoint(
         def update_stage(
             stage: str,
             current_index: int = index,
-            current_processed_count: int = processed_count,
             current_failed_count: int = failed_count,
         ) -> None:
             update_import_job(
                 session,
                 job,
                 f"{stage} {current_index} of {total_files}",
-                current_processed_count,
+                0,
                 current_failed_count,
             )
 
         try:
             before_total = project.total_images
-            photo = import_image_file(
+            registration = register_import_file(
                 session,
                 project,
                 filename,
                 upload.file,
-                invalidate_processing=False,
                 timing=timing,
                 progress_callback=update_stage,
             )
+            photo = registration.photo
             imported.append(photo)
-            if project.total_images > before_total:
+            if registration.requires_derivatives:
+                derivative_photo_ids.append(photo.id)
+            if registration.is_new and project.total_images > before_total:
                 new_import_count += 1
-            processed_count += 1
             update_import_job(
                 session,
                 job,
-                f"db_commit {index} of {total_files}",
-                processed_count,
+                f"file_copy_or_register {index} of {total_files}",
+                0,
                 failed_count,
                 force=True,
             )
@@ -224,7 +226,7 @@ def import_photos_endpoint(
                 session,
                 job,
                 f"file_skipped {index} of {total_files}",
-                processed_count,
+                0,
                 failed_count,
                 force=True,
             )
@@ -237,7 +239,7 @@ def import_photos_endpoint(
             session,
             job,
             "processing_invalidation",
-            processed_count,
+            0,
             failed_count,
             force=True,
         )
@@ -245,8 +247,20 @@ def import_photos_endpoint(
             invalidate_project_processing(session, project)
         with import_timing_stage(timing, "import_endpoint_commit"):
             session.commit()
-    job = complete_import_job(session, job, len(imported), skipped)
-    response = {"imported": imported, "skipped": skipped, "job": job}
+    if derivative_photo_ids:
+        update_import_job(session, job, "derivative_generation", 0, failed_count, force=True)
+        background_tasks.add_task(run_import_derivative_job, job.id, derivative_photo_ids, skipped)
+    else:
+        job = complete_import_job(session, job, len(imported), skipped)
+    response = {
+        "imported": imported,
+        "skipped": skipped,
+        "job": job,
+        "total_files": total_files,
+        "accepted_files": len(imported),
+        "skipped_files": len(skipped),
+        "failed_files": len(skipped),
+    }
     if timing is not None:
         total_seconds = round(time.perf_counter() - started, 6)
         timing.record("import_endpoint_total", total_seconds)

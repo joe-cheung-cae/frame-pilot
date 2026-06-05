@@ -124,6 +124,10 @@ class ImportResult(BaseModel):
     imported: list[PhotoRead]
     skipped: list[ImportSkippedFile]
     job: JobRead | None = None
+    total_files: int
+    accepted_files: int
+    skipped_files: int
+    failed_files: int
     timing: ImportTimingRead | None = None
 
 
