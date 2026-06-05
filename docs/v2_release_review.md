@@ -1,4 +1,4 @@
-# FramePilot v2.0 Release Review
+# FramePilot v2.0 RC2 Release Review
 
 Review date: 2026-06-05.
 
@@ -6,17 +6,19 @@ Review date: 2026-06-05.
 
 Ready for manual product-owner validation only.
 
-The automated release gate is green for the current local MVP-plus scope: `npm run verify`, the default real browser-backend smoke, the 500-photo large-image real browser-backend smoke, and full Playwright E2E all passed on this branch. The repository clearly documents the local-first model, JPEG/PNG/WebP support, deferred RAW/HEIC work, in-process job limitations, cooperative cancellation, retry behavior, synthetic benchmark caveats, and heuristic face/eye-open signals.
+The automated release gate is green for the current local MVP-plus scope after rc2 hardening: `npm run verify`, targeted E2E for the final local tooling cleanup, the default real browser-backend smoke, the 500-photo large-image real browser-backend smoke, and full Playwright E2E have passed on this branch. The repository clearly documents the local-first model, JPEG/PNG/WebP support, deferred RAW/HEIC work, in-process job limitations, cooperative cancellation, retry behavior, synthetic benchmark caveats, and heuristic face/eye-open signals.
 
-Do not tag `v2.0.0-rc1` until the release owner either records manual validation notes from a non-private real-world photo set or explicitly waives that evidence for the first RC. This is an algorithm-confidence gate, not a request for new product features.
+Do not tag an unqualified `v2.0.0-rc2` until the release owner either records manual validation notes from a non-private real-world photo set or explicitly waives that evidence for rc2 in `docs/v2_rc2_validation_decision.md`. This is an algorithm-confidence gate, not a request for new product features.
 
 ## 2. Current Branch and Git State
 
-- Branch: `main`.
-- Git status before review commands: clean.
-- Git status after verification commands and before this document: clean.
+- Branch: `codex/v2-next-iteration`.
+- Git status during this rc2 review: intentional rc2 source, test, metadata, tooling, and documentation changes are present.
+- Current base commit: `0415a87` (`v2.0.0-rc1`, `main`, `origin/main`).
 - Recent commits:
-  - `6238a75 (HEAD -> main) docs: add v2 release candidate checklist`
+  - `0415a87 (HEAD -> codex/v2-next-iteration, tag: v2.0.0-rc1, origin/main, main) docs: prepare real-world validation package`
+  - `4ff3332 docs: add v2 release review`
+  - `6238a75 docs: add v2 release candidate checklist`
   - `f03cd49 v2: add cooperative import job cancellation`
   - `8ce1d11 v2: add stale import job retry flow`
   - `1e9425c (origin/main, origin/HEAD) docs: record import worker validation`
@@ -25,7 +27,7 @@ Do not tag `v2.0.0-rc1` until the release owner either records manual validation
   - `00d18a5 feat(api): run import derivatives in background`
   - `a1b4cca (codex/v2-current-tasks-review) Merge pull request #1 from joe-cheung-cae/feature/v2-performance-iteration`
 - Generated artifacts present in Git: none found by `git ls-files | rg "(node_modules|\\.venv|exports|cache|\\.zip$|\\.jpe?g$|\\.png$|\\.webp$|\\.arw$|\\.cr3$|\\.nef$|\\.dng$|\\.heic$|\\.sqlite$|\\.db$)"`.
-- Expected working tree after this review: one intentional documentation file, `docs/v2_release_review.md`.
+- Expected working tree after this review: intentional rc2 code, test, metadata, tooling, and documentation changes only.
 
 ## 3. Implemented v2.0 Capabilities
 
@@ -34,12 +36,16 @@ Do not tag `v2.0.0-rc1` until the release owner either records manual validation
 - Import split into upload/register and an in-process background derivative job.
 - Progress polling for import and processing jobs.
 - Stale import and processing job detection.
+- Direct processing requests are blocked with `409 Conflict` while the same project has an active import derivative job.
+- Project routing, processing UI, and culling UI send active-import projects back to import progress instead of showing incomplete processing or review state.
+- Stale processing cleanup clears partial groups and resets processed or in-progress photos to retryable imported state.
 - Cooperative import cancellation.
 - Retry for failed, `complete_with_errors`, stale-failed, and cancelled import jobs.
 - Retry preserves Photo IDs, `user_status`, and `star_rating` while reusing valid derivatives.
 - Deterministic technical scoring, perceptual hashing, lightweight embeddings, grouping, ranking, and explanations.
 - Keyboard-first culling workspace with filters, groups, compare, zoom, status updates, ratings, bounded rendering, and load-all controls.
-- CSV, ZIP, and folder export with export history and local path-safety checks.
+- CSV, ZIP, and folder export with export history, local path-safety checks, and ZIP/folder source containment under project `originals/`.
+- Root package, web package, API package, npm lockfile root entries, and FastAPI OpenAPI metadata aligned to `2.0.0-rc2`.
 - Backend, frontend unit, browser E2E, real browser-backend, synthetic performance, and seeded large-culling coverage.
 
 ## 4. Verified Workflows
@@ -48,26 +54,28 @@ Commands run on 2026-06-05:
 
 | Command | Result | Evidence |
 | ------- | ------ | -------- |
-| `git status --short` | passed | Clean before verification and clean after verification. |
-| `git branch --show-current` | passed | `main`. |
-| `git log --oneline --decorate -n 20` | passed | Latest commit was `6238a75 docs: add v2 release candidate checklist`. |
-| `npm run verify` | passed | Ruff API lint, web ESLint, TypeScript, 130 backend tests, 82 frontend unit tests, and Next production build passed. |
-| `npm run test:e2e:real-browser` | passed | 1 Playwright test passed for 100 generated JPEGs through the real frontend/backend workflow. |
-| `npm run test:e2e:real-browser:large` | passed | 1 Playwright test passed for 500 generated 3000x2000 JPEGs through the real frontend/backend workflow. |
-| `npm run test:e2e` | passed | 41 Playwright tests passed, including the real local workflow, default real browser-backend smoke, import progress/cancel/retry UI coverage, and 2,000 seeded culling workspace smoke. |
+| `git status --short` | passed | Intentional rc2 source, test, metadata, tooling, and documentation changes were present. |
+| `git branch --show-current` | passed | `codex/v2-next-iteration`. |
+| `git log --oneline --decorate -n 8` | passed | Current base commit is `0415a87 docs: prepare real-world validation package`. |
+| `npm run verify` | passed | Ruff API lint, web ESLint, TypeScript, 143 backend tests, 83 frontend unit tests, release script tests, and Next production build passed. |
+| `npm run check:artifacts` | passed | No tracked generated or private release artifacts were found. This check is now included in `npm run verify`. |
+| `npm run test:e2e` | passed | 44 Playwright tests passed during rc2 hardening, including the real local workflow, default real browser-backend smoke, active-import guard coverage, import progress/cancel/retry UI coverage, and 2,000 seeded culling workspace smoke. |
+| `npm run test:e2e -- tests/e2e/local-workflow.spec.ts -g "creates a project and opens the import step" --project=chromium` | passed | Targeted E2E passed after local tooling cleanup and showed no Node color or Next `allowedDevOrigins` warning noise. |
+| `npm run test:e2e:real-browser` | passed | 1 Playwright test passed for 100 generated JPEGs through the real frontend/backend workflow during rc2 hardening. |
+| `npm run test:e2e:real-browser:large` | passed | 1 Playwright test passed for 500 generated 3000x2000 JPEGs through the real frontend/backend workflow during rc2 hardening. |
 
-Current run details:
+Verification details:
 
-- `npm run verify`: 130 backend tests passed with one known Starlette/TestClient deprecation warning; 82 frontend unit tests passed; Next build completed successfully.
-- Default real browser-backend smoke: 100 generated 160x120 JPEGs, import ready `1736 ms`, process `2109 ms`, first preview `836 ms`, status update `54 ms`, filter switch `80 ms`, group navigation `32 ms`, export `55 ms`.
-- Large real browser-backend smoke: 500 generated 3000x2000 JPEGs, image generation `8455 ms`, upload/register response `2297 ms`, import ready `100238 ms`, process `2605 ms`, first preview `834 ms`, status update `77 ms`, filter switch `49 ms`, group navigation `23 ms`, export `41 ms`. Import endpoint timing reported upload/register work at `1.966 s`.
-- Full E2E: 41 tests passed in `27.5 s`. The seeded 2,000 culling smoke reported first preview `377 ms`, status update `86 ms`, filter switch `58 ms`, load-all `248 ms`, initial DOM nodes `941`, loaded DOM nodes `915`, and reported JS heap `54.17 MB`.
+- `npm run verify`: 143 backend tests passed with one known Starlette/TestClient deprecation warning; 83 frontend unit tests passed; release script tests passed; Next build completed successfully; tracked release artifact check passed.
+- Full E2E during rc2 hardening: 44 tests passed. The seeded 2,000 culling smoke remained covered, and new active-import routing, processing, and culling guards were included.
+- Real browser-backend smoke coverage during rc2 hardening included the default 100 generated JPEG workflow and the opt-in 500 generated 3000x2000 JPEG workflow.
+- Detailed timing baselines remain in `docs/v2_performance_baseline.md`; generated-image timings are regression smoke evidence, not real-world algorithm validation.
 
 Observed non-blocking warnings:
 
 - FastAPI/TestClient `StarletteDeprecationWarning`.
-- Node `NO_COLOR`/`FORCE_COLOR` warning noise in Playwright server output.
-- Next dev cross-origin warning for `_next/*` resources.
+
+The rc2 working tree cleaned the earlier Node `NO_COLOR`/`FORCE_COLOR` warning noise and the Next dev cross-origin warning for `/_next/*` resources.
 
 ## 5. Performance Release Baseline
 
@@ -89,14 +97,17 @@ Synthetic benchmark caveat: generated JPEGs are useful for repeatability and reg
 - No cloud upload, remote processing, user account, login, payment, telemetry requirement, or online collaboration dependency is required.
 - The app assumes local SQLite project metadata and single-user local operation.
 - Asset and export serving/writing paths are documented as project-root checked, with path-safety coverage in tests.
+- ZIP and folder exports now require selected source files to resolve inside the project `originals/` directory, so corrupted metadata cannot make file exports copy arbitrary local files.
 
 ## 7. Job System Review
 
 - Import upload/register returns before expensive derivative work completes.
 - Import derivative generation and processing jobs run through FastAPI `BackgroundTasks` in the local API process.
 - Job progress is visible through polling and job history.
+- Active import jobs block direct processing requests and route the project list, dashboard, processing page, and culling workspace back to import progress.
 - Import cancellation is cooperative and stops at safe checkpoints. It is not a hard process kill.
 - Stale queued or running jobs are detected and marked failed after the configured stale window.
+- Stale processing failure now clears partial groups, removes photo group assignments, resets processed or in-progress photos to retryable imported state, and resets the project processed count to zero.
 - Retry creates a new import job, preserves existing Photo IDs, `user_status`, and `star_rating`, reuses valid derivatives, and regenerates missing derivatives from the local copied original when possible.
 - The current job system is not durable across API process exits. A future durable local worker or restart-safe job queue is the main post-v2.0 architecture recommendation.
 
@@ -107,6 +118,7 @@ Synthetic benchmark caveat: generated JPEGs are useful for repeatability and reg
 - Ranking is conservative inside groups and stores group `score_summary` JSON with best score, score gap, confidence, recommendation counts, and explanation text.
 - Face and eye-open signals are heuristic and experimental. They are not professional face detection, landmark detection, eye-state detection, identity recognition, or biometric analysis.
 - Manual real-world validation remains incomplete for this release review. No threshold, scoring, grouping, ranking, or explanation changes are currently recommended from this evidence.
+- `docs/v2_rc2_validation_decision.md` is present as the pending release-owner record for validation notes or an explicit waiver.
 
 ## 9. Known Limitations
 
@@ -130,6 +142,7 @@ Critical:
 High:
 
 - Manual non-private real-world algorithm validation notes are not recorded yet. This blocks an unqualified RC tag unless the release owner explicitly waives it.
+- `docs/v2_rc2_validation_decision.md` currently records this gate as pending and not waived.
 
 Medium:
 
@@ -139,9 +152,7 @@ Medium:
 
 Low:
 
-- Starlette/TestClient deprecation warning.
-- Node `NO_COLOR`/`FORCE_COLOR` warning noise in Playwright server output.
-- Next dev cross-origin warning for `_next/*` resources.
+- Starlette/TestClient deprecation warning remains visible until the FastAPI/Starlette test client stack moves to `httpx2` or an equivalent supported client.
 
 ## 11. Manual Validation Checklist
 
@@ -157,9 +168,11 @@ Low:
 
 ## 12. Tagging Recommendation
 
-Recommended tag name after acceptance: `v2.0.0-rc1`.
+Recommended tag name after acceptance: `v2.0.0-rc2`.
 
 Recommendation: do not tag immediately from automation alone. Tag after manual product-owner validation is completed or explicitly waived in release notes.
+
+The release notes should link `docs/v2_rc2_validation_decision.md`, plus the completed validation notes file if validation is performed.
 
 Exact pre-tag commands:
 
@@ -167,11 +180,13 @@ Exact pre-tag commands:
 git status --short
 git branch --show-current
 git log --oneline --decorate -n 20
-npm run verify
+npm run check:pretag
 npm run test:e2e:real-browser
 npm run test:e2e:real-browser:large
 npm run test:e2e
 ```
+
+`npm run check:pretag` includes `npm run verify`, the tracked artifact check, and the validation-decision check. It must fail while `docs/v2_rc2_validation_decision.md` is still pending and not waived.
 
 Optional manual benchmark, not a default release gate:
 
@@ -182,7 +197,7 @@ FRAMEPILOT_BROWSER_PERF_COUNT=2000 npm run test:e2e:real-browser
 Exact post-tag next steps:
 
 ```bash
-git tag v2.0.0-rc1
+git tag v2.0.0-rc2
 git status --short
 ```
 

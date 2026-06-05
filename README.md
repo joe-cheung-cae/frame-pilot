@@ -9,6 +9,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 - Local project folders with originals, thumbnails, previews, structured export/cache subdirectories, and logs.
 - JPEG, PNG, and WebP imports. HEIC and RAW files are skipped with explicit local messages until preview extraction is added in a later v2.x slice.
 - Import jobs return after local upload/register work and continue derivative generation in a queryable, cooperatively cancellable local background task.
+- Processing is blocked while import derivative work is still active, and project navigation routes users back to import progress until the import job reaches a terminal state.
 - Deterministic thumbnail and preview generation.
 - Basic metadata extraction and explainable image quality scoring.
 - Experimental local face and eye-open heuristic signals.
@@ -16,12 +17,12 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 - Group-focused culling with recommendation-first review ordering.
 - Pick, Maybe, Reject, and Unreviewed statuses.
 - Keyboard review shortcuts: arrows, P, M, X, U, 1-5, 0, Space, Z, C, G, F, and E.
-- CSV, folder, and ZIP export modes with unique local export outputs and export history.
+- CSV, folder, and ZIP export modes with unique local export outputs, export history, and project-originals source containment for file exports.
 
 Known v2.0 limitations:
 
 - HEIC and RAW files are deferred and are skipped with explicit local messages.
-- Import and processing jobs run in the local API process. Progress, cooperative import cancellation, stale-job detection, and safe import retry are available, but jobs are not durable across API process restarts.
+- Import and processing jobs run in the local API process. Progress, cooperative import cancellation, stale-job detection, active-import processing guards, safe import retry, and stale-processing cleanup are available, but jobs are not durable across API process restarts.
 - Experimental face and eye-open signals are deterministic local heuristics, not professional face detection, eye-state detection, identity recognition, or biometric analysis.
 - Grouping and ranking remain recommendation aids. The user keeps final control through manual statuses and star ratings.
 
@@ -45,7 +46,7 @@ Typical workflow:
 
 1. Create a project.
 2. Import JPEG, PNG, or WebP files. Valid files are registered locally, preview generation continues through a visible import job, and a running import can be cancelled at safe checkpoints without deleting originals or completed previews. Same-file reimports or import retries can reuse existing local records and generated previews.
-3. Run processing to rebuild groups and recommendations.
+3. Run processing after the import job completes. If import is still running, FramePilot keeps the project on import progress and rejects direct process requests.
 4. Review photos by group and mark Pick, Maybe, Reject, or Unreviewed.
 5. Export one or more selected statuses to CSV, folder, or ZIP. CSV and ZIP exports can be downloaded from the browser, and previous exports remain visible in export history.
 
@@ -56,6 +57,15 @@ npm run verify
 ```
 
 This runs API lint, web lint, TypeScript checks, backend tests, frontend unit tests, and a frontend production build.
+It also runs `npm run check:artifacts` to fail if generated or private release artifacts are tracked by Git.
+
+Before tagging an rc2 release candidate, run the pre-tag gate:
+
+```bash
+npm run check:pretag
+```
+
+This includes `npm run verify` and fails while `docs/v2_rc2_validation_decision.md` is still pending or not explicitly waived.
 
 For the shorter test-only path:
 
@@ -119,6 +129,7 @@ See [FramePilot v2 Release Candidate Checklist](docs/v2_release_candidate_checkl
 See [FramePilot v2 Release Review](docs/v2_release_review.md) for the current release verdict, verified workflows, blockers, and tagging recommendation.
 See [FramePilot v2 Known Limitations](docs/v2_known_limitations.md) for accepted local MVP-plus limitations.
 See [FramePilot v2 Real-World Algorithm Validation](docs/v2_real_world_validation.md) for the manual validation protocol for non-private photo sets.
+See [FramePilot v2 RC2 Validation Decision](docs/v2_rc2_validation_decision.md) for the pending release-owner record for real-world validation evidence or an explicit waiver.
 See [FramePilot v2 Migration Plan](docs/v2_migration_plan.md) for schema, storage, API, and project data migration rules.
 See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for grouping, ranking, explanation, and optional model policy.
 See [FramePilot v2 Iteration Review](docs/v2_iteration_review.md) for the latest repository status, verification notes, and remaining risks.

@@ -24,6 +24,10 @@ HEIC and RAW formats such as DNG, ARW, CR3, and NEF are deferred. v2.0 may recog
 
 Import and processing work uses FastAPI `BackgroundTasks` in the local API process. Jobs have visible progress, stale detection, and retry paths, but they are not durable across API process exits. If the API process stops during work, polling later marks stale queued or running jobs as failed so the user can retry when possible.
 
+Processing is intentionally blocked while the same project has an active import derivative job. Direct process requests return `409 Conflict`, and the project list, dashboard, processing page, and culling workspace send users back to import progress until the import job reaches a terminal state.
+
+If a processing job becomes stale after committing partial groups, cleanup clears partial groups, removes group assignments, returns processed or in-progress photos to retryable imported state, and resets the project processed count to zero. This prevents stale partial recommendations from being reviewed as if processing completed.
+
 ## Cancellation Semantics
 
 Import cancellation is cooperative. A cancel request persists a flag and the background worker checks it at safe checkpoints. Cancellation is not a hard process kill, may not stop immediately, keeps completed derivatives, leaves unprocessed photos retryable, and never modifies or deletes source originals.
@@ -44,6 +48,8 @@ Browser benchmark heap values come from Chromium smoke metrics such as `performa
 
 Generated JPEG benchmarks are useful for repeatability and regression detection. They do not replace real-world/manual algorithm validation with non-private camera-like photo sets. Synthetic images can underrepresent realistic noise, lens behavior, subject movement, lighting, compression artifacts, and creative intent.
 
+The rc2 release-owner decision record is `docs/v2_rc2_validation_decision.md`. Until that file records completed validation evidence or an explicit waiver, the real-world/manual algorithm-confidence gate remains open.
+
 ## Grouping And Ranking Heuristic Limits
 
 Grouping and ranking are deterministic recommendation aids. They can false-merge visually similar but unrelated scenes, miss groups with sparse metadata or large filename gaps, rank a technically clean but less meaningful frame above a better creative choice, or produce low-confidence recommendations for ambiguous sets. Users must keep final control through manual statuses and star ratings.
@@ -55,6 +61,8 @@ Face and eye-open scores are lightweight local heuristics, not professional face
 ## Export Limitations
 
 CSV, ZIP, and folder exports are implemented as local synchronous operations. XMP sidecar export is planned but not implemented. Folder exports expose a local output path rather than a browser download artifact. Exported files and ZIPs are generated artifacts and must not be committed.
+
+ZIP and folder exports require selected source files to resolve inside the project `originals/` directory. This is a defense-in-depth guard for corrupted metadata; it also means file exports can fail if the local copied original is missing or no longer resolves inside project storage.
 
 ## Filesystem And Path Assumptions
 
