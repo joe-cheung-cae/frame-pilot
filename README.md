@@ -1,6 +1,6 @@
 # FramePilot
 
-FramePilot is a local-first AI-assisted photo culling web app. The current v2 foundation keeps originals on the user's machine, generates local previews, computes explainable technical scores, groups similar frames, recommends the strongest image in each group, and lets the user override every decision.
+FramePilot is a local-first AI-assisted photo culling web app. The current v2 local MVP-plus foundation keeps originals on the user's machine, generates local previews, computes explainable technical scores, groups similar frames, recommends the strongest image in each group, and lets the user override every decision.
 
 ## Current v2 Foundation
 
@@ -8,7 +8,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 fo
 - FastAPI, Pydantic, SQLModel, SQLite backend.
 - Local project folders with originals, thumbnails, previews, structured export/cache subdirectories, and logs.
 - JPEG, PNG, and WebP imports. HEIC and RAW files are skipped with explicit local messages until preview extraction is added in a later v2.x slice.
-- Import jobs expose local progress, skipped-file counts, and safe same-file reuse during long upload-bound imports.
+- Import jobs return after local upload/register work and continue derivative generation in a queryable local background task.
 - Deterministic thumbnail and preview generation.
 - Basic metadata extraction and explainable image quality scoring.
 - Experimental local face and eye-open heuristic signals.
@@ -17,6 +17,13 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 fo
 - Pick, Maybe, Reject, and Unreviewed statuses.
 - Keyboard review shortcuts: arrows, P, M, X, U, 1-5, 0, Space, Z, C, G, F, and E.
 - CSV, folder, and ZIP export modes with unique local export outputs and export history.
+
+Known v2.0 limitations:
+
+- HEIC and RAW files are deferred and are skipped with explicit local messages.
+- Import and processing jobs run in the local API process. Progress and stale-job recovery are available, but jobs are not durable across API process restarts.
+- Experimental face and eye-open signals are deterministic local heuristics, not professional face detection, eye-state detection, identity recognition, or biometric analysis.
+- Grouping and ranking remain recommendation aids. The user keeps final control through manual statuses and star ratings.
 
 ## Setup
 
@@ -37,7 +44,7 @@ Backend data is written to `.framepilot-data` by default. Set `FRAMEPILOT_DATA_D
 Typical workflow:
 
 1. Create a project.
-2. Import JPEG, PNG, or WebP files. Valid files are imported even if some selected files are skipped, and same-file reimports can reuse existing local records and generated previews.
+2. Import JPEG, PNG, or WebP files. Valid files are registered locally, preview generation continues through a visible import job, and same-file reimports can reuse existing local records and generated previews.
 3. Run processing to rebuild groups and recommendations.
 4. Review photos by group and mark Pick, Maybe, Reject, or Unreviewed.
 5. Export one or more selected statuses to CSV, folder, or ZIP. CSV and ZIP exports can be downloaded from the browser, and previous exports remain visible in export history.
@@ -56,6 +63,21 @@ Run browser E2E coverage separately:
 npm run test:e2e
 ```
 
+Run the real browser-backend validation smoke:
+
+```bash
+npm run test:e2e:real-browser
+```
+
+The default real browser-backend smoke uses 100 generated JPEGs so normal local validation stays practical. Larger runs are opt-in:
+
+```bash
+FRAMEPILOT_BROWSER_PERF_COUNT=1000 npm run test:e2e:real-browser
+FRAMEPILOT_BROWSER_PERF_COUNT=1000 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT_BROWSER_PERF_HEIGHT=2000 FRAMEPILOT_BROWSER_PERF_QUALITY=88 npm run test:e2e:real-browser
+```
+
+These commands generate non-private local test images and project data under ignored test output directories. Do not commit generated photos, project databases, exports, ZIP files, browser traces, or private datasets.
+
 Generate deterministic local image sets for performance validation:
 
 ```bash
@@ -70,7 +92,7 @@ Run a local synthetic import/process performance smoke:
 npm run perf:api -- --output /tmp/framepilot-perf-500 --count 500
 ```
 
-The smoke command reports generation, import, processing time, and peak memory for the local process.
+The smoke command reports generation, upload/register import time, import derivative completion time, processing time, and peak memory for the local process.
 It also marks the synthetic photos as Pick and records CSV, ZIP, and folder export timings by default.
 
 Run the v2.5 large-batch targets as an explicit local validation step:
@@ -86,6 +108,7 @@ See [FramePilot v2 Architecture](docs/v2_architecture.md) for backend, frontend,
 See [FramePilot v2 Milestones](docs/v2_milestones.md) for release checkpoints and validation gates.
 See [FramePilot v2 Testing Strategy](docs/v2_testing_strategy.md) for the expected unit, integration, E2E, and performance validation layers.
 See [FramePilot v2 Performance Baseline](docs/v2_performance_baseline.md) for the latest recorded synthetic large-batch smoke result.
+See [FramePilot v2 Real-World Algorithm Validation](docs/v2_real_world_validation.md) for the manual validation protocol for non-private photo sets.
 See [FramePilot v2 Migration Plan](docs/v2_migration_plan.md) for schema, storage, API, and project data migration rules.
 See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for grouping, ranking, explanation, and optional model policy.
 See [FramePilot v2 Iteration Review](docs/v2_iteration_review.md) for the latest repository status, verification notes, and remaining risks.

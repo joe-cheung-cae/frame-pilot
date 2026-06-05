@@ -16,13 +16,14 @@ Recent high-value changes:
 - Import job progress is visible in the import UI while uploads are pending.
 - Stale import and processing jobs are recovered from job polling/history, not only from a later process request.
 - Stale job failed counts are bounded by remaining unprocessed items.
-- Real browser-backend import/performance commands now cover 100 small images and 500 large generated images.
+- Real browser-backend import/performance commands now cover 100 small images, 500 large generated images, and opt-in 1,000-photo generated-image workflows.
 - Mocked browser culling validation covers a 2,000-photo seeded project with bounded rendering and load-all behavior.
 - Culling workspace entry, selection, filter-reset, metadata row, score row, group summary, and header summary rules now live in tested helper modules.
 - Grouping now considers filename-sorted candidate windows as well as capture-time order, which protects burst-like frames with missing capture metadata.
 - Weak single-image groups now receive conservative Maybe recommendations instead of overconfident Pick recommendations.
 - Deterministic grouping and ranking thresholds are documented in the algorithm and scoring docs.
 - Non-private in-memory fixture families now validate missing-metadata burst grouping, lookalike scenes that should not over-merge, and blur/exposure explanation behavior.
+- A manual real-world validation protocol and notes template now define how to record non-private grouping, ranking, and explanation review evidence.
 - v2.0 accepts the current local in-process job architecture; a separate worker is deferred until real-scale validation proves it is needed.
 
 ## Repository State
@@ -67,15 +68,15 @@ Tracked generated/private-file check:
 
 ## Milestone Status
 
-| milestone | current status | evidence | remaining gap |
-| --- | --- | --- | --- |
-| v2.0 Foundation | Mostly complete | `README.md`, `AGENTS.md`, root scripts, v2 docs, passing verify | Release-oriented docs and packaging remain outside this branch |
-| v2.1 Processing and Progress | Strong | `ProcessingJob`, `/jobs`, import progress, stale recovery tests | In-process jobs are accepted for v2.0; a separate worker is deferred pending real-scale evidence |
-| v2.2 Culling Workspace | Mostly complete | keyboard shortcuts, compare/zoom, bounded filmstrip/group windows, tested state helpers, 2,000 seeded E2E | `CullingWorkspace.tsx` remains large and not component-tested |
-| v2.3 Export and Interoperability | Mostly complete | CSV/ZIP/folder export, history, download endpoints, path safety tests | XMP sidecar export remains planned only; exports are synchronous |
-| v2.4 Algorithm Quality | Mostly complete for deterministic MVP | grouping/ranking/scoring tests and docs, filename-window grouping, conservative singleton ranking, documented thresholds, realistic in-memory fixture validation | Needs real-world/manual validation notes |
-| v2.5 Performance and Reliability | Improved | API perf smoke, browser perf instrumentation, stale recovery, 100/500 real browser-backend runs | 2,000 real browser-backend run remains unattempted |
-| v2.6 Optional Advanced Support | Deferred | unsupported HEIC/RAW messages and docs | HEIC/RAW/model support intentionally not implemented |
+| milestone                        | current status                        | evidence                                                                                                                                                                                     | remaining gap                                                                                    |
+| -------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| v2.0 Foundation                  | Mostly complete                       | `README.md`, `AGENTS.md`, root scripts, v2 docs, passing verify                                                                                                                              | Release-oriented docs and packaging remain outside this branch                                   |
+| v2.1 Processing and Progress     | Strong                                | `ProcessingJob`, `/jobs`, import progress, stale recovery tests                                                                                                                              | In-process jobs are accepted for v2.0; a separate worker is deferred pending real-scale evidence |
+| v2.2 Culling Workspace           | Mostly complete                       | keyboard shortcuts, compare/zoom, bounded filmstrip/group windows, tested state helpers, 2,000 seeded E2E                                                                                    | `CullingWorkspace.tsx` remains large and not component-tested                                    |
+| v2.3 Export and Interoperability | Mostly complete                       | CSV/ZIP/folder export, history, download endpoints, path safety tests                                                                                                                        | XMP sidecar export remains planned only; exports are synchronous                                 |
+| v2.4 Algorithm Quality           | Mostly complete for deterministic MVP | grouping/ranking/scoring tests and docs, filename-window grouping, conservative singleton ranking, documented thresholds, realistic in-memory fixture validation, manual validation protocol | Needs completed real-world/manual validation notes                                               |
+| v2.5 Performance and Reliability | Improved                              | API perf smoke, browser perf instrumentation, stale recovery, 100/500/1,000 real browser-backend runs                                                                                        | 2,000 real browser-backend run remains unattempted                                               |
+| v2.6 Optional Advanced Support   | Deferred                              | unsupported HEIC/RAW messages and docs                                                                                                                                                       | HEIC/RAW/model support intentionally not implemented                                             |
 
 Approximate v2.0 readiness: 86%.
 
@@ -85,17 +86,17 @@ Production readiness: about 60%, mainly limited by real-world validation, accept
 
 Commands run for this review:
 
-| command | result | summary |
-| --- | --- | --- |
-| `npm run verify` | passed | API lint, web lint, TypeScript, all backend tests, web unit tests, and Next production build passed |
-| `npm --prefix apps/web run test:unit` | passed | 82 frontend helper/unit tests passed after culling state extractions |
-| `npm run typecheck` | passed | TypeScript passed after culling state extractions |
-| `npm run lint` | passed | API ruff and web ESLint passed after culling state extractions |
-| `.venv/bin/pytest apps/api/tests/test_grouping.py apps/api/tests/test_ranking_export.py` | passed | 24 deterministic grouping, ranking, and export tests passed after grouping candidate changes |
-| `.venv/bin/pytest apps/api/tests/test_deterministic_culling_fixtures.py apps/api/tests/test_grouping.py apps/api/tests/test_ranking_export.py` | passed | 28 deterministic fixture, grouping, ranking, and export tests passed after realistic fixture coverage |
-| `.venv/bin/pytest apps/api/tests/test_ranking_export.py apps/api/tests/test_import_process_export_api.py::test_import_process_update_and_export_csv` | passed | 16 ranking/export and workflow tests passed after singleton recommendation changes |
-| `npm run test:e2e -- tests/e2e/local-workflow.spec.ts --project=chromium --grep "filters culling photos with processing failures"` | passed | URL-filtered culling entry smoke passed |
-| `npm run test:e2e -- tests/e2e/local-workflow.spec.ts --project=chromium --grep "validates the culling workspace with 2,000 seeded photos"` | passed | Seeded 2,000-photo culling browser smoke passed |
+| command                                                                                                                                              | result | summary                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
+| `npm run verify`                                                                                                                                     | passed | API lint, web lint, TypeScript, all backend tests, web unit tests, and Next production build passed   |
+| `npm --prefix apps/web run test:unit`                                                                                                                | passed | 82 frontend helper/unit tests passed after culling state extractions                                  |
+| `npm run typecheck`                                                                                                                                  | passed | TypeScript passed after culling state extractions                                                     |
+| `npm run lint`                                                                                                                                       | passed | API ruff and web ESLint passed after culling state extractions                                        |
+| `.venv/bin/pytest apps/api/tests/test_grouping.py apps/api/tests/test_ranking_export.py`                                                             | passed | 24 deterministic grouping, ranking, and export tests passed after grouping candidate changes          |
+| `.venv/bin/pytest apps/api/tests/test_deterministic_culling_fixtures.py apps/api/tests/test_grouping.py apps/api/tests/test_ranking_export.py`       | passed | 28 deterministic fixture, grouping, ranking, and export tests passed after realistic fixture coverage |
+| `.venv/bin/pytest apps/api/tests/test_ranking_export.py apps/api/tests/test_import_process_export_api.py::test_import_process_update_and_export_csv` | passed | 16 ranking/export and workflow tests passed after singleton recommendation changes                    |
+| `npm run test:e2e -- tests/e2e/local-workflow.spec.ts --project=chromium --grep "filters culling photos with processing failures"`                   | passed | URL-filtered culling entry smoke passed                                                               |
+| `npm run test:e2e -- tests/e2e/local-workflow.spec.ts --project=chromium --grep "validates the culling workspace with 2,000 seeded photos"`          | passed | Seeded 2,000-photo culling browser smoke passed                                                       |
 
 Current verification details:
 
@@ -129,15 +130,15 @@ These warnings are not current failures, but they remain useful cleanup candidat
 
 ## Current Risks
 
-| priority | area | risk | next mitigation |
-| --- | --- | --- | --- |
-| P1 | Durable jobs | Import and processing work can still be interrupted by local API process exits | v2.0 accepts in-process jobs; revisit a worker after 1,000- to 2,000-photo real browser-backend validation |
-| P1 | Real-photo validation | Generated fixtures do not prove photographer-quality grouping/ranking | Add validation notes from non-private manual or real-world-like local sets |
-| P1 | Real browser scale | Seeded 2,000-photo UI passes, but 2,000 real browser-backend import/process/review is unmeasured | Run/manual-document a 2,000 real browser-backend validation after import bottlenecks are acceptable |
-| P2 | Workspace maintainability | `CullingWorkspace.tsx` is still 865 lines | Extract controller/helper logic and add focused tests |
-| P2 | Route/test size | `routes.py`, `processing.py`, API tests, and E2E tests are large | Split by route/workflow only after behavior stabilizes |
-| P2 | Export blocking | CSV/ZIP/folder exports are synchronous | Queue exports only if larger export validation shows user-visible blocking |
-| P3 | Docs drift | Historical v1 docs can be confused with current state | Keep current-state review and API/architecture docs updated |
+| priority | area                      | risk                                                                                                                                                        | next mitigation                                                                                                                        |
+| -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| P1       | Durable jobs              | Import and processing work can still be interrupted by local API process exits                                                                              | v2.0 accepts in-process jobs; revisit a worker after 2,000-photo real browser-backend validation or import-stage optimization evidence |
+| P1       | Real-photo validation     | Generated fixtures do not prove photographer-quality grouping/ranking                                                                                       | Complete validation notes from non-private manual or real-world-like local sets                                                        |
+| P1       | Real browser scale        | Seeded 2,000-photo UI passes and opt-in 1,000-photo real browser-backend workflows pass, but 2,000 real browser-backend import/process/review is unmeasured | Run/manual-document a 2,000 real browser-backend validation after import bottlenecks are acceptable                                    |
+| P2       | Workspace maintainability | `CullingWorkspace.tsx` is still 865 lines                                                                                                                   | Extract controller/helper logic and add focused tests                                                                                  |
+| P2       | Route/test size           | `routes.py`, `processing.py`, API tests, and E2E tests are large                                                                                            | Split by route/workflow only after behavior stabilizes                                                                                 |
+| P2       | Export blocking           | CSV/ZIP/folder exports are synchronous                                                                                                                      | Queue exports only if larger export validation shows user-visible blocking                                                             |
+| P3       | Docs drift                | Historical v1 docs can be confused with current state                                                                                                       | Keep current-state review and API/architecture docs updated                                                                            |
 
 ## File Size Signals
 
@@ -158,11 +159,11 @@ These are not blockers by themselves, but they explain where future regressions 
    - Suggested commit: `test: harden culling workspace state coverage`
 
 2. Real-world/manual algorithm validation notes
-   - Document outcomes from non-private local culling sets after the deterministic fixture coverage, especially grouping misses and explanation mismatches.
+   - Document outcomes from non-private local culling sets using `docs/v2_real_world_validation.md`, especially grouping misses and explanation mismatches.
    - Suggested commit: `docs: record algorithm validation notes`
 
 3. Real browser-backend scale decision
-   - Run or manually document a 1,000- to 2,000-photo real browser-backend import/process/review validation before reopening the worker decision.
+   - Run or manually document a 2,000-photo real browser-backend import/process/review validation before reopening the worker decision.
    - Suggested commit: `docs: record real scale validation`
 
 4. Current README wording

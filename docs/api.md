@@ -67,7 +67,7 @@ When `POST /api/projects` omits `root_path` or sends it blank, FramePilot uses t
 
 `POST /api/projects/{project_id}/imports` accepts multiple files under the `files` form field.
 
-The response contains imported photos, skipped files, and a completed import job summary:
+The response contains accepted photo records, synchronously skipped files, import counts, and the import job to poll. Newly accepted photos may still have `processing_state` set to `processing` and may not have thumbnail, preview, metadata, score, hash, or embedding fields populated until the background derivative job completes.
 
 ```json
 {
@@ -81,17 +81,17 @@ The response contains imported photos, skipped files, and a completed import job
       "content_hash": "sha256-hex",
       "project_copy_path": ".../originals/frame.jpg",
       "source_identity": "sha256:sha256-hex",
-      "capture_time": "2026-01-02T03:04:05",
-      "camera_model": "FramePilotCam",
-      "lens_model": "FramePilot 35mm",
-      "focal_length": "35",
-      "aperture": "2.8",
-      "shutter_speed": "1/125",
-      "iso": 400,
-      "perceptual_hash": "ff00ff00ff00ff00",
-      "thumbnail_path": ".../thumbnails/frame.webp",
-      "preview_path": ".../previews/frame.webp",
-      "processing_state": "imported",
+      "capture_time": null,
+      "camera_model": null,
+      "lens_model": null,
+      "focal_length": null,
+      "aperture": null,
+      "shutter_speed": null,
+      "iso": null,
+      "perceptual_hash": null,
+      "thumbnail_path": null,
+      "preview_path": null,
+      "processing_state": "processing",
       "processing_error": null,
       "user_status": "Unreviewed",
       "ai_recommendation": "Unreviewed"
@@ -103,34 +103,40 @@ The response contains imported photos, skipped files, and a completed import job
       "reason": "Only JPEG, PNG, and WebP files are supported"
     }
   ],
+  "total_files": 2,
+  "accepted_files": 1,
+  "skipped_files": 1,
+  "failed_files": 1,
   "job": {
     "id": "job-id",
     "project_id": "project-id",
     "job_type": "import",
-    "status": "complete_with_errors",
-    "current_step": "complete",
+    "status": "running",
+    "current_step": "derivative_generation",
     "total_items": 2,
-    "processed_items": 1,
+    "processed_items": 0,
     "failed_items": 1,
-    "progress_percent": 100.0,
-    "error_message": "1 file skipped: notes.txt",
+    "progress_percent": 50.0,
+    "error_message": null,
     "started_at": "2026-06-02T12:00:00Z",
-    "completed_at": "2026-06-02T12:00:03Z"
+    "completed_at": null
   }
 }
 ```
 
-The import endpoint is still upload-bound and synchronous: the HTTP request returns only after local copy, derivative generation, metadata extraction, scoring, hash, embedding, and database writes finish for the submitted batch. During that request, FramePilot creates a local `ProcessingJob` with `job_type` set to `import`, updates `current_step`, `processed_items`, `failed_items`, and `progress_percent`, and exposes it through the jobs endpoints. This is queryable progress for the current FastAPI process, not a durable external queue.
+The import endpoint is upload/register-bound: it returns after supported files are copied into the project, file identity metadata is recorded, photo rows are created or safely reused, and an import job is created. Expensive derivative generation, metadata extraction, scoring, perceptual hashing, and embedding generation continue in a FastAPI in-process background task that opens a fresh database session. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the import job reaches `complete`, `complete_with_errors`, or `failed`, then reload photos before assuming previews or scores are ready.
+
+This background path improves request responsiveness and visible progress, but it is not durable across API process exits. A durable local worker would be needed before interrupted derivative jobs can resume automatically after a backend restart.
 
 Import job statuses are:
 
 - `complete`: all selected files imported or were safely reused.
-- `complete_with_errors`: at least one file imported or was safely reused, and at least one file was skipped.
-- `failed`: every selected file was skipped or failed validation.
+- `complete_with_errors`: at least one file imported or was safely reused, and at least one file was skipped or failed during derivative generation.
+- `failed`: every selected file was skipped or every accepted file failed derivative generation.
 
-If every file is skipped, the endpoint returns `422` and the failed import job remains visible through `GET /api/projects/{project_id}/jobs`. Importing new photos invalidates previous groups and AI recommendations, so processing should be run again. Re-importing a file with the same uploaded filename and SHA-256 content hash reuses the existing project photo record and existing generated thumbnail/preview when they are still present; this does not create a duplicate record or reset user review status.
+If every file is skipped during synchronous validation, the endpoint returns `422` and the failed import job remains visible through `GET /api/projects/{project_id}/jobs`. Importing new photos invalidates previous groups and AI recommendations, so processing should be run again after the import job reaches a terminal state. Re-importing a file with the same uploaded filename and SHA-256 content hash reuses the existing project photo record and existing generated thumbnail/preview when they are still present; this does not create a duplicate record or reset user review status.
 The singular `/api/projects/{project_id}/import` route remains available as a backward-compatible alias.
-When EXIF data is available, import records basic capture time, camera, lens, focal length, aperture, shutter speed, and ISO metadata. Numeric EXIF rationals are normalized into stable display strings.
+When EXIF data is available, the background derivative job records basic capture time, camera, lens, focal length, aperture, shutter speed, and ISO metadata. Numeric EXIF rationals are normalized into stable display strings.
 HEIC and RAW extensions such as `.heic`, `.dng`, `.arw`, `.cr3`, and `.nef` are recognized as planned future formats, but v2 currently skips them with explicit unsupported-format reasons instead of attempting local decoding.
 
 ## Jobs
@@ -138,7 +144,7 @@ HEIC and RAW extensions such as `.heic`, `.dng`, `.arw`, `.cr3`, and `.nef` are 
 `POST /api/projects/{project_id}/process` creates a local background processing job and returns a `ProcessingJob` with `202 Accepted`. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the job reaches `complete` or `failed`.
 If an earlier queued or running processing job has not updated for more than 30 minutes, the jobs endpoints mark that stale job as failed. A later process request can then start a replacement job.
 
-`GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls this list while an upload is in flight to show the active import job, and the processing UI uses it to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job has not updated for more than 30 minutes, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
+`GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls the returned import job after upload/register returns, and the processing UI uses job history to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job has not updated for more than 30 minutes, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
 
 A job includes:
 

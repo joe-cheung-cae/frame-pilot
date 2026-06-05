@@ -8,7 +8,7 @@ This document summarizes the current FramePilot v2 development state at the requ
 
 ## Current State
 
-FramePilot v2 is a local-first MVP-plus foundation for JPEG, PNG, and WebP photo culling. The branch currently includes job-based processing, import and processing progress visibility, stale job recovery, deterministic scoring/grouping/ranking, keyboard-first culling, CSV/ZIP/folder export, export history, local path safety, and large-batch validation coverage.
+FramePilot v2 is a local-first MVP-plus foundation for JPEG, PNG, and WebP photo culling. The branch currently includes job-based processing, import and processing progress visibility, stale job recovery, deterministic scoring/grouping/ranking, keyboard-first culling, CSV/ZIP/folder export, export history, local path safety, and opt-in large-batch validation coverage through generated 1,000-photo real browser-backend workflows.
 
 The project remains within the local-first constraints:
 
@@ -35,19 +35,21 @@ Updated documentation now records:
 - The latest v2 iteration review status in `docs/v2_iteration_review.md`.
 - Backend verification count updated to 123 passing tests.
 - Remaining algorithm risk narrowed from missing fixture coverage to real-world/manual validation notes.
+- A manual real-world validation protocol and notes template define how to record non-private grouping, ranking, and explanation findings.
+- The performance baseline records opt-in 1,000-photo real browser-backend validation for default generated JPEGs and 3000x2000 generated JPEGs.
 
 ## Verification At Stop Point
 
 Commands run successfully:
 
-| command | result |
-| --- | --- |
-| `.venv/bin/pytest apps/api/tests` | 123 passed, 1 warning |
-| `.venv/bin/pytest apps/api/tests/test_deterministic_culling_fixtures.py apps/api/tests/test_grouping.py apps/api/tests/test_ranking_export.py` | 28 passed |
-| `.venv/bin/pytest apps/api/tests/test_import_process_export_api.py::test_processing_recommendation_explains_face_and_eye_quality` | 1 passed, 1 warning |
-| `npm run lint` | passed |
-| `npm run typecheck` | passed |
-| `git diff --check` | passed |
+| command                                                                                                                                        | result                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `.venv/bin/pytest apps/api/tests`                                                                                                              | 123 passed, 1 warning |
+| `.venv/bin/pytest apps/api/tests/test_deterministic_culling_fixtures.py apps/api/tests/test_grouping.py apps/api/tests/test_ranking_export.py` | 28 passed             |
+| `.venv/bin/pytest apps/api/tests/test_import_process_export_api.py::test_processing_recommendation_explains_face_and_eye_quality`              | 1 passed, 1 warning   |
+| `npm run lint`                                                                                                                                 | passed                |
+| `npm run typecheck`                                                                                                                            | passed                |
+| `git diff --check`                                                                                                                             | passed                |
 
 Observed warning:
 
@@ -57,7 +59,7 @@ Observed warning:
 
 These items remain intentionally unfinished at the stop point:
 
-- Real-world/manual algorithm validation notes from non-private local photo sets.
+- Completed real-world/manual algorithm validation notes are still needed from non-private local photo sets.
 - 2,000-photo real browser-backend import/process/review validation.
 - Further `CullingWorkspace.tsx` maintainability extraction.
 - XMP sidecar export and advanced interoperability.

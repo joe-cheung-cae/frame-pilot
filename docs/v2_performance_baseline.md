@@ -118,6 +118,36 @@ This run used 500 generated non-private JPEG files at 3000x2000 pixels with JPEG
 | ----------: | ---------- | -----------: | ------------ | ------------------ | ------------------: | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ----------------: | ---------------------: | --------------------: | ------------------: |
 |         500 | 3000x2000  |           88 | yes          | yes                |                8504 |               870 |     96062 |       2605 |              825 |               90 |               54 |                  22 |        43 |               677 |                    423 |                   427 |               42.63 |
 
+### 1,000-Photo Real Browser-Backend Validation
+
+Commands:
+
+```bash
+FRAMEPILOT_BROWSER_PERF_COUNT=1000 npm run test:e2e:real-browser
+FRAMEPILOT_BROWSER_PERF_COUNT=1000 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT_BROWSER_PERF_HEIGHT=2000 FRAMEPILOT_BROWSER_PERF_QUALITY=88 npm run test:e2e:real-browser
+```
+
+Local run date: 2026-06-04.
+
+Both runs generated non-private JPEG source photos at test time, created a local project through the real frontend, imported through the real FastAPI backend, ran real processing, served real previews through `/api/assets`, updated one Pick status, switched the Picks filter, navigated groups, and created a CSV export.
+
+| Photo Count | Dimensions | JPEG Quality | Result | Real Backend | Real Import | Real Processing | Real Asset Serving | CSV Export | Image Generation MS | Project Create MS | Import MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes | Reported JS Heap MB |
+| ----------: | ---------- | -----------: | ------ | ------------ | ----------- | --------------- | ------------------ | ---------- | ------------------: | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ----------------: | ---------------------: | --------------------: | ------------------: |
+|        1000 | 160x120    |           88 | pass   | yes          | yes         | yes             | yes                | yes        |                 295 |               874 |     10603 |       5638 |              852 |               99 |               62 |                  10 |        49 |               858 |                    600 |                   525 |               48.07 |
+|        1000 | 3000x2000  |           88 | pass   | yes          | yes         | yes             | yes                | yes        |               17132 |               868 |    193075 |       3615 |              831 |               92 |               60 |                   7 |        47 |               842 |                    600 |                   525 |               45.20 |
+
+The 1,000-photo small-image run completed in 26.1 seconds. The 1,000-photo large-image run completed in 3.7 minutes, with browser-visible import wait accounting for 193.075 seconds. Backend import timing was not enabled for these commands, so the import stage is not split into preview generation, scoring, embedding, hashing, and database timing here.
+
+Caveats:
+
+- The benchmark uses generated synthetic JPEGs, not curated real-world camera photo sets.
+- The reported heap value comes from Chromium `performance.memory` and is a JS heap estimate only. It is not full browser process RSS, decoded image memory, GPU memory, or operating system memory pressure.
+- DOM node counts are document element counts only.
+- These opt-in 1,000-photo commands must stay out of default E2E because the large-image run is intentionally slow.
+- Long review sessions, compare mode under repeated use, and full-resolution camera JPEG diversity remain unmeasured.
+
+Release-readiness decision: 1,000-photo real browser-backend validation is now acceptable for generated small images and generated 3000x2000 JPEGs on this machine. A 2,000-photo real browser-backend run should not be the next default gate. Attempt it only as an explicit manual benchmark after either a longer local validation window is available or import architecture work reduces the dominant import-stage cost. The current import architecture still needs more work before it can be considered durable across API process exits.
+
 #### Repeated 500-Photo and 1,000-Photo Validation
 
 Commands:
@@ -130,7 +160,7 @@ FRAMEPILOT_BROWSER_PERF_COUNT=1000 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT
 
 Local run date: 2026-06-04.
 
-The first command uses 500 generated non-private JPEG files at 3000x2000 pixels and JPEG quality 88. The second command uses 1,000 generated non-private JPEG files at 160x120 pixels and JPEG quality 88. Both passing runs used the real backend, real browser import, real backend processing, real `/api/assets` preview serving, and real CSV export creation. The third command documents the supported opt-in 1,000-photo large-image shape, but it was not run in this iteration because the goal was to validate repeat stability at 500 large images and add a 1,000-photo opt-in target without making larger slow runs part of default E2E.
+The first command uses 500 generated non-private JPEG files at 3000x2000 pixels and JPEG quality 88. The second command uses 1,000 generated non-private JPEG files at 160x120 pixels and JPEG quality 88. The third command uses 1,000 generated non-private JPEG files at 3000x2000 pixels and JPEG quality 88. All passing runs used the real backend, real browser import, real backend processing, real `/api/assets` preview serving, and real CSV export creation. The 1,000-photo large-image shape is an opt-in validation target and should not become part of default E2E.
 
 The browser benchmark now supports `FRAMEPILOT_BROWSER_PERF_REPEAT`; the default remains a single run. Repeat runs are emitted as separate serial Playwright tests, and a `real-browser-backend-repeat-summary` console line reports min, max, mean, and median values. Playwright writes generated sources, project data, exports, and optional traces under `test-results/...`; the E2E backend writes `.framepilot-e2e-data`. These locations are ignored by Git.
 
@@ -165,10 +195,10 @@ Repeated 500 summary values:
 
 1,000-photo opt-in result:
 
-| Photo Count | Dimensions | JPEG Quality | Status  | Real Backend | Real Asset Serving | Backend Import Timing | Image Generation MS | Project Create MS | Import MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Reported JS Heap MB | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes |
-| ----------: | ---------- | -----------: | ------- | ------------ | ------------------ | --------------------- | ------------------: | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ------------------: | ----------------: | ---------------------: | --------------------: |
-|        1000 | 160x120    |           88 | pass    | yes          | yes                | not enabled           |                 334 |               869 |      7040 |       5111 |              838 |               67 |              101 |                  13 |        57 |               54.17 |               870 |                    600 |                   839 |
-|        1000 | 3000x2000  |           88 | skipped | yes          | yes                | not run               |                   - |                 - |         - |          - |                - |                - |                - |                   - |         - |                   - |                 - |                      - |                     - |
+| Photo Count | Dimensions | JPEG Quality | Status | Real Backend | Real Asset Serving | Backend Import Timing | Image Generation MS | Project Create MS | Import MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Reported JS Heap MB | Initial DOM Nodes | After Filter DOM Nodes | After Group DOM Nodes |
+| ----------: | ---------- | -----------: | ------ | ------------ | ------------------ | --------------------- | ------------------: | ----------------: | --------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ------------------: | ----------------: | ---------------------: | --------------------: |
+|        1000 | 160x120    |           88 | pass   | yes          | yes                | not enabled           |                 295 |               874 |     10603 |       5638 |              852 |               99 |               62 |                  10 |        49 |               48.07 |               858 |                    600 |                   525 |
+|        1000 | 3000x2000  |           88 | pass   | yes          | yes                | not enabled           |               17132 |               868 |    193075 |       3615 |              831 |               92 |               60 |                   7 |        47 |               45.20 |               842 |                    600 |                   525 |
 
 The first 1,000-photo run exposed a benchmark assertion that expected all 1,000 records to be represented in the initially loaded culling text. The culling workspace intentionally starts with a 500-photo window for larger projects, so the harness now validates the Pick filter state and the partial-load indicator instead of assuming all records are loaded up front. No product behavior was changed for this fix.
 
@@ -176,19 +206,19 @@ Pass/fail/skipped status:
 
 - 500 large-image repeated validation: passed, 3 of 3 runs.
 - 1,000 small-image opt-in validation: passed after the benchmark assertion fix above.
-- 1,000 large-image opt-in validation: skipped for this iteration to keep the validation focused and avoid turning a slow manual target into an expected gate.
+- 1,000 large-image opt-in validation: passed as an explicit slow manual target.
 
 Caveats:
 
 - The benchmark uses generated synthetic JPEGs, not a curated real-photo set.
 - Reported JS heap is Chromium `performance.memory` JS heap only, not full browser process memory, decoded image memory, GPU memory, or OS memory pressure.
 - DOM node counts are document element counts only.
-- Backend import timing was enabled for the repeated 500 large-image command through `FRAMEPILOT_IMPORT_TIMING=1` in the `test:e2e:real-browser:large` script. It was not enabled for the 1,000 small-image validation command.
+- Backend import timing was enabled for the repeated 500 large-image command through `FRAMEPILOT_IMPORT_TIMING=1` in the `test:e2e:real-browser:large` script. It was not enabled for either 1,000-photo validation command.
 - The first run in a repeat sequence can include cold browser or route-load cost; the dominant backend import stages are the more useful stability signal.
 
-Conclusion: the repeated 500 large-image backend import endpoint varied from 94.547s to 97.615s, about 3.2% around the mean, and the browser import wait varied from 94.941s to 98.466s, about 3.7% around the mean. Dominant import stages were similarly stable and well below the 15% variability threshold. The opt-in 1,000-photo small-image real browser-backend workflow passed, while the 1,000-photo large-image run remains an explicit manual target.
+Conclusion: the repeated 500 large-image backend import endpoint varied from 94.547s to 97.615s, about 3.2% around the mean, and the browser import wait varied from 94.941s to 98.466s, about 3.7% around the mean. Dominant import stages were similarly stable and well below the 15% variability threshold. The opt-in 1,000-photo small-image and large-image real browser-backend workflows passed, while the large-image command remains an explicit slow manual target.
 
-Recommended next step: because the 500 large-image baseline is stable and 1,000 small images pass, run a manual 1,000 large-image validation only if a longer local benchmark window is acceptable; otherwise start import architecture and resumable job work before attempting 2,000-photo real browser-backend validation.
+Recommended next step: because the 500 large-image baseline is stable and both 1,000-photo generated-image workflows pass, start import architecture and resumable job work before attempting 2,000-photo real browser-backend validation.
 
 Instrumentation note:
 
@@ -425,3 +455,42 @@ This iteration added a queryable `job_type=import` record for each import reques
 Compared with the previous 500 large-image record in this document, browser import wait increased from `96.062 s` to `97.459 s`, and backend import endpoint time increased from `95.441 s` to `96.819 s`. This iteration was expected to improve queryable progress and safe rerun behavior rather than reduce compute time; the timing change is within the repeated 500-image baseline range already recorded above.
 
 Current import architecture conclusion: long imports now have local job visibility and safer same-file rerun behavior, but the request is not fully asynchronous and import jobs are not durable across API process exits. A future architecture slice should split upload registration from derivative/scoring work or introduce a local worker if large real-photo imports need resumable background execution beyond the current FastAPI process.
+
+### Non-Blocking Import Derivative Worker
+
+Commands:
+
+```bash
+npm run test:e2e:real-browser
+npm run test:e2e:real-browser:large
+```
+
+Local run date: 2026-06-04.
+
+This iteration split import into a synchronous upload/register phase and an in-process FastAPI `BackgroundTasks` derivative phase. The import endpoint now returns after supported files are copied into the local project, file identity metadata is recorded, `Photo` records are created or safely reused, grouping state is invalidated when needed, and an import job is created. Thumbnail generation, preview generation, metadata extraction, quality scoring, perceptual hashing, and lightweight embedding generation continue in the local API process with a fresh database session. This is not durable across API process exits; a durable worker would be required for restart-safe resume.
+
+| Photo Count | Dimensions | JPEG Quality | Upload/Register Response MS | Background Derivative Completion MS | Total Import Ready MS | Process MS | First Preview MS | Status Update MS | Filter Switch MS | Group Navigation MS | Export MS | Reported JS Heap MB |
+| ----------: | ---------- | -----------: | --------------------------: | ----------------------------------: | --------------------: | ---------: | ---------------: | ---------------: | ---------------: | ------------------: | --------: | ------------------: |
+|         100 | 160x120    |           88 |                         430 |                                1310 |                  1740 |       2115 |              836 |               81 |               41 |                  30 |        53 |               45.20 |
+|         500 | 3000x2000  |           88 |                        2734 |                               96928 |                 99662 |       2598 |              821 |               82 |               56 |                  24 |        49 |               42.63 |
+
+500 large-image upload/register backend timing:
+
+| Stage                   | Calls | Seconds |
+| ----------------------- | ----: | ------: |
+| db_commit               |   500 |   0.848 |
+| file_copy               |   500 |   0.097 |
+| db_record_create        |   500 |   0.085 |
+| content_hash            |   500 |   0.054 |
+| import_endpoint_total   |     1 |   2.369 |
+| import_endpoint_commit  |     1 |   0.017 |
+| processing_invalidation |     1 |   0.013 |
+| file_stat               |   500 |   0.005 |
+
+Interpretation:
+
+- The 500 large-image upload/register response returned in `2.734 s`, compared with the previous synchronous backend import endpoint baseline of `96.819 s`.
+- Total time until import-ready remained similar at `99.662 s`, which is expected because this iteration changes responsiveness and progress visibility rather than total image-processing cost.
+- The browser showed import progress until the background derivative job completed, then allowed processing and culling to continue.
+- The backend timing attached to the import response now covers upload/register work only. Derivative/scoring/hash/embedding stage timing is no longer part of the import response timing payload.
+- Generated images were non-private synthetic JPEGs. The 2,000-photo real browser-backend run remains intentionally unattempted in this iteration.
