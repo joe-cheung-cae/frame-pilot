@@ -1,59 +1,66 @@
 # FramePilot v2.0.0-rc2 Validation Decision
 
-Decision date: pending.
+Decision date: 2026-06-05.
 
-Release owner: pending.
+Release owner: Chao Zhang.
 
-Status: **pending**.
+Status: waived.
 
-This file is the release-owner decision record for the remaining rc2 algorithm-confidence gate. It must be completed before tagging an unqualified `v2.0.0-rc2`.
+This file is the release-owner decision record for the remaining rc2 algorithm-confidence gate.
+For `v2.0.0-rc2`, the manual non-private real-world algorithm validation gate is explicitly
+waived so the release can proceed as an engineering pre-release.
 
 ## Current Gate
 
-Manual non-private real-world algorithm validation is not recorded yet, and no rc2 waiver is recorded yet.
+Manual non-private real-world algorithm validation was not completed for rc2.
 
-Acceptable ways to close this gate:
+The release owner chose the waiver path described in:
 
-1. Record Tier A or Tier B validation notes from non-private local JPEG, PNG, or WebP photo sets using `docs/templates/algorithm_validation_notes_template.md`.
-2. Record an explicit release-owner waiver in this file, accepting that rc2 ships without real-world/manual algorithm evidence beyond deterministic tests and generated-image smoke coverage.
+- `docs/v2_real_world_validation.md`
+- `docs/v2_release_candidate_checklist.md`
+- `docs/v2_rc2_work_progress_summary.md`
 
-Do not use private photos, sensitive filenames, generated project directories, exports, ZIP files, traces, SQLite databases, thumbnails, previews, or local cache files as tracked release evidence.
+This waiver does not claim that manual real-world grouping, ranking, explanation, or export
+quality has been validated on a non-private release dataset. It records that rc2 can still be
+tagged as an engineering pre-release after the automated hardening and verification work already
+completed on the branch.
+
+Do not use private photos, sensitive filenames, generated project directories, exports, ZIP files,
+traces, SQLite databases, thumbnails, previews, or local cache files as tracked release evidence.
 
 ## Validation Evidence
 
-Validation notes file: pending.
+Validation notes file: not applicable.
 
-Validation tier: pending.
+Validation tier: not completed.
 
-Dataset privacy status: pending.
+Dataset privacy status: not applicable.
 
 Summary metrics:
 
 | Metric | Value |
 | ------ | ----- |
-| Total photo count | pending |
-| Group count | pending |
-| False merge count | pending |
-| Missed group count | pending |
-| Ranking mismatch count | pending |
-| Explanation mismatch count | pending |
-| Export issue count | pending |
+| Total photo count | not completed |
+| Group count | not completed |
+| False merge count | not completed |
+| Missed group count | not completed |
+| Ranking mismatch count | not completed |
+| Explanation mismatch count | not completed |
+| Export issue count | not completed |
 
-Validation verdict: pending.
+Validation verdict: not completed.
 
-Release decision impact: pending.
+Release decision impact: v2.0.0-rc2 may be tagged as an engineering pre-release with the manual non-private real-world algorithm validation gate explicitly waived.
 
 ## Waiver Record
 
-Waiver status: not waived.
+Waiver status: waived.
 
-If waived, replace this section with:
-
-- Waiver owner:
-- Waiver date:
-- Reason:
-- Accepted risk:
-- Follow-up task:
+- Waiver owner: Chao Zhang
+- Waiver date: 2026-06-05
+- Reason: The release owner decided to publish v2.0.0-rc2 as an engineering pre-release after rc2 automated hardening, release artifact checks, backend/frontend tests, real browser smoke tests, and full E2E passed. Manual non-private real-world algorithm validation remains deferred.
+- Accepted risk: v2.0.0-rc2 may still contain grouping, ranking, explanation, or heuristic face/eye-open quality issues on real-world photo sets that are not covered by deterministic fixtures, generated-image smoke tests, or synthetic benchmarks.
+- Follow-up task: Complete Tier A or Tier B non-private real-world algorithm validation before v2.0.0 final. Add deterministic fixture tests before any threshold, grouping, ranking, scoring, or explanation tuning.
 
 ## Required Pre-Tag Confirmation
 
@@ -63,4 +70,4 @@ If waived, replace this section with:
 - `git status --short` contains only intentional release changes.
 - No generated/private photos, project data, exports, ZIP files, traces, SQLite databases, cache folders, virtualenvs, or `node_modules` files are tracked.
 - README and release docs do not claim RAW, HEIC, XMP, cloud workflows, durable jobs, or professional face/eye detection are implemented.
-- The final release notes either link completed validation notes or link the explicit waiver above.
+- The final release notes link this explicit waiver and clearly state that real-world/manual algorithm validation remains a known follow-up before `v2.0.0` final.
