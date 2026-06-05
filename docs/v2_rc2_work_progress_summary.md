@@ -91,6 +91,20 @@ Size:
 - 602 insertions.
 - 47 deletions.
 
+### `7da3c0f docs: summarize rc2 work progress`
+
+Purpose: add this work progress summary so the rc2 blocker work, release gates, verification evidence, and remaining release-owner decision state are easy to review from one document.
+
+Main files changed:
+
+- `docs/v2_rc2_work_progress_summary.md`
+
+Latest workspace note:
+
+- A privacy-safe Tier A validation preparation package is currently staged after this commit.
+- The staged package adds the Tier A sanitized notes runner, local validation ignore rules, artifact-check coverage for local validation output directories, script-test coverage, and this summary update.
+- The staged package does not include photos, generated project data, exports, ZIP files, SQLite databases, thumbnails, previews, browser traces, screenshots, test results, Playwright reports, `node_modules`, virtualenvs, the private source path, or original filenames.
+
 ## Backend Work
 
 ### Active Import Guard
@@ -319,6 +333,42 @@ Covered cases:
 
 These script tests are now part of `npm run test`.
 
+### Privacy-Safe Tier A Validation Preparation
+
+Added `scripts/run_tier_a_validation.py`.
+
+Purpose:
+
+- Prepare sanitized local Tier A validation notes from a release-owner-provided local photo directory.
+- Keep FramePilot local-first and avoid copying or modifying any source photos.
+- Avoid reading or dumping EXIF metadata.
+- Avoid writing absolute input paths or original filenames into the generated notes.
+- Generate anonymized photo IDs such as `photo_0001`.
+- Record supported file type counts for JPEG, PNG, and WebP.
+- Leave all algorithm and release verdict fields pending for manual release-owner review.
+
+The runner accepts:
+
+```bash
+python scripts/run_tier_a_validation.py \
+  --photo-dir "[local input directory redacted]" \
+  --output ".local-validation-notes/rc2_tier_a_sanitized.md" \
+  --tier A \
+  --max-photos 50
+```
+
+The generated notes are intentionally local-only and ignored by Git.
+
+Additional ignore and artifact protections were added for:
+
+- `.local-validation/`
+- `.local-validation-notes/`
+- `.framepilot-validation/`
+
+`scripts/check-release-artifacts.sh` now also fails if any of those local validation directories are tracked.
+
+`scripts/test-release-checks.sh` now covers the Tier A runner and verifies that generated notes include anonymized IDs and file type counts while omitting the input path and original filenames.
+
 ## Documentation Updates
 
 ### README
@@ -445,6 +495,38 @@ Result:
 - Passed.
 
 Covered release decision gate pass and fail paths.
+Also covered the privacy-safe Tier A validation runner.
+
+### Privacy-Safe Tier A Notes Generation
+
+```bash
+python scripts/run_tier_a_validation.py \
+  --photo-dir "[local input directory redacted]" \
+  --output ".local-validation-notes/rc2_tier_a_sanitized.md" \
+  --tier A \
+  --max-photos 50
+```
+
+Result:
+
+- Passed.
+- 45 supported files found.
+- 45 anonymized photo IDs listed.
+- Sanitized local notes written to `.local-validation-notes/rc2_tier_a_sanitized.md`.
+
+The generated local notes were inspected and verified to:
+
+- Omit the private input path.
+- Omit private path terms.
+- Omit absolute paths.
+- Omit original filenames.
+- Omit EXIF dumps.
+- Include anonymized photo IDs.
+- Include file type counts.
+- Include manual review placeholders for false merge, missed group, bad ranking, misleading explanation, export issue, and UI workflow issue.
+- Keep the verdict and release decision impact pending.
+
+Tracked-file scans also verified that the private input path terms and original filenames were not written into tracked files.
 
 ### Full Verify
 
@@ -578,6 +660,7 @@ Final inspection found no remaining generated E2E artifact directories.
 Recent commits:
 
 ```text
+7da3c0f docs: summarize rc2 work progress
 9cf6f43 docs: record rc2 release readiness
 9b02f59 chore: prepare rc2 release gates
 157eabb fix: harden rc2 workflow safety
@@ -587,6 +670,16 @@ Recent commits:
 The worktree was clean immediately after the three rc2 commits were created.
 
 This document was added afterward to provide a detailed progress record.
+
+Current staged changes after the latest summary commit:
+
+- `.gitignore`
+- `docs/v2_rc2_work_progress_summary.md`
+- `scripts/check-release-artifacts.sh`
+- `scripts/run_tier_a_validation.py`
+- `scripts/test-release-checks.sh`
+
+These staged changes represent the privacy-safe Tier A validation preparation package. They remain sanitized and keep the release decision pending.
 
 ## Requirements Coverage
 
@@ -661,6 +754,20 @@ Evidence:
 - `npm run check:artifacts` exists.
 - `npm run verify` includes it.
 - Check passed.
+- Local validation output directories are ignored and blocked from tracking by the artifact check.
+
+### Privacy-Safe Tier A Validation Preparation
+
+Status: prepared, manual review still pending.
+
+Evidence:
+
+- `scripts/run_tier_a_validation.py` exists.
+- The runner generated sanitized local notes for 45 supported files.
+- Generated notes were written to `.local-validation-notes/rc2_tier_a_sanitized.md`.
+- The generated notes contain anonymized IDs and file type counts only.
+- Privacy scans confirmed that the private input path, private path terms, absolute paths, original filenames, and EXIF dumps were not written into the generated local notes.
+- Tracked-file scans confirmed that the private input path terms and original filenames were not written into tracked files.
 
 ### Validation Decision Gate
 
@@ -676,9 +783,9 @@ Evidence:
 
 The only remaining rc2 blocker is the release-owner algorithm-confidence gate.
 
-The release owner must choose one of these paths:
+Local Tier A sanitized notes have been prepared in an ignored local path, but they do not close the gate by themselves. The release owner must manually inspect the actual FramePilot culling results, fill the pending metrics and verdict fields, and then choose one of these paths:
 
-1. Record Tier A or Tier B validation notes from non-private local JPEG, PNG, or WebP photo sets using `docs/templates/algorithm_validation_notes_template.md`.
+1. Record completed, sanitized Tier A or Tier B validation notes using `docs/templates/algorithm_validation_notes_template.md`.
 2. Record an explicit waiver in `docs/v2_rc2_validation_decision.md`, accepting that rc2 ships without real-world/manual algorithm evidence beyond deterministic tests and generated-image smoke coverage.
 
 Until that happens:
@@ -697,6 +804,8 @@ Scope:
 
 - Fill `docs/v2_rc2_validation_decision.md`.
 - Either link completed validation notes or record an explicit waiver.
+- If using the prepared local Tier A notes, first complete all pending manual review fields in `.local-validation-notes/rc2_tier_a_sanitized.md`.
+- Move a sanitized copy into a tracked docs path only after the release owner completes the manual review fields and confirms it contains no private paths, original filenames, generated artifacts, or sensitive metadata.
 - Keep all private photos, generated project data, exports, ZIP files, traces, SQLite databases, thumbnails, previews, and cache files out of Git.
 
 Suggested command after completion:
@@ -754,4 +863,5 @@ Automated rc2 hardening is in good shape:
 Release readiness is still conditional:
 
 - The branch is ready for release-owner validation.
+- Privacy-safe local Tier A notes have been prepared for 45 supported files, but the release owner verdict remains pending.
 - It is not ready for an unqualified rc2 tag until the validation decision file records completed evidence or an explicit waiver.

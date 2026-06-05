@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-blocked_pattern='(^|/)(node_modules|\.venv|\.ruff_cache|\.mypy_cache|\.pytest_cache|\.next|\.next-e2e|test-results|playwright-report|exports|cache)(/|$)|\.(zip|sqlite|db|jpe?g|png|webp|arw|cr3|nef|dng|heic)$'
+blocked_pattern='(^|/)(node_modules|\.venv|\.ruff_cache|\.mypy_cache|\.pytest_cache|\.next|\.next-e2e|test-results|playwright-report|exports|cache|\.framepilot-validation|\.local-validation|\.local-validation-notes)(/|$)|\.(zip|sqlite|db|jpe?g|png|webp|arw|cr3|nef|dng|heic)$'
 
 matches="$(git ls-files | rg -i "$blocked_pattern" || true)"
 

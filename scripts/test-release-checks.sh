@@ -169,4 +169,38 @@ expect_failure \
   "Waiver date" \
   bash scripts/check-validation-decision.sh "$incomplete_waiver_decision"
 
+photo_dir="$tmpdir/private-input"
+mkdir -p "$photo_dir/nested"
+touch \
+  "$photo_dir/private-family-name.JPG" \
+  "$photo_dir/nested/sensitive-place.png" \
+  "$photo_dir/ignored.txt"
+
+tier_a_notes="$tmpdir/tier-a-notes.md"
+expect_success \
+  "tier a validation runner writes sanitized notes" \
+  python3 scripts/run_tier_a_validation.py \
+    --photo-dir "$photo_dir" \
+    --output "$tier_a_notes" \
+    --tier A \
+    --max-photos 50
+
+expect_success \
+  "tier a validation notes include anonymized ids" \
+  rg "photo_0001" "$tier_a_notes"
+
+expect_success \
+  "tier a validation notes include file type counts" \
+  rg "File Type Counts" "$tier_a_notes"
+
+expect_failure \
+  "tier a validation notes omit input path" \
+  "" \
+  rg "$photo_dir" "$tier_a_notes"
+
+expect_failure \
+  "tier a validation notes omit original filenames" \
+  "" \
+  rg "private-family-name|sensitive-place" "$tier_a_notes"
+
 echo "Release check script tests passed."

@@ -1,6 +1,9 @@
 .DS_Store
 .framepilot-data/
 .framepilot-e2e-data/
+.framepilot-validation/
+.local-validation/
+.local-validation-notes/
 .venv/
 __pycache__/
 .pytest_cache/
