@@ -97,6 +97,33 @@ expect_success \
   "explicit waiver closes the decision gate" \
   bash scripts/check-validation-decision.sh "$waiver_decision"
 
+waiver_not_applicable_decision="$tmpdir/waiver-not-applicable-decision.md"
+cat >"$waiver_not_applicable_decision" <<'EOF'
+# Test Validation Decision
+
+Status: waived.
+
+## Validation Evidence
+
+Validation notes file: not applicable.
+Validation verdict: not completed.
+Release decision impact: rc2 may proceed as an engineering pre-release.
+
+## Waiver Record
+
+Waiver status: waived.
+
+- Waiver owner: Release Owner
+- Waiver date: 2026-06-05
+- Reason: Test waiver reason.
+- Accepted risk: Test accepted risk.
+- Follow-up task: Record validation notes later.
+EOF
+
+expect_success \
+  "waiver allows not applicable validation notes file" \
+  bash scripts/check-validation-decision.sh "$waiver_not_applicable_decision"
+
 pending_decision="$tmpdir/pending-decision.md"
 cat >"$pending_decision" <<'EOF'
 # Test Validation Decision

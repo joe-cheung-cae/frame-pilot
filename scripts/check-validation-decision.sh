@@ -54,7 +54,7 @@ bullet_value() {
 is_unset() {
   local value
   value="$(normalize_value "$1")"
-  [[ -z "$value" || "$value" == "pending" || "$value" == "tbd" || "$value" == "todo" ]]
+  [[ -z "$value" || "$value" == "pending" || "$value" == "tbd" || "$value" == "todo" || "$value" == "not applicable" ]]
 }
 
 [[ -f "$decision_file" ]] || fail "$decision_file is missing."
