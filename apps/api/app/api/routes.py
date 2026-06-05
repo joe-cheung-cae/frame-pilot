@@ -4,7 +4,7 @@ import shutil
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import case, func
 from sqlmodel import Session, select
@@ -36,6 +36,7 @@ from app.services.importing import (
     invalidate_project_processing,
     photo_needs_import_retry,
     register_import_file,
+    request_import_job_cancellation,
     run_import_derivative_job,
     update_import_job,
 )
@@ -316,6 +317,29 @@ def get_job_endpoint(project_id: str, job_id: str, session: Session = Depends(ge
     elif processing_job_is_stale(job):
         job = fail_stale_processing_job(session, job)
     return job
+
+
+@router.post("/projects/{project_id}/jobs/{job_id}/cancel", response_model=JobRead)
+def cancel_job_endpoint(
+    project_id: str,
+    job_id: str,
+    response: Response,
+    session: Session = Depends(get_session),
+):
+    job = session.get(ProcessingJob, job_id)
+    if job is None or job.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Processing job not found")
+    if import_job_is_stale(job):
+        job = fail_stale_import_job(session, job)
+    elif processing_job_is_stale(job):
+        job = fail_stale_processing_job(session, job)
+    if job.job_type != "import":
+        raise HTTPException(status_code=422, detail="Only import jobs can be cancelled")
+    if job.status in {"complete", "complete_with_errors", "failed", "cancelled"}:
+        response.status_code = status.HTTP_200_OK
+        return job
+    response.status_code = status.HTTP_202_ACCEPTED
+    return request_import_job_cancellation(session, job)
 
 
 @router.post("/projects/{project_id}/jobs/{job_id}/retry", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)

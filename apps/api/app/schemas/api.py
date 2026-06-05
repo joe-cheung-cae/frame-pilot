@@ -116,6 +116,8 @@ class JobRead(BaseModel):
     failed_items: int
     progress_percent: float
     error_message: str | None
+    cancellation_requested: bool = False
+    cancelled_at: datetime | None = None
     started_at: datetime | None
     completed_at: datetime | None
     retryable: bool = False

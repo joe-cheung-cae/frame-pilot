@@ -32,6 +32,7 @@ DERIVATIVE_RESAMPLE = Image.Resampling.BICUBIC
 DERIVATIVE_REDUCING_GAP = 2.0
 IMPORT_JOB_UPDATE_MIN_SECONDS = 0.75
 STALE_IMPORT_JOB_AFTER = 30 * 60
+TERMINAL_IMPORT_JOB_STATUSES = {"complete", "complete_with_errors", "failed", "cancelled"}
 
 ImportProgressCallback = Callable[[str], None]
 
@@ -190,6 +191,19 @@ def fail_stale_import_job(session: Session, job: ProcessingJob) -> ProcessingJob
     job.failed_items = max(0, job.total_items - job.processed_items) if job.total_items else 1
     job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
     job.completed_at = now
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def request_import_job_cancellation(session: Session, job: ProcessingJob) -> ProcessingJob:
+    if job.job_type != "import" or job.status in TERMINAL_IMPORT_JOB_STATUSES:
+        return job
+    now = utc_now()
+    job.cancellation_requested = True
+    job.current_step = "cancellation_requested"
     job.updated_at = now
     session.add(job)
     session.commit()
@@ -756,6 +770,29 @@ def _fail_import_job(session: Session, job: ProcessingJob, reason: str) -> Proce
     return job
 
 
+def _cancel_import_job(session: Session, job: ProcessingJob, processed_count: int, failed_count: int) -> ProcessingJob:
+    now = utc_now()
+    job.status = "cancelled"
+    job.current_step = "cancelled"
+    job.processed_items = processed_count
+    job.failed_items = failed_count
+    job.progress_percent = _progress_percent(processed_count, failed_count, job.total_items)
+    job.error_message = "Import job was cancelled by user request"
+    job.cancellation_requested = True
+    job.cancelled_at = now
+    job.completed_at = now
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def _import_job_cancellation_requested(session: Session, job: ProcessingJob) -> bool:
+    session.refresh(job)
+    return job.cancellation_requested and job.status not in TERMINAL_IMPORT_JOB_STATUSES
+
+
 def _mark_import_photo_failed(session: Session, photo: Photo, reason: str) -> None:
     photo.processing_state = "failed"
     photo.processing_error = reason
@@ -790,8 +827,14 @@ def run_import_derivative_job(
             failed_count,
             force=True,
         )
+        if _import_job_cancellation_requested(session, job):
+            _cancel_import_job(session, job, processed_count, failed_count)
+            return
 
         for index, photo_id in enumerate(photo_ids, start=1):
+            if _import_job_cancellation_requested(session, job):
+                _cancel_import_job(session, job, processed_count, failed_count)
+                return
             photo = session.get(Photo, photo_id)
             if photo is None or photo.project_id != project.id:
                 skipped.append({"filename": photo_id, "reason": "Registered photo was not found"})
@@ -821,6 +864,9 @@ def run_import_derivative_job(
                     failed_count,
                     force=True,
                 )
+                if _import_job_cancellation_requested(session, job):
+                    _cancel_import_job(session, job, processed_count, failed_count)
+                    return
                 continue
 
             def progress_callback(
@@ -848,6 +894,9 @@ def run_import_derivative_job(
                     failed_count,
                     force=True,
                 )
+                if _import_job_cancellation_requested(session, job):
+                    _cancel_import_job(session, job, processed_count, failed_count)
+                    return
             except ValueError as error:
                 _mark_import_photo_failed(session, photo, str(error))
                 skipped.append({"filename": photo.filename, "reason": str(error)})
@@ -860,5 +909,8 @@ def run_import_derivative_job(
                     failed_count,
                     force=True,
                 )
+                if _import_job_cancellation_requested(session, job):
+                    _cancel_import_job(session, job, processed_count, failed_count)
+                    return
 
         complete_import_job(session, job, processed_count, skipped)

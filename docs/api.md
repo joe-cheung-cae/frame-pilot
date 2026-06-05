@@ -16,6 +16,7 @@ POST   /api/projects/{project_id}/imports
 POST   /api/projects/{project_id}/process
 GET    /api/projects/{project_id}/jobs
 GET    /api/projects/{project_id}/jobs/{job_id}
+POST   /api/projects/{project_id}/jobs/{job_id}/cancel
 POST   /api/projects/{project_id}/jobs/{job_id}/retry
 
 GET    /api/projects/{project_id}/photos
@@ -119,6 +120,8 @@ The response contains accepted photo records, synchronously skipped files, impor
     "failed_items": 1,
     "progress_percent": 50.0,
     "error_message": null,
+    "cancellation_requested": false,
+    "cancelled_at": null,
     "started_at": "2026-06-02T12:00:00Z",
     "completed_at": null,
     "retryable": false
@@ -126,7 +129,7 @@ The response contains accepted photo records, synchronously skipped files, impor
 }
 ```
 
-The import endpoint is upload/register-bound: it returns after supported files are copied into the project, file identity metadata is recorded, photo rows are created or safely reused, and an import job is created. Expensive derivative generation, metadata extraction, scoring, perceptual hashing, and embedding generation continue in a FastAPI in-process background task that opens a fresh database session. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the import job reaches `complete`, `complete_with_errors`, or `failed`, then reload photos before assuming previews or scores are ready.
+The import endpoint is upload/register-bound: it returns after supported files are copied into the project, file identity metadata is recorded, photo rows are created or safely reused, and an import job is created. Expensive derivative generation, metadata extraction, scoring, perceptual hashing, and embedding generation continue in a FastAPI in-process background task that opens a fresh database session. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the import job reaches `complete`, `complete_with_errors`, `failed`, or `cancelled`, then reload photos before assuming previews or scores are ready.
 
 This background path improves request responsiveness and visible progress, but it is not durable across API process exits. A durable local worker would be needed before interrupted derivative jobs can resume automatically after a backend restart.
 
@@ -135,6 +138,7 @@ Import job statuses are:
 - `complete`: all selected files imported or were safely reused.
 - `complete_with_errors`: at least one file imported or was safely reused, and at least one file was skipped or failed during derivative generation.
 - `failed`: every selected file was skipped or every accepted file failed derivative generation.
+- `cancelled`: the user requested cooperative cancellation and the local background worker stopped at a safe checkpoint.
 
 If every file is skipped during synchronous validation, the endpoint returns `422` and the failed import job remains visible through `GET /api/projects/{project_id}/jobs`. Importing new photos invalidates previous groups and AI recommendations, so processing should be run again after the import job reaches a terminal state. Re-importing a file with the same uploaded filename and SHA-256 content hash reuses the existing project photo record and existing generated thumbnail/preview when they are still present; this does not create a duplicate record or reset user review status.
 The singular `/api/projects/{project_id}/import` route remains available as a backward-compatible alias.
@@ -148,7 +152,9 @@ If an earlier queued or running processing job has not updated for more than 30 
 
 `GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls the returned import job after upload/register returns, and the processing UI uses job history to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job has not updated for more than 30 minutes, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
 
-`POST /api/projects/{project_id}/jobs/{job_id}/retry` retries failed or `complete_with_errors` import jobs. It creates a new local import job and reruns derivative/scoring/hash/embedding work for project photos whose generated thumbnail or preview is missing, or whose import state is still `processing` or `failed`. It does not re-register uploaded files, duplicate photo records, reset `user_status`, reset `star_rating`, delete generated derivatives, delete copied originals, or modify source photos. Existing valid thumbnail and preview files are reused; missing derivatives are regenerated from the local copied original when possible. If some photos recover and others cannot be rebuilt, the retry job finishes as `complete_with_errors` and records failed items on the affected photos. If another import job is already queued or running, retry returns `409`.
+`POST /api/projects/{project_id}/jobs/{job_id}/cancel` requests cooperative cancellation for a queued or running import job. It sets `cancellation_requested` and returns the updated job with `202 Accepted`; terminal import jobs return as a safe no-op with `200 OK`. This endpoint does not kill the API process, delete original files, delete copied originals, or remove generated derivatives. The background worker checks the request before each photo and after each photo-level derivative/scoring/hash pass, then marks the job `cancelled` with `cancelled_at` and `completed_at` once it reaches a safe checkpoint. Already completed photo derivatives remain cached, while unprocessed photos stay retryable.
+
+`POST /api/projects/{project_id}/jobs/{job_id}/retry` retries failed, `complete_with_errors`, or `cancelled` import jobs. It creates a new local import job and reruns derivative/scoring/hash/embedding work for project photos whose generated thumbnail or preview is missing, or whose import state is still `processing` or `failed`. It does not re-register uploaded files, duplicate photo records, reset `user_status`, reset `star_rating`, delete generated derivatives, delete copied originals, or modify source photos. Existing valid thumbnail and preview files are reused; missing derivatives are regenerated from the local copied original when possible. If some photos recover and others cannot be rebuilt, the retry job finishes as `complete_with_errors` and records failed items on the affected photos. If another import job is already queued or running, retry returns `409`.
 
 A job includes:
 
@@ -164,6 +170,8 @@ A job includes:
   "failed_items": 0,
   "progress_percent": 33.33,
   "error_message": null,
+  "cancellation_requested": false,
+  "cancelled_at": null,
   "started_at": "2026-06-02T12:00:00Z",
   "completed_at": null,
   "retryable": false

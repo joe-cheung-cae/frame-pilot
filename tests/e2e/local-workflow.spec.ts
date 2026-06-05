@@ -34,6 +34,8 @@ const completedJob = {
   failed_items: 0,
   progress_percent: 100,
   error_message: null,
+  cancellation_requested: false,
+  cancelled_at: null,
   started_at: "2026-06-02T00:00:00Z",
   completed_at: "2026-06-02T00:00:01Z",
   retryable: false,
@@ -368,6 +370,27 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.route(`**/api/projects/${project.id}/jobs/**`, async (route) => {
+    if (route.request().method() === "POST" && route.request().url().endsWith("/cancel")) {
+      const cancelledJob = {
+        ...completedJob,
+        id: currentJob?.id ?? "import-job-cancelled",
+        job_type: "import",
+        status: "cancelled",
+        current_step: "cancelled",
+        total_items: currentJob?.total_items ?? currentProject.total_images,
+        processed_items: currentJob?.processed_items ?? 0,
+        failed_items: currentJob?.failed_items ?? 0,
+        progress_percent: currentJob?.progress_percent ?? 0,
+        error_message: "Import job was cancelled by user request",
+        cancellation_requested: true,
+        cancelled_at: "2026-01-01T00:00:01Z",
+        completed_at: "2026-01-01T00:00:01Z",
+        retryable: true,
+      };
+      currentJob = cancelledJob;
+      await route.fulfill({ json: cancelledJob, status: 202 });
+      return;
+    }
     if (route.request().method() === "POST" && route.request().url().endsWith("/retry")) {
       const retryJob = {
         ...completedJob,
@@ -439,6 +462,8 @@ test.beforeEach(async ({ page }) => {
       error_message: skipped.length ? `${skipped.length} file${skipped.length === 1 ? "" : "s"} skipped` : null,
       started_at: "2026-01-01T00:00:00Z",
       completed_at: "2026-01-01T00:00:01Z",
+      cancellation_requested: false,
+      cancelled_at: null,
       retryable: Boolean(skipped.length),
     };
     await route.fulfill({
@@ -1301,6 +1326,41 @@ test("shows active import job progress while an upload is pending", async ({ pag
   await expect(page.getByText("Import Complete")).toBeVisible();
   await expect(page.getByText("5 of 5 files · 0 failed · 100%")).toBeVisible();
   await expect(page.getByText("preview_generation 2 of 5")).toHaveCount(0);
+});
+
+test("shows cancel and retry controls for import cancellation", async ({ page }) => {
+  const runningImportJob = {
+    ...completedJob,
+    id: "import-job-cancellable",
+    job_type: "import",
+    status: "running",
+    current_step: "quality_scoring 2 of 5",
+    total_items: 5,
+    processed_items: 2,
+    failed_items: 0,
+    progress_percent: 40,
+    error_message: null,
+    completed_at: null,
+  };
+
+  await page.unroute(projectListRoute("jobs"));
+  await page.route(projectListRoute("jobs"), async (route) => {
+    await route.fulfill({ json: [runningImportJob] });
+  });
+
+  await page.goto(`/projects/${project.id}/import`);
+
+  await expect(page.getByText("Import Running")).toBeVisible();
+  await expect(page.getByText("2 of 5 files · 0 failed · 40%")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel Import" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Cancel Import" }).click();
+
+  await expect(page.getByText("Import Cancelled")).toBeVisible();
+  await expect(page.getByText("Import job was cancelled by user request")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry Import" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel Import" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Process Project" })).toBeDisabled();
 });
 
 test("shows skipped files after a mixed import", async ({ page }) => {

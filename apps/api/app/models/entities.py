@@ -94,6 +94,8 @@ class ProcessingJob(SQLModel, table=True):
     failed_items: int = 0
     progress_percent: float = 0.0
     error_message: str | None = None
+    cancellation_requested: bool = False
+    cancelled_at: datetime | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)
@@ -101,7 +103,7 @@ class ProcessingJob(SQLModel, table=True):
 
     @property
     def retryable(self) -> bool:
-        return self.job_type == "import" and self.status in {"failed", "complete_with_errors"}
+        return self.job_type == "import" and self.status in {"failed", "complete_with_errors", "cancelled"}
 
 
 class ExportRecord(SQLModel, table=True):

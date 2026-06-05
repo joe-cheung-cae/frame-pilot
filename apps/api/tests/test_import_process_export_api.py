@@ -16,6 +16,7 @@ from app.api import routes
 from app.db.session import get_engine
 from app.main import create_app
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project
+from app.services import importing
 from app.services.grouping import SimilarPhotoGroup
 from app.services.importing import (
     PREVIEW_LONG_EDGE,
@@ -32,7 +33,7 @@ from app.services.importing import (
 def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
     current = job
     for _ in range(20):
-        if current["status"] in {"complete", "complete_with_errors", "failed"}:
+        if current["status"] in {"complete", "complete_with_errors", "failed", "cancelled"}:
             return current
         response = client.get(f"/api/projects/{project_id}/jobs/{current['id']}")
         assert response.status_code == 200
@@ -1121,6 +1122,159 @@ def test_retry_stale_import_job_recovers_missing_derivatives_and_preserves_revie
     assert Path(recovered_photo["thumbnail_path"]).is_file()
     assert Path(recovered_photo["preview_path"]).is_file()
     assert original_path.read_bytes() == original_bytes
+
+
+def test_cancel_import_job_persists_request_and_exposes_job_state(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    scheduled_tasks: list[tuple[object, tuple, dict]] = []
+
+    def capture_background_task(self, func, *args, **kwargs):
+        scheduled_tasks.append((func, args, kwargs))
+
+    monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel import request"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    job = import_response.json()["job"]
+
+    cancel_response = client.post(f"/api/projects/{project['id']}/jobs/{job['id']}/cancel")
+
+    assert cancel_response.status_code == 202
+    cancelled = cancel_response.json()
+    assert cancelled["id"] == job["id"]
+    assert cancelled["status"] == "running"
+    assert cancelled["cancellation_requested"] is True
+    assert cancelled["cancelled_at"] is None
+    assert cancelled["retryable"] is False
+
+    polled = client.get(f"/api/projects/{project['id']}/jobs/{job['id']}").json()
+    assert polled["cancellation_requested"] is True
+
+
+def test_cancel_terminal_import_job_is_safe_noop(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel complete import"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    completed_job = _wait_for_job(client, project["id"], import_response.json()["job"])
+    assert completed_job["status"] == "complete"
+
+    cancel_response = client.post(f"/api/projects/{project['id']}/jobs/{completed_job['id']}/cancel")
+
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] == "complete"
+    assert cancel_response.json()["cancellation_requested"] is False
+
+
+def test_cancelled_import_job_stops_safely_and_retry_preserves_review_state(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    scheduled_tasks: list[tuple[object, tuple, dict]] = []
+
+    def capture_background_task(self, func, *args, **kwargs):
+        scheduled_tasks.append((func, args, kwargs))
+
+    monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
+    client = TestClient(create_app())
+    cancel_client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel and retry import"}).json()
+    first_bytes = _image_bytes(color=(130, 150, 90))
+    second_bytes = _image_bytes(color=(90, 130, 150))
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[
+            ("files", ("first.jpg", first_bytes, "image/jpeg")),
+            ("files", ("second.jpg", second_bytes, "image/jpeg")),
+        ],
+    )
+    assert import_response.status_code == 201
+    import_result = import_response.json()
+    original_job_id = import_result["job"]["id"]
+    first_photo_id = import_result["imported"][0]["id"]
+    second_photo_id = import_result["imported"][1]["id"]
+    client.patch(
+        f"/api/projects/{project['id']}/photos/{first_photo_id}",
+        json={"user_status": "Pick", "star_rating": 5},
+    )
+    client.patch(
+        f"/api/projects/{project['id']}/photos/{second_photo_id}",
+        json={"user_status": "Maybe", "star_rating": 3},
+    )
+    with Session(get_engine()) as session:
+        first_photo = session.get(Photo, first_photo_id)
+        second_photo = session.get(Photo, second_photo_id)
+        assert first_photo is not None
+        assert second_photo is not None
+        first_original_path = Path(first_photo.project_copy_path or first_photo.original_path)
+        second_original_path = Path(second_photo.project_copy_path or second_photo.original_path)
+        first_original_bytes = first_original_path.read_bytes()
+        second_original_bytes = second_original_path.read_bytes()
+
+    original_process_registered_import_photo = importing.process_registered_import_photo
+    processed_calls = 0
+
+    def cancelling_process_registered_import_photo(*args, **kwargs):
+        nonlocal processed_calls
+        result = original_process_registered_import_photo(*args, **kwargs)
+        processed_calls += 1
+        if processed_calls == 1:
+            response = cancel_client.post(f"/api/projects/{project['id']}/jobs/{original_job_id}/cancel")
+            assert response.status_code == 202
+        return result
+
+    monkeypatch.setattr(importing, "process_registered_import_photo", cancelling_process_registered_import_photo)
+    task, args, kwargs = scheduled_tasks[-1]
+    task(*args, **kwargs)
+
+    cancelled_job = client.get(f"/api/projects/{project['id']}/jobs/{original_job_id}").json()
+    assert cancelled_job["status"] == "cancelled"
+    assert cancelled_job["current_step"] == "cancelled"
+    assert cancelled_job["processed_items"] == 1
+    assert cancelled_job["failed_items"] == 0
+    assert cancelled_job["cancellation_requested"] is True
+    assert cancelled_job["cancelled_at"] is not None
+    assert cancelled_job["retryable"] is True
+
+    first_after_cancel = client.get(f"/api/projects/{project['id']}/photos/{first_photo_id}").json()
+    second_after_cancel = client.get(f"/api/projects/{project['id']}/photos/{second_photo_id}").json()
+    assert first_after_cancel["processing_state"] == "imported"
+    assert first_after_cancel["thumbnail_path"]
+    assert first_after_cancel["preview_path"]
+    assert second_after_cancel["processing_state"] == "processing"
+    assert second_after_cancel["thumbnail_path"] is None
+    assert second_after_cancel["preview_path"] is None
+
+    retry_response = client.post(f"/api/projects/{project['id']}/jobs/{original_job_id}/retry")
+    assert retry_response.status_code == 202
+    retry_job = retry_response.json()
+    assert retry_job["total_items"] == 1
+    monkeypatch.setattr(importing, "process_registered_import_photo", original_process_registered_import_photo)
+    task, args, kwargs = scheduled_tasks[-1]
+    task(*args, **kwargs)
+
+    completed_retry = client.get(f"/api/projects/{project['id']}/jobs/{retry_job['id']}").json()
+    assert completed_retry["status"] == "complete"
+    assert completed_retry["processed_items"] == 1
+    photos = client.get(f"/api/projects/{project['id']}/photos").json()
+    assert {photo["id"] for photo in photos} == {first_photo_id, second_photo_id}
+    assert len(photos) == 2
+    by_id = {photo["id"]: photo for photo in photos}
+    assert by_id[first_photo_id]["user_status"] == "Pick"
+    assert by_id[first_photo_id]["star_rating"] == 5
+    assert by_id[second_photo_id]["user_status"] == "Maybe"
+    assert by_id[second_photo_id]["star_rating"] == 3
+    assert by_id[second_photo_id]["processing_state"] == "imported"
+    assert Path(by_id[second_photo_id]["thumbnail_path"]).is_file()
+    assert Path(by_id[second_photo_id]["preview_path"]).is_file()
+    assert first_original_path.read_bytes() == first_original_bytes
+    assert second_original_path.read_bytes() == second_original_bytes
 
 
 def test_retry_import_job_reuses_existing_derivatives_and_clears_failed_photo_state(tmp_path, monkeypatch):

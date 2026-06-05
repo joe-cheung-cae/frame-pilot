@@ -5,7 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { ChangeEvent, useEffect, useState } from "react";
-import { FileImage, Loader2, Play, RotateCcw } from "lucide-react";
+import { FileImage, Loader2, Play, RotateCcw, StopCircle } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import {
   activeJobOfType,
@@ -66,6 +66,14 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
   });
+  const cancelMutation = useMutation({
+    mutationFn: (jobId: string) => api.cancelJob(projectId, jobId),
+    onSuccess: async (job) => {
+      setMessage("Cancellation requested. Finishing the current safe checkpoint...");
+      setCurrentImportJobId(job.id);
+      await invalidateProjectWorkflowQueries(queryClient, projectId);
+    },
+  });
   const importJobsQuery = useQuery({
     queryKey: ["jobs", projectId, "import-active"],
     queryFn: () => api.listJobs(projectId, { limit: 10, offset: 0 }),
@@ -93,14 +101,14 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     if (!job || job.id === completedImportJobId) {
       return;
     }
-    if (!["complete", "complete_with_errors", "failed"].includes(job.status)) {
+    if (!["complete", "complete_with_errors", "failed", "cancelled"].includes(job.status)) {
       return;
     }
 
     setCompletedImportJobId(job.id);
     void (async () => {
       await invalidateProjectWorkflowQueries(queryClient, projectId);
-      if (job.status === "failed") {
+      if (job.status === "failed" || job.status === "cancelled") {
         setMessage("");
         return;
       }
@@ -126,8 +134,17 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   const importJob = currentImportJobQuery.data ?? activeImportJob ?? mutation.data?.job ?? latestImportJob;
   const isImportRunning = importJob?.status === "queued" || importJob?.status === "running" || mutation.isPending;
   const canProcessProject =
-    !isImportRunning && importJob?.status !== "failed" && Boolean(project.data?.total_images || recentImports.length);
+    !isImportRunning &&
+    importJob?.status !== "failed" &&
+    importJob?.status !== "cancelled" &&
+    Boolean(project.data?.total_images || recentImports.length);
   const canRetryImport = Boolean(importJob?.retryable) && !isImportRunning && !retryMutation.isPending;
+  const canCancelImport =
+    Boolean(importJob) &&
+    importJob?.job_type === "import" &&
+    (importJob.status === "queued" || importJob.status === "running") &&
+    !importJob.cancellation_requested &&
+    !cancelMutation.isPending;
   const importProgress = processingProgressPercent(importJob);
 
   return (
@@ -180,11 +197,24 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           <p className="text-neutral-700">{importJob.current_step}</p>
           <div className="h-2 rounded bg-mist">
             <div
-              className={`h-2 rounded ${importJob.status === "failed" ? "bg-coral" : "bg-leaf"}`}
+              className={`h-2 rounded ${importJob.status === "failed" || importJob.status === "cancelled" ? "bg-coral" : "bg-leaf"}`}
               style={{ width: `${importProgress}%` }}
             />
           </div>
           {importJob.error_message ? <p className="text-coral">{importJob.error_message}</p> : null}
+          {importJob.cancellation_requested && importJob.status !== "cancelled" ? (
+            <p className="text-neutral-600">Cancellation requested. FramePilot will stop after a safe checkpoint.</p>
+          ) : null}
+          {canCancelImport ? (
+            <button
+              className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line bg-white px-3 py-2 font-medium"
+              onClick={() => cancelMutation.mutate(importJob.id)}
+              type="button"
+            >
+              <StopCircle size={16} />
+              Cancel Import
+            </button>
+          ) : null}
           {canRetryImport ? (
             <button
               className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line bg-white px-3 py-2 font-medium"
@@ -251,6 +281,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
         </div>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
+      {cancelMutation.isError ? <p className="text-sm text-coral">{cancelMutation.error.message}</p> : null}
       {retryMutation.isError ? <p className="text-sm text-coral">{retryMutation.error.message}</p> : null}
       {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
       {canProcessProject ? (

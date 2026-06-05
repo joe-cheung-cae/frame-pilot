@@ -134,6 +134,10 @@ def _ensure_processing_job_columns(engine) -> None:
         statements.append("ALTER TABLE processingjob ADD COLUMN failed_items INTEGER NOT NULL DEFAULT 0")
     if "progress_percent" not in existing:
         statements.append("ALTER TABLE processingjob ADD COLUMN progress_percent FLOAT NOT NULL DEFAULT 0")
+    if "cancellation_requested" not in existing:
+        statements.append("ALTER TABLE processingjob ADD COLUMN cancellation_requested BOOLEAN NOT NULL DEFAULT 0")
+    if "cancelled_at" not in existing:
+        statements.append("ALTER TABLE processingjob ADD COLUMN cancelled_at DATETIME")
     if "started_at" not in existing:
         statements.append("ALTER TABLE processingjob ADD COLUMN started_at DATETIME")
     if "completed_at" not in existing:

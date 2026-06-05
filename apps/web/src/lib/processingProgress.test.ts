@@ -14,6 +14,7 @@ test("formats processing status labels", () => {
   assert.equal(processingStatusLabel(undefined), "Ready");
   assert.equal(processingStatusLabel("running"), "Running");
   assert.equal(processingStatusLabel("complete_with_errors"), "Complete with errors");
+  assert.equal(processingStatusLabel("cancelled"), "Cancelled");
   assert.equal(processingStatusLabel("failed"), "Failed");
 });
 
