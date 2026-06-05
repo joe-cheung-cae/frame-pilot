@@ -1,6 +1,6 @@
 {
   "name": "frame-pilot",
-  "version": "0.1.0",
+  "version": "2.0.0-rc2",
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
@@ -13,10 +13,11 @@
     "lint:api": ".venv/bin/ruff check apps/api",
     "lint:web": "npm --prefix apps/web run lint",
     "typecheck": "npm --prefix apps/web run typecheck",
-    "verify": "npm run lint && npm run typecheck && npm run test",
-    "test": "npm run test:api && npm run test:web",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run check:artifacts",
+    "test": "npm run test:api && npm run test:web && npm run test:scripts",
     "test:api": ".venv/bin/pytest apps/api/tests",
     "test:web": "npm --prefix apps/web run test:unit && npm --prefix apps/web run build",
+    "test:scripts": "bash scripts/test-release-checks.sh",
     "test:e2e": "bash scripts/run-e2e.sh",
     "test:e2e:real-browser": "npm run test:e2e -- tests/e2e/real-browser-backend-performance.spec.ts --project=chromium",
     "test:e2e:real-browser:trace": "FRAMEPILOT_BROWSER_PERF_TRACE=1 npm run test:e2e:real-browser",
@@ -25,7 +26,10 @@
     "generate:synthetic": ".venv/bin/python -m app.devtools.synthetic_dataset",
     "perf:api": ".venv/bin/python -m app.devtools.performance_smoke",
     "install:all": "python3 -m venv .venv && .venv/bin/python -m pip install -e 'apps/api[dev]' && npm install && npm --prefix apps/web install",
-    "build": "npm --prefix apps/web run build"
+    "build": "npm --prefix apps/web run build",
+    "check:artifacts": "bash scripts/check-release-artifacts.sh",
+    "check:validation-decision": "bash scripts/check-validation-decision.sh",
+    "check:pretag": "npm run verify && npm run check:validation-decision"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

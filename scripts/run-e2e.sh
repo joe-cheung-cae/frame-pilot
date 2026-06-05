@@ -14,5 +14,6 @@ trap restore_next_env EXIT
 
 export NO_PROXY="127.0.0.1,localhost"
 export no_proxy="127.0.0.1,localhost"
+unset NO_COLOR
 
 playwright test "$@"

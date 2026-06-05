@@ -16,7 +16,7 @@ async def lifespan(_app: FastAPI):
 
 def create_app() -> FastAPI:
     reset_settings_cache()
-    app = FastAPI(title="FramePilot API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="FramePilot API", version="2.0.0-rc2", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
