@@ -32,12 +32,25 @@ from app.services.importing import (
 def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
     current = job
     for _ in range(20):
-        if current["status"] in {"complete", "failed"}:
+        if current["status"] in {"complete", "complete_with_errors", "failed"}:
             return current
         response = client.get(f"/api/projects/{project_id}/jobs/{current['id']}")
         assert response.status_code == 200
         current = response.json()
     return current
+
+
+def _wait_for_imported_photo(
+    client: TestClient,
+    project_id: str,
+    import_result: dict,
+    index: int = 0,
+) -> tuple[dict, dict]:
+    job = _wait_for_job(client, project_id, import_result["job"])
+    photo_id = import_result["imported"][index]["id"]
+    photo_response = client.get(f"/api/projects/{project_id}/photos/{photo_id}")
+    assert photo_response.status_code == 200
+    return job, photo_response.json()
 
 
 def _image_bytes(color: tuple[int, int, int] = (120, 150, 90), blur: bool = False) -> bytes:
@@ -107,13 +120,17 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     assert import_result["timing"] is None
     assert import_result["skipped"] == []
     assert import_result["job"]["job_type"] == "import"
-    assert import_result["job"]["status"] == "complete"
-    assert import_result["job"]["current_step"] == "complete"
+    assert import_result["job"]["status"] == "running"
+    assert import_result["job"]["current_step"] == "derivative_generation"
     assert import_result["job"]["total_items"] == 1
-    assert import_result["job"]["processed_items"] == 1
+    assert import_result["job"]["processed_items"] == 0
     assert import_result["job"]["failed_items"] == 0
-    assert import_result["job"]["progress_percent"] == 100.0
-    photo = import_result["imported"][0]
+    import_job, photo = _wait_for_imported_photo(client, project["id"], import_result)
+    assert import_job["status"] == "complete"
+    assert import_job["current_step"] == "complete"
+    assert import_job["processed_items"] == 1
+    assert import_job["failed_items"] == 0
+    assert import_job["progress_percent"] == 100.0
     assert photo["filename"] == "frame.jpg"
     assert photo["file_ext"] == ".jpg"
     assert photo["file_mtime"] is not None
@@ -185,15 +202,15 @@ def test_import_job_is_visible_while_import_request_is_running(tmp_path, monkeyp
     import_started = threading.Event()
     release_import = threading.Event()
     import_result: dict[str, object] = {}
-    original_import_image_file = routes.import_image_file
+    original_register_import_file = routes.register_import_file
 
-    def held_import_image_file(*args, **kwargs):
+    def held_register_import_file(*args, **kwargs):
         import_started.set()
         if not release_import.wait(timeout=10):
             raise RuntimeError("Timed out waiting to release held import")
-        return original_import_image_file(*args, **kwargs)
+        return original_register_import_file(*args, **kwargs)
 
-    monkeypatch.setattr(routes, "import_image_file", held_import_image_file)
+    monkeypatch.setattr(routes, "register_import_file", held_register_import_file)
 
     def post_import() -> None:
         try:
@@ -227,8 +244,66 @@ def test_import_job_is_visible_while_import_request_is_running(tmp_path, monkeyp
     assert response.status_code == 201
     completed_job = response.json()["job"]
     assert completed_job["job_type"] == "import"
+    assert completed_job["status"] == "running"
+    job = _wait_for_job(polling_client, project["id"], completed_job)
+    assert job["status"] == "complete"
+    assert job["processed_items"] == 1
+
+
+def test_import_returns_before_background_derivatives_complete(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    scheduled_tasks: list[tuple[object, tuple, dict]] = []
+
+    def capture_background_task(self, func, *args, **kwargs):
+        scheduled_tasks.append((func, args, kwargs))
+
+    monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Background import"}).json()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+
+    assert import_response.status_code == 201
+    import_result = import_response.json()
+    assert len(scheduled_tasks) == 1
+    assert import_result["skipped"] == []
+    assert import_result["job"]["job_type"] == "import"
+    assert import_result["job"]["status"] == "running"
+    assert import_result["job"]["current_step"] == "derivative_generation"
+    assert import_result["job"]["total_items"] == 1
+    assert import_result["job"]["processed_items"] == 0
+    assert import_result["job"]["failed_items"] == 0
+    photo = import_result["imported"][0]
+    assert photo["filename"] == "frame.jpg"
+    assert photo["processing_state"] == "processing"
+    assert photo["thumbnail_path"] is None
+    assert photo["preview_path"] is None
+    assert photo["perceptual_hash"] is None
+
+    job_response = client.get(f"/api/projects/{project['id']}/jobs/{import_result['job']['id']}")
+    assert job_response.status_code == 200
+    assert job_response.json()["status"] == "running"
+
+    task, args, kwargs = scheduled_tasks[0]
+    task(*args, **kwargs)
+
+    completed_job = client.get(f"/api/projects/{project['id']}/jobs/{import_result['job']['id']}").json()
     assert completed_job["status"] == "complete"
+    assert completed_job["current_step"] == "complete"
     assert completed_job["processed_items"] == 1
+    assert completed_job["failed_items"] == 0
+
+    completed_photo = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
+    assert completed_photo["processing_state"] == "imported"
+    assert completed_photo["processing_error"] is None
+    assert completed_photo["thumbnail_path"]
+    assert completed_photo["preview_path"]
+    assert completed_photo["perceptual_hash"]
+    assert Path(completed_photo["thumbnail_path"]).is_file()
+    assert Path(completed_photo["preview_path"]).is_file()
 
 
 def test_import_writes_bounded_webp_derivatives(tmp_path, monkeypatch):
@@ -247,7 +322,7 @@ def test_import_writes_bounded_webp_derivatives(tmp_path, monkeypatch):
         )
 
     assert response.status_code == 201
-    photo = response.json()["imported"][0]
+    _import_job, photo = _wait_for_imported_photo(client, project["id"], response.json())
     assert source_path.read_bytes() == source_bytes
     assert source_path.stat().st_mtime_ns == source_mtime_ns
     assert Path(photo["project_copy_path"]) != source_path
@@ -304,21 +379,13 @@ def test_import_timing_is_returned_only_when_requested(tmp_path, monkeypatch):
     stages = timing["stages"]
     for stage in [
         "file_copy",
-        "image_open",
-        "metadata_extraction",
-        "image_decode",
-        "thumbnail_generation",
-        "preview_generation",
-        "quality_scoring",
-        "embedding_generation",
-        "perceptual_hash",
         "content_hash",
+        "file_stat",
         "db_record_create",
         "db_commit",
         "processing_invalidation",
         "import_endpoint_commit",
         "import_endpoint_total",
-        "import_file_total",
     ]:
         assert stages[stage]["calls"] >= 1
         assert stages[stage]["seconds"] >= 0
@@ -335,7 +402,7 @@ def test_import_extracts_basic_exif_metadata(tmp_path, monkeypatch):
     )
 
     assert import_response.status_code == 201
-    photo = import_response.json()["imported"][0]
+    _import_job, photo = _wait_for_imported_photo(client, project["id"], import_response.json())
     assert photo["capture_time"] == "2026-01-02T03:04:05"
     assert photo["camera_model"] == "FramePilotCam"
     assert photo["lens_model"] == "FramePilot 35mm"
@@ -408,10 +475,13 @@ def test_full_local_api_workflow_with_generated_images_and_downloads(tmp_path, m
             "reason": "Only JPEG, PNG, and WebP files are supported",
         },
     ]
+    import_job, imported_photo = _wait_for_imported_photo(client, project["id"], import_result)
+    assert import_job["status"] == "complete_with_errors"
+    assert import_job["processed_items"] == 2
+    assert import_job["failed_items"] == 1
     assert sharp_source.read_bytes() == sharp_bytes
     assert sharp_source.stat().st_mtime_ns == original_source_stat.st_mtime_ns
 
-    imported_photo = import_result["imported"][0]
     with Session(get_engine()) as session:
         stored_photo = session.get(Photo, imported_photo["id"])
         assert stored_photo is not None
@@ -526,7 +596,7 @@ def test_plural_export_routes_create_list_get_and_download(tmp_path, monkeypatch
         f"/api/projects/{project['id']}/import",
         files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
     )
-    photo = import_response.json()["imported"][0]
+    _import_job, photo = _wait_for_imported_photo(client, project["id"], import_response.json())
     client.patch(
         f"/api/projects/{project['id']}/photos/{photo['id']}",
         json={"user_status": "Pick"},
@@ -1013,7 +1083,7 @@ def test_process_rerun_regenerates_missing_derivative_for_processed_project(tmp_
         files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
     )
     assert import_response.status_code == 201
-    photo = import_response.json()["imported"][0]
+    _import_job, photo = _wait_for_imported_photo(client, project["id"], import_response.json())
 
     first_job = _wait_for_job(client, project["id"], client.post(f"/api/projects/{project['id']}/process").json())
     assert first_job["status"] == "complete"
@@ -1165,7 +1235,7 @@ def test_processing_regenerates_missing_generated_derivative(tmp_path, monkeypat
         files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
     )
     assert import_response.status_code == 201
-    photo = import_response.json()["imported"][0]
+    _import_job, photo = _wait_for_imported_photo(client, project["id"], import_response.json())
     old_thumbnail_path = Path(photo["thumbnail_path"])
     old_preview_path = Path(photo["preview_path"])
     Path(photo["thumbnail_path"]).unlink()
@@ -1198,7 +1268,7 @@ def test_processing_records_missing_derivative_when_original_copy_is_missing(tmp
         files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
     )
     assert import_response.status_code == 201
-    photo = import_response.json()["imported"][0]
+    _import_job, photo = _wait_for_imported_photo(client, project["id"], import_response.json())
     Path(photo["thumbnail_path"]).unlink()
     Path(photo["project_copy_path"]).unlink()
 
@@ -1227,7 +1297,7 @@ def test_processing_recovers_when_missing_original_copy_is_restored(tmp_path, mo
         files=[("files", ("frame.jpg", image, "image/jpeg"))],
     )
     assert import_response.status_code == 201
-    photo = import_response.json()["imported"][0]
+    _import_job, photo = _wait_for_imported_photo(client, project["id"], import_response.json())
     thumbnail_path = Path(photo["thumbnail_path"])
     preview_path = Path(photo["preview_path"])
     copy_path = Path(photo["project_copy_path"])
@@ -1276,6 +1346,8 @@ def test_import_renames_duplicate_filenames_without_overwriting(tmp_path, monkey
 
     assert first.status_code == 201
     assert second.status_code == 201
+    _wait_for_imported_photo(client, project["id"], first.json())
+    _wait_for_imported_photo(client, project["id"], second.json())
     filenames = [first.json()["imported"][0]["filename"], second.json()["imported"][0]["filename"]]
     assert filenames == ["frame.jpg", "frame-1.jpg"]
 
@@ -1296,7 +1368,7 @@ def test_repeated_same_file_import_reuses_existing_record_and_derivatives(tmp_pa
         f"/api/projects/{project['id']}/import",
         files=[("files", ("frame.jpg", image, "image/jpeg"))],
     )
-    first_photo = first.json()["imported"][0]
+    _import_job, first_photo = _wait_for_imported_photo(client, project["id"], first.json())
     thumbnail_mtime = Path(first_photo["thumbnail_path"]).stat().st_mtime_ns
     preview_mtime = Path(first_photo["preview_path"]).stat().st_mtime_ns
 
@@ -1731,8 +1803,16 @@ def test_import_rejects_invalid_image_and_cleans_written_file(tmp_path, monkeypa
         files=[("files", ("broken.jpg", b"not an image", "image/jpeg"))],
     )
 
-    assert response.status_code == 422
-    assert not (Path(project["root_path"]) / "originals" / "broken.jpg").exists()
+    assert response.status_code == 201
+    result = response.json()
+    job = _wait_for_job(client, project["id"], result["job"])
+    assert job["status"] == "failed"
+    assert job["processed_items"] == 0
+    assert job["failed_items"] == 1
+    assert Path(result["imported"][0]["project_copy_path"]).exists()
+    failed_photo = client.get(f"/api/projects/{project['id']}/photos/{result['imported'][0]['id']}").json()
+    assert failed_photo["processing_state"] == "failed"
+    assert failed_photo["processing_error"] == "Uploaded file could not be opened as a supported image"
     with Session(get_engine()) as session:
         jobs = list(session.exec(select(ProcessingJob).where(ProcessingJob.project_id == project["id"])).all())
     assert len(jobs) == 1
@@ -1759,13 +1839,21 @@ def test_import_cleans_original_and_derivatives_when_processing_fails(tmp_path, 
         files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 201
+    result = response.json()
+    job = _wait_for_job(client, project["id"], result["job"])
+    assert job["status"] == "failed"
+    assert job["processed_items"] == 0
+    assert job["failed_items"] == 1
     root = Path(project["root_path"])
-    assert list((root / "originals").iterdir()) == []
+    assert [path.name for path in (root / "originals").iterdir()] == ["frame.jpg"]
     assert list((root / "thumbnails").iterdir()) == []
     assert list((root / "previews").iterdir()) == []
-    assert client.get(f"/api/projects/{project['id']}").json()["total_images"] == 0
-    assert client.get(f"/api/projects/{project['id']}/photos").json() == []
+    assert client.get(f"/api/projects/{project['id']}").json()["total_images"] == 1
+    photos = client.get(f"/api/projects/{project['id']}/photos").json()
+    assert len(photos) == 1
+    assert photos[0]["processing_state"] == "failed"
+    assert photos[0]["processing_error"] == "Uploaded image could not be processed"
 
 
 def test_import_skips_invalid_files_when_other_images_import_successfully(tmp_path, monkeypatch):
@@ -1784,23 +1872,27 @@ def test_import_skips_invalid_files_when_other_images_import_successfully(tmp_pa
 
     assert response.status_code == 201
     result = response.json()
-    assert [photo["filename"] for photo in result["imported"]] == ["good.jpg"]
-    assert {item["filename"] for item in result["skipped"]} == {"notes.txt", "broken.jpg"}
+    assert [photo["filename"] for photo in result["imported"]] == ["good.jpg", "broken.jpg"]
+    assert {item["filename"] for item in result["skipped"]} == {"notes.txt"}
     assert result["job"]["job_type"] == "import"
-    assert result["job"]["status"] == "complete_with_errors"
-    assert result["job"]["current_step"] == "complete"
+    assert result["job"]["status"] == "running"
+    job = _wait_for_job(client, project["id"], result["job"])
+    assert job["status"] == "complete_with_errors"
+    assert job["current_step"] == "complete"
     assert result["job"]["total_items"] == 3
-    assert result["job"]["processed_items"] == 1
-    assert result["job"]["failed_items"] == 2
-    assert result["job"]["progress_percent"] == 100.0
+    assert job["processed_items"] == 1
+    assert job["failed_items"] == 2
+    assert job["progress_percent"] == 100.0
     job_response = client.get(f"/api/projects/{project['id']}/jobs/{result['job']['id']}")
     assert job_response.status_code == 200
     assert job_response.json()["status"] == "complete_with_errors"
-    assert client.get(f"/api/projects/{project['id']}").json()["total_images"] == 1
+    assert client.get(f"/api/projects/{project['id']}").json()["total_images"] == 2
     root = Path(project["root_path"])
     assert (root / "originals" / "good.jpg").exists()
     assert not (root / "originals" / "notes.txt").exists()
-    assert not (root / "originals" / "broken.jpg").exists()
+    assert (root / "originals" / "broken.jpg").exists()
+    photos = client.get(f"/api/projects/{project['id']}/photos").json()
+    assert {photo["processing_state"] for photo in photos} == {"imported", "failed"}
 
 
 def test_import_reports_heic_and_raw_as_planned_unsupported_formats(tmp_path, monkeypatch):

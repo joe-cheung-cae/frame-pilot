@@ -52,7 +52,7 @@ def _wait_for_job(client: TestClient, project_id: str, job: dict, timeout_second
     deadline = time.monotonic() + timeout_seconds
     current = job
     while time.monotonic() < deadline:
-        if current["status"] in {"complete", "failed"}:
+        if current["status"] in {"complete", "complete_with_errors", "failed"}:
             return current
         response = client.get(f"/api/projects/{project_id}/jobs/{current['id']}")
         response.raise_for_status()
@@ -196,6 +196,7 @@ def run_performance_smoke(config: PerformanceSmokeConfig) -> dict:
 
         started = time.monotonic()
         imported_count = 0
+        import_jobs: list[dict] = []
         import_timing_batches = []
         for batch in _chunked(paths, config.import_batch_size):
             with ExitStack() as stack:
@@ -207,10 +208,18 @@ def run_performance_smoke(config: PerformanceSmokeConfig) -> dict:
             response.raise_for_status()
             import_result = response.json()
             imported_count += len(import_result["imported"])
+            import_jobs.append(import_result["job"])
             if import_result.get("timing"):
                 import_timing_batches.append(import_result["timing"])
         timings["import_seconds"] = round(time.monotonic() - started, 3)
+
+        started = time.monotonic()
+        import_jobs = [_wait_for_job(client, project["id"], job) for job in import_jobs]
+        timings["import_derivative_seconds"] = round(time.monotonic() - started, 3)
         import_timing = _aggregate_import_timing(import_timing_batches)
+        import_failed_items = sum(int(job["failed_items"]) for job in import_jobs)
+        if import_failed_items:
+            raise RuntimeError(f"{import_failed_items} imported files failed during derivative generation")
 
         started = time.monotonic()
         process_response = client.post(f"/api/projects/{project['id']}/process")

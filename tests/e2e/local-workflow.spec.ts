@@ -407,23 +407,24 @@ test.beforeEach(async ({ page }) => {
       : [];
     skipNextImport = false;
     skipManyNextImport = false;
+    currentJob = {
+      id: "import-job-1",
+      project_id: project.id,
+      job_type: "import",
+      status: skipped.length ? "complete_with_errors" : "complete",
+      current_step: "complete",
+      total_items: 1 + skipped.length,
+      processed_items: 1,
+      failed_items: skipped.length,
+      progress_percent: 100,
+      error_message: skipped.length ? `${skipped.length} file${skipped.length === 1 ? "" : "s"} skipped` : null,
+      started_at: "2026-01-01T00:00:00Z",
+      completed_at: "2026-01-01T00:00:01Z",
+    };
     await route.fulfill({
       json: {
         imported: [imported],
-        job: {
-          id: "import-job-1",
-          project_id: project.id,
-          job_type: "import",
-          status: skipped.length ? "complete_with_errors" : "complete",
-          current_step: "complete",
-          total_items: 1 + skipped.length,
-          processed_items: 1,
-          failed_items: skipped.length,
-          progress_percent: 100,
-          error_message: skipped.length ? `${skipped.length} file${skipped.length === 1 ? "" : "s"} skipped` : null,
-          started_at: "2026-01-01T00:00:00Z",
-          completed_at: "2026-01-01T00:00:01Z",
-        },
+        job: currentJob,
         skipped,
       },
       status: 201,
@@ -460,12 +461,17 @@ test.beforeEach(async ({ page }) => {
       await route.fallback();
       return;
     }
+    const photoId = route.request().url().split("/").at(-1);
+    if (route.request().method() === "GET") {
+      const photo = currentPhotos.find((item) => item.id === photoId);
+      await route.fulfill(photo ? { json: photo } : { json: { detail: "Photo not found" }, status: 404 });
+      return;
+    }
     if (failNextPhotoPatch) {
       failNextPhotoPatch = false;
       await route.fulfill({ json: { detail: "Could not save review update" }, status: 500 });
       return;
     }
-    const photoId = route.request().url().split("/").at(-1);
     const patch = route.request().postDataJSON() as { user_status?: string; star_rating?: number };
     photoPatches.push({ patch, photoId });
     currentPhotos = currentPhotos.map((photo) => (photo.id === photoId ? { ...photo, ...patch } : photo));
@@ -866,7 +872,12 @@ test("walks the local project review and export flow in a browser", async ({ pag
   await page.goto(`/projects/${project.id}/process`);
   await page.getByRole("button", { name: "Run Grouping and Ranking" }).click();
   await expect(page.getByText("3 of 3 photos · 0 failed · 100%").first()).toBeVisible();
-  await expect(page.locator("p").filter({ hasText: /^complete$/ }).first()).toBeVisible();
+  await expect(
+    page
+      .locator("p")
+      .filter({ hasText: /^complete$/ })
+      .first(),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "Open Culling Workspace" })).toBeVisible();
 
   await page.getByRole("link", { name: "Open Culling Workspace" }).click();
@@ -906,7 +917,9 @@ test("walks the local project review and export flow in a browser", async ({ pag
     "aria-current",
     "true",
   );
-  await expect(page.getByText("Low confidence because this group has no similar alternative to compare.")).toBeVisible();
+  await expect(
+    page.getByText("Low confidence because this group has no similar alternative to compare."),
+  ).toBeVisible();
   await page.keyboard.press("ArrowUp");
   await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toBeVisible();
   await expect(page.getByText("FramePilotCam")).toBeVisible();
@@ -1140,7 +1153,12 @@ test("resumes polling an active processing job on the processing page", async ({
   await page.goto(`/projects/${project.id}/process`);
 
   await expect(page.getByText("1 of 3 photos · 0 failed · 33%").first()).toBeVisible();
-  await expect(page.locator("p").filter({ hasText: /^hash\/scoring$/ }).first()).toBeVisible();
+  await expect(
+    page
+      .locator("p")
+      .filter({ hasText: /^hash\/scoring$/ })
+      .first(),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Run Grouping and Ranking" })).toBeDisabled();
 });
 
@@ -1225,6 +1243,13 @@ test("shows active import job progress while an upload is pending", async ({ pag
   await page.unroute(projectListRoute("jobs"));
   await page.route(projectListRoute("jobs"), async (route) => {
     await route.fulfill({ json: [runningImportJob] });
+  });
+  await page.unroute(`**/api/projects/${project.id}/jobs/*`);
+  await page.route(`**/api/projects/${project.id}/jobs/${completedImportJob.id}`, async (route) => {
+    await route.fulfill({ json: completedImportJob });
+  });
+  await page.route(`**/api/projects/${project.id}/photos/${imported.id}`, async (route) => {
+    await route.fulfill({ json: imported });
   });
   await page.unroute(`**/api/projects/${project.id}/imports`);
   await page.route(`**/api/projects/${project.id}/imports`, async (route) => {

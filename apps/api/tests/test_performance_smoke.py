@@ -53,11 +53,13 @@ def test_performance_smoke_reports_local_workflow_metrics(tmp_path):
     assert result["status"] == "complete"
     assert result["timings"]["generate_seconds"] >= 0
     assert result["timings"]["import_seconds"] >= 0
+    assert result["timings"]["import_derivative_seconds"] >= 0
     assert result["timings"]["process_seconds"] >= 0
     assert result["timings"]["export_seconds"] >= 0
     assert result["import_timing"]["batch_count"] == 2
     assert result["import_timing"]["imported_files"] == 3
-    assert result["import_timing"]["stages"]["preview_generation"]["calls"] == 3
+    assert result["import_timing"]["stages"]["file_copy"]["calls"] == 3
+    assert result["import_timing"]["stages"]["content_hash"]["calls"] == 3
     assert result["import_timing"]["slowest_stages"]
 
 

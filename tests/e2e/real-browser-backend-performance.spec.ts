@@ -259,15 +259,17 @@ async function runRealBrowserBackendWorkflow(
     );
     started = nowMs();
     await page.getByLabel("Choose image files").setInputFiles(imagePaths);
-    await expect(page.getByText(`${photoCount} images imported and previewed.`)).toBeVisible({
-      timeout: operationTimeoutMs,
-    });
-    timings.importMs = nowMs() - started;
     const importResponse = await importResponsePromise;
+    timings.importResponseMs = nowMs() - started;
     const importResponseBody = (await importResponse.json().catch(() => null)) as {
       timing?: BackendImportTiming;
     } | null;
     const backendImportTiming = importResponseBody?.timing ?? null;
+    await expect(page.getByText(`${photoCount} images imported and previewed.`)).toBeVisible({
+      timeout: operationTimeoutMs,
+    });
+    timings.importMs = nowMs() - started;
+    timings.importReadyMs = timings.importMs;
 
     await page.getByRole("link", { name: "Process Project" }).click();
     started = nowMs();
