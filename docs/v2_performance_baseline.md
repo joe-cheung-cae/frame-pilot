@@ -2,6 +2,14 @@
 
 This document records local synthetic smoke results for v2.5 reliability validation. These numbers are not a formal benchmark; they provide a reproducible baseline for checking that large local workflows complete without crashes, failed items, or obvious memory growth.
 
+## Release-Readiness Conclusion
+
+- 100, 500, and 1,000 generated real browser-backend validations pass.
+- Repeated 500 large-image real browser-backend validation is stable.
+- 2,000 seeded metadata culling validation passes.
+- 2,000 real browser-backend import/process/review remains deferred to an explicit manual run and is not a default v2.0 release gate.
+- Large imports remain compute-heavy, but upload/register now returns quickly and derivative work continues with visible local progress.
+
 Command:
 
 ```bash

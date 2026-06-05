@@ -35,10 +35,14 @@ Do not treat generated synthetic images as real-world validation. They are usefu
 Cover a mix of these categories when possible:
 
 - Burst sequences with small subject or camera movement.
-- Travel, street, landscape, family-safe, event-like, and object-detail scenes.
-- Similar compositions separated by time or location that should remain separate groups.
+- Travel and landscape scenes.
 - Portrait-like frames where face and eye-open signals may influence ranking.
-- Low-light, high-ISO, blurry, underexposed, and overexposed frames.
+- Indoor low light and high-ISO scenes.
+- Overexposed and underexposed frames.
+- Near-duplicates with small composition, focus, exposure, or subject-expression differences.
+- Intentionally blurred images, motion blur, and missed-focus frames.
+- Similar compositions separated by time or location that should remain separate groups.
+- Street, family-safe, event-like, and object-detail scenes.
 - Cropped or resized images with missing camera metadata.
 - Mixed orientation and mixed aspect-ratio sets.
 
@@ -73,6 +77,18 @@ Record each issue with these fields:
 - Recommended follow-up.
 - Whether a threshold or source-code change is justified.
 - Test requirement before any source-code change.
+
+## Issue Log Template
+
+Use this table shape in validation notes, expanding rows as needed:
+
+| Issue ID | Dataset | Category | Photo IDs or filenames | Expected | Actual | Severity | Evidence | Suspected cause | Follow-up | Threshold concern? | Test required? |
+| -------- | ------- | -------- | ---------------------- | -------- | ------ | -------- | -------- | --------------- | --------- | ------------------ | -------------- |
+| RW-001   |         | false merge |                        |          |        |          |          |                 |           |                    | yes            |
+| RW-002   |         | missed group |                        |          |        |          |          |                 |           |                    | yes            |
+| RW-003   |         | bad ranking |                        |          |        |          |          |                 |           |                    | yes            |
+| RW-004   |         | bad explanation |                    |          |        |          |          |                 |           |                    | yes            |
+| RW-005   |         | threshold concern |                 |          |        |          |          |                 |           |                    | yes            |
 
 ## Example Issue Types
 

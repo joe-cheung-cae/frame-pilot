@@ -52,10 +52,16 @@ Typical workflow:
 ## Verify
 
 ```bash
-npm run test
+npm run verify
 ```
 
-This runs backend unit/API tests and a frontend production build.
+This runs API lint, web lint, TypeScript checks, backend tests, frontend unit tests, and a frontend production build.
+
+For the shorter test-only path:
+
+```bash
+npm run test
+```
 
 Run browser E2E coverage separately:
 
@@ -72,6 +78,7 @@ npm run test:e2e:real-browser
 The default real browser-backend smoke uses 100 generated JPEGs so normal local validation stays practical. Larger runs are opt-in:
 
 ```bash
+npm run test:e2e:real-browser:large
 FRAMEPILOT_BROWSER_PERF_COUNT=1000 npm run test:e2e:real-browser
 FRAMEPILOT_BROWSER_PERF_COUNT=1000 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT_BROWSER_PERF_HEIGHT=2000 FRAMEPILOT_BROWSER_PERF_QUALITY=88 npm run test:e2e:real-browser
 ```
@@ -108,6 +115,8 @@ See [FramePilot v2 Architecture](docs/v2_architecture.md) for backend, frontend,
 See [FramePilot v2 Milestones](docs/v2_milestones.md) for release checkpoints and validation gates.
 See [FramePilot v2 Testing Strategy](docs/v2_testing_strategy.md) for the expected unit, integration, E2E, and performance validation layers.
 See [FramePilot v2 Performance Baseline](docs/v2_performance_baseline.md) for the latest recorded synthetic large-batch smoke result.
+See [FramePilot v2 Release Candidate Checklist](docs/v2_release_candidate_checklist.md) for the current release-readiness checklist, required commands, release blockers, and pre-tag checks.
+See [FramePilot v2 Known Limitations](docs/v2_known_limitations.md) for accepted local MVP-plus limitations.
 See [FramePilot v2 Real-World Algorithm Validation](docs/v2_real_world_validation.md) for the manual validation protocol for non-private photo sets.
 See [FramePilot v2 Migration Plan](docs/v2_migration_plan.md) for schema, storage, API, and project data migration rules.
 See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for grouping, ranking, explanation, and optional model policy.
