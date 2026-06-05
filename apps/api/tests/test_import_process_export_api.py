@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import ExifTags, Image, ImageDraw, ImageFilter
 from sqlmodel import Session, select
@@ -97,6 +98,23 @@ def _write_test_derivatives(tmp_path: Path, stem: str) -> tuple[str, str]:
     thumbnail_path.write_bytes(b"thumbnail")
     preview_path.write_bytes(b"preview")
     return str(thumbnail_path), str(preview_path)
+
+
+def _mark_project_has_imported_photo(project_id: str) -> None:
+    with Session(get_engine()) as session:
+        project = session.get(Project, project_id)
+        assert project is not None
+        project.total_images = 1
+        session.add(
+            Photo(
+                project_id=project_id,
+                original_path="/tmp/framepilot-test-original.jpg",
+                filename="frame.jpg",
+                processing_state="imported",
+            )
+        )
+        session.add(project)
+        session.commit()
 
 
 class ChunkOnlyReader(BytesIO):
@@ -703,6 +721,135 @@ def test_process_rejects_project_with_no_imported_photos(tmp_path, monkeypatch):
     assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 0
 
 
+@pytest.mark.parametrize("import_status", ["queued", "running"])
+def test_process_rejects_active_import_job(tmp_path, monkeypatch, import_status):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(routes, "run_processing_job", lambda _job_id: None)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Active import blocks processing"}).json()
+    _mark_project_has_imported_photo(project["id"])
+
+    with Session(get_engine()) as session:
+        active_import = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status=import_status,
+            current_step="preview_generation 1 of 1",
+            total_items=1,
+            processed_items=0,
+            progress_percent=0,
+        )
+        session.add(active_import)
+        session.commit()
+        active_import_id = active_import.id
+
+    response = client.post(f"/api/projects/{project['id']}/process")
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["message"] == (
+        "Import is still running for this project. Wait for the import job to finish before processing."
+    )
+    assert detail["job_id"] == active_import_id
+    with Session(get_engine()) as session:
+        jobs = list(session.exec(select(ProcessingJob).where(ProcessingJob.project_id == project["id"])).all())
+    assert len([job for job in jobs if job.job_type == "processing"]) == 0
+
+
+def test_process_allows_stale_import_job_after_marking_it_failed(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(routes, "run_processing_job", lambda _job_id: None)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Stale import allows processing"}).json()
+    _mark_project_has_imported_photo(project["id"])
+
+    stale_updated_at = datetime.now(UTC) - timedelta(minutes=31)
+    with Session(get_engine()) as session:
+        stale_import = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="queued",
+            current_step="queued",
+            total_items=1,
+            processed_items=0,
+            progress_percent=0,
+            updated_at=stale_updated_at,
+        )
+        session.add(stale_import)
+        session.commit()
+        stale_import_id = stale_import.id
+
+    response = client.post(f"/api/projects/{project['id']}/process")
+
+    assert response.status_code == 202
+    assert response.json()["job_type"] == "processing"
+    with Session(get_engine()) as session:
+        stale_import = session.get(ProcessingJob, stale_import_id)
+        assert stale_import is not None
+        assert stale_import.status == "failed"
+        assert stale_import.current_step == "failed - stale"
+
+
+@pytest.mark.parametrize("import_status", ["complete", "complete_with_errors", "failed", "cancelled"])
+def test_process_allows_terminal_import_jobs(tmp_path, monkeypatch, import_status):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(routes, "run_processing_job", lambda _job_id: None)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": f"Terminal import {import_status}"}).json()
+    _mark_project_has_imported_photo(project["id"])
+
+    with Session(get_engine()) as session:
+        session.add(
+            ProcessingJob(
+                project_id=project["id"],
+                job_type="import",
+                status=import_status,
+                current_step=import_status,
+                total_items=1,
+                processed_items=1 if import_status != "failed" else 0,
+                failed_items=1 if import_status in {"complete_with_errors", "failed", "cancelled"} else 0,
+                progress_percent=100,
+                completed_at=datetime.now(UTC),
+            )
+        )
+        session.commit()
+
+    response = client.post(f"/api/projects/{project['id']}/process")
+
+    assert response.status_code == 202
+    assert response.json()["job_type"] == "processing"
+
+
+def test_project_reads_include_active_import_job(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Project active import"}).json()
+
+    with Session(get_engine()) as session:
+        active_import = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="queued",
+            current_step="derivative_generation",
+            total_items=3,
+            processed_items=1,
+            progress_percent=33.33,
+        )
+        session.add(active_import)
+        session.commit()
+        active_import_id = active_import.id
+
+    detail_response = client.get(f"/api/projects/{project['id']}")
+    list_response = client.get("/api/projects")
+
+    assert detail_response.status_code == 200
+    assert detail_response.json()["active_import_job"]["id"] == active_import_id
+    assert detail_response.json()["active_import_job"]["current_step"] == "derivative_generation"
+    assert list_response.status_code == 200
+    listed_project = next(item for item in list_response.json() if item["id"] == project["id"])
+    assert listed_project["active_import_job"]["id"] == active_import_id
+
+
 def test_process_returns_existing_active_job_without_creating_duplicate(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
@@ -909,6 +1056,89 @@ def test_list_jobs_marks_stale_processing_jobs_failed(tmp_path, monkeypatch):
     assert photo_after is not None
     assert photo_after.processing_state == "imported"
     assert photo_after.processing_error == "Processing job was interrupted before completion"
+
+
+def test_project_detail_clears_partial_groups_from_stale_processing_job(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Stale partial groups"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[
+            ("files", ("frame-1.jpg", _image_bytes(), "image/jpeg")),
+            ("files", ("frame-2.jpg", _image_bytes(color=(80, 120, 160)), "image/jpeg")),
+        ],
+    )
+    assert import_response.status_code == 201
+    import_job = _wait_for_job(client, project["id"], import_response.json()["job"])
+    assert import_job["status"] == "complete"
+    photos = client.get(f"/api/projects/{project['id']}/photos").json()
+    first_photo_id = photos[0]["id"]
+    second_photo_id = photos[1]["id"]
+    stale_time = datetime.now(UTC) - timedelta(hours=1)
+
+    with Session(get_engine()) as session:
+        partial_group = PhotoGroup(
+            project_id=project["id"],
+            group_type="single",
+            representative_photo_id=first_photo_id,
+            photo_count=1,
+        )
+        session.add(partial_group)
+        session.commit()
+        session.refresh(partial_group)
+
+        first_photo = session.get(Photo, first_photo_id)
+        second_photo = session.get(Photo, second_photo_id)
+        stored_project = session.get(Project, project["id"])
+        assert first_photo is not None
+        assert second_photo is not None
+        assert stored_project is not None
+        first_photo.group_id = partial_group.id
+        first_photo.processing_state = "processed"
+        second_photo.processing_state = "processing"
+        stored_project.processed_images = 1
+        stale_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="running",
+            current_step="ranking group 1 of 2",
+            total_items=2,
+            processed_items=1,
+            failed_items=0,
+            progress_percent=50,
+            updated_at=stale_time,
+        )
+        session.add(first_photo)
+        session.add(second_photo)
+        session.add(stored_project)
+        session.add(stale_job)
+        session.commit()
+        stale_job_id = stale_job.id
+
+    project_response = client.get(f"/api/projects/{project['id']}")
+
+    assert project_response.status_code == 200
+    assert project_response.json()["processed_images"] == 0
+    stale_job_after = client.get(f"/api/projects/{project['id']}/jobs/{stale_job_id}").json()
+    assert stale_job_after["status"] == "failed"
+    assert stale_job_after["current_step"] == "failed - stale"
+    assert client.get(f"/api/projects/{project['id']}/groups").json() == []
+    photos_after_cleanup = client.get(f"/api/projects/{project['id']}/photos").json()
+    assert {photo["group_id"] for photo in photos_after_cleanup} == {None}
+    assert {photo["processing_state"] for photo in photos_after_cleanup} == {"imported"}
+    assert {photo["processing_error"] for photo in photos_after_cleanup} == {
+        "Processing job was interrupted before completion"
+    }
+
+    rebuilt_job = _wait_for_job(client, project["id"], client.post(f"/api/projects/{project['id']}/process").json())
+
+    assert rebuilt_job["status"] == "complete"
+    rebuilt_project = client.get(f"/api/projects/{project['id']}").json()
+    assert rebuilt_project["processed_images"] == 2
+    rebuilt_groups = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert rebuilt_groups
+    assert sum(group["photo_count"] for group in rebuilt_groups) == 2
 
 
 def test_get_job_marks_stale_processing_job_failed(tmp_path, monkeypatch):
@@ -2540,6 +2770,38 @@ def test_file_export_routes_prefer_project_copy_path(tmp_path, monkeypatch):
     folder_record = folder_response.json()
     exported_file = Path(folder_record["output_path"]) / "frame.jpg"
     assert exported_file.read_bytes() == b"project copy bytes"
+
+
+@pytest.mark.parametrize("mode", ["zip", "folder"])
+def test_file_export_rejects_source_paths_outside_project_originals(tmp_path, monkeypatch, mode):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": f"Outside {mode} export"}).json()
+    outside_original = tmp_path / "outside-original.jpg"
+    outside_original.write_bytes(b"outside original")
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(outside_original),
+            filename="outside-original.jpg",
+            user_status="Pick",
+        )
+        session.add(photo)
+        session.commit()
+
+    response = client.post(f"/api/projects/{project['id']}/exports", json={"mode": mode, "statuses": ["Pick"]})
+
+    assert response.status_code == 500
+    expected_error = "Export source file must stay inside the project originals directory"
+    assert response.json()["detail"] == expected_error
+    history = client.get(f"/api/projects/{project['id']}/exports").json()
+    assert len(history) == 1
+    record = history[0]
+    assert record["mode"] == mode
+    assert record["status"] == "failed"
+    assert record["error_message"] == expected_error
+    assert not Path(record["output_path"]).exists()
 
 
 def test_download_rejects_incomplete_export_records_even_when_artifact_exists(tmp_path, monkeypatch):

@@ -12,6 +12,7 @@ const project = {
   schema_version: 2,
   created_at: "2026-06-02T00:00:00Z",
   updated_at: "2026-06-02T00:00:00Z",
+  active_import_job: null,
 };
 
 const emptyProject = {
@@ -38,6 +39,24 @@ const completedJob = {
   cancelled_at: null,
   started_at: "2026-06-02T00:00:00Z",
   completed_at: "2026-06-02T00:00:01Z",
+  retryable: false,
+};
+
+const runningImportJob = {
+  id: "import-job-running",
+  project_id: project.id,
+  job_type: "import",
+  status: "running",
+  current_step: "preview_generation 1 of 3",
+  total_items: 3,
+  processed_items: 1,
+  failed_items: 0,
+  progress_percent: 33.33,
+  error_message: null,
+  cancellation_requested: false,
+  cancelled_at: null,
+  started_at: "2026-06-02T00:00:00Z",
+  completed_at: null,
   retryable: false,
 };
 
@@ -184,6 +203,7 @@ let failProjectDetail = false;
 let failNextImport = false;
 let skipNextImport = false;
 let skipManyNextImport = false;
+let activeImportInProgress = false;
 let failPreviewAssets = false;
 let photoListRequests = 0;
 let photoListRequestUrls: string[] = [];
@@ -288,13 +308,30 @@ test.beforeEach(async ({ page }) => {
   failNextImport = false;
   skipNextImport = false;
   skipManyNextImport = false;
+  activeImportInProgress = false;
   failPreviewAssets = false;
   photoListRequests = 0;
   photoListRequestUrls = [];
   projectCreatePayloads = [];
+  let currentJob: typeof completedJob | typeof runningImportJob | null = activeImportInProgress
+    ? { ...runningImportJob }
+    : null;
   let currentProject = { ...project };
   let currentPhotos = photos.map((photo) => ({ ...photo }));
-  let currentJob: typeof completedJob | null = null;
+
+  function currentProjectPayload() {
+    return { ...currentProject, active_import_job: currentActiveImportJob() };
+  }
+
+  function currentActiveImportJob() {
+    if (activeImportInProgress) {
+      return runningImportJob;
+    }
+    if (currentJob?.job_type === "import" && (currentJob.status === "queued" || currentJob.status === "running")) {
+      return currentJob;
+    }
+    return null;
+  }
 
   await page.route("**/api/projects", async (route) => {
     if (route.request().method() === "POST") {
@@ -314,7 +351,7 @@ test.beforeEach(async ({ page }) => {
       await route.fulfill({ json: { detail: "Could not read local project database" }, status: 500 });
       return;
     }
-    await route.fulfill({ json: [currentProject, emptyProject] });
+    await route.fulfill({ json: [currentProjectPayload(), emptyProject] });
   });
 
   await page.route(`**/api/projects/${project.id}`, async (route) => {
@@ -322,10 +359,23 @@ test.beforeEach(async ({ page }) => {
       await route.fulfill({ json: { detail: "Could not load project details" }, status: 500 });
       return;
     }
-    await route.fulfill({ json: currentProject });
+    await route.fulfill({ json: currentProjectPayload() });
   });
 
   await page.route(`**/api/projects/${project.id}/process`, async (route) => {
+    const activeImportJob = currentActiveImportJob();
+    if (activeImportJob) {
+      await route.fulfill({
+        json: {
+          detail: {
+            message: "Import is still running for this project. Wait for the import job to finish before processing.",
+            job_id: activeImportJob.id,
+          },
+        },
+        status: 409,
+      });
+      return;
+    }
     if (currentProject.total_images === 0) {
       await route.fulfill({ json: { detail: "Import photos before processing this project" }, status: 422 });
       return;
@@ -366,7 +416,8 @@ test.beforeEach(async ({ page }) => {
       await route.fulfill({ json: { detail: "Could not load processing jobs" }, status: 500 });
       return;
     }
-    await route.fulfill({ json: currentJob ? [currentJob] : [] });
+    const activeImportJob = currentActiveImportJob();
+    await route.fulfill({ json: activeImportJob ? [activeImportJob] : currentJob ? [currentJob] : [] });
   });
 
   await page.route(`**/api/projects/${project.id}/jobs/**`, async (route) => {
@@ -415,6 +466,11 @@ test.beforeEach(async ({ page }) => {
       return;
     }
     const jobId = route.request().url().split("/").at(-1);
+    const activeImportJob = currentActiveImportJob();
+    if (activeImportJob?.id === jobId) {
+      await route.fulfill({ json: activeImportJob });
+      return;
+    }
     if (currentJob?.id !== jobId) {
       await route.fulfill({ json: { detail: "Processing job not found" }, status: 404 });
       return;
@@ -802,6 +858,46 @@ test("shows project dashboard load errors", async ({ page }) => {
   await page.goto(`/projects/${project.id}`);
 
   await expect(page.getByText("Could not load project details")).toBeVisible();
+});
+
+test("routes active import projects back to import progress", async ({ page }) => {
+  activeImportInProgress = true;
+
+  await page.goto("/");
+
+  await expect(page.getByRole("link", { name: /Next: Import in progress/ })).toBeVisible();
+  await page.getByRole("link", { name: "E2E Shoot" }).click();
+  await expect(page).toHaveURL(/\/projects\/project-1\/import$/);
+
+  await page.goto(`/projects/${project.id}`);
+  await expect(page.getByText("Import is still running. Finish import progress before processing or culling.")).toBeVisible();
+  await page.getByRole("link", { name: "Process", exact: true }).click();
+  await expect(page).toHaveURL(/\/projects\/project-1\/import$/);
+});
+
+test("disables processing while import is active", async ({ page }) => {
+  activeImportInProgress = true;
+
+  await page.goto(`/projects/${project.id}/process`);
+
+  await expect(page.getByText("Import is still running. Wait for previews and analysis to finish before processing.")).toBeVisible();
+  await expect(page.getByText("preview_generation 1 of 3 · 1 of 3 files · 0 failed · 33%")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run Grouping and Ranking" })).toBeDisabled();
+  await expect(page.getByRole("link", { name: "Back to Import Progress" })).toHaveAttribute(
+    "href",
+    `/projects/${project.id}/import`,
+  );
+});
+
+test("shows culling not-ready state while import is active", async ({ page }) => {
+  activeImportInProgress = true;
+
+  await page.goto(`/projects/${project.id}/cull`);
+
+  await expect(page.getByRole("heading", { name: "Import Still Running" })).toBeVisible();
+  await expect(page.getByText("preview_generation 1 of 3 · 1 of 3 files · 0 failed · 33%")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toHaveCount(0);
+  expect(photoListRequests).toBe(0);
 });
 
 test("shows processing job polling errors", async ({ page }) => {

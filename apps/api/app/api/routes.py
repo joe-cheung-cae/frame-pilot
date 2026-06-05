@@ -122,6 +122,55 @@ def _get_active_import_job(session: Session, project_id: str) -> ProcessingJob |
     ).first()
 
 
+def _get_current_active_import_job(session: Session, project_id: str) -> ProcessingJob | None:
+    while active_job := _get_active_import_job(session, project_id):
+        if import_job_is_stale(active_job):
+            fail_stale_import_job(session, active_job)
+            continue
+        return active_job
+    return None
+
+
+def _job_read(job: ProcessingJob) -> JobRead:
+    return JobRead(
+        id=job.id,
+        project_id=job.project_id,
+        job_type=job.job_type,
+        status=job.status,
+        current_step=job.current_step,
+        total_items=job.total_items,
+        processed_items=job.processed_items,
+        failed_items=job.failed_items,
+        progress_percent=job.progress_percent,
+        error_message=job.error_message,
+        cancellation_requested=job.cancellation_requested,
+        cancelled_at=job.cancelled_at,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
+        retryable=job.retryable,
+    )
+
+
+def _project_read(session: Session, project: Project) -> ProjectRead:
+    _fail_stale_active_jobs(session, project.id)
+    session.refresh(project)
+    active_import_job = _get_current_active_import_job(session, project.id)
+    return ProjectRead(
+        id=project.id,
+        name=project.name,
+        root_path=project.root_path,
+        source_mode=project.source_mode,
+        source_root_path=project.source_root_path,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+        total_images=project.total_images,
+        processed_images=project.processed_images,
+        last_processed_at=project.last_processed_at,
+        schema_version=project.schema_version,
+        active_import_job=_job_read(active_import_job) if active_import_job else None,
+    )
+
+
 def _fail_stale_active_jobs(session: Session, project_id: str) -> None:
     active_jobs = session.exec(
         select(ProcessingJob)
@@ -145,12 +194,12 @@ def create_project_endpoint(payload: ProjectCreate, session: Session = Depends(g
 
 @router.get("/projects", response_model=list[ProjectRead])
 def list_projects_endpoint(session: Session = Depends(get_session)):
-    return list_projects(session)
+    return [_project_read(session, project) for project in list_projects(session)]
 
 
 @router.get("/projects/{project_id}", response_model=ProjectRead)
 def get_project_endpoint(project_id: str, session: Session = Depends(get_session)):
-    return _get_project(session, project_id)
+    return _project_read(session, _get_project(session, project_id))
 
 
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -294,6 +343,16 @@ def process_project_endpoint(
     session: Session = Depends(get_session),
 ):
     project = _get_project(session, project_id)
+    active_import_job = _get_current_active_import_job(session, project_id)
+    if active_import_job is not None:
+        message = "Import is still running for this project. Wait for the import job to finish before processing."
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": message,
+                "job_id": active_import_job.id,
+            },
+        )
     if project.total_images <= 0:
         raise HTTPException(status_code=422, detail="Import photos before processing this project")
     active_job = _get_active_processing_job(session, project_id)
@@ -559,13 +618,15 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
         if payload.mode == "csv":
             output_path = write_selection_csv(target, photo_dicts)
         elif payload.mode == "folder":
-            output_path = copy_selected_files(target, photo_dicts)
+            output_path = copy_selected_files(target, photo_dicts, project_root=Path(project.root_path))
         else:
-            output_path = zip_selected_files(target, photo_dicts)
+            output_path = zip_selected_files(target, photo_dicts, project_root=Path(project.root_path))
     except Exception as error:
         session.rollback()
         _remove_partial_export(target, export_root)
-        error_message = str(error) if isinstance(error, FileNotFoundError) and str(error) else "Export failed"
+        error_message = (
+            str(error) if isinstance(error, (FileNotFoundError, ValueError)) and str(error) else "Export failed"
+        )
         record.status = "failed"
         record.output_path = str(target)
         record.error_message = error_message

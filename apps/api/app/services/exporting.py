@@ -36,11 +36,19 @@ def _unique_archive_name(used_names: set[str], filename: str) -> str:
         index += 1
 
 
-def _existing_original_path(photo: dict) -> Path:
+def _existing_original_path(photo: dict, project_root: Path | None = None) -> Path:
     source = Path(photo.get("project_copy_path") or photo["original_path"])
-    if not source.is_file():
+    try:
+        resolved_source = source.resolve(strict=True)
+    except FileNotFoundError as error:
+        raise FileNotFoundError(f"Original file is missing: {source}") from error
+    if not resolved_source.is_file():
         raise FileNotFoundError(f"Original file is missing: {source}")
-    return source
+    if project_root is not None:
+        originals_root = (project_root / "originals").resolve(strict=True)
+        if not resolved_source.is_relative_to(originals_root):
+            raise ValueError("Export source file must stay inside the project originals directory")
+    return resolved_source
 
 
 def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
@@ -126,19 +134,19 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
     return target
 
 
-def copy_selected_files(target_dir: Path, photos: Iterable[dict]) -> Path:
+def copy_selected_files(target_dir: Path, photos: Iterable[dict], project_root: Path | None = None) -> Path:
     target_dir.mkdir(parents=True, exist_ok=True)
     for photo in photos:
-        source = _existing_original_path(photo)
+        source = _existing_original_path(photo, project_root)
         shutil.copy2(source, _unique_destination(target_dir, source.name))
     return target_dir
 
 
-def zip_selected_files(target_zip: Path, photos: Iterable[dict]) -> Path:
+def zip_selected_files(target_zip: Path, photos: Iterable[dict], project_root: Path | None = None) -> Path:
     target_zip.parent.mkdir(parents=True, exist_ok=True)
     used_names: set[str] = set()
     with zipfile.ZipFile(target_zip, "w", zipfile.ZIP_DEFLATED) as archive:
         for photo in photos:
-            source = _existing_original_path(photo)
+            source = _existing_original_path(photo, project_root)
             archive.write(source, arcname=_unique_archive_name(used_names, source.name))
     return target_zip

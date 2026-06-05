@@ -29,6 +29,7 @@ import { reviewHeaderSummary } from "@/lib/reviewHeaderSummary";
 import { reviewMetadataRows } from "@/lib/reviewMetadata";
 import { reviewProgressForEntry, reviewProgressStorageKey } from "@/lib/reviewProgress";
 import { photoMatchesReviewFilter, REVIEW_FILTERS } from "@/lib/reviewFilters";
+import { processingProgressSummary } from "@/lib/processingProgress";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
@@ -57,14 +58,18 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const [allGroupsLoaded, setAllGroupsLoaded] = useState(false);
   const [failedAssetUrls, setFailedAssetUrls] = useState<Set<string>>(() => new Set());
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
+  const activeImportJob = project.data?.active_import_job ?? null;
+  const isImportRunning = activeImportJob?.status === "queued" || activeImportJob?.status === "running";
   const photosQuery = useQuery({
     queryKey: ["photos", projectId],
     queryFn: () => api.listPhotos(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+    enabled: project.isSuccess && !isImportRunning,
     retry: false,
   });
   const groupsQuery = useQuery({
     queryKey: ["groups", projectId],
     queryFn: () => api.listGroups(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+    enabled: project.isSuccess && !isImportRunning,
     retry: false,
   });
   const {
@@ -375,8 +380,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   });
 
   const preview = activePhoto ? assetUrl(projectId, activePhoto.preview_path) : null;
-  const isLoading = project.isLoading || photosQuery.isLoading || groupsQuery.isLoading;
-  const loadError = project.error ?? photosQuery.error ?? groupsQuery.error;
+  const isLoading = project.isLoading || (!isImportRunning && (photosQuery.isLoading || groupsQuery.isLoading));
+  const loadError = project.error ?? (!isImportRunning ? (photosQuery.error ?? groupsQuery.error) : null);
   const loadErrorMessage = loadError instanceof Error ? loadError.message : "Start the local API and try again.";
   const saveError = updateMutation.error ?? batchUpdateMutation.error;
 
@@ -396,6 +401,30 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
         <h1 className="text-2xl font-semibold">Culling Workspace</h1>
         <p className="text-sm text-coral">Could not load this project: {loadErrorMessage}</p>
+      </section>
+    );
+  }
+
+  if (isImportRunning && activeImportJob) {
+    return (
+      <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
+        <div>
+          <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
+          <h1 className="mt-1 text-2xl font-semibold">Import Still Running</h1>
+        </div>
+        <p className="text-sm text-neutral-700">
+          Wait for previews and import analysis to finish before opening the culling workspace.
+        </p>
+        <p className="text-sm text-neutral-700">
+          {activeImportJob.current_step} · {processingProgressSummary(activeImportJob, project.data)}
+        </p>
+        <Link
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
+          href={`/projects/${projectId}/import`}
+        >
+          <Upload size={18} />
+          Back to Import Progress
+        </Link>
       </section>
     );
   }

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Download, Images, Loader2, Play, UploadCloud } from "lucide-react";
 import { api } from "@/lib/api";
-import { projectNextActionLabel, projectNextHref } from "@/lib/projectRouting";
+import { projectHasActiveImport, projectNextActionLabel, projectNextHref } from "@/lib/projectRouting";
 
 const workflowLinks = [
   { label: "Import", icon: UploadCloud, suffix: "import" },
@@ -40,6 +40,8 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
     return null;
   }
 
+  const activeImport = projectHasActiveImport(project.data);
+
   return (
     <section className="mx-auto grid max-w-5xl gap-6 px-5 py-8">
       <div className="grid gap-2">
@@ -58,15 +60,24 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
         >
           {projectNextActionLabel(project.data)}
         </Link>
+        {activeImport ? (
+          <p className="text-sm text-neutral-600">
+            Import is still running. Finish import progress before processing or culling.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
         {workflowLinks.map((item) => {
           const Icon = item.icon;
+          const href =
+            activeImport && (item.suffix === "process" || item.suffix === "cull")
+              ? `/projects/${projectId}/import`
+              : `/projects/${projectId}/${item.suffix}`;
           return (
             <Link
               className="focus-ring grid min-h-28 content-center justify-items-center gap-3 rounded border border-line bg-white p-4 text-center font-medium hover:border-leaf"
-              href={`/projects/${projectId}/${item.suffix}`}
+              href={href}
               key={item.suffix}
             >
               <Icon className="text-leaf" size={24} />

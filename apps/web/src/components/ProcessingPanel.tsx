@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Loader2, Play, Rows3, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import {
+  activeJobOfType,
   activeProcessingJob,
   processingFailureNotice,
   processingProgressPercent,
@@ -35,6 +36,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   });
   const startedJob = mutation.data;
   const resumedJob = activeProcessingJob(jobsQuery.data);
+  const activeImportJob = project.data?.active_import_job ?? activeJobOfType(jobsQuery.data, "import");
   const currentJobId = startedJob?.id ?? resumedJob?.id;
   const jobQuery = useQuery({
     queryKey: ["job", projectId, currentJobId],
@@ -52,6 +54,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   const canOpenCulling = job?.status === "complete" || Boolean(project.data?.processed_images);
   const statusLabel = processingStatusLabel(job?.status);
   const isProcessing = job?.status === "queued" || job?.status === "running" || mutation.isPending;
+  const isImportRunning = activeImportJob?.status === "queued" || activeImportJob?.status === "running";
   const processingActionLabel = job?.status === "failed" ? "Retry Grouping and Ranking" : "Run Grouping and Ranking";
   const canLoadMoreJobs = (jobsQuery.data?.length ?? 0) >= jobLimit;
   const jobFailureNotice = processingFailureNotice(job);
@@ -106,11 +109,27 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
             </Link>
           </div>
         ) : null}
+        {isImportRunning ? (
+          <div className="mt-3 grid gap-2 text-sm">
+            <p className="font-medium text-coral">
+              Import is still running. Wait for previews and analysis to finish before processing.
+            </p>
+            <p className="text-neutral-700">
+              {activeImportJob.current_step} · {processingProgressSummary(activeImportJob, project.data)}
+            </p>
+            <Link
+              className="focus-ring w-fit rounded border border-line bg-white px-3 py-2 font-medium"
+              href={`/projects/${projectId}/import`}
+            >
+              Back to Import Progress
+            </Link>
+          </div>
+        ) : null}
       </div>
       <div className="flex flex-wrap gap-3">
         <button
           className="focus-ring inline-flex items-center gap-2 rounded bg-leaf px-4 py-3 font-medium text-white disabled:opacity-50"
-          disabled={isProcessing || !hasImportedPhotos}
+          disabled={isProcessing || isImportRunning || !hasImportedPhotos}
           onClick={() => mutation.mutate()}
         >
           {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}

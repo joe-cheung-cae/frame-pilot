@@ -438,6 +438,39 @@ def test_file_exports_prefer_project_copy_path(tmp_path):
         assert archive.read("project-copy.jpg") == b"project copy"
 
 
+def test_file_exports_allow_project_originals_when_project_root_is_provided(tmp_path):
+    project_root = tmp_path / "project"
+    originals = project_root / "originals"
+    originals.mkdir(parents=True)
+    project_copy = originals / "frame.jpg"
+    project_copy.write_bytes(b"project copy")
+    photo = {"original_path": str(tmp_path / "source.jpg"), "project_copy_path": str(project_copy)}
+
+    copy_selected_files(tmp_path / "selected", [photo], project_root=project_root)
+    zip_path = zip_selected_files(tmp_path / "selected.zip", [photo], project_root=project_root)
+
+    assert (tmp_path / "selected" / "frame.jpg").read_bytes() == b"project copy"
+    with zipfile.ZipFile(zip_path) as archive:
+        assert archive.namelist() == ["frame.jpg"]
+        assert archive.read("frame.jpg") == b"project copy"
+
+
+def test_file_exports_reject_project_original_symlink_escape(tmp_path):
+    project_root = tmp_path / "project"
+    originals = project_root / "originals"
+    originals.mkdir(parents=True)
+    outside = tmp_path / "outside.jpg"
+    outside.write_bytes(b"outside")
+    escaped_copy = originals / "escaped.jpg"
+    escaped_copy.symlink_to(outside)
+    photo = {"original_path": str(escaped_copy)}
+
+    with pytest.raises(ValueError, match="project originals directory"):
+        copy_selected_files(tmp_path / "selected", [photo], project_root=project_root)
+    with pytest.raises(ValueError, match="project originals directory"):
+        zip_selected_files(tmp_path / "selected.zip", [photo], project_root=project_root)
+
+
 def test_zip_export_preserves_files_with_duplicate_names(tmp_path):
     first_dir = tmp_path / "first"
     second_dir = tmp_path / "second"

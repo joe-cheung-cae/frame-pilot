@@ -104,20 +104,28 @@ def _mark_photo_failed(session: Session, photo: Photo, reason: str, explanation:
     session.add(photo)
 
 
-def _reset_incomplete_photos_after_job_failure(session: Session, project_id: str, reason: str) -> None:
-    interrupted_photos = list(
-        session.exec(
-            select(Photo).where(Photo.project_id == project_id).where(Photo.processing_state == "processing")
-        ).all()
-    )
-    for photo in interrupted_photos:
-        photo.processing_state = "imported"
-        photo.processing_error = reason
-        photo.recommendation_explanation = (
-            "Processing was interrupted before this photo completed. Run processing again to retry local analysis."
-        )
+def _reset_project_after_processing_failure(session: Session, project_id: str, reason: str) -> None:
+    for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project_id)).all():
+        session.delete(group)
+
+    photos = list(session.exec(select(Photo).where(Photo.project_id == project_id)).all())
+    for photo in photos:
+        photo.group_id = None
+        if photo.processing_state in {"processing", "processed"}:
+            photo.ai_recommendation = "Unreviewed"
+            photo.recommendation_explanation = (
+                "Processing was interrupted before this photo completed. Run processing again to retry local analysis."
+            )
+            photo.processing_state = "imported"
+            photo.processing_error = reason
         photo.updated_at = utc_now()
         session.add(photo)
+
+    project = session.get(Project, project_id)
+    if project is not None:
+        project.processed_images = 0
+        project.updated_at = utc_now()
+        session.add(project)
 
 
 def _group_score_summary(group_type: str, ranked: list[RankedPhoto]) -> str:
@@ -191,7 +199,7 @@ def processing_job_is_stale(job: ProcessingJob, now: datetime | None = None) -> 
 
 def fail_stale_processing_job(session: Session, job: ProcessingJob) -> ProcessingJob:
     reason = "Processing job was interrupted before completion"
-    _reset_incomplete_photos_after_job_failure(session, job.project_id, reason)
+    _reset_project_after_processing_failure(session, job.project_id, reason)
     now = utc_now()
     job.status = "failed"
     job.current_step = "failed - stale"
@@ -379,7 +387,7 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
     except Exception as error:
         session.rollback()
         failure_reason = str(error)
-        _reset_incomplete_photos_after_job_failure(session, project.id, failure_reason)
+        _reset_project_after_processing_failure(session, project.id, failure_reason)
         job.status = "failed"
         job.current_step = "failed"
         job.error_message = failure_reason

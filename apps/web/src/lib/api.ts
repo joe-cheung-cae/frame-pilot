@@ -12,6 +12,7 @@ export type Project = {
   schema_version: number;
   created_at: string;
   updated_at: string;
+  active_import_job: ProcessingJob | null;
 };
 
 export type Photo = {
@@ -175,6 +176,9 @@ function formatErrorDetail(detail: unknown): string | null {
       })
       .filter(Boolean);
     return messages.length ? messages.join("; ") : null;
+  }
+  if (detail && typeof detail === "object" && "message" in detail && typeof detail.message === "string") {
+    return detail.message;
   }
   return null;
 }

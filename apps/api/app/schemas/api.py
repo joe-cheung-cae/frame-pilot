@@ -24,6 +24,24 @@ class ProjectCreate(BaseModel):
         return stripped or None
 
 
+class JobRead(BaseModel):
+    id: str
+    project_id: str
+    job_type: str
+    status: str
+    current_step: str
+    total_items: int
+    processed_items: int
+    failed_items: int
+    progress_percent: float
+    error_message: str | None
+    cancellation_requested: bool = False
+    cancelled_at: datetime | None = None
+    started_at: datetime | None
+    completed_at: datetime | None
+    retryable: bool = False
+
+
 class ProjectRead(BaseModel):
     id: str
     name: str
@@ -36,6 +54,7 @@ class ProjectRead(BaseModel):
     processed_images: int
     last_processed_at: datetime | None
     schema_version: int
+    active_import_job: JobRead | None = None
 
 
 class PhotoRead(BaseModel):
@@ -103,24 +122,6 @@ class ImportTimingRead(BaseModel):
     skipped_files: int
     total_seconds: float
     stages: dict[str, ImportTimingStageRead]
-
-
-class JobRead(BaseModel):
-    id: str
-    project_id: str
-    job_type: str
-    status: str
-    current_step: str
-    total_items: int
-    processed_items: int
-    failed_items: int
-    progress_percent: float
-    error_message: str | None
-    cancellation_requested: bool = False
-    cancelled_at: datetime | None = None
-    started_at: datetime | None
-    completed_at: datetime | None
-    retryable: bool = False
 
 
 class ImportResult(BaseModel):

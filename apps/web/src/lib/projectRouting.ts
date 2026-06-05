@@ -1,6 +1,22 @@
 import type { Project } from "@/lib/api";
 
-export function projectNextHref(project: Pick<Project, "id" | "total_images" | "processed_images">): string {
+type ActiveImportState = { status?: string } | null | undefined;
+type ProjectRouteState = Pick<Project, "id" | "total_images" | "processed_images"> & {
+  active_import_job?: ActiveImportState;
+};
+type ProjectActionState = Pick<Project, "total_images" | "processed_images"> & {
+  active_import_job?: ActiveImportState;
+};
+
+export function projectHasActiveImport(project: { active_import_job?: ActiveImportState }): boolean {
+  const status = project.active_import_job?.status;
+  return status === "queued" || status === "running";
+}
+
+export function projectNextHref(project: ProjectRouteState): string {
+  if (projectHasActiveImport(project)) {
+    return `/projects/${project.id}/import`;
+  }
   if (project.total_images <= 0) {
     return `/projects/${project.id}/import`;
   }
@@ -10,7 +26,10 @@ export function projectNextHref(project: Pick<Project, "id" | "total_images" | "
   return `/projects/${project.id}/process`;
 }
 
-export function projectNextActionLabel(project: Pick<Project, "total_images" | "processed_images">): string {
+export function projectNextActionLabel(project: ProjectActionState): string {
+  if (projectHasActiveImport(project)) {
+    return "Import in progress";
+  }
   if (project.total_images <= 0) {
     return "Import images";
   }
