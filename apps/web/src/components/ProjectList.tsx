@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { ArrowRight, Images, LayoutDashboard, Loader2 } from "lucide-react";
+import { ArrowRight, FolderOpen, Images, LayoutDashboard, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { projectNextActionLabel, projectNextHref } from "@/lib/projectRouting";
 
@@ -18,7 +18,19 @@ export function ProjectList() {
   }
 
   if (!data?.length) {
-    return <p className="text-sm text-neutral-600">No projects yet.</p>;
+    return (
+      <div className="grid gap-3 rounded border border-dashed border-line bg-mist p-4 text-sm">
+        <p className="font-medium text-ink">No projects yet.</p>
+        <p className="text-neutral-600">Create a local project before importing photos.</p>
+        <Link
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-3 py-2 font-medium text-white"
+          href="/projects/new"
+        >
+          <FolderOpen size={16} />
+          Create Project
+        </Link>
+      </div>
+    );
   }
 
   return (
