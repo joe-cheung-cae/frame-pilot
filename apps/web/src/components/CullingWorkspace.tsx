@@ -470,7 +470,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   }
 
   return (
-    <section className="grid min-h-[calc(100vh-73px)] grid-rows-[auto_1fr_auto]">
+    <section className="grid min-h-[calc(100vh-73px)] grid-rows-[auto_1fr_auto] lg:h-[calc(100vh-73px)] lg:min-h-0 lg:overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-3">
         <div>
           <h1 className="text-lg font-semibold">{project.data?.name ?? "Culling Workspace"}</h1>
@@ -507,8 +507,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           </Link>
         </div>
       </div>
-      <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[260px_1fr_320px]">
-        <aside className="border-b border-line bg-white p-4 lg:border-b-0 lg:border-r">
+      <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_320px]">
+        <aside className="min-h-0 border-b border-line bg-white p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r">
           <h2 className="mb-3 text-sm font-semibold">Filters</h2>
           <div className="grid gap-1">
             {REVIEW_FILTERS.map((item, index) => (
@@ -575,12 +575,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           </div>
         </aside>
         <div
-          className={`grid min-h-[420px] place-items-center overflow-auto bg-neutral-900 p-4 ${
+          className={`grid min-h-[320px] min-w-0 place-items-center overflow-auto bg-neutral-900 p-4 lg:min-h-0 ${
             largePreview ? "lg:col-span-2" : ""
           }`}
         >
           {compareMode && comparePhotos.length > 1 ? (
-            <div className="grid w-full gap-3 md:grid-cols-2">
+            <div className="grid h-full w-full min-w-0 gap-3 md:grid-cols-2">
               {compareCandidates.length > comparePhotos.length ? (
                 <span className="md:col-span-2 justify-self-start rounded bg-white/90 px-2 py-1 text-xs text-ink">
                   {comparePhotos.length} of {compareCandidates.length} compare candidates
@@ -590,7 +590,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 const comparePreview = assetUrl(projectId, photo.preview_path);
                 return (
                   <button
-                    className={`focus-ring grid min-h-72 place-items-center overflow-hidden rounded border bg-neutral-950 p-2 ${
+                    className={`focus-ring grid min-h-72 min-w-0 place-items-center overflow-auto rounded border bg-neutral-950 p-2 lg:min-h-0 ${
                       photo.id === activePhoto?.id ? "border-leaf" : "border-neutral-700"
                     }`}
                     key={photo.id}
@@ -598,7 +598,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   >
                     {comparePreview && !assetHasFailed(comparePreview) ? (
                       <img
-                        className="max-h-[56vh] max-w-full object-contain"
+                        className="block"
+                        style={{ height: "100%", objectFit: "contain", width: "100%" }}
                         src={comparePreview}
                         alt={`Compare ${photo.filename}`}
                         loading="lazy"
@@ -618,17 +619,26 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               })}
             </div>
           ) : preview && !assetHasFailed(preview) ? (
-            <img
-              className={
-                zoomPreview
-                  ? "mx-auto max-w-none object-contain"
-                  : "mx-auto max-h-[72vh] max-w-full object-contain"
-              }
-              src={preview}
-              alt={activePhoto?.filename ?? "Preview"}
-              decoding="async"
-              onError={() => markAssetFailed(preview)}
-            />
+            zoomPreview ? (
+              <img
+                className="mx-auto max-w-none object-contain"
+                src={preview}
+                alt={activePhoto?.filename ?? "Preview"}
+                decoding="async"
+                onError={() => markAssetFailed(preview)}
+              />
+            ) : (
+              <div className="relative h-full w-full min-w-0 overflow-hidden">
+                <img
+                  className="absolute inset-0 block"
+                  style={{ height: "100%", maxWidth: "none", objectFit: "contain", width: "100%" }}
+                  src={preview}
+                  alt={activePhoto?.filename ?? "Preview"}
+                  decoding="async"
+                  onError={() => markAssetFailed(preview)}
+                />
+              </div>
+            )
           ) : preview ? (
             <div className="grid place-items-center gap-3 text-center text-white">
               <ImageOff size={38} />
@@ -644,9 +654,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           )}
         </div>
         {!largePreview ? (
-          <aside className="border-t border-line bg-white p-4 lg:border-l lg:border-t-0">
+          <aside className="min-h-0 border-t border-line bg-white p-4 lg:overflow-y-auto lg:border-l lg:border-t-0">
             {activePhoto ? (
-              <div className="grid gap-5">
+              <div className="grid gap-4">
                 <div>
                   <h2 className="font-semibold">{activePhoto.filename}</h2>
                   <p className="text-sm text-neutral-600">
@@ -748,68 +758,70 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    className="focus-ring rounded bg-leaf px-3 py-2 text-sm font-medium text-white"
-                    onClick={() => mark("Pick")}
-                    aria-pressed={activePhoto.user_status === "Pick"}
-                    aria-label="Set active photo to Pick"
-                  >
-                    Pick
-                  </button>
-                  <button
-                    className="focus-ring rounded bg-gold px-3 py-2 text-sm font-medium text-white"
-                    onClick={() => mark("Maybe")}
-                    aria-pressed={activePhoto.user_status === "Maybe"}
-                    aria-label="Set active photo to Maybe"
-                  >
-                    Maybe
-                  </button>
-                  <button
-                    className="focus-ring rounded bg-coral px-3 py-2 text-sm font-medium text-white"
-                    onClick={() => mark("Reject")}
-                    aria-pressed={activePhoto.user_status === "Reject"}
-                    aria-label="Set active photo to Reject"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    className="focus-ring rounded border border-line px-3 py-2 text-sm font-medium"
-                    onClick={() => mark("Unreviewed")}
-                    aria-pressed={activePhoto.user_status === "Unreviewed"}
-                    aria-label="Set active photo to Unreviewed"
-                  >
-                    Unreviewed
-                  </button>
-                </div>
-                {saveError ? <p className="text-sm text-coral">{saveError.message}</p> : null}
-                <div className="flex gap-1">
-                  <button
-                    className="focus-ring rounded p-2 text-neutral-600"
-                    onClick={() => rate(0)}
-                    aria-label="Clear rating"
-                    aria-pressed={activePhoto.star_rating === 0}
-                  >
-                    <StarOff size={20} />
-                  </button>
-                  {[1, 2, 3, 4, 5].map((rating) => (
+                <div className="sticky bottom-0 -mx-4 grid gap-3 border-t border-line bg-white px-4 pb-1 pt-3 shadow-[0_-8px_18px_rgba(21,21,21,0.06)]">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
-                      className="focus-ring rounded p-2 text-gold"
-                      key={rating}
-                      onClick={() => rate(rating)}
-                      aria-label={`${rating} stars`}
-                      aria-pressed={activePhoto.star_rating === rating}
+                      className="focus-ring rounded bg-leaf px-3 py-2 text-sm font-medium text-white"
+                      onClick={() => mark("Pick")}
+                      aria-pressed={activePhoto.user_status === "Pick"}
+                      aria-label="Set active photo to Pick"
                     >
-                      <Star fill={activePhoto.star_rating >= rating ? "currentColor" : "none"} size={20} />
+                      Pick
                     </button>
-                  ))}
+                    <button
+                      className="focus-ring rounded bg-gold px-3 py-2 text-sm font-medium text-white"
+                      onClick={() => mark("Maybe")}
+                      aria-pressed={activePhoto.user_status === "Maybe"}
+                      aria-label="Set active photo to Maybe"
+                    >
+                      Maybe
+                    </button>
+                    <button
+                      className="focus-ring rounded bg-coral px-3 py-2 text-sm font-medium text-white"
+                      onClick={() => mark("Reject")}
+                      aria-pressed={activePhoto.user_status === "Reject"}
+                      aria-label="Set active photo to Reject"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      className="focus-ring rounded border border-line px-3 py-2 text-sm font-medium"
+                      onClick={() => mark("Unreviewed")}
+                      aria-pressed={activePhoto.user_status === "Unreviewed"}
+                      aria-label="Set active photo to Unreviewed"
+                    >
+                      Unreviewed
+                    </button>
+                  </div>
+                  {saveError ? <p className="text-sm text-coral">{saveError.message}</p> : null}
+                  <div className="flex gap-1">
+                    <button
+                      className="focus-ring rounded p-2 text-neutral-600"
+                      onClick={() => rate(0)}
+                      aria-label="Clear rating"
+                      aria-pressed={activePhoto.star_rating === 0}
+                    >
+                      <StarOff size={20} />
+                    </button>
+                    {[1, 2, 3, 4, 5].map((rating) => (
+                      <button
+                        className="focus-ring rounded p-2 text-gold"
+                        key={rating}
+                        onClick={() => rate(rating)}
+                        aria-label={`${rating} stars`}
+                        aria-pressed={activePhoto.star_rating === rating}
+                      >
+                        <Star fill={activePhoto.star_rating >= rating ? "currentColor" : "none"} size={20} />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : null}
           </aside>
         ) : null}
       </div>
-      <div className="flex min-h-28 items-center gap-3 overflow-x-auto border-t border-line bg-white px-4 py-3">
+      <div className="flex min-h-28 items-center gap-3 overflow-x-auto border-t border-line bg-white px-4 py-3 lg:min-h-0">
         <button
           className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line"
           onClick={() => move(-1)}
