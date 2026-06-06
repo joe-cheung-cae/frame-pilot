@@ -11,6 +11,12 @@ type ProcessingProgressProject = Pick<Project, "processed_images" | "total_image
 
 type ProcessingJobCandidate = Pick<ProcessingJob, "job_type" | "status">;
 
+type ProcessingActionBlockReason = {
+  hasImportedPhotos: boolean;
+  isImportRunning: boolean;
+  isProcessing: boolean;
+};
+
 export function processingStatusLabel(status: ProcessingJob["status"] | null | undefined): string {
   if (!status) {
     return "Ready";
@@ -60,4 +66,24 @@ export function processingFailureNotice(job: ProcessingFailureJob | null | undef
   const noun = job.job_type === "import" ? (job.failed_items === 1 ? "file" : "files") : job.failed_items === 1 ? "photo" : "photos";
   const verb = job.job_type === "import" ? "imported" : "processed";
   return `${job.failed_items} ${noun} could not be ${verb}.`;
+}
+
+export function processingActionBlockMessage({
+  hasImportedPhotos,
+  isImportRunning,
+  isProcessing,
+}: ProcessingActionBlockReason): string {
+  if (isProcessing) {
+    return "Grouping and ranking is already running.";
+  }
+
+  if (isImportRunning) {
+    return "Wait for import previews and analysis to finish before processing.";
+  }
+
+  if (!hasImportedPhotos) {
+    return "Import JPEG, PNG, or WebP images before running grouping and ranking.";
+  }
+
+  return "";
 }

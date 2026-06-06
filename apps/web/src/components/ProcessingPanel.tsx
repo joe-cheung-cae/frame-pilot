@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import {
   activeJobOfType,
   activeProcessingJob,
+  processingActionBlockMessage,
   processingFailureNotice,
   processingProgressPercent,
   processingProgressSummary,
@@ -56,6 +57,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   const isProcessing = job?.status === "queued" || job?.status === "running" || mutation.isPending;
   const isImportRunning = activeImportJob?.status === "queued" || activeImportJob?.status === "running";
   const processingActionLabel = job?.status === "failed" ? "Retry Grouping and Ranking" : "Run Grouping and Ranking";
+  const processingBlockMessage = processingActionBlockMessage({ hasImportedPhotos, isImportRunning, isProcessing });
   const canLoadMoreJobs = (jobsQuery.data?.length ?? 0) >= jobLimit;
   const jobFailureNotice = processingFailureNotice(job);
   const processingFailuresHref = `/projects/${projectId}/cull?filter=${encodeURIComponent(PROCESSING_FAILURE_FILTER)}`;
@@ -129,7 +131,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
       <div className="flex flex-wrap gap-3">
         <button
           className="focus-ring inline-flex items-center gap-2 rounded bg-leaf px-4 py-3 font-medium text-white disabled:opacity-50"
-          disabled={isProcessing || isImportRunning || !hasImportedPhotos}
+          disabled={Boolean(processingBlockMessage)}
           onClick={() => mutation.mutate()}
         >
           {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
@@ -154,11 +156,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           </Link>
         ) : null}
       </div>
-      {!hasImportedPhotos ? (
-        <p className="text-sm text-neutral-600">
-          Import JPEG, PNG, or WebP images before running grouping and ranking.
-        </p>
-      ) : null}
+      {processingBlockMessage ? <p className="text-sm text-neutral-600">{processingBlockMessage}</p> : null}
       {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
       {jobQuery.isError ? (

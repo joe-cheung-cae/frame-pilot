@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   activeJobOfType,
   activeProcessingJob,
+  processingActionBlockMessage,
   processingFailureNotice,
   processingProgressPercent,
   processingProgressSummary,
@@ -65,6 +66,28 @@ test("formats processing failure notices", () => {
   assert.equal(
     processingFailureNotice({ error_message: null, failed_items: 1, job_type: "import" }),
     "1 file could not be imported.",
+  );
+});
+
+test("explains why processing action is blocked", () => {
+  assert.equal(
+    processingActionBlockMessage({ hasImportedPhotos: true, isImportRunning: false, isProcessing: true }),
+    "Grouping and ranking is already running.",
+  );
+  assert.equal(
+    processingActionBlockMessage({ hasImportedPhotos: true, isImportRunning: true, isProcessing: false }),
+    "Wait for import previews and analysis to finish before processing.",
+  );
+  assert.equal(
+    processingActionBlockMessage({ hasImportedPhotos: false, isImportRunning: false, isProcessing: false }),
+    "Import JPEG, PNG, or WebP images before running grouping and ranking.",
+  );
+});
+
+test("allows processing action when imports are ready", () => {
+  assert.equal(
+    processingActionBlockMessage({ hasImportedPhotos: true, isImportRunning: false, isProcessing: false }),
+    "",
   );
 });
 
