@@ -5,6 +5,7 @@ import {
   applyStatusCountChange,
   countPhotosByStatus,
   EXPORT_STATUSES,
+  exportActionBlockMessage,
   formatExportStatusSummary,
   isExportDownloadable,
   selectedPhotoCount,
@@ -27,6 +28,57 @@ test("sums selected export statuses", () => {
 
   assert.equal(selectedPhotoCount(counts, ["Pick", "Maybe"]), 5);
   assert.equal(selectedPhotoCount(counts, []), 0);
+});
+
+test("explains why export action is blocked", () => {
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: true,
+      isStatusCountsLoading: false,
+      selectedCount: 2,
+      selectedStatuses: ["Pick"],
+    }),
+    "Export is running. Wait for it to finish before changing export settings.",
+  );
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: false,
+      isStatusCountsLoading: true,
+      selectedCount: 0,
+      selectedStatuses: ["Pick"],
+    }),
+    "Loading photo status counts before export.",
+  );
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: false,
+      isStatusCountsLoading: false,
+      selectedCount: 0,
+      selectedStatuses: [],
+    }),
+    "Choose at least one status to export.",
+  );
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: false,
+      isStatusCountsLoading: false,
+      selectedCount: 0,
+      selectedStatuses: ["Pick"],
+    }),
+    "No photos match the selected statuses.",
+  );
+});
+
+test("allows export action when settings select photos", () => {
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: false,
+      isStatusCountsLoading: false,
+      selectedCount: 1,
+      selectedStatuses: ["Pick"],
+    }),
+    "",
+  );
 });
 
 test("moves status counts when a photo status changes", () => {

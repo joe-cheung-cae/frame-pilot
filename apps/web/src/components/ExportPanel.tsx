@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { api, exportDownloadUrl } from "@/lib/api";
 import {
   EXPORT_STATUSES,
+  exportActionBlockMessage,
   formatExportStatusSummary,
   isExportDownloadable,
   selectedPhotoCount,
@@ -69,6 +70,13 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       );
     },
   });
+  const exportBlockMessage = exportActionBlockMessage({
+    isExporting: mutation.isPending,
+    isStatusCountsLoading: statusCountsQuery.isLoading,
+    selectedCount,
+    selectedStatuses: statuses,
+  });
+  const exportControlsDisabled = mutation.isPending;
 
   function toggleStatus(status: ExportStatus) {
     setStatuses((current) => toggleExportStatusPreference(current, status));
@@ -114,13 +122,16 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         <div className="grid gap-2 sm:grid-cols-4">
           {EXPORT_STATUSES.map((status) => (
             <label
-              className="focus-within:ring-2 focus-within:ring-leaf flex cursor-pointer items-center justify-between gap-3 rounded border border-line px-3 py-2 text-sm"
+              className={`focus-within:ring-2 focus-within:ring-leaf flex items-center justify-between gap-3 rounded border border-line px-3 py-2 text-sm ${
+                exportControlsDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+              }`}
               key={status}
             >
               <span className="flex items-center gap-2">
                 <input
                   checked={statuses.includes(status)}
                   className="h-4 w-4 accent-leaf"
+                  disabled={exportControlsDisabled}
                   onChange={() => toggleStatus(status)}
                   type="checkbox"
                 />
@@ -141,7 +152,10 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           return (
             <button
               aria-pressed={mode === item.mode}
-              className={`focus-ring flex min-h-24 items-center justify-center gap-3 rounded border px-4 font-medium ${mode === item.mode ? "border-leaf bg-white text-leaf" : "border-line bg-white"}`}
+              className={`focus-ring flex min-h-24 items-center justify-center gap-3 rounded border px-4 font-medium disabled:cursor-not-allowed disabled:opacity-60 ${
+                mode === item.mode ? "border-leaf bg-white text-leaf" : "border-line bg-white"
+              }`}
+              disabled={exportControlsDisabled}
               key={item.mode}
               onClick={() => setMode(item.mode)}
               type="button"
@@ -154,17 +168,16 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       </div>
       <button
         className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white disabled:opacity-50"
-        disabled={mutation.isPending || statusCountsQuery.isLoading || !statuses.length || selectedCount === 0}
+        disabled={Boolean(exportBlockMessage)}
         onClick={() => mutation.mutate()}
       >
         {mutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
         Export
       </button>
-      {!statuses.length ? <p className="text-sm text-coral">Choose at least one status to export.</p> : null}
       {projectQuery.isError ? <p className="text-sm text-coral">{projectQuery.error.message}</p> : null}
       {statusCountsQuery.isError ? <p className="text-sm text-coral">{statusCountsQuery.error.message}</p> : null}
-      {statuses.length > 0 && selectedCount === 0 && !statusCountsQuery.isLoading && !statusCountsQuery.isError ? (
-        <p className="text-sm text-neutral-600">No photos match the selected statuses.</p>
+      {exportBlockMessage && !statusCountsQuery.isError ? (
+        <p className={`text-sm ${!statuses.length ? "text-coral" : "text-neutral-600"}`}>{exportBlockMessage}</p>
       ) : null}
       {mutation.data ? (
         <div className="grid gap-3 rounded border border-line bg-white p-4 text-sm">

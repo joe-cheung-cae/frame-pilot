@@ -16,6 +16,36 @@ export function selectedPhotoCount(counts: Record<ExportStatus, number>, statuse
   return statuses.reduce((total, status) => total + counts[status], 0);
 }
 
+export function exportActionBlockMessage({
+  isExporting,
+  isStatusCountsLoading,
+  selectedCount,
+  selectedStatuses,
+}: {
+  isExporting: boolean;
+  isStatusCountsLoading: boolean;
+  selectedCount: number;
+  selectedStatuses: readonly ExportStatus[];
+}): string {
+  if (isExporting) {
+    return "Export is running. Wait for it to finish before changing export settings.";
+  }
+
+  if (isStatusCountsLoading) {
+    return "Loading photo status counts before export.";
+  }
+
+  if (!selectedStatuses.length) {
+    return "Choose at least one status to export.";
+  }
+
+  if (selectedCount === 0) {
+    return "No photos match the selected statuses.";
+  }
+
+  return "";
+}
+
 export function applyStatusCountChange(
   counts: Record<ExportStatus, number>,
   previousStatus: ExportStatus,
