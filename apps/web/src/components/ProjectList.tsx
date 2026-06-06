@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowRight, FolderOpen, Images, LayoutDashboard, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
-import { projectNextActionLabel, projectNextHref } from "@/lib/projectRouting";
+import { projectNextActionLabel, projectNextHref, projectProgressSummary } from "@/lib/projectRouting";
 
 export function ProjectList() {
   const { data, isLoading, error } = useQuery({ queryKey: ["projects"], queryFn: api.listProjects, retry: false });
@@ -45,9 +45,7 @@ export function ProjectList() {
               </Link>
               <Images size={18} className="text-leaf" />
             </span>
-            <span className="text-sm text-neutral-600">
-              {project.processed_images} of {project.total_images} processed
-            </span>
+            <span className="text-sm text-neutral-600">{projectProgressSummary(project)}</span>
             <Link
               className="focus-ring inline-flex w-fit items-center gap-1 text-sm font-medium text-leaf"
               href={nextHref}

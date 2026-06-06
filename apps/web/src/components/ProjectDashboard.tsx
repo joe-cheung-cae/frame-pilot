@@ -4,7 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Download, Images, Loader2, Play, UploadCloud } from "lucide-react";
 import { api } from "@/lib/api";
-import { projectHasActiveImport, projectNextActionLabel, projectNextHref } from "@/lib/projectRouting";
+import {
+  projectHasActiveImport,
+  projectNextActionLabel,
+  projectNextHref,
+  projectProgressSummary,
+} from "@/lib/projectRouting";
 
 const workflowLinks = [
   { label: "Import", icon: UploadCloud, suffix: "import" },
@@ -51,9 +56,7 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
       </div>
 
       <div className="grid gap-3 rounded border border-line bg-white p-4 text-sm">
-        <p className="font-medium">
-          {project.data.processed_images} of {project.data.total_images} photos processed
-        </p>
+        <p className="font-medium">{projectProgressSummary(project.data)}</p>
         <Link
           className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-4 py-2 font-medium text-white"
           href={projectNextHref(project.data)}

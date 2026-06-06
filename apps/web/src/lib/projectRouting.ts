@@ -7,6 +7,9 @@ type ProjectRouteState = Pick<Project, "id" | "total_images" | "processed_images
 type ProjectActionState = Pick<Project, "total_images" | "processed_images"> & {
   active_import_job?: ActiveImportState;
 };
+type ProjectProgressState = Pick<Project, "total_images" | "processed_images"> & {
+  active_import_job?: ActiveImportState;
+};
 
 export function projectHasActiveImport(project: { active_import_job?: ActiveImportState }): boolean {
   const status = project.active_import_job?.status;
@@ -40,4 +43,20 @@ export function projectNextActionLabel(project: ProjectActionState): string {
     return "Continue culling";
   }
   return "Review culling";
+}
+
+export function projectProgressSummary(project: ProjectProgressState): string {
+  if (projectHasActiveImport(project)) {
+    return `${project.total_images} ${project.total_images === 1 ? "photo" : "photos"} registered; import still running`;
+  }
+
+  if (project.total_images <= 0) {
+    return "No photos imported yet";
+  }
+
+  if (project.processed_images <= 0) {
+    return `${project.total_images} ${project.total_images === 1 ? "photo" : "photos"} imported; processing not started`;
+  }
+
+  return `${project.processed_images} of ${project.total_images} photos processed`;
 }
