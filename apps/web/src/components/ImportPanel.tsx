@@ -35,7 +35,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     retry: false,
   });
   const mutation = useMutation({
-    mutationFn: (files: FileList) => api.importPhotos(projectId, files),
+    mutationFn: (files: readonly File[]) => api.importPhotos(projectId, files),
     onMutate: () => {
       setMessage("");
       setSkipped([]);
@@ -124,8 +124,10 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   }, [completedImportJobId, currentImportJobQuery.data, lastImportPhotoIds, projectId, queryClient]);
 
   function onFiles(event: ChangeEvent<HTMLInputElement>) {
-    if (event.target.files?.length) {
-      mutation.mutate(event.target.files);
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (files.length) {
+      mutation.mutate(files);
     }
   }
 
