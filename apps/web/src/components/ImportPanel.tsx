@@ -7,7 +7,7 @@ import Link from "next/link";
 import { ChangeEvent, useEffect, useState } from "react";
 import { FileImage, Loader2, Play, RotateCcw, StopCircle } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
-import { importProcessBlockMessage } from "@/lib/importWorkflow";
+import { importProcessBlockMessage, importSelectionBlockMessage } from "@/lib/importWorkflow";
 import {
   activeJobOfType,
   processingProgressPercent,
@@ -147,6 +147,12 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     isImportRunning,
   });
   const canRetryImport = Boolean(importJob?.retryable) && !isImportRunning && !retryMutation.isPending;
+  const importSelectionBlock = importSelectionBlockMessage({
+    isCancelling: cancelMutation.isPending,
+    isImportRunning,
+    isRetrying: retryMutation.isPending,
+  });
+  const importSelectionDisabled = Boolean(importSelectionBlock);
   const canCancelImport =
     Boolean(importJob) &&
     importJob?.job_type === "import" &&
@@ -165,20 +171,36 @@ export function ImportPanel({ projectId }: { projectId: string }) {
         ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="focus-within:ring-2 focus-within:ring-leaf grid min-h-56 cursor-pointer place-items-center rounded border border-dashed border-line bg-white p-8 text-center">
-          <input className="sr-only" type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={onFiles} />
+        <label
+          className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+            importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+          }`}
+        >
+          <input
+            className="sr-only"
+            type="file"
+            multiple
+            accept="image/jpeg,image/png,image/webp"
+            disabled={importSelectionDisabled}
+            onChange={onFiles}
+          />
           <span className="grid gap-3">
             <FileImage className="mx-auto text-leaf" size={34} />
             <span className="font-medium">Choose image files</span>
             <span className="text-sm text-neutral-600">JPEG, PNG, and WebP are supported.</span>
           </span>
         </label>
-        <label className="focus-within:ring-2 focus-within:ring-leaf grid min-h-56 cursor-pointer place-items-center rounded border border-dashed border-line bg-white p-8 text-center">
+        <label
+          className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+            importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+          }`}
+        >
           <input
             className="sr-only"
             type="file"
             multiple
             accept="image/jpeg,image/png,image/webp"
+            disabled={importSelectionDisabled}
             onChange={onFiles}
             {...{ webkitdirectory: "", directory: "" }}
           />
@@ -190,6 +212,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           </span>
         </label>
       </div>
+      {importSelectionBlock ? <p className="text-sm text-neutral-600">{importSelectionBlock}</p> : null}
       {mutation.isPending ? (
         <p className="inline-flex items-center gap-2 text-sm">
           <Loader2 className="animate-spin" size={16} />
