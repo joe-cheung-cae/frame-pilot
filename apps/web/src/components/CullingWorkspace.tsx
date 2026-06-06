@@ -78,14 +78,16 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     compareMode,
     filter,
     largePreview,
-    zoomPreview,
+    previewZoom,
+    resetPreviewZoom,
     setActiveGroupId,
     setActivePhotoId,
     setFilter,
     setReviewProgress,
     toggleCompareMode,
     toggleLargePreview,
-    toggleZoomPreview,
+    zoomPreviewIn,
+    zoomPreviewOut,
   } = useReviewStore();
   const photos = useMemo(() => photosQuery.data ?? [], [photosQuery.data]);
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
@@ -187,13 +189,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           compareMode,
           filter,
           largePreview,
-          zoomPreview,
+          previewZoom,
         }),
       );
     } catch {
       // Keep review usable if browser storage is unavailable.
     }
-  }, [activeGroupId, activePhotoId, compareMode, filter, largePreview, projectId, zoomPreview]);
+  }, [activeGroupId, activePhotoId, compareMode, filter, largePreview, previewZoom, projectId]);
 
   const updateMutation = useMutation({
     mutationFn: ({ photo, patch }: { photo: Photo; patch: PhotoPatch }) => api.updatePhoto(projectId, photo.id, patch),
@@ -367,7 +369,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       if (command.type === "mark") mark(command.status);
       if (command.type === "rate") rate(command.rating);
       if (command.type === "toggle_large_preview") toggleLargePreview();
-      if (command.type === "toggle_zoom") toggleZoomPreview();
+      if (command.type === "reset_zoom") resetPreviewZoom();
+      if (command.type === "zoom_in") zoomPreviewIn();
+      if (command.type === "zoom_out") zoomPreviewOut();
       if (command.type === "toggle_compare") toggleCompareMode();
       if (command.type === "cycle_group") cycleGroup();
       if (command.type === "focus_filters") focusFilterControls();
@@ -380,6 +384,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   });
 
   const preview = activePhoto ? assetUrl(projectId, activePhoto.preview_path) : null;
+  const previewZoomLabel = `${Math.round(previewZoom * 100)}%`;
   const isLoading = project.isLoading || (!isImportRunning && (photosQuery.isLoading || groupsQuery.isLoading));
   const loadError = project.error ?? (!isImportRunning ? (photosQuery.error ?? groupsQuery.error) : null);
   const loadErrorMessage = loadError instanceof Error ? loadError.message : "Start the local API and try again.";
@@ -619,26 +624,22 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               })}
             </div>
           ) : preview && !assetHasFailed(preview) ? (
-            zoomPreview ? (
-              <img
-                className="mx-auto max-w-none object-contain"
-                src={preview}
-                alt={activePhoto?.filename ?? "Preview"}
-                decoding="async"
-                onError={() => markAssetFailed(preview)}
-              />
-            ) : (
-              <div className="relative h-full w-full min-w-0 overflow-hidden">
+            <div
+              className={`h-full w-full min-w-0 ${previewZoom <= 1 ? "grid place-items-center" : ""}`}
+            >
+              <div
+                className={`grid place-items-center ${previewZoom <= 1 ? "" : "origin-top-left"}`}
+                style={{ height: `${previewZoom * 100}%`, minHeight: 0, minWidth: 0, width: `${previewZoom * 100}%` }}
+              >
                 <img
-                  className="absolute inset-0 block"
-                  style={{ height: "100%", maxWidth: "none", objectFit: "contain", width: "100%" }}
+                  className="block h-full w-full object-contain"
                   src={preview}
                   alt={activePhoto?.filename ?? "Preview"}
                   decoding="async"
                   onError={() => markAssetFailed(preview)}
                 />
               </div>
-            )
+            </div>
           ) : preview ? (
             <div className="grid place-items-center gap-3 text-center text-white">
               <ImageOff size={38} />
@@ -891,14 +892,30 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           <Columns2 size={18} />
         </button>
         <button
-          className={`focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border ${
-            zoomPreview ? "border-leaf bg-mist text-leaf" : "border-line"
-          }`}
-          onClick={toggleZoomPreview}
-          aria-label="Toggle zoom"
-          aria-pressed={zoomPreview}
+          className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line disabled:opacity-50"
+          onClick={zoomPreviewOut}
+          aria-label="Zoom preview out"
+          disabled={previewZoom <= 0.25}
         >
-          {zoomPreview ? <ZoomOut size={18} /> : <ZoomIn size={18} />}
+          <ZoomOut size={18} />
+        </button>
+        <button
+          className={`focus-ring grid h-10 min-w-16 shrink-0 place-items-center rounded border px-2 text-xs font-medium ${
+            previewZoom === 1 ? "border-leaf bg-mist text-leaf" : "border-line"
+          }`}
+          onClick={resetPreviewZoom}
+          aria-label="Fit preview to window"
+          aria-pressed={previewZoom === 1}
+        >
+          {previewZoomLabel}
+        </button>
+        <button
+          className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line disabled:opacity-50"
+          onClick={zoomPreviewIn}
+          aria-label="Zoom preview in"
+          disabled={previewZoom >= 4}
+        >
+          <ZoomIn size={18} />
         </button>
       </div>
     </section>

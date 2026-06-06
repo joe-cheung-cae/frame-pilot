@@ -4,7 +4,9 @@ export type ReviewShortcutCommand =
   | { type: "mark"; status: "Pick" | "Maybe" | "Reject" | "Unreviewed" }
   | { type: "rate"; rating: number }
   | { type: "toggle_large_preview" }
-  | { type: "toggle_zoom" }
+  | { type: "reset_zoom" }
+  | { type: "zoom_in" }
+  | { type: "zoom_out" }
   | { type: "toggle_compare" }
   | { type: "cycle_group" }
   | { type: "focus_filters" }
@@ -40,7 +42,8 @@ export const REVIEW_SHORTCUT_HELP_SECTIONS: ReviewShortcutHelpSection[] = [
     title: "Workspace",
     shortcuts: [
       { keys: "Space", action: "Toggle large preview" },
-      { keys: "Z", action: "Toggle zoom" },
+      { keys: "Z", action: "Fit preview" },
+      { keys: "+ / -", action: "Zoom preview" },
       { keys: "C", action: "Toggle compare" },
       { keys: "G", action: "Cycle group selection" },
       { keys: "F", action: "Focus filter menu" },
@@ -61,7 +64,9 @@ export function reviewShortcutCommandForKey(key: string): ReviewShortcutCommand 
   if (normalizedKey === "m") return { type: "mark", status: "Maybe" };
   if (normalizedKey === "x") return { type: "mark", status: "Reject" };
   if (normalizedKey === "u") return { type: "mark", status: "Unreviewed" };
-  if (normalizedKey === "z") return { type: "toggle_zoom" };
+  if (normalizedKey === "z") return { type: "reset_zoom" };
+  if (key === "+" || key === "=") return { type: "zoom_in" };
+  if (key === "-" || key === "_") return { type: "zoom_out" };
   if (normalizedKey === "c") return { type: "toggle_compare" };
   if (normalizedKey === "g") return { type: "cycle_group" };
   if (normalizedKey === "f") return { type: "focus_filters" };

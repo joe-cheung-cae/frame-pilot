@@ -30,7 +30,11 @@ test("maps rating shortcuts including clear rating", () => {
 
 test("maps workspace mode and routing shortcuts", () => {
   assert.deepEqual(reviewShortcutCommandForKey(" "), { type: "toggle_large_preview" });
-  assert.deepEqual(reviewShortcutCommandForKey("z"), { type: "toggle_zoom" });
+  assert.deepEqual(reviewShortcutCommandForKey("z"), { type: "reset_zoom" });
+  assert.deepEqual(reviewShortcutCommandForKey("+"), { type: "zoom_in" });
+  assert.deepEqual(reviewShortcutCommandForKey("="), { type: "zoom_in" });
+  assert.deepEqual(reviewShortcutCommandForKey("-"), { type: "zoom_out" });
+  assert.deepEqual(reviewShortcutCommandForKey("_"), { type: "zoom_out" });
   assert.deepEqual(reviewShortcutCommandForKey("C"), { type: "toggle_compare" });
   assert.deepEqual(reviewShortcutCommandForKey("g"), { type: "cycle_group" });
   assert.deepEqual(reviewShortcutCommandForKey("F"), { type: "focus_filters" });
@@ -66,7 +70,8 @@ test("documents shortcuts by culling workflow section", () => {
       "1 to 5: Set star rating",
       "0: Clear star rating",
       "Space: Toggle large preview",
-      "Z: Toggle zoom",
+      "Z: Fit preview",
+      "+ / -: Zoom preview",
       "C: Toggle compare",
       "G: Cycle group selection",
       "F: Focus filter menu",

@@ -25,7 +25,7 @@ test("parses stored review progress", () => {
         compareMode: true,
         filter: "Picks",
         largePreview: true,
-        zoomPreview: true,
+        previewZoom: 1.5,
       }),
       filters,
     ),
@@ -35,7 +35,7 @@ test("parses stored review progress", () => {
       compareMode: true,
       filter: "Picks",
       largePreview: true,
-      zoomPreview: true,
+      previewZoom: 1.5,
     },
   );
 });
@@ -45,15 +45,21 @@ test("falls back for malformed review progress", () => {
   assert.deepEqual(parseReviewProgress(null, filters), DEFAULT_REVIEW_PROGRESS);
 });
 
-test("normalizes partial or stale review progress", () => {
+test("normalizes partial, stale, or legacy review progress", () => {
   assert.deepEqual(normalizeReviewProgress({ activePhotoId: 7, filter: "Missing", zoomPreview: true }, filters), {
     activeGroupId: null,
     activePhotoId: null,
     compareMode: false,
     filter: "All",
     largePreview: false,
-    zoomPreview: true,
+    previewZoom: 1,
   });
+});
+
+test("clamps stored preview zoom to the supported range", () => {
+  assert.equal(normalizeReviewProgress({ previewZoom: 8 }, filters).previewZoom, 4);
+  assert.equal(normalizeReviewProgress({ previewZoom: 0.1 }, filters).previewZoom, 0.25);
+  assert.equal(normalizeReviewProgress({ previewZoom: "2" }, filters).previewZoom, 1);
 });
 
 test("uses valid requested filters for review entry progress", () => {
@@ -65,7 +71,7 @@ test("uses valid requested filters for review entry progress", () => {
         compareMode: true,
         filter: "Picks",
         largePreview: true,
-        zoomPreview: true,
+        previewZoom: 1.25,
       }),
       filters,
       "Maybes",
@@ -76,7 +82,7 @@ test("uses valid requested filters for review entry progress", () => {
       compareMode: true,
       filter: "Maybes",
       largePreview: true,
-      zoomPreview: true,
+      previewZoom: 1.25,
     },
   );
 });
@@ -88,7 +94,7 @@ test("preserves stored review entry progress without a valid requested filter", 
     compareMode: true,
     filter: "Picks",
     largePreview: true,
-    zoomPreview: true,
+    previewZoom: 1.25,
   });
 
   assert.deepEqual(reviewProgressForEntry(stored, filters, "Missing"), {
@@ -97,7 +103,7 @@ test("preserves stored review entry progress without a valid requested filter", 
     compareMode: true,
     filter: "Picks",
     largePreview: true,
-    zoomPreview: true,
+    previewZoom: 1.25,
   });
   assert.deepEqual(reviewProgressForEntry(stored, filters, null), {
     activeGroupId: "group-1",
@@ -105,7 +111,7 @@ test("preserves stored review entry progress without a valid requested filter", 
     compareMode: true,
     filter: "Picks",
     largePreview: true,
-    zoomPreview: true,
+    previewZoom: 1.25,
   });
 });
 
@@ -125,7 +131,7 @@ test("clears active group when changing review filters", () => {
         compareMode: true,
         filter: "Picks",
         largePreview: true,
-        zoomPreview: true,
+        previewZoom: 1.25,
       },
       "Maybes",
     ),
@@ -135,7 +141,7 @@ test("clears active group when changing review filters", () => {
       compareMode: true,
       filter: "Maybes",
       largePreview: true,
-      zoomPreview: true,
+      previewZoom: 1.25,
     },
   );
 });

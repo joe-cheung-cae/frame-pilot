@@ -4,7 +4,7 @@ export type ReviewProgress = {
   compareMode: boolean;
   filter: string;
   largePreview: boolean;
-  zoomPreview: boolean;
+  previewZoom: number;
 };
 
 export const DEFAULT_REVIEW_PROGRESS: ReviewProgress = {
@@ -13,13 +13,21 @@ export const DEFAULT_REVIEW_PROGRESS: ReviewProgress = {
   compareMode: false,
   filter: "All",
   largePreview: false,
-  zoomPreview: false,
+  previewZoom: 1,
 };
 
 const STORAGE_PREFIX = "framepilot.reviewProgress.v1";
 
 function stringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+function normalizedPreviewZoom(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.min(Math.max(value, 0.25), 4);
 }
 
 export function reviewProgressStorageKey(projectId: string): string {
@@ -40,7 +48,7 @@ export function normalizeReviewProgress(value: unknown, allowedFilters: readonly
     compareMode: typeof candidate.compareMode === "boolean" ? candidate.compareMode : false,
     filter,
     largePreview: typeof candidate.largePreview === "boolean" ? candidate.largePreview : false,
-    zoomPreview: typeof candidate.zoomPreview === "boolean" ? candidate.zoomPreview : false,
+    previewZoom: normalizedPreviewZoom(candidate.previewZoom),
   };
 }
 
