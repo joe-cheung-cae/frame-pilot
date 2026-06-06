@@ -11,7 +11,7 @@ import {
   selectedPhotoCount,
   type ExportStatus,
 } from "@/lib/exportSelection";
-import { DEFAULT_EXPORT_STATUS_PREFERENCE, loadExportStatusPreference } from "@/lib/settings";
+import { DEFAULT_EXPORT_STATUS_PREFERENCE, loadExportStatusPreference, toggleExportStatusPreference } from "@/lib/settings";
 
 type Mode = "csv" | "folder" | "zip";
 
@@ -71,12 +71,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   });
 
   function toggleStatus(status: ExportStatus) {
-    setStatuses((current) => {
-      if (current.includes(status)) {
-        return current.filter((item) => item !== status);
-      }
-      return [...current, status];
-    });
+    setStatuses((current) => toggleExportStatusPreference(current, status));
   }
 
   async function copyPath(path: string) {
@@ -173,7 +168,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       ) : null}
       {mutation.data ? (
         <div className="grid gap-3 rounded border border-line bg-white p-4 text-sm">
-          <p className="text-leaf">
+          <p className="break-all text-leaf">
             {photoCountLabel(mutation.data.selected_count)} exported
             {mutation.data.mode === "folder" ? ` to ${mutation.data.output_path}` : "."}
           </p>
@@ -213,7 +208,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                     </span>
                   </p>
                   <p className="text-neutral-600">Statuses: {formatExportStatusSummary(record.statuses)}</p>
-                  <p className="text-neutral-600">{record.output_path}</p>
+                  <p className="break-all text-neutral-600">{record.output_path}</p>
                   {record.status === "failed" && record.error_message ? (
                     <p className="text-coral">{record.error_message}</p>
                   ) : null}

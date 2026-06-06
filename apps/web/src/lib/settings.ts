@@ -42,3 +42,12 @@ export function saveExportStatusPreference(
   }
   return normalized;
 }
+
+export function toggleExportStatusPreference(
+  current: readonly ExportStatus[],
+  status: ExportStatus,
+  storage = browserStorage(),
+): ExportStatus[] {
+  const next = current.includes(status) ? current.filter((item) => item !== status) : [...current, status];
+  return next.length ? saveExportStatusPreference(next, storage) : next;
+}

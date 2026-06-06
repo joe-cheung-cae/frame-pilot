@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ChangeEvent, useEffect, useState } from "react";
 import { FileImage, Loader2, Play, RotateCcw, StopCircle } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
+import { importProcessBlockMessage } from "@/lib/importWorkflow";
 import {
   activeJobOfType,
   processingProgressPercent,
@@ -138,6 +139,11 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     importJob?.status !== "failed" &&
     importJob?.status !== "cancelled" &&
     Boolean(project.data?.total_images || recentImports.length);
+  const processBlockMessage = importProcessBlockMessage({
+    hasImportedPhotos: Boolean(project.data?.total_images || recentImports.length),
+    importStatus: importJob?.status,
+    isImportRunning,
+  });
   const canRetryImport = Boolean(importJob?.retryable) && !isImportRunning && !retryMutation.isPending;
   const canCancelImport =
     Boolean(importJob) &&
@@ -302,7 +308,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             <Play size={18} />
             Process Project
           </button>
-          <p className="text-sm text-neutral-600">Import images before processing this project.</p>
+          {processBlockMessage ? <p className="text-sm text-neutral-600">{processBlockMessage}</p> : null}
         </div>
       )}
     </section>
