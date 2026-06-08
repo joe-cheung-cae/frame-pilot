@@ -7,7 +7,9 @@ import { api, exportDownloadUrl } from "@/lib/api";
 import {
   EXPORT_STATUSES,
   exportActionBlockMessage,
+  formatExportRecordStatus,
   formatExportStatusSummary,
+  hasRunningExport,
   isExportDownloadable,
   selectedPhotoCount,
   type ExportStatus,
@@ -48,6 +50,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
     queryKey: exportHistoryQueryKey,
     queryFn: () => api.listExports(projectId, { limit: exportLimit, offset: 0 }),
     retry: false,
+    refetchInterval: (query) => (hasRunningExport(query.state.data ?? []) ? 1000 : false),
   });
   const statusCounts = statusCountsQuery.data ?? { Pick: 0, Maybe: 0, Reject: 0, Unreviewed: 0 };
   const selectedCount = selectedPhotoCount(statusCounts, statuses);
@@ -68,6 +71,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       queryClient.setQueryData(exportHistoryQueryKey, (current: unknown) =>
         Array.isArray(current) ? [record, ...current] : [record],
       );
+      void queryClient.invalidateQueries({ queryKey: ["exports", projectId] });
     },
   });
   const exportBlockMessage = exportActionBlockMessage({
@@ -216,8 +220,16 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                 <div>
                   <p className="font-medium">
                     {record.mode.toUpperCase()} · {photoCountLabel(record.selected_count)}
-                    <span className={record.status === "failed" ? "ml-2 text-coral" : "ml-2 text-neutral-500"}>
-                      {record.status}
+                    <span
+                      className={`ml-2 ${
+                        record.status === "failed"
+                          ? "text-coral"
+                          : record.status === "running"
+                            ? "text-leaf"
+                            : "text-neutral-500"
+                      }`}
+                    >
+                      {formatExportRecordStatus(record.status)}
                     </span>
                   </p>
                   <p className="text-neutral-600">Statuses: {formatExportStatusSummary(record.statuses)}</p>

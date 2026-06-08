@@ -77,6 +77,22 @@ export function formatExportStatusSummary(rawStatuses: string): string {
   return selected.length ? selected.join(", ") : "No statuses";
 }
 
+export function formatExportRecordStatus(status: ExportRecord["status"]): string {
+  if (status === "running") {
+    return "Running";
+  }
+
+  if (status === "complete") {
+    return "Complete";
+  }
+
+  return "Failed";
+}
+
+export function hasRunningExport(records: readonly Pick<ExportRecord, "status">[]): boolean {
+  return records.some((record) => record.status === "running");
+}
+
 export function isExportDownloadable(record: Pick<ExportRecord, "mode" | "status">): boolean {
   return record.status === "complete" && record.mode !== "folder";
 }

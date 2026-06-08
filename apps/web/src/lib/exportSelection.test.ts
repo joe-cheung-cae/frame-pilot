@@ -6,7 +6,9 @@ import {
   countPhotosByStatus,
   EXPORT_STATUSES,
   exportActionBlockMessage,
+  formatExportRecordStatus,
   formatExportStatusSummary,
+  hasRunningExport,
   isExportDownloadable,
   selectedPhotoCount,
   type ExportStatus,
@@ -113,6 +115,17 @@ test("formats export status summaries from stored JSON", () => {
   assert.equal(formatExportStatusSummary('["Maybe","Pick"]'), "Pick, Maybe");
   assert.equal(formatExportStatusSummary("[]"), "No statuses");
   assert.equal(formatExportStatusSummary("not json"), "Unknown statuses");
+});
+
+test("formats export record statuses for history", () => {
+  assert.equal(formatExportRecordStatus("running"), "Running");
+  assert.equal(formatExportRecordStatus("complete"), "Complete");
+  assert.equal(formatExportRecordStatus("failed"), "Failed");
+});
+
+test("detects running export records", () => {
+  assert.equal(hasRunningExport([{ status: "complete" }, { status: "failed" }]), false);
+  assert.equal(hasRunningExport([{ status: "complete" }, { status: "running" }]), true);
 });
 
 test("allows downloads only for completed file exports", () => {
