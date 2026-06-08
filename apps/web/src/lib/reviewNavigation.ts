@@ -27,6 +27,14 @@ type ReviewBatchScope = {
   visiblePhotoCount: number;
 };
 
+type ReviewEmptyState = {
+  hasActiveGroup: boolean;
+  filter: string;
+  loadedPhotoCount: number;
+  photosPartiallyLoaded: boolean;
+  projectPhotoCount: number;
+};
+
 function photoCountLabel(count: number): string {
   return `${count} ${count === 1 ? "photo" : "photos"}`;
 }
@@ -87,6 +95,30 @@ export function reviewBatchScopeDetail({
   }
 
   return `${scope} Load all photos before batch marking if you need the full project of ${photoCountLabel(projectPhotoCount)}.`;
+}
+
+export function reviewEmptyStateMessage({
+  hasActiveGroup,
+  filter,
+  loadedPhotoCount,
+  photosPartiallyLoaded,
+  projectPhotoCount,
+}: ReviewEmptyState): { detail: string; title: string } {
+  const loadedPrefix = photosPartiallyLoaded ? "loaded " : "";
+  const filterSuffix = hasActiveReviewFilter(filter) ? ` match the ${filter} filter` : " are available";
+  const scope = hasActiveGroup ? "in this group" : "";
+  const title = hasActiveGroup
+    ? `No ${loadedPrefix}photos ${scope}${filterSuffix}.`
+    : `No ${loadedPrefix}photos${filterSuffix}.`;
+
+  if (!photosPartiallyLoaded) {
+    return { detail: "", title };
+  }
+
+  return {
+    detail: `Only ${loadedPhotoCount} of ${photoCountLabel(projectPhotoCount)} are loaded.`,
+    title,
+  };
 }
 
 export function nextPhotoIdAfterMark(

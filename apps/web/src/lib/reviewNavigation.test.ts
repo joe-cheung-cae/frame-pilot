@@ -6,6 +6,7 @@ import {
   nextPhotoIdAfterMark,
   reviewBatchScopeDetail,
   reviewBatchScopeSummary,
+  reviewEmptyStateMessage,
   reviewSelectionState,
   windowedCompareRefs,
   windowedGroupRefs,
@@ -222,6 +223,64 @@ test("explains empty batch scope", () => {
       visiblePhotoCount: 0,
     }),
     "No loaded photos are available in this group.",
+  );
+});
+
+test("explains empty review states for fully loaded photos", () => {
+  assert.deepEqual(
+    reviewEmptyStateMessage({
+      filter: "Rejects",
+      hasActiveGroup: false,
+      loadedPhotoCount: 12,
+      photosPartiallyLoaded: false,
+      projectPhotoCount: 12,
+    }),
+    {
+      detail: "",
+      title: "No photos match the Rejects filter.",
+    },
+  );
+  assert.deepEqual(
+    reviewEmptyStateMessage({
+      filter: "All",
+      hasActiveGroup: true,
+      loadedPhotoCount: 12,
+      photosPartiallyLoaded: false,
+      projectPhotoCount: 12,
+    }),
+    {
+      detail: "",
+      title: "No photos in this group are available.",
+    },
+  );
+});
+
+test("explains empty review states for partially loaded photos", () => {
+  assert.deepEqual(
+    reviewEmptyStateMessage({
+      filter: "Maybes",
+      hasActiveGroup: false,
+      loadedPhotoCount: 500,
+      photosPartiallyLoaded: true,
+      projectPhotoCount: 1200,
+    }),
+    {
+      detail: "Only 500 of 1200 photos are loaded.",
+      title: "No loaded photos match the Maybes filter.",
+    },
+  );
+  assert.deepEqual(
+    reviewEmptyStateMessage({
+      filter: "All",
+      hasActiveGroup: true,
+      loadedPhotoCount: 500,
+      photosPartiallyLoaded: true,
+      projectPhotoCount: 1200,
+    }),
+    {
+      detail: "Only 500 of 1200 photos are loaded.",
+      title: "No loaded photos in this group are available.",
+    },
   );
 });
 

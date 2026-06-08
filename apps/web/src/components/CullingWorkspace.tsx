@@ -35,6 +35,7 @@ import {
   nextPhotoIdAfterMark,
   reviewBatchScopeDetail,
   reviewBatchScopeSummary,
+  reviewEmptyStateMessage,
   reviewSelectionState,
   windowedCompareRefs,
   windowedGroupRefs,
@@ -144,6 +145,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const metadataRows = useMemo(() => reviewMetadataRows(activePhoto), [activePhoto]);
   const photoStatusCountsQueryKey = useMemo(() => ["photo-status-counts", projectId], [projectId]);
   const batchScopeGroupIndex = activeGroupId ? activeGroupIndex : -1;
+  const emptyState = reviewEmptyStateMessage({
+    filter,
+    hasActiveGroup: Boolean(activeGroupId),
+    loadedPhotoCount: photos.length,
+    photosPartiallyLoaded,
+    projectPhotoCount,
+  });
   const batchScopeSummary = reviewBatchScopeSummary({
     activeGroupIndex: batchScopeGroupIndex,
     filter,
@@ -662,11 +670,20 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               <p>Preview failed to load.</p>
             </div>
           ) : (
-            <div className="grid place-items-center gap-3 text-center text-white">
+            <div className="grid max-w-md place-items-center gap-3 px-6 text-center text-white">
               <ImageOff size={38} />
-              <p>
-                {activeGroupId ? "No photos in this group match the current filter." : "No photos match this filter."}
-              </p>
+              <p>{emptyState.title}</p>
+              {emptyState.detail ? <p className="text-sm text-white/75">{emptyState.detail}</p> : null}
+              {photosPartiallyLoaded ? (
+                <button
+                  className="focus-ring rounded border border-white/40 bg-white/10 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  disabled={loadAllPhotosMutation.isPending}
+                  onClick={() => loadAllPhotosMutation.mutate()}
+                  type="button"
+                >
+                  {loadAllPhotosMutation.isPending ? "Loading..." : "Load all photos"}
+                </button>
+              ) : null}
             </div>
           )}
         </div>
