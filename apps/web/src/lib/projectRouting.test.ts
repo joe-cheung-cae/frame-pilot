@@ -116,7 +116,18 @@ test("routes workflow cards to the next available prerequisite", () => {
     "/projects/p1/import",
   );
   assert.equal(
+    projectWorkflowStepHref(
+      { id: "p1", total_images: 3, processed_images: 0, active_import_job: { status: "running" } },
+      "export",
+    ),
+    "/projects/p1/import",
+  );
+  assert.equal(
     projectWorkflowStepHref({ id: "p1", total_images: 3, processed_images: 0, active_import_job: null }, "cull"),
+    "/projects/p1/process",
+  );
+  assert.equal(
+    projectWorkflowStepHref({ id: "p1", total_images: 3, processed_images: 0, active_import_job: null }, "export"),
     "/projects/p1/process",
   );
   assert.equal(
@@ -135,7 +146,18 @@ test("explains workflow card prerequisites", () => {
     "Finish import first",
   );
   assert.equal(
+    projectWorkflowStepHint(
+      { total_images: 2, processed_images: 0, active_import_job: { status: "running" } },
+      "export",
+    ),
+    "Finish import first",
+  );
+  assert.equal(
     projectWorkflowStepHint({ total_images: 2, processed_images: 0, active_import_job: null }, "cull"),
+    "Process photos first",
+  );
+  assert.equal(
+    projectWorkflowStepHint({ total_images: 2, processed_images: 0, active_import_job: null }, "export"),
     "Process photos first",
   );
   assert.equal(

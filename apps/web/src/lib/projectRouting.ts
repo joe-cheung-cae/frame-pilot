@@ -71,7 +71,7 @@ export function projectWorkflowStepHref(project: ProjectRouteState, step: Projec
     return `/projects/${project.id}/import`;
   }
 
-  if (projectHasActiveImport(project) && (step === "process" || step === "cull")) {
+  if (projectHasActiveImport(project) && (step === "process" || step === "cull" || step === "export")) {
     return `/projects/${project.id}/import`;
   }
 
@@ -83,6 +83,10 @@ export function projectWorkflowStepHref(project: ProjectRouteState, step: Projec
     return `/projects/${project.id}/process`;
   }
 
+  if (step === "export" && project.processed_images <= 0) {
+    return `/projects/${project.id}/process`;
+  }
+
   return `/projects/${project.id}/${step}`;
 }
 
@@ -91,7 +95,7 @@ export function projectWorkflowStepHint(project: ProjectActionState, step: Proje
     return project.total_images > 0 ? "Add more local images" : "Start with local images";
   }
 
-  if (projectHasActiveImport(project) && (step === "process" || step === "cull")) {
+  if (projectHasActiveImport(project) && (step === "process" || step === "cull" || step === "export")) {
     return "Finish import first";
   }
 
@@ -105,6 +109,10 @@ export function projectWorkflowStepHint(project: ProjectActionState, step: Proje
 
   if (step === "cull") {
     return project.processed_images > 0 ? "Review recommendations" : "Process photos first";
+  }
+
+  if (step === "export" && project.processed_images <= 0) {
+    return "Process photos first";
   }
 
   return "Export selected statuses";
