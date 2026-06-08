@@ -51,3 +51,19 @@ export function toggleExportStatusPreference(
   const next = current.includes(status) ? current.filter((item) => item !== status) : [...current, status];
   return next.length ? saveExportStatusPreference(next, storage) : next;
 }
+
+export function isOnlySelectedExportStatus(current: readonly ExportStatus[], status: ExportStatus): boolean {
+  return current.length === 1 && current.includes(status);
+}
+
+export function toggleSavedExportStatusPreference(
+  current: readonly ExportStatus[],
+  status: ExportStatus,
+  storage = browserStorage(),
+): { message: string; statuses: ExportStatus[] } {
+  if (isOnlySelectedExportStatus(current, status)) {
+    return { message: "Keep at least one default export status.", statuses: [...current] };
+  }
+
+  return { message: "Saved locally.", statuses: toggleExportStatusPreference(current, status, storage) };
+}
