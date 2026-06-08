@@ -7,7 +7,12 @@ import Link from "next/link";
 import { ChangeEvent, useEffect, useState } from "react";
 import { FileImage, Loader2, Play, RotateCcw, StopCircle } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
-import { importProcessBlockMessage, importRegistrationMessage, importSelectionBlockMessage } from "@/lib/importWorkflow";
+import {
+  importProcessBlockMessage,
+  importRegistrationMessage,
+  importSelectionBlockMessage,
+  importTerminalStatusMessage,
+} from "@/lib/importWorkflow";
 import {
   activeJobOfType,
   processingProgressPercent,
@@ -160,6 +165,10 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     !importJob.cancellation_requested &&
     !cancelMutation.isPending;
   const importProgress = processingProgressPercent(importJob);
+  const importTerminalMessage = importTerminalStatusMessage({
+    retryable: Boolean(importJob?.retryable),
+    status: importJob?.status,
+  });
 
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
@@ -232,6 +241,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
               style={{ width: `${importProgress}%` }}
             />
           </div>
+          {importTerminalMessage ? <p className="text-neutral-700">{importTerminalMessage}</p> : null}
           {importJob.error_message ? <p className="text-coral">{importJob.error_message}</p> : null}
           {importJob.cancellation_requested && importJob.status !== "cancelled" ? (
             <p className="text-neutral-600">Cancellation requested. FramePilot will stop after a safe checkpoint.</p>

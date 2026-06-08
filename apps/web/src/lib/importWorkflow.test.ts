@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { importProcessBlockMessage, importRegistrationMessage, importSelectionBlockMessage } from "./importWorkflow.ts";
+import {
+  importProcessBlockMessage,
+  importRegistrationMessage,
+  importSelectionBlockMessage,
+  importTerminalStatusMessage,
+} from "./importWorkflow.ts";
 
 test("summarizes import registration before preview generation", () => {
   assert.equal(
@@ -74,4 +79,32 @@ test("allows import selection when no import work is active", () => {
     importSelectionBlockMessage({ isCancelling: false, isImportRunning: false, isRetrying: false }),
     "",
   );
+});
+
+test("explains failed import terminal states", () => {
+  assert.equal(
+    importTerminalStatusMessage({ retryable: true, status: "failed" }),
+    "Import failed. Retry will regenerate missing local previews without modifying original files.",
+  );
+  assert.equal(
+    importTerminalStatusMessage({ retryable: false, status: "failed" }),
+    "Import failed. Add the images again to restart local preview generation without modifying original files.",
+  );
+});
+
+test("explains cancelled import terminal states", () => {
+  assert.equal(
+    importTerminalStatusMessage({ retryable: true, status: "cancelled" }),
+    "Import was cancelled at a safe checkpoint. Retry will regenerate missing local previews without modifying original files.",
+  );
+  assert.equal(
+    importTerminalStatusMessage({ retryable: false, status: "cancelled" }),
+    "Import was cancelled at a safe checkpoint. Add more images when you are ready.",
+  );
+});
+
+test("omits terminal import guidance for non-terminal statuses", () => {
+  assert.equal(importTerminalStatusMessage({ retryable: true, status: "running" }), "");
+  assert.equal(importTerminalStatusMessage({ retryable: false, status: "complete" }), "");
+  assert.equal(importTerminalStatusMessage({ retryable: false, status: null }), "");
 });

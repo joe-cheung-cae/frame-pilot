@@ -17,6 +17,11 @@ type ImportSelectionBlockReason = {
   isRetrying: boolean;
 };
 
+type ImportTerminalStatusReason = {
+  retryable: boolean;
+  status: ProcessingJob["status"] | null | undefined;
+};
+
 function pluralize(count: number, singular: string, plural = `${singular}s`): string {
   return count === 1 ? singular : plural;
 }
@@ -78,6 +83,22 @@ export function importSelectionBlockMessage({
 
   if (isCancelling) {
     return "Cancellation is being requested. Wait for FramePilot to reach a safe checkpoint.";
+  }
+
+  return "";
+}
+
+export function importTerminalStatusMessage({ retryable, status }: ImportTerminalStatusReason): string {
+  if (status === "failed") {
+    return retryable
+      ? "Import failed. Retry will regenerate missing local previews without modifying original files."
+      : "Import failed. Add the images again to restart local preview generation without modifying original files.";
+  }
+
+  if (status === "cancelled") {
+    return retryable
+      ? "Import was cancelled at a safe checkpoint. Retry will regenerate missing local previews without modifying original files."
+      : "Import was cancelled at a safe checkpoint. Add more images when you are ready.";
   }
 
   return "";
