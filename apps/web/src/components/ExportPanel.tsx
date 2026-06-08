@@ -7,6 +7,7 @@ import { api, exportDownloadUrl } from "@/lib/api";
 import {
   EXPORT_STATUSES,
   exportActionBlockMessage,
+  exportRecoveryMessage,
   exportSelectedCountLabel,
   exportStatusCountLabel,
   formatExportRecordStatus,
@@ -223,46 +224,50 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         {exportsQuery.isError ? <p className="text-sm text-coral">{exportsQuery.error.message}</p> : null}
         {exportsQuery.data?.length ? (
           <div className="grid gap-2">
-            {exportsQuery.data.map((record) => (
-              <div
-                className="grid gap-1 rounded border border-line bg-white p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
-                key={record.id}
-              >
-                <div>
-                  <p className="font-medium">
-                    {record.mode.toUpperCase()} · {photoCountLabel(record.selected_count)}
-                    <span
-                      className={`ml-2 ${
-                        record.status === "failed"
-                          ? "text-coral"
-                          : record.status === "running"
-                            ? "text-leaf"
-                            : "text-neutral-500"
-                      }`}
-                    >
-                      {formatExportRecordStatus(record.status)}
-                    </span>
-                  </p>
-                  <p className="text-neutral-600">Statuses: {formatExportStatusSummary(record.statuses)}</p>
-                  <p className="break-all text-neutral-600">{record.output_path}</p>
-                  {record.status === "failed" && record.error_message ? (
-                    <p className="text-coral">{record.error_message}</p>
-                  ) : null}
+            {exportsQuery.data.map((record) => {
+              const recoveryMessage = exportRecoveryMessage(record.status);
+              return (
+                <div
+                  className="grid gap-1 rounded border border-line bg-white p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
+                  key={record.id}
+                >
+                  <div>
+                    <p className="font-medium">
+                      {record.mode.toUpperCase()} · {photoCountLabel(record.selected_count)}
+                      <span
+                        className={`ml-2 ${
+                          record.status === "failed"
+                            ? "text-coral"
+                            : record.status === "running"
+                              ? "text-leaf"
+                              : "text-neutral-500"
+                        }`}
+                      >
+                        {formatExportRecordStatus(record.status)}
+                      </span>
+                    </p>
+                    <p className="text-neutral-600">Statuses: {formatExportStatusSummary(record.statuses)}</p>
+                    <p className="break-all text-neutral-600">{record.output_path}</p>
+                    {record.status === "failed" && record.error_message ? (
+                      <p className="text-coral">{record.error_message}</p>
+                    ) : null}
+                    {recoveryMessage ? <p className="text-neutral-600">{recoveryMessage}</p> : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {copyPathButton(record.output_path)}
+                    {isExportDownloadable(record) ? (
+                      <a
+                        className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-3 py-2 font-medium text-white"
+                        href={exportDownloadUrl(projectId, record.id)}
+                      >
+                        <Download size={16} />
+                        Download
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {copyPathButton(record.output_path)}
-                  {isExportDownloadable(record) ? (
-                    <a
-                      className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-3 py-2 font-medium text-white"
-                      href={exportDownloadUrl(projectId, record.id)}
-                    >
-                      <Download size={16} />
-                      Download
-                    </a>
-                  ) : null}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
         {canLoadMoreExports ? (

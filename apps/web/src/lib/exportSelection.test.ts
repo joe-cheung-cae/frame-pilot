@@ -6,6 +6,7 @@ import {
   countPhotosByStatus,
   EXPORT_STATUSES,
   exportActionBlockMessage,
+  exportRecoveryMessage,
   exportSelectedCountLabel,
   exportStatusCountLabel,
   formatExportRecordStatus,
@@ -134,6 +135,15 @@ test("formats export record statuses for history", () => {
   assert.equal(formatExportRecordStatus("running"), "Running");
   assert.equal(formatExportRecordStatus("complete"), "Complete");
   assert.equal(formatExportRecordStatus("failed"), "Failed");
+});
+
+test("explains export recovery for failed records", () => {
+  assert.equal(
+    exportRecoveryMessage("failed"),
+    "Original photos remain unchanged. Adjust the selection or export folder and run export again.",
+  );
+  assert.equal(exportRecoveryMessage("running"), "");
+  assert.equal(exportRecoveryMessage("complete"), "");
 });
 
 test("detects running export records", () => {

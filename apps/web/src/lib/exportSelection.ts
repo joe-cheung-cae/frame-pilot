@@ -107,6 +107,14 @@ export function formatExportRecordStatus(status: ExportRecord["status"]): string
   return "Failed";
 }
 
+export function exportRecoveryMessage(status: ExportRecord["status"]): string {
+  if (status !== "failed") {
+    return "";
+  }
+
+  return "Original photos remain unchanged. Adjust the selection or export folder and run export again.";
+}
+
 export function hasRunningExport(records: readonly Pick<ExportRecord, "status">[]): boolean {
   return records.some((record) => record.status === "running");
 }
