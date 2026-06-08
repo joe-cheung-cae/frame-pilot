@@ -38,3 +38,9 @@ export function projectDataFolderHint(rootPath: string): string {
     ? "FramePilot will create copied originals, previews, caches, and exports in this local project folder."
     : "FramePilot will use its managed local data folder for copied originals, previews, caches, and exports.";
 }
+
+export function projectCreationRecoveryHint(rootPath: string): string {
+  return rootPath.trim()
+    ? "Check that the local project data folder exists and is writable, or leave it blank to use FramePilot's managed local data folder."
+    : "Confirm the local FramePilot API is running, then try creating the project again.";
+}

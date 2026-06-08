@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   normalizeProjectCreateDraft,
   projectCreateActionBlockMessage,
+  projectCreationRecoveryHint,
   projectDataFolderHint,
 } from "./projectCreation.ts";
 
@@ -46,5 +47,16 @@ test("describes local project data folder behavior", () => {
   assert.equal(
     projectDataFolderHint("  /Users/name/Pictures/FramePilot session  "),
     "FramePilot will create copied originals, previews, caches, and exports in this local project folder.",
+  );
+});
+
+test("explains how to recover from project creation failures", () => {
+  assert.equal(
+    projectCreationRecoveryHint(""),
+    "Confirm the local FramePilot API is running, then try creating the project again.",
+  );
+  assert.equal(
+    projectCreationRecoveryHint("  /Users/name/Pictures/FramePilot session  "),
+    "Check that the local project data folder exists and is writable, or leave it blank to use FramePilot's managed local data folder.",
   );
 });

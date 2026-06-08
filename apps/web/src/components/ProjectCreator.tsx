@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import {
   normalizeProjectCreateDraft,
   projectCreateActionBlockMessage,
+  projectCreationRecoveryHint,
   projectDataFolderHint,
 } from "@/lib/projectCreation";
 
@@ -62,7 +63,12 @@ export function ProjectCreator() {
         Create and Import
       </button>
       {createBlockMessage ? <p className="text-sm text-neutral-600">{createBlockMessage}</p> : null}
-      {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
+      {mutation.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{mutation.error.message}</p>
+          <p className="text-neutral-600">{projectCreationRecoveryHint(rootPath)}</p>
+        </div>
+      ) : null}
     </form>
   );
 }
