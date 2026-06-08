@@ -1,6 +1,7 @@
 import type { ExportRecord, Photo } from "@/lib/api";
 
 export type ExportStatus = Photo["user_status"];
+export type ExportLoadScope = "history" | "project" | "statusCounts";
 
 export const EXPORT_STATUSES: ExportStatus[] = ["Pick", "Maybe", "Reject", "Unreviewed"];
 
@@ -113,6 +114,18 @@ export function exportRecoveryMessage(status: ExportRecord["status"]): string {
   }
 
   return "Original photos remain unchanged. Adjust the selection or export folder and run export again.";
+}
+
+export function exportLoadRecoveryMessage(scope: ExportLoadScope): string {
+  if (scope === "statusCounts") {
+    return "Confirm the local FramePilot API is running, then reload counts before exporting.";
+  }
+
+  if (scope === "history") {
+    return "Confirm the local FramePilot API is running, then reload export history. Previous exports stay in the local project folder.";
+  }
+
+  return "Confirm the local FramePilot API is running, then reload the export page. Project data stays on this computer.";
 }
 
 export function hasRunningExport(records: readonly Pick<ExportRecord, "status">[]): boolean {

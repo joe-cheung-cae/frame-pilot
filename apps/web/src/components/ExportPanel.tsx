@@ -7,6 +7,7 @@ import { api, exportDownloadUrl } from "@/lib/api";
 import {
   EXPORT_STATUSES,
   exportActionBlockMessage,
+  exportLoadRecoveryMessage,
   exportRecoveryMessage,
   exportSelectedCountLabel,
   exportStatusCountLabel,
@@ -190,8 +191,18 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         {mutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
         Export
       </button>
-      {projectQuery.isError ? <p className="text-sm text-coral">{projectQuery.error.message}</p> : null}
-      {statusCountsQuery.isError ? <p className="text-sm text-coral">{statusCountsQuery.error.message}</p> : null}
+      {projectQuery.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{projectQuery.error.message}</p>
+          <p className="text-neutral-600">{exportLoadRecoveryMessage("project")}</p>
+        </div>
+      ) : null}
+      {statusCountsQuery.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{statusCountsQuery.error.message}</p>
+          <p className="text-neutral-600">{exportLoadRecoveryMessage("statusCounts")}</p>
+        </div>
+      ) : null}
       {exportBlockMessage && !statusCountsQuery.isError ? (
         <p className={`text-sm ${!statuses.length ? "text-coral" : "text-neutral-600"}`}>{exportBlockMessage}</p>
       ) : null}
@@ -221,7 +232,12 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         {exportsQuery.isLoading ? (
           <p className="text-sm text-neutral-600">Loading export history...</p>
         ) : null}
-        {exportsQuery.isError ? <p className="text-sm text-coral">{exportsQuery.error.message}</p> : null}
+        {exportsQuery.isError ? (
+          <div className="grid gap-1 text-sm">
+            <p className="text-coral">{exportsQuery.error.message}</p>
+            <p className="text-neutral-600">{exportLoadRecoveryMessage("history")}</p>
+          </div>
+        ) : null}
         {exportsQuery.data?.length ? (
           <div className="grid gap-2">
             {exportsQuery.data.map((record) => {

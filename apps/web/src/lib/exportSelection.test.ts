@@ -6,6 +6,7 @@ import {
   countPhotosByStatus,
   EXPORT_STATUSES,
   exportActionBlockMessage,
+  exportLoadRecoveryMessage,
   exportRecoveryMessage,
   exportSelectedCountLabel,
   exportStatusCountLabel,
@@ -144,6 +145,21 @@ test("explains export recovery for failed records", () => {
   );
   assert.equal(exportRecoveryMessage("running"), "");
   assert.equal(exportRecoveryMessage("complete"), "");
+});
+
+test("explains how to recover from export data load failures", () => {
+  assert.equal(
+    exportLoadRecoveryMessage("project"),
+    "Confirm the local FramePilot API is running, then reload the export page. Project data stays on this computer.",
+  );
+  assert.equal(
+    exportLoadRecoveryMessage("statusCounts"),
+    "Confirm the local FramePilot API is running, then reload counts before exporting.",
+  );
+  assert.equal(
+    exportLoadRecoveryMessage("history"),
+    "Confirm the local FramePilot API is running, then reload export history. Previous exports stay in the local project folder.",
+  );
 });
 
 test("detects running export records", () => {
