@@ -7,7 +7,7 @@ import Link from "next/link";
 import { ChangeEvent, useEffect, useState } from "react";
 import { FileImage, Loader2, Play, RotateCcw, StopCircle } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
-import { importProcessBlockMessage, importSelectionBlockMessage } from "@/lib/importWorkflow";
+import { importProcessBlockMessage, importRegistrationMessage, importSelectionBlockMessage } from "@/lib/importWorkflow";
 import {
   activeJobOfType,
   processingProgressPercent,
@@ -47,7 +47,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     },
     onSuccess: async (result) => {
       setMessage(
-        `${result.imported.length} ${pluralize(result.imported.length, "image")} registered. Generating previews...`,
+        importRegistrationMessage({ importedCount: result.imported.length, skippedCount: result.skipped.length }),
       );
       setSkipped(result.skipped);
       setRecentImports(result.imported);

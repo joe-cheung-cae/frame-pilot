@@ -1,5 +1,10 @@
 import type { ProcessingJob } from "@/lib/api";
 
+type ImportRegistrationSummary = {
+  importedCount: number;
+  skippedCount: number;
+};
+
 type ImportProcessBlockReason = {
   hasImportedPhotos: boolean;
   importStatus: ProcessingJob["status"] | null | undefined;
@@ -11,6 +16,28 @@ type ImportSelectionBlockReason = {
   isImportRunning: boolean;
   isRetrying: boolean;
 };
+
+function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return count === 1 ? singular : plural;
+}
+
+export function importRegistrationMessage({
+  importedCount,
+  skippedCount,
+}: ImportRegistrationSummary): string {
+  if (importedCount <= 0) {
+    return skippedCount > 0
+      ? `${skippedCount} ${pluralize(skippedCount, "file")} skipped. No supported images were registered.`
+      : "No images were registered.";
+  }
+
+  const registered = `${importedCount} ${pluralize(importedCount, "image")} registered. Generating previews...`;
+  if (skippedCount <= 0) {
+    return registered;
+  }
+
+  return `${registered} ${skippedCount} ${pluralize(skippedCount, "file")} skipped.`;
+}
 
 export function importProcessBlockMessage({
   hasImportedPhotos,

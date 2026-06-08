@@ -1,7 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { importProcessBlockMessage, importSelectionBlockMessage } from "./importWorkflow.ts";
+import { importProcessBlockMessage, importRegistrationMessage, importSelectionBlockMessage } from "./importWorkflow.ts";
+
+test("summarizes import registration before preview generation", () => {
+  assert.equal(
+    importRegistrationMessage({ importedCount: 2, skippedCount: 0 }),
+    "2 images registered. Generating previews...",
+  );
+  assert.equal(
+    importRegistrationMessage({ importedCount: 1, skippedCount: 2 }),
+    "1 image registered. Generating previews... 2 files skipped.",
+  );
+});
+
+test("explains import registration with no supported images", () => {
+  assert.equal(
+    importRegistrationMessage({ importedCount: 0, skippedCount: 3 }),
+    "3 files skipped. No supported images were registered.",
+  );
+  assert.equal(importRegistrationMessage({ importedCount: 0, skippedCount: 0 }), "No images were registered.");
+});
 
 test("explains why import must finish before processing", () => {
   assert.equal(
