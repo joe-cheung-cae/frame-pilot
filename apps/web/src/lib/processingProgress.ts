@@ -13,6 +13,8 @@ type ProcessingRecoveryReason = {
   status: ProcessingJob["status"] | null | undefined;
 };
 
+type ProcessingLoadScope = "history" | "job" | "project";
+
 type ProcessingProgressProject = Pick<Project, "processed_images" | "total_images">;
 
 type ProcessingJobCandidate = Pick<ProcessingJob, "job_type" | "status">;
@@ -110,6 +112,18 @@ export function processingRecoveryMessage({ failedItems, retryable, status }: Pr
   }
 
   return "";
+}
+
+export function processingLoadRecoveryMessage(scope: ProcessingLoadScope): string {
+  if (scope === "job") {
+    return "Confirm the local FramePilot API is running, then reload processing status. Existing local job records remain in the project database.";
+  }
+
+  if (scope === "history") {
+    return "Confirm the local FramePilot API is running, then reload job history. Project data stays on this computer.";
+  }
+
+  return "Confirm the local FramePilot API is running, then reload this processing page. Imported originals remain unchanged.";
 }
 
 export function processingActionBlockMessage({

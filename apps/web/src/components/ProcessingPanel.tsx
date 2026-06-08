@@ -12,6 +12,7 @@ import {
   processingActionBlockMessage,
   processingFailureNotice,
   processingJobTypeLabel,
+  processingLoadRecoveryMessage,
   processingProgressPercent,
   processingProgressSummary,
   processingRecoveryMessage,
@@ -167,15 +168,28 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
         ) : null}
       </div>
       {processingBlockMessage ? <p className="text-sm text-neutral-600">{processingBlockMessage}</p> : null}
-      {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
+      {project.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{project.error.message}</p>
+          <p className="text-neutral-600">{processingLoadRecoveryMessage("project")}</p>
+        </div>
+      ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
       {jobQuery.isError ? (
-        <p className="text-sm text-coral">Could not load processing job status: {jobQuery.error.message}</p>
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">Could not load processing job status: {jobQuery.error.message}</p>
+          <p className="text-neutral-600">{processingLoadRecoveryMessage("job")}</p>
+        </div>
       ) : null}
       <div className="grid gap-3">
         <h2 className="text-sm font-semibold">Job History</h2>
         {jobsQuery.isLoading ? <p className="text-sm text-neutral-600">Loading job history...</p> : null}
-        {jobsQuery.isError ? <p className="text-sm text-coral">{jobsQuery.error.message}</p> : null}
+        {jobsQuery.isError ? (
+          <div className="grid gap-1 text-sm">
+            <p className="text-coral">{jobsQuery.error.message}</p>
+            <p className="text-neutral-600">{processingLoadRecoveryMessage("history")}</p>
+          </div>
+        ) : null}
         {jobsQuery.data?.length ? (
           <div className="grid gap-2">
             {jobsQuery.data.map((record) => {

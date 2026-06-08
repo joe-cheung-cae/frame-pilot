@@ -8,6 +8,7 @@ import {
   processingActionBlockMessage,
   processingFailureNotice,
   processingJobTypeLabel,
+  processingLoadRecoveryMessage,
   processingProgressPercent,
   processingProgressSummary,
   processingRecoveryMessage,
@@ -124,6 +125,21 @@ test("omits processing recovery when no recovery guidance is needed", () => {
   assert.equal(processingRecoveryMessage({ failedItems: 0, retryable: true, status: "complete" }), "");
   assert.equal(processingRecoveryMessage({ failedItems: 0, retryable: true, status: "complete_with_errors" }), "");
   assert.equal(processingRecoveryMessage({ failedItems: 0, retryable: false, status: null }), "");
+});
+
+test("explains how to recover from processing data load failures", () => {
+  assert.equal(
+    processingLoadRecoveryMessage("project"),
+    "Confirm the local FramePilot API is running, then reload this processing page. Imported originals remain unchanged.",
+  );
+  assert.equal(
+    processingLoadRecoveryMessage("job"),
+    "Confirm the local FramePilot API is running, then reload processing status. Existing local job records remain in the project database.",
+  );
+  assert.equal(
+    processingLoadRecoveryMessage("history"),
+    "Confirm the local FramePilot API is running, then reload job history. Project data stays on this computer.",
+  );
 });
 
 test("explains why processing action is blocked", () => {
