@@ -33,6 +33,8 @@ import { processingProgressSummary } from "@/lib/processingProgress";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
+  reviewBatchScopeDetail,
+  reviewBatchScopeSummary,
   reviewSelectionState,
   windowedCompareRefs,
   windowedGroupRefs,
@@ -141,6 +143,20 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const visiblePhotoIds = useMemo(() => visiblePhotos.map((photo) => photo.id), [visiblePhotos]);
   const metadataRows = useMemo(() => reviewMetadataRows(activePhoto), [activePhoto]);
   const photoStatusCountsQueryKey = useMemo(() => ["photo-status-counts", projectId], [projectId]);
+  const batchScopeGroupIndex = activeGroupId ? activeGroupIndex : -1;
+  const batchScopeSummary = reviewBatchScopeSummary({
+    activeGroupIndex: batchScopeGroupIndex,
+    filter,
+    visiblePhotoCount: visiblePhotos.length,
+  });
+  const batchScopeDetail = reviewBatchScopeDetail({
+    activeGroupIndex: batchScopeGroupIndex,
+    filter,
+    loadedPhotoCount: photos.length,
+    photosPartiallyLoaded,
+    projectPhotoCount,
+    visiblePhotoCount: visiblePhotos.length,
+  });
 
   useEffect(() => {
     setAllPhotosLoaded(false);
@@ -721,9 +737,10 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 ) : null}
                 <div className="rounded border border-line p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold">Batch visible</p>
-                    <p className="text-xs text-neutral-600">{visiblePhotos.length} photos</p>
+                    <p className="text-sm font-semibold">Batch mark</p>
+                    <p className="text-right text-xs text-neutral-600">{batchScopeSummary}</p>
                   </div>
+                  <p className="mt-2 text-xs leading-5 text-neutral-600">{batchScopeDetail}</p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <button
                       className="focus-ring rounded bg-leaf px-2 py-2 text-xs font-medium text-white disabled:opacity-50"

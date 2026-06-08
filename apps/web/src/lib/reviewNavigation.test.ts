@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
+  reviewBatchScopeDetail,
+  reviewBatchScopeSummary,
   reviewSelectionState,
   windowedCompareRefs,
   windowedGroupRefs,
@@ -137,6 +139,89 @@ test("uses the active photo as the only compare candidate without an active grou
       activePhoto: groupedPhotos[3],
       compareCandidates: [groupedPhotos[3]],
     },
+  );
+});
+
+test("summarizes batch scope for all loaded photos", () => {
+  assert.equal(
+    reviewBatchScopeSummary({ activeGroupIndex: -1, filter: "All", visiblePhotoCount: 42 }),
+    "42 photos",
+  );
+  assert.equal(
+    reviewBatchScopeDetail({
+      activeGroupIndex: -1,
+      filter: "All",
+      loadedPhotoCount: 42,
+      photosPartiallyLoaded: false,
+      projectPhotoCount: 42,
+      visiblePhotoCount: 42,
+    }),
+    "Applies to all 42 photos currently loaded.",
+  );
+});
+
+test("explains filtered batch scope", () => {
+  assert.equal(
+    reviewBatchScopeSummary({ activeGroupIndex: -1, filter: "Pick", visiblePhotoCount: 3 }),
+    "Pick · 3 photos",
+  );
+  assert.equal(
+    reviewBatchScopeDetail({
+      activeGroupIndex: -1,
+      filter: "Pick",
+      loadedPhotoCount: 20,
+      photosPartiallyLoaded: false,
+      projectPhotoCount: 20,
+      visiblePhotoCount: 3,
+    }),
+    "Applies only to loaded photos matching Pick.",
+  );
+});
+
+test("explains group batch scope with partial loading", () => {
+  assert.equal(
+    reviewBatchScopeSummary({ activeGroupIndex: 1, filter: "Maybe", visiblePhotoCount: 2 }),
+    "Group 2 · 2 photos",
+  );
+  assert.equal(
+    reviewBatchScopeDetail({
+      activeGroupIndex: 1,
+      filter: "Maybe",
+      loadedPhotoCount: 500,
+      photosPartiallyLoaded: true,
+      projectPhotoCount: 900,
+      visiblePhotoCount: 2,
+    }),
+    "Applies only to loaded photos in Group 2 matching Maybe. Load all photos before batch marking if you need the full project of 900 photos.",
+  );
+});
+
+test("explains empty batch scope", () => {
+  assert.equal(
+    reviewBatchScopeSummary({ activeGroupIndex: -1, filter: "Reject", visiblePhotoCount: 0 }),
+    "Reject · 0 photos",
+  );
+  assert.equal(
+    reviewBatchScopeDetail({
+      activeGroupIndex: -1,
+      filter: "Reject",
+      loadedPhotoCount: 12,
+      photosPartiallyLoaded: false,
+      projectPhotoCount: 12,
+      visiblePhotoCount: 0,
+    }),
+    "No loaded photos match the Reject filter.",
+  );
+  assert.equal(
+    reviewBatchScopeDetail({
+      activeGroupIndex: 0,
+      filter: "All",
+      loadedPhotoCount: 12,
+      photosPartiallyLoaded: false,
+      projectPhotoCount: 12,
+      visiblePhotoCount: 0,
+    }),
+    "No loaded photos are available in this group.",
   );
 });
 
