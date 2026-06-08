@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   projectNextActionLabel,
   projectNextHref,
+  projectLoadRecoveryMessage,
   projectProgressSummary,
   projectsHaveActiveImport,
   projectWorkflowStepHint,
@@ -65,6 +66,17 @@ test("detects active imports across project lists", () => {
       { active_import_job: { status: "queued" } },
     ]),
     true,
+  );
+});
+
+test("explains how to recover from project load failures", () => {
+  assert.equal(
+    projectLoadRecoveryMessage("list"),
+    "Confirm the local FramePilot API is running, then reload the project list. Project data stays on this computer.",
+  );
+  assert.equal(
+    projectLoadRecoveryMessage("dashboard"),
+    "Confirm the local FramePilot API is running, then reload the project details. Project data stays on this computer.",
   );
 });
 

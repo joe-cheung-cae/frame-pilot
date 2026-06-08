@@ -6,6 +6,7 @@ import { ArrowRight, FolderOpen, Images, LayoutDashboard, Loader2 } from "lucide
 import { api } from "@/lib/api";
 import {
   projectHasActiveImport,
+  projectLoadRecoveryMessage,
   projectNextActionLabel,
   projectNextHref,
   projectProgressSummary,
@@ -25,7 +26,12 @@ export function ProjectList() {
   }
 
   if (error) {
-    return <p className="text-sm text-coral">Could not load projects: {error.message}</p>;
+    return (
+      <div className="grid gap-1 text-sm">
+        <p className="text-coral">Could not load projects: {error.message}</p>
+        <p className="text-neutral-600">{projectLoadRecoveryMessage("list")}</p>
+      </div>
+    );
   }
 
   if (!data?.length) {

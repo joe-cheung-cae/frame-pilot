@@ -21,6 +21,11 @@ export function projectsHaveActiveImport(projects: readonly { active_import_job?
   return projects.some((project) => projectHasActiveImport(project));
 }
 
+export function projectLoadRecoveryMessage(scope: "dashboard" | "list"): string {
+  const target = scope === "dashboard" ? "project details" : "project list";
+  return `Confirm the local FramePilot API is running, then reload the ${target}. Project data stays on this computer.`;
+}
+
 export function projectNextHref(project: ProjectRouteState): string {
   if (projectHasActiveImport(project)) {
     return `/projects/${project.id}/import`;

@@ -6,6 +6,7 @@ import { Download, Images, Loader2, Play, UploadCloud } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   projectHasActiveImport,
+  projectLoadRecoveryMessage,
   projectNextActionLabel,
   projectNextHref,
   projectProgressSummary,
@@ -39,7 +40,10 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
   if (project.isError) {
     return (
       <section className="mx-auto grid max-w-5xl gap-6 px-5 py-8">
-        <p className="text-sm text-coral">Could not load project details: {project.error.message}</p>
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">Could not load project details: {project.error.message}</p>
+          <p className="text-neutral-600">{projectLoadRecoveryMessage("dashboard")}</p>
+        </div>
       </section>
     );
   }
