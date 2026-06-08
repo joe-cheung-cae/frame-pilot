@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { invalidateProjectWorkflowQueries, projectWorkflowQueryKeys } from "./queryInvalidation.ts";
+import {
+  invalidateProjectExportQueries,
+  invalidateProjectWorkflowQueries,
+  projectWorkflowQueryKeys,
+} from "./queryInvalidation.ts";
 
 test("lists project workflow queries invalidated after imports", () => {
   assert.deepEqual(projectWorkflowQueryKeys("project-1"), [
@@ -27,4 +31,18 @@ test("invalidates every project workflow query", async () => {
   );
 
   assert.deepEqual(invalidated, projectWorkflowQueryKeys("project-2"));
+});
+
+test("invalidates export history for a project", async () => {
+  const invalidated: (readonly unknown[])[] = [];
+  await invalidateProjectExportQueries(
+    {
+      invalidateQueries: async ({ queryKey }) => {
+        invalidated.push(queryKey);
+      },
+    },
+    "project-3",
+  );
+
+  assert.deepEqual(invalidated, [["exports", "project-3"]]);
 });

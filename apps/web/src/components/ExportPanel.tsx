@@ -16,6 +16,7 @@ import {
   selectedPhotoCount,
   type ExportStatus,
 } from "@/lib/exportSelection";
+import { invalidateProjectExportQueries } from "@/lib/queryInvalidation";
 import { DEFAULT_EXPORT_STATUS_PREFERENCE, loadExportStatusPreference, toggleExportStatusPreference } from "@/lib/settings";
 
 type Mode = "csv" | "folder" | "zip";
@@ -70,11 +71,14 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       }
       return api.exportSelection(projectId, mode, statuses);
     },
+    onError: () => {
+      void invalidateProjectExportQueries(queryClient, projectId);
+    },
     onSuccess: (record) => {
       queryClient.setQueryData(exportHistoryQueryKey, (current: unknown) =>
         Array.isArray(current) ? [record, ...current] : [record],
       );
-      void queryClient.invalidateQueries({ queryKey: ["exports", projectId] });
+      void invalidateProjectExportQueries(queryClient, projectId);
     },
   });
   const exportBlockMessage = exportActionBlockMessage({
