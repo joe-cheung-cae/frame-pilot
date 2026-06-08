@@ -20,7 +20,11 @@ import {
   type ExportStatus,
 } from "@/lib/exportSelection";
 import { invalidateProjectExportQueries } from "@/lib/queryInvalidation";
-import { DEFAULT_EXPORT_STATUS_PREFERENCE, loadExportStatusPreference, toggleExportStatusPreference } from "@/lib/settings";
+import {
+  DEFAULT_EXPORT_STATUS_PREFERENCE,
+  loadExportStatusPreference,
+  toggleExportStatusPreferenceWithMessage,
+} from "@/lib/settings";
 
 type Mode = "csv" | "folder" | "zip";
 
@@ -41,6 +45,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const [exportLimit, setExportLimit] = useState(RECENT_EXPORT_LIMIT);
   const [copiedPath, setCopiedPath] = useState("");
   const [copyError, setCopyError] = useState("");
+  const [preferenceMessage, setPreferenceMessage] = useState("");
   const exportHistoryQueryKey = ["exports", projectId, exportLimit];
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
@@ -93,7 +98,11 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const exportControlsDisabled = mutation.isPending;
 
   function toggleStatus(status: ExportStatus) {
-    setStatuses((current) => toggleExportStatusPreference(current, status));
+    setStatuses((current) => {
+      const result = toggleExportStatusPreferenceWithMessage(current, status);
+      setPreferenceMessage(result.message);
+      return result.statuses;
+    });
   }
 
   async function copyPath(path: string) {
@@ -206,6 +215,11 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       ) : null}
       {exportBlockMessage && !statusCountsQuery.isError ? (
         <p className={`text-sm ${!statuses.length ? "text-coral" : "text-neutral-600"}`}>{exportBlockMessage}</p>
+      ) : null}
+      {preferenceMessage ? (
+        <p className={`text-sm ${preferenceMessage.includes("saved") ? "text-leaf" : "text-neutral-600"}`}>
+          {preferenceMessage}
+        </p>
       ) : null}
       {mutation.data ? (
         <div className="grid gap-3 rounded border border-line bg-white p-4 text-sm">

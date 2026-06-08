@@ -69,6 +69,26 @@ export function toggleExportStatusPreference(
   return next.length ? saveExportStatusPreference(next, storage) : next;
 }
 
+export function toggleExportStatusPreferenceWithMessage(
+  current: readonly ExportStatus[],
+  status: ExportStatus,
+  storage = browserStorage(),
+): { message: string; statuses: ExportStatus[] } {
+  const next = current.includes(status) ? current.filter((item) => item !== status) : [...current, status];
+  if (!next.length) {
+    return {
+      message: "Choose at least one status before exporting. The empty selection was not saved.",
+      statuses: next,
+    };
+  }
+
+  const result = saveExportStatusPreferenceResult(next, storage);
+  return {
+    message: result.saved ? "Export preference saved locally." : "Export preference changed for this session only.",
+    statuses: result.statuses,
+  };
+}
+
 export function isOnlySelectedExportStatus(current: readonly ExportStatus[], status: ExportStatus): boolean {
   return current.length === 1 && current.includes(status);
 }

@@ -10,6 +10,7 @@ import {
   isOnlySelectedExportStatus,
   toggleSavedExportStatusPreference,
   toggleExportStatusPreference,
+  toggleExportStatusPreferenceWithMessage,
 } from "./settings.ts";
 
 function memoryStorage(initial: Record<string, string> = {}) {
@@ -71,12 +72,36 @@ test("toggles and saves non-empty export status preferences", () => {
   assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick","Maybe"]');
 });
 
+test("toggles export preferences with save feedback", () => {
+  const storage = memoryStorage();
+
+  const result = toggleExportStatusPreferenceWithMessage(["Pick"], "Maybe", storage);
+
+  assert.deepEqual(result, {
+    message: "Export preference saved locally.",
+    statuses: ["Pick", "Maybe"],
+  });
+  assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick","Maybe"]');
+});
+
 test("allows a temporary empty export status selection without overwriting storage", () => {
   const storage = memoryStorage({ [EXPORT_STATUS_PREFERENCE_KEY]: '["Pick"]' });
 
   const selected = toggleExportStatusPreference(["Pick"], "Pick", storage);
 
   assert.deepEqual(selected, []);
+  assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick"]');
+});
+
+test("reports temporary empty export preferences without overwriting storage", () => {
+  const storage = memoryStorage({ [EXPORT_STATUS_PREFERENCE_KEY]: '["Pick"]' });
+
+  const result = toggleExportStatusPreferenceWithMessage(["Pick"], "Pick", storage);
+
+  assert.deepEqual(result, {
+    message: "Choose at least one status before exporting. The empty selection was not saved.",
+    statuses: [],
+  });
   assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick"]');
 });
 
@@ -115,6 +140,15 @@ test("keeps settings usable when browser storage cannot save preferences", () =>
 
   assert.deepEqual(result, {
     message: "Preference changed for this session. Browser storage did not save it.",
+    statuses: ["Pick", "Maybe"],
+  });
+});
+
+test("keeps export preferences usable when browser storage cannot save", () => {
+  const result = toggleExportStatusPreferenceWithMessage(["Pick"], "Maybe", throwingStorage());
+
+  assert.deepEqual(result, {
+    message: "Export preference changed for this session only.",
     statuses: ["Pick", "Maybe"],
   });
 });
