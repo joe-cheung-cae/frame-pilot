@@ -5,6 +5,7 @@ import {
   projectNextActionLabel,
   projectNextHref,
   projectProgressSummary,
+  projectsHaveActiveImport,
   projectWorkflowStepHint,
   projectWorkflowStepHref,
 } from "./projectRouting.ts";
@@ -47,6 +48,23 @@ test("routes active import projects back to import progress", () => {
       active_import_job: { status: "queued" },
     }),
     "Import in progress",
+  );
+});
+
+test("detects active imports across project lists", () => {
+  assert.equal(
+    projectsHaveActiveImport([
+      { active_import_job: null },
+      { active_import_job: { status: "complete" } },
+    ]),
+    false,
+  );
+  assert.equal(
+    projectsHaveActiveImport([
+      { active_import_job: { status: "complete" } },
+      { active_import_job: { status: "queued" } },
+    ]),
+    true,
   );
 });
 

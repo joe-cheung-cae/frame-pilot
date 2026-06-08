@@ -25,6 +25,7 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
     queryKey: ["project", projectId],
     queryFn: () => api.getProject(projectId),
     retry: false,
+    refetchInterval: (query) => (query.state.data && projectHasActiveImport(query.state.data) ? 1000 : false),
   });
 
   if (project.isLoading) {

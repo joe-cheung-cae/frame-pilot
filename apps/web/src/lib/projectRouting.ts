@@ -17,6 +17,10 @@ export function projectHasActiveImport(project: { active_import_job?: ActiveImpo
   return status === "queued" || status === "running";
 }
 
+export function projectsHaveActiveImport(projects: readonly { active_import_job?: ActiveImportState }[]): boolean {
+  return projects.some((project) => projectHasActiveImport(project));
+}
+
 export function projectNextHref(project: ProjectRouteState): string {
   if (projectHasActiveImport(project)) {
     return `/projects/${project.id}/import`;
