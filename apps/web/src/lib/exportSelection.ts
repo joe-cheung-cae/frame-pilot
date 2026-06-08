@@ -16,6 +16,24 @@ export function selectedPhotoCount(counts: Record<ExportStatus, number>, statuse
   return statuses.reduce((total, status) => total + counts[status], 0);
 }
 
+export function exportSelectedCountLabel({
+  isLoading,
+  selectedCount,
+}: {
+  isLoading: boolean;
+  selectedCount: number;
+}): string {
+  if (isLoading) {
+    return "Loading selected photos";
+  }
+
+  return `${selectedCount} ${selectedCount === 1 ? "photo" : "photos"} selected`;
+}
+
+export function exportStatusCountLabel({ count, isLoading }: { count: number; isLoading: boolean }): string {
+  return isLoading ? "Loading" : String(count);
+}
+
 export function exportActionBlockMessage({
   isExporting,
   isStatusCountsLoading,

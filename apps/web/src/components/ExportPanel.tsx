@@ -7,6 +7,8 @@ import { api, exportDownloadUrl } from "@/lib/api";
 import {
   EXPORT_STATUSES,
   exportActionBlockMessage,
+  exportSelectedCountLabel,
+  exportStatusCountLabel,
   formatExportRecordStatus,
   formatExportStatusSummary,
   hasRunningExport,
@@ -54,6 +56,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   });
   const statusCounts = statusCountsQuery.data ?? { Pick: 0, Maybe: 0, Reject: 0, Unreviewed: 0 };
   const selectedCount = selectedPhotoCount(statusCounts, statuses);
+  const statusCountsLoading = statusCountsQuery.isLoading;
   const canLoadMoreExports = (exportsQuery.data?.length ?? 0) >= exportLimit;
 
   useEffect(() => {
@@ -76,7 +79,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   });
   const exportBlockMessage = exportActionBlockMessage({
     isExporting: mutation.isPending,
-    isStatusCountsLoading: statusCountsQuery.isLoading,
+    isStatusCountsLoading: statusCountsLoading,
     selectedCount,
     selectedStatuses: statuses,
   });
@@ -113,7 +116,9 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
       <div>
-        <p className="text-sm text-neutral-600">{photoCountLabel(selectedCount)} selected</p>
+        <p className="text-sm text-neutral-600">
+          {exportSelectedCountLabel({ isLoading: statusCountsLoading, selectedCount })}
+        </p>
         <h1 className="mt-1 text-3xl font-semibold">Export Selection</h1>
         {projectQuery.data?.root_path ? (
           <p className="mt-2 break-all text-sm text-neutral-600">
@@ -141,7 +146,9 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                 />
                 {status}
               </span>
-              <span className="text-neutral-600">{statusCounts[status]}</span>
+              <span className="text-neutral-600">
+                {exportStatusCountLabel({ count: statusCounts[status], isLoading: statusCountsLoading })}
+              </span>
             </label>
           ))}
         </div>

@@ -6,6 +6,8 @@ import {
   countPhotosByStatus,
   EXPORT_STATUSES,
   exportActionBlockMessage,
+  exportSelectedCountLabel,
+  exportStatusCountLabel,
   formatExportRecordStatus,
   formatExportStatusSummary,
   hasRunningExport,
@@ -30,6 +32,17 @@ test("sums selected export statuses", () => {
 
   assert.equal(selectedPhotoCount(counts, ["Pick", "Maybe"]), 5);
   assert.equal(selectedPhotoCount(counts, []), 0);
+});
+
+test("formats selected export counts without showing fallback zeros while loading", () => {
+  assert.equal(exportSelectedCountLabel({ isLoading: true, selectedCount: 0 }), "Loading selected photos");
+  assert.equal(exportSelectedCountLabel({ isLoading: false, selectedCount: 1 }), "1 photo selected");
+  assert.equal(exportSelectedCountLabel({ isLoading: false, selectedCount: 2 }), "2 photos selected");
+});
+
+test("formats status counts without showing fallback zeros while loading", () => {
+  assert.equal(exportStatusCountLabel({ count: 0, isLoading: true }), "Loading");
+  assert.equal(exportStatusCountLabel({ count: 4, isLoading: false }), "4");
 });
 
 test("explains why export action is blocked", () => {
