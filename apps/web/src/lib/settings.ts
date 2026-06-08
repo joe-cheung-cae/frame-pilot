@@ -1,6 +1,10 @@
 import { EXPORT_STATUSES, type ExportStatus } from "./exportSelection.ts";
 
 type StatusStorage = Pick<Storage, "getItem" | "setItem">;
+type SaveExportStatusPreferenceResult = {
+  saved: boolean;
+  statuses: ExportStatus[];
+};
 
 export const DEFAULT_EXPORT_STATUS_PREFERENCE: ExportStatus[] = ["Pick", "Maybe"];
 export const EXPORT_STATUS_PREFERENCE_KEY = "framepilot.defaultExportStatuses";
@@ -36,11 +40,24 @@ export function saveExportStatusPreference(
   statuses: readonly ExportStatus[],
   storage = browserStorage(),
 ): ExportStatus[] {
+  return saveExportStatusPreferenceResult(statuses, storage).statuses;
+}
+
+function saveExportStatusPreferenceResult(
+  statuses: readonly ExportStatus[],
+  storage = browserStorage(),
+): SaveExportStatusPreferenceResult {
   const normalized = normalizeExportStatusPreference(statuses);
-  if (storage) {
-    storage.setItem(EXPORT_STATUS_PREFERENCE_KEY, JSON.stringify(normalized));
+  if (!storage) {
+    return { saved: false, statuses: normalized };
   }
-  return normalized;
+
+  try {
+    storage.setItem(EXPORT_STATUS_PREFERENCE_KEY, JSON.stringify(normalized));
+    return { saved: true, statuses: normalized };
+  } catch {
+    return { saved: false, statuses: normalized };
+  }
 }
 
 export function toggleExportStatusPreference(
@@ -65,5 +82,10 @@ export function toggleSavedExportStatusPreference(
     return { message: "Keep at least one default export status.", statuses: [...current] };
   }
 
-  return { message: "Saved locally.", statuses: toggleExportStatusPreference(current, status, storage) };
+  const next = current.includes(status) ? current.filter((item) => item !== status) : [...current, status];
+  const result = saveExportStatusPreferenceResult(next, storage);
+  return {
+    message: result.saved ? "Saved locally." : "Preference changed for this session. Browser storage did not save it.",
+    statuses: result.statuses,
+  };
 }

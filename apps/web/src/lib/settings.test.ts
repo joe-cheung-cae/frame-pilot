@@ -23,6 +23,15 @@ function memoryStorage(initial: Record<string, string> = {}) {
   };
 }
 
+function throwingStorage() {
+  return {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error("Storage unavailable");
+    },
+  };
+}
+
 test("normalizes export status preferences to supported order", () => {
   assert.deepEqual(normalizeExportStatusPreference(["Reject", "Pick", "Missing"]), ["Pick", "Reject"]);
 });
@@ -47,6 +56,10 @@ test("saves normalized export status preferences locally", () => {
 
   assert.deepEqual(saved, ["Pick", "Maybe"]);
   assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick","Maybe"]');
+});
+
+test("keeps normalized export status preferences when storage cannot save", () => {
+  assert.deepEqual(saveExportStatusPreference(["Reject"], throwingStorage()), ["Reject"]);
 });
 
 test("toggles and saves non-empty export status preferences", () => {
@@ -95,4 +108,13 @@ test("saves settings preferences after valid toggles", () => {
     statuses: ["Pick", "Maybe"],
   });
   assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick","Maybe"]');
+});
+
+test("keeps settings usable when browser storage cannot save preferences", () => {
+  const result = toggleSavedExportStatusPreference(["Pick"], "Maybe", throwingStorage());
+
+  assert.deepEqual(result, {
+    message: "Preference changed for this session. Browser storage did not save it.",
+    statuses: ["Pick", "Maybe"],
+  });
 });
