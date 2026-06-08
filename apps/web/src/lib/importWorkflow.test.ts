@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  importLoadRecoveryMessage,
   importProcessBlockMessage,
   importRegistrationMessage,
   importSelectionBlockMessage,
@@ -107,4 +108,27 @@ test("omits terminal import guidance for non-terminal statuses", () => {
   assert.equal(importTerminalStatusMessage({ retryable: true, status: "running" }), "");
   assert.equal(importTerminalStatusMessage({ retryable: false, status: "complete" }), "");
   assert.equal(importTerminalStatusMessage({ retryable: false, status: null }), "");
+});
+
+test("explains how to recover from import data load and action failures", () => {
+  assert.equal(
+    importLoadRecoveryMessage("project"),
+    "Confirm the local FramePilot API is running, then reload the import page. Project data stays on this computer.",
+  );
+  assert.equal(
+    importLoadRecoveryMessage("import"),
+    "Confirm the local FramePilot API is running, then choose the files again. Original source photos remain unchanged.",
+  );
+  assert.equal(
+    importLoadRecoveryMessage("retry"),
+    "Confirm the local FramePilot API is running, then retry local preview generation again.",
+  );
+  assert.equal(
+    importLoadRecoveryMessage("cancel"),
+    "Confirm the local FramePilot API is running. If cancellation did not reach the job, FramePilot will keep the original files unchanged.",
+  );
+  assert.equal(
+    importLoadRecoveryMessage("job"),
+    "Confirm the local FramePilot API is running, then reload import status. Local job records stay in the project database.",
+  );
 });

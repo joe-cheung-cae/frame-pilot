@@ -8,6 +8,7 @@ import { ChangeEvent, useEffect, useState } from "react";
 import { FileImage, Loader2, Play, RotateCcw, StopCircle } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import {
+  importLoadRecoveryMessage,
   importProcessBlockMessage,
   importRegistrationMessage,
   importSelectionBlockMessage,
@@ -169,6 +170,9 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     retryable: Boolean(importJob?.retryable),
     status: importJob?.status,
   });
+  const importStatusError = currentImportJobQuery.error ?? importJobsQuery.error;
+  const importStatusErrorMessage =
+    importStatusError instanceof Error ? importStatusError.message : "Import status is unavailable.";
 
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
@@ -321,10 +325,36 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           ) : null}
         </div>
       ) : null}
-      {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
-      {cancelMutation.isError ? <p className="text-sm text-coral">{cancelMutation.error.message}</p> : null}
-      {retryMutation.isError ? <p className="text-sm text-coral">{retryMutation.error.message}</p> : null}
-      {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
+      {mutation.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{mutation.error.message}</p>
+          <p className="text-neutral-600">{importLoadRecoveryMessage("import")}</p>
+        </div>
+      ) : null}
+      {cancelMutation.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{cancelMutation.error.message}</p>
+          <p className="text-neutral-600">{importLoadRecoveryMessage("cancel")}</p>
+        </div>
+      ) : null}
+      {retryMutation.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{retryMutation.error.message}</p>
+          <p className="text-neutral-600">{importLoadRecoveryMessage("retry")}</p>
+        </div>
+      ) : null}
+      {currentImportJobQuery.isError || importJobsQuery.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">Could not load import status: {importStatusErrorMessage}</p>
+          <p className="text-neutral-600">{importLoadRecoveryMessage("job")}</p>
+        </div>
+      ) : null}
+      {project.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{project.error.message}</p>
+          <p className="text-neutral-600">{importLoadRecoveryMessage("project")}</p>
+        </div>
+      ) : null}
       {canProcessProject ? (
         <Link
           className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"

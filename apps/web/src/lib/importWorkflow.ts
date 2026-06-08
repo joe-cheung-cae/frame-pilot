@@ -22,6 +22,8 @@ type ImportTerminalStatusReason = {
   status: ProcessingJob["status"] | null | undefined;
 };
 
+type ImportLoadScope = "cancel" | "import" | "job" | "project" | "retry";
+
 function pluralize(count: number, singular: string, plural = `${singular}s`): string {
   return count === 1 ? singular : plural;
 }
@@ -102,4 +104,24 @@ export function importTerminalStatusMessage({ retryable, status }: ImportTermina
   }
 
   return "";
+}
+
+export function importLoadRecoveryMessage(scope: ImportLoadScope): string {
+  if (scope === "import") {
+    return "Confirm the local FramePilot API is running, then choose the files again. Original source photos remain unchanged.";
+  }
+
+  if (scope === "retry") {
+    return "Confirm the local FramePilot API is running, then retry local preview generation again.";
+  }
+
+  if (scope === "cancel") {
+    return "Confirm the local FramePilot API is running. If cancellation did not reach the job, FramePilot will keep the original files unchanged.";
+  }
+
+  if (scope === "job") {
+    return "Confirm the local FramePilot API is running, then reload import status. Local job records stay in the project database.";
+  }
+
+  return "Confirm the local FramePilot API is running, then reload the import page. Project data stays on this computer.";
 }
