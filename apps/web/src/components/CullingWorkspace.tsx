@@ -36,6 +36,7 @@ import {
   reviewBatchScopeDetail,
   reviewBatchScopeSummary,
   reviewEmptyStateMessage,
+  reviewSaveFailureMessage,
   reviewSelectionState,
   windowedCompareRefs,
   windowedGroupRefs,
@@ -413,6 +414,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const loadError = project.error ?? (!isImportRunning ? (photosQuery.error ?? groupsQuery.error) : null);
   const loadErrorMessage = loadError instanceof Error ? loadError.message : "Start the local API and try again.";
   const saveError = updateMutation.error ?? batchUpdateMutation.error;
+  const saveErrorMessage = saveError
+    ? reviewSaveFailureMessage({
+        errorMessage: saveError.message,
+        isBatch: Boolean(batchUpdateMutation.error),
+      })
+    : "";
 
   if (isLoading) {
     return (
@@ -828,7 +835,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                       Unreviewed
                     </button>
                   </div>
-                  {saveError ? <p className="text-sm text-coral">{saveError.message}</p> : null}
+                  {saveErrorMessage ? <p className="text-sm text-coral">{saveErrorMessage}</p> : null}
                   <div className="flex gap-1">
                     <button
                       className="focus-ring rounded p-2 text-neutral-600"

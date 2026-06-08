@@ -7,6 +7,7 @@ import {
   reviewBatchScopeDetail,
   reviewBatchScopeSummary,
   reviewEmptyStateMessage,
+  reviewSaveFailureMessage,
   reviewSelectionState,
   windowedCompareRefs,
   windowedGroupRefs,
@@ -281,6 +282,17 @@ test("explains empty review states for partially loaded photos", () => {
       detail: "Only 500 of 1200 photos are loaded.",
       title: "No loaded photos in this group are available.",
     },
+  );
+});
+
+test("explains save failures after optimistic review updates roll back", () => {
+  assert.equal(
+    reviewSaveFailureMessage({ errorMessage: "Network error", isBatch: false }),
+    "Photo update could not be saved. The visible status has been restored. Network error",
+  );
+  assert.equal(
+    reviewSaveFailureMessage({ errorMessage: "API unavailable", isBatch: true }),
+    "Batch update could not be saved. The visible status has been restored. API unavailable",
   );
 });
 

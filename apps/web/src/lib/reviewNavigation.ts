@@ -35,6 +35,11 @@ type ReviewEmptyState = {
   projectPhotoCount: number;
 };
 
+type ReviewSaveFailure = {
+  errorMessage: string;
+  isBatch: boolean;
+};
+
 function photoCountLabel(count: number): string {
   return `${count} ${count === 1 ? "photo" : "photos"}`;
 }
@@ -119,6 +124,11 @@ export function reviewEmptyStateMessage({
     detail: `Only ${loadedPhotoCount} of ${photoCountLabel(projectPhotoCount)} are loaded.`,
     title,
   };
+}
+
+export function reviewSaveFailureMessage({ errorMessage, isBatch }: ReviewSaveFailure): string {
+  const scope = isBatch ? "Batch update" : "Photo update";
+  return `${scope} could not be saved. The visible status has been restored. ${errorMessage}`;
 }
 
 export function nextPhotoIdAfterMark(
