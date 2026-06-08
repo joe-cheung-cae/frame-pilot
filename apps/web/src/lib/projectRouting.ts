@@ -10,6 +10,7 @@ type ProjectActionState = Pick<Project, "total_images" | "processed_images"> & {
 type ProjectProgressState = Pick<Project, "total_images" | "processed_images"> & {
   active_import_job?: ActiveImportState;
 };
+export type ProjectWorkflowStep = "import" | "process" | "cull" | "export";
 
 export function projectHasActiveImport(project: { active_import_job?: ActiveImportState }): boolean {
   const status = project.active_import_job?.status;
@@ -59,4 +60,48 @@ export function projectProgressSummary(project: ProjectProgressState): string {
   }
 
   return `${project.processed_images} of ${project.total_images} photos processed`;
+}
+
+export function projectWorkflowStepHref(project: ProjectRouteState, step: ProjectWorkflowStep): string {
+  if (step === "import") {
+    return `/projects/${project.id}/import`;
+  }
+
+  if (projectHasActiveImport(project) && (step === "process" || step === "cull")) {
+    return `/projects/${project.id}/import`;
+  }
+
+  if (project.total_images <= 0) {
+    return `/projects/${project.id}/import`;
+  }
+
+  if (step === "cull" && project.processed_images <= 0) {
+    return `/projects/${project.id}/process`;
+  }
+
+  return `/projects/${project.id}/${step}`;
+}
+
+export function projectWorkflowStepHint(project: ProjectActionState, step: ProjectWorkflowStep): string {
+  if (step === "import") {
+    return project.total_images > 0 ? "Add more local images" : "Start with local images";
+  }
+
+  if (projectHasActiveImport(project) && (step === "process" || step === "cull")) {
+    return "Finish import first";
+  }
+
+  if (project.total_images <= 0) {
+    return "Import photos first";
+  }
+
+  if (step === "process") {
+    return project.processed_images > 0 ? "Refresh grouping and ranking" : "Run grouping and ranking";
+  }
+
+  if (step === "cull") {
+    return project.processed_images > 0 ? "Review recommendations" : "Process photos first";
+  }
+
+  return "Export selected statuses";
 }

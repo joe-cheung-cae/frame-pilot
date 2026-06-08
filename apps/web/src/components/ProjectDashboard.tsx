@@ -9,6 +9,8 @@ import {
   projectNextActionLabel,
   projectNextHref,
   projectProgressSummary,
+  projectWorkflowStepHint,
+  projectWorkflowStepHref,
 } from "@/lib/projectRouting";
 
 const workflowLinks = [
@@ -16,7 +18,7 @@ const workflowLinks = [
   { label: "Process", icon: Play, suffix: "process" },
   { label: "Cull", icon: Images, suffix: "cull" },
   { label: "Export", icon: Download, suffix: "export" },
-];
+] as const;
 
 export function ProjectDashboard({ projectId }: { projectId: string }) {
   const project = useQuery({
@@ -73,10 +75,8 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
       <div className="grid gap-3 sm:grid-cols-4">
         {workflowLinks.map((item) => {
           const Icon = item.icon;
-          const href =
-            activeImport && (item.suffix === "process" || item.suffix === "cull")
-              ? `/projects/${projectId}/import`
-              : `/projects/${projectId}/${item.suffix}`;
+          const href = projectWorkflowStepHref(project.data, item.suffix);
+          const hint = projectWorkflowStepHint(project.data, item.suffix);
           return (
             <Link
               className="focus-ring grid min-h-28 content-center justify-items-center gap-3 rounded border border-line bg-white p-4 text-center font-medium hover:border-leaf"
@@ -84,7 +84,8 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
               key={item.suffix}
             >
               <Icon className="text-leaf" size={24} />
-              {item.label}
+              <span>{item.label}</span>
+              <span className="text-xs font-normal text-neutral-600">{hint}</span>
             </Link>
           );
         })}
