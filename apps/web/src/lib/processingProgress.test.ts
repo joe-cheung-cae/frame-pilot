@@ -4,8 +4,10 @@ import assert from "node:assert/strict";
 import {
   activeJobOfType,
   activeProcessingJob,
+  hasActiveProcessingJob,
   processingActionBlockMessage,
   processingFailureNotice,
+  processingJobTypeLabel,
   processingProgressPercent,
   processingProgressSummary,
   processingStatusLabel,
@@ -17,6 +19,32 @@ test("formats processing status labels", () => {
   assert.equal(processingStatusLabel("complete_with_errors"), "Complete with errors");
   assert.equal(processingStatusLabel("cancelled"), "Cancelled");
   assert.equal(processingStatusLabel("failed"), "Failed");
+});
+
+test("formats processing job type labels", () => {
+  assert.equal(processingJobTypeLabel("import"), "Import");
+  assert.equal(processingJobTypeLabel("processing"), "Grouping and ranking");
+  assert.equal(processingJobTypeLabel("export"), "Export");
+  assert.equal(processingJobTypeLabel("metadata"), "Metadata");
+  assert.equal(processingJobTypeLabel(""), "Job");
+});
+
+test("detects active processing jobs", () => {
+  assert.equal(hasActiveProcessingJob(undefined), false);
+  assert.equal(
+    hasActiveProcessingJob([
+      { job_type: "processing", status: "complete" },
+      { job_type: "import", status: "failed" },
+    ]),
+    false,
+  );
+  assert.equal(
+    hasActiveProcessingJob([
+      { job_type: "processing", status: "complete" },
+      { job_type: "import", status: "running" },
+    ]),
+    true,
+  );
 });
 
 test("clamps processing progress percentages", () => {

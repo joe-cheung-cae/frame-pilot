@@ -27,6 +27,26 @@ export function processingStatusLabel(status: ProcessingJob["status"] | null | u
   return status[0].toUpperCase() + status.slice(1);
 }
 
+export function processingJobTypeLabel(jobType: string): string {
+  if (jobType === "import") {
+    return "Import";
+  }
+
+  if (jobType === "processing") {
+    return "Grouping and ranking";
+  }
+
+  if (jobType === "export") {
+    return "Export";
+  }
+
+  return jobType ? jobType[0].toUpperCase() + jobType.slice(1) : "Job";
+}
+
+export function hasActiveProcessingJob(jobs: readonly ProcessingJobCandidate[] | null | undefined): boolean {
+  return Boolean(jobs?.some((job) => job.status === "queued" || job.status === "running"));
+}
+
 export function activeJobOfType<T extends ProcessingJobCandidate>(
   jobs: readonly T[] | null | undefined,
   jobType: string,

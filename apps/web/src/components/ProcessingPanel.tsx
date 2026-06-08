@@ -8,8 +8,10 @@ import { api } from "@/lib/api";
 import {
   activeJobOfType,
   activeProcessingJob,
+  hasActiveProcessingJob,
   processingActionBlockMessage,
   processingFailureNotice,
+  processingJobTypeLabel,
   processingProgressPercent,
   processingProgressSummary,
   processingStatusLabel,
@@ -34,6 +36,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
     queryKey: ["jobs", projectId, jobLimit],
     queryFn: () => api.listJobs(projectId, { limit: jobLimit, offset: 0 }),
     retry: false,
+    refetchInterval: (query) => (hasActiveProcessingJob(query.state.data) ? 1000 : false),
   });
   const startedJob = mutation.data;
   const resumedJob = activeProcessingJob(jobsQuery.data);
@@ -177,9 +180,9 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
                 >
                   <div>
                     <p className="font-medium">
-                      {record.job_type}
+                      {processingJobTypeLabel(record.job_type)}
                       <span className={record.status === "failed" ? "ml-2 text-coral" : "ml-2 text-neutral-500"}>
-                        {record.status}
+                        {processingStatusLabel(record.status)}
                       </span>
                     </p>
                     <p className="text-neutral-600">{record.current_step}</p>
