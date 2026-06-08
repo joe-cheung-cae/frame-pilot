@@ -6,6 +6,7 @@ import {
   countPhotosByStatus,
   EXPORT_STATUSES,
   exportActionBlockMessage,
+  exportActionRecoveryMessage,
   exportLoadRecoveryMessage,
   exportRecoveryMessage,
   exportSelectedCountLabel,
@@ -159,6 +160,17 @@ test("explains how to recover from export data load failures", () => {
   assert.equal(
     exportLoadRecoveryMessage("history"),
     "Confirm the local FramePilot API is running, then reload export history. Previous exports stay in the local project folder.",
+  );
+});
+
+test("explains how to recover from export action failures", () => {
+  assert.equal(
+    exportActionRecoveryMessage("copyPath"),
+    "The export path is still visible above. Select and copy it manually if browser clipboard access is blocked.",
+  );
+  assert.equal(
+    exportActionRecoveryMessage("runExport"),
+    "Original photos remain unchanged. Confirm the local API and export folder are available, then run export again.",
   );
 });
 

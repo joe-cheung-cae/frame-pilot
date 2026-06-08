@@ -7,6 +7,7 @@ import { api, exportDownloadUrl } from "@/lib/api";
 import {
   EXPORT_STATUSES,
   exportActionBlockMessage,
+  exportActionRecoveryMessage,
   exportLoadRecoveryMessage,
   exportRecoveryMessage,
   exportSelectedCountLabel,
@@ -225,8 +226,18 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           ) : null}
         </div>
       ) : null}
-      {copyError ? <p className="text-sm text-coral">{copyError}</p> : null}
-      {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
+      {copyError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{copyError}</p>
+          <p className="text-neutral-600">{exportActionRecoveryMessage("copyPath")}</p>
+        </div>
+      ) : null}
+      {mutation.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{mutation.error.message}</p>
+          <p className="text-neutral-600">{exportActionRecoveryMessage("runExport")}</p>
+        </div>
+      ) : null}
       <div className="grid gap-3">
         <h2 className="text-sm font-semibold">Export History</h2>
         {exportsQuery.isLoading ? (

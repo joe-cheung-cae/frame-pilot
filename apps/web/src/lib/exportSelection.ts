@@ -1,6 +1,7 @@
 import type { ExportRecord, Photo } from "@/lib/api";
 
 export type ExportStatus = Photo["user_status"];
+export type ExportActionScope = "copyPath" | "runExport";
 export type ExportLoadScope = "history" | "project" | "statusCounts";
 
 export const EXPORT_STATUSES: ExportStatus[] = ["Pick", "Maybe", "Reject", "Unreviewed"];
@@ -126,6 +127,14 @@ export function exportLoadRecoveryMessage(scope: ExportLoadScope): string {
   }
 
   return "Confirm the local FramePilot API is running, then reload the export page. Project data stays on this computer.";
+}
+
+export function exportActionRecoveryMessage(scope: ExportActionScope): string {
+  if (scope === "copyPath") {
+    return "The export path is still visible above. Select and copy it manually if browser clipboard access is blocked.";
+  }
+
+  return "Original photos remain unchanged. Confirm the local API and export folder are available, then run export again.";
 }
 
 export function hasRunningExport(records: readonly Pick<ExportRecord, "status">[]): boolean {
