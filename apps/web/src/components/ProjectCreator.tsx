@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import {
+  normalizeProjectCreateDraft,
+  projectCreateActionBlockMessage,
+  projectDataFolderHint,
+} from "@/lib/projectCreation";
 
 export function ProjectCreator() {
   const [name, setName] = useState("");
@@ -19,11 +24,12 @@ export function ProjectCreator() {
       router.push(`/projects/${project.id}/import`);
     },
   });
+  const createBlockMessage = projectCreateActionBlockMessage({ isCreating: mutation.isPending, name });
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (name.trim()) {
-      mutation.mutate({ projectName: name.trim(), projectRootPath: rootPath.trim() || undefined });
+    if (!createBlockMessage) {
+      mutation.mutate(normalizeProjectCreateDraft({ name, rootPath }));
     }
   }
 
@@ -47,14 +53,15 @@ export function ProjectCreator() {
           placeholder="/Users/name/Pictures/FramePilot project"
         />
       </label>
-      <p className="-mt-2 text-sm text-neutral-600">Leave blank to use the FramePilot managed local data folder.</p>
+      <p className="-mt-2 text-sm text-neutral-600">{projectDataFolderHint(rootPath)}</p>
       <button
         className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded bg-leaf px-4 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={!name.trim() || mutation.isPending}
+        disabled={Boolean(createBlockMessage)}
       >
         {mutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <ArrowRight size={18} />}
         Create and Import
       </button>
+      {createBlockMessage ? <p className="text-sm text-neutral-600">{createBlockMessage}</p> : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
     </form>
   );
