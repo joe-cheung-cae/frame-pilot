@@ -33,6 +33,7 @@ import { processingProgressSummary } from "@/lib/processingProgress";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
+  reviewAssetFallbackMessage,
   reviewBatchScopeDetail,
   reviewBatchScopeSummary,
   reviewEmptyStateMessage,
@@ -409,6 +410,10 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   });
 
   const preview = activePhoto ? assetUrl(projectId, activePhoto.preview_path) : null;
+  const previewFallback = reviewAssetFallbackMessage({
+    assetType: "preview",
+    hasAssetUrl: Boolean(preview),
+  });
   const previewZoomLabel = `${Math.round(previewZoom * 100)}%`;
   const isLoading = project.isLoading || (!isImportRunning && (photosQuery.isLoading || groupsQuery.isLoading));
   const loadError = project.error ?? (!isImportRunning ? (photosQuery.error ?? groupsQuery.error) : null);
@@ -624,6 +629,10 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               ) : null}
               {comparePhotos.map((photo) => {
                 const comparePreview = assetUrl(projectId, photo.preview_path);
+                const compareFallback = reviewAssetFallbackMessage({
+                  assetType: "preview",
+                  hasAssetUrl: Boolean(comparePreview),
+                });
                 return (
                   <button
                     className={`focus-ring grid min-h-72 min-w-0 place-items-center overflow-auto rounded border bg-neutral-950 p-2 lg:min-h-0 ${
@@ -643,9 +652,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                         onError={() => markAssetFailed(comparePreview)}
                       />
                     ) : (
-                      <span className="text-sm text-white">
-                        {comparePreview ? "Preview failed to load" : "No preview"}
-                      </span>
+                      <span className="text-sm text-white">{compareFallback.shortTitle}</span>
                     )}
                     <span className="mt-2 justify-self-start rounded bg-white/90 px-2 py-1 text-xs text-ink">
                       {photo.filename} · {photo.ai_recommendation}
@@ -674,7 +681,18 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           ) : preview ? (
             <div className="grid place-items-center gap-3 text-center text-white">
               <ImageOff size={38} />
-              <p>Preview failed to load.</p>
+              <div className="grid max-w-md gap-2 px-6">
+                <p>{previewFallback.title}</p>
+                <p className="text-sm text-white/75">{previewFallback.detail}</p>
+              </div>
+            </div>
+          ) : activePhoto ? (
+            <div className="grid place-items-center gap-3 text-center text-white">
+              <ImageOff size={38} />
+              <div className="grid max-w-md gap-2 px-6">
+                <p>{previewFallback.title}</p>
+                <p className="text-sm text-white/75">{previewFallback.detail}</p>
+              </div>
             </div>
           ) : (
             <div className="grid max-w-md place-items-center gap-3 px-6 text-center text-white">
@@ -878,6 +896,10 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         ) : null}
         {filmstripPhotos.map((photo) => {
           const thumbnail = assetUrl(projectId, photo.thumbnail_path);
+          const thumbnailFallback = reviewAssetFallbackMessage({
+            assetType: "thumbnail",
+            hasAssetUrl: Boolean(thumbnail),
+          });
           return (
             <button
               className={`focus-ring relative h-20 w-28 shrink-0 overflow-hidden rounded border ${photo.id === activePhoto?.id ? "border-leaf" : "border-line"}`}
@@ -896,8 +918,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   onError={() => markAssetFailed(thumbnail)}
                 />
               ) : (
-                <span className="grid h-full place-items-center text-xs">
-                  {thumbnail ? "Preview failed" : "No preview"}
+                <span className="grid h-full place-items-center px-1 text-center text-xs">
+                  {thumbnailFallback.shortTitle}
                 </span>
               )}
               <span className="absolute bottom-1 left-1 rounded bg-white/90 px-1 text-xs">{photo.user_status}</span>

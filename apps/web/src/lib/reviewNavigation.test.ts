@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
+  reviewAssetFallbackMessage,
   reviewBatchScopeDetail,
   reviewBatchScopeSummary,
   reviewEmptyStateMessage,
@@ -294,6 +295,32 @@ test("explains save failures after optimistic review updates roll back", () => {
     reviewSaveFailureMessage({ errorMessage: "API unavailable", isBatch: true }),
     "Batch update could not be saved. The visible status has been restored. API unavailable",
   );
+});
+
+test("explains local preview fallback states", () => {
+  assert.deepEqual(reviewAssetFallbackMessage({ assetType: "preview", hasAssetUrl: true }), {
+    detail: "The original file remains unchanged. Reopen the project or rerun local processing to regenerate previews.",
+    shortTitle: "Preview failed",
+    title: "Local preview failed to load.",
+  });
+  assert.deepEqual(reviewAssetFallbackMessage({ assetType: "preview", hasAssetUrl: false }), {
+    detail: "Run import or processing again to create a local preview without modifying the original file.",
+    shortTitle: "No preview",
+    title: "No local preview is available.",
+  });
+});
+
+test("explains local thumbnail fallback states", () => {
+  assert.deepEqual(reviewAssetFallbackMessage({ assetType: "thumbnail", hasAssetUrl: true }), {
+    detail: "The generated local thumbnail could not load.",
+    shortTitle: "Thumbnail failed",
+    title: "Local thumbnail failed to load.",
+  });
+  assert.deepEqual(reviewAssetFallbackMessage({ assetType: "thumbnail", hasAssetUrl: false }), {
+    detail: "No generated local thumbnail is available for this photo.",
+    shortTitle: "No thumbnail",
+    title: "No local thumbnail is available.",
+  });
 });
 
 test("returns every photo when the filmstrip fits inside the window", () => {

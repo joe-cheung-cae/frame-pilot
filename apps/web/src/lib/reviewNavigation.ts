@@ -40,6 +40,11 @@ type ReviewSaveFailure = {
   isBatch: boolean;
 };
 
+type ReviewAssetFallback = {
+  assetType: "preview" | "thumbnail";
+  hasAssetUrl: boolean;
+};
+
 function photoCountLabel(count: number): string {
   return `${count} ${count === 1 ? "photo" : "photos"}`;
 }
@@ -129,6 +134,37 @@ export function reviewEmptyStateMessage({
 export function reviewSaveFailureMessage({ errorMessage, isBatch }: ReviewSaveFailure): string {
   const scope = isBatch ? "Batch update" : "Photo update";
   return `${scope} could not be saved. The visible status has been restored. ${errorMessage}`;
+}
+
+export function reviewAssetFallbackMessage({
+  assetType,
+  hasAssetUrl,
+}: ReviewAssetFallback): { detail: string; shortTitle: string; title: string } {
+  if (assetType === "thumbnail") {
+    return hasAssetUrl
+      ? {
+          detail: "The generated local thumbnail could not load.",
+          shortTitle: "Thumbnail failed",
+          title: "Local thumbnail failed to load.",
+        }
+      : {
+          detail: "No generated local thumbnail is available for this photo.",
+          shortTitle: "No thumbnail",
+          title: "No local thumbnail is available.",
+        };
+  }
+
+  return hasAssetUrl
+    ? {
+        detail: "The original file remains unchanged. Reopen the project or rerun local processing to regenerate previews.",
+        shortTitle: "Preview failed",
+        title: "Local preview failed to load.",
+      }
+    : {
+        detail: "Run import or processing again to create a local preview without modifying the original file.",
+        shortTitle: "No preview",
+        title: "No local preview is available.",
+      };
 }
 
 export function nextPhotoIdAfterMark(
