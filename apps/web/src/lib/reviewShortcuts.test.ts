@@ -42,10 +42,13 @@ test("maps workspace mode and routing shortcuts", () => {
   assert.equal(reviewShortcutCommandForKey("Escape"), null);
 });
 
-test("prevents browser defaults only for scrolling shortcuts", () => {
+test("prevents browser defaults for in-workspace shortcuts", () => {
+  assert.equal(reviewShortcutNeedsPreventDefault({ type: "move_photo", delta: 1 }), true);
   assert.equal(reviewShortcutNeedsPreventDefault({ type: "move_group", delta: 1 }), true);
+  assert.equal(reviewShortcutNeedsPreventDefault({ type: "mark", status: "Pick" }), true);
+  assert.equal(reviewShortcutNeedsPreventDefault({ type: "rate", rating: 5 }), true);
   assert.equal(reviewShortcutNeedsPreventDefault({ type: "toggle_large_preview" }), true);
-  assert.equal(reviewShortcutNeedsPreventDefault({ type: "move_photo", delta: 1 }), false);
+  assert.equal(reviewShortcutNeedsPreventDefault({ type: "zoom_in" }), true);
   assert.equal(reviewShortcutNeedsPreventDefault({ type: "export" }), false);
 });
 

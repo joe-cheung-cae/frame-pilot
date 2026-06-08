@@ -79,5 +79,5 @@ export function reviewShortcutCommandForKey(key: string): ReviewShortcutCommand 
 }
 
 export function reviewShortcutNeedsPreventDefault(command: ReviewShortcutCommand): boolean {
-  return command.type === "move_group" || command.type === "toggle_large_preview";
+  return command.type !== "export";
 }
