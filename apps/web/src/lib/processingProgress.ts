@@ -7,6 +7,12 @@ type ProcessingProgressJob = Pick<
 
 type ProcessingFailureJob = Pick<ProcessingJob, "error_message" | "failed_items" | "job_type">;
 
+type ProcessingRecoveryReason = {
+  failedItems: number;
+  retryable: boolean;
+  status: ProcessingJob["status"] | null | undefined;
+};
+
 type ProcessingProgressProject = Pick<Project, "processed_images" | "total_images">;
 
 type ProcessingJobCandidate = Pick<ProcessingJob, "job_type" | "status">;
@@ -86,6 +92,24 @@ export function processingFailureNotice(job: ProcessingFailureJob | null | undef
   const noun = job.job_type === "import" ? (job.failed_items === 1 ? "file" : "files") : job.failed_items === 1 ? "photo" : "photos";
   const verb = job.job_type === "import" ? "imported" : "processed";
   return `${job.failed_items} ${noun} could not be ${verb}.`;
+}
+
+export function processingRecoveryMessage({ failedItems, retryable, status }: ProcessingRecoveryReason): string {
+  if (status === "failed") {
+    return retryable
+      ? "Retry will rebuild local grouping and ranking metadata without modifying original files."
+      : "Imported files remain safe. Reimport affected images or resolve failed local files before running again.";
+  }
+
+  if (status === "cancelled") {
+    return "Processing stopped at a safe checkpoint. Run grouping and ranking again when you are ready.";
+  }
+
+  if (status === "complete_with_errors" && failedItems > 0) {
+    return "Successfully processed photos are ready for culling. Review failed photos before exporting a final set.";
+  }
+
+  return "";
 }
 
 export function processingActionBlockMessage({

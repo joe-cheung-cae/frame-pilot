@@ -10,6 +10,7 @@ import {
   processingJobTypeLabel,
   processingProgressPercent,
   processingProgressSummary,
+  processingRecoveryMessage,
   processingStatusLabel,
 } from "./processingProgress.ts";
 
@@ -95,6 +96,34 @@ test("formats processing failure notices", () => {
     processingFailureNotice({ error_message: null, failed_items: 1, job_type: "import" }),
     "1 file could not be imported.",
   );
+});
+
+test("explains processing recovery for failed jobs", () => {
+  assert.equal(
+    processingRecoveryMessage({ failedItems: 0, retryable: true, status: "failed" }),
+    "Retry will rebuild local grouping and ranking metadata without modifying original files.",
+  );
+  assert.equal(
+    processingRecoveryMessage({ failedItems: 0, retryable: false, status: "failed" }),
+    "Imported files remain safe. Reimport affected images or resolve failed local files before running again.",
+  );
+});
+
+test("explains processing recovery for cancelled and partial jobs", () => {
+  assert.equal(
+    processingRecoveryMessage({ failedItems: 0, retryable: true, status: "cancelled" }),
+    "Processing stopped at a safe checkpoint. Run grouping and ranking again when you are ready.",
+  );
+  assert.equal(
+    processingRecoveryMessage({ failedItems: 2, retryable: true, status: "complete_with_errors" }),
+    "Successfully processed photos are ready for culling. Review failed photos before exporting a final set.",
+  );
+});
+
+test("omits processing recovery when no recovery guidance is needed", () => {
+  assert.equal(processingRecoveryMessage({ failedItems: 0, retryable: true, status: "complete" }), "");
+  assert.equal(processingRecoveryMessage({ failedItems: 0, retryable: true, status: "complete_with_errors" }), "");
+  assert.equal(processingRecoveryMessage({ failedItems: 0, retryable: false, status: null }), "");
 });
 
 test("explains why processing action is blocked", () => {

@@ -14,6 +14,7 @@ import {
   processingJobTypeLabel,
   processingProgressPercent,
   processingProgressSummary,
+  processingRecoveryMessage,
   processingStatusLabel,
 } from "@/lib/processingProgress";
 import { PROCESSING_FAILURE_FILTER } from "@/lib/reviewFilters";
@@ -63,6 +64,11 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   const processingBlockMessage = processingActionBlockMessage({ hasImportedPhotos, isImportRunning, isProcessing });
   const canLoadMoreJobs = (jobsQuery.data?.length ?? 0) >= jobLimit;
   const jobFailureNotice = processingFailureNotice(job);
+  const jobRecoveryMessage = processingRecoveryMessage({
+    failedItems: job?.failed_items ?? 0,
+    retryable: Boolean(job?.retryable),
+    status: job?.status,
+  });
   const processingFailuresHref = `/projects/${projectId}/cull?filter=${encodeURIComponent(PROCESSING_FAILURE_FILTER)}`;
 
   useEffect(() => {
@@ -103,6 +109,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
             {job.error_message ?? "Processing failed. Review the imported files and try again."}
           </p>
         ) : null}
+        {jobRecoveryMessage ? <p className="mt-3 text-sm text-neutral-700">{jobRecoveryMessage}</p> : null}
         {jobFailureNotice && job?.status !== "failed" ? (
           <div className="mt-3 grid gap-2 text-sm">
             <p className="text-coral">{jobFailureNotice}</p>
