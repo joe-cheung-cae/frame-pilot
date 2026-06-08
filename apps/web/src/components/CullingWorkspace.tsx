@@ -37,6 +37,7 @@ import {
   reviewBatchScopeDetail,
   reviewBatchScopeSummary,
   reviewEmptyStateMessage,
+  reviewLoadRecoveryMessage,
   reviewSaveFailureMessage,
   reviewSelectionState,
   windowedCompareRefs,
@@ -442,6 +443,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
         <h1 className="text-2xl font-semibold">Culling Workspace</h1>
         <p className="text-sm text-coral">Could not load this project: {loadErrorMessage}</p>
+        <p className="text-sm text-neutral-600">{reviewLoadRecoveryMessage("workspace")}</p>
       </section>
     );
   }
@@ -525,9 +527,14 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
             })}
           </p>
           {loadAllPhotosMutation.error || loadAllGroupsMutation.error ? (
-            <p className="mt-1 text-xs text-coral">
-              {(loadAllPhotosMutation.error ?? loadAllGroupsMutation.error)?.message}
-            </p>
+            <div className="mt-1 grid gap-1 text-xs">
+              <p className="text-coral">
+                {(loadAllPhotosMutation.error ?? loadAllGroupsMutation.error)?.message}
+              </p>
+              <p className="text-neutral-600">
+                {reviewLoadRecoveryMessage(loadAllPhotosMutation.error ? "photos" : "groups")}
+              </p>
+            </div>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">

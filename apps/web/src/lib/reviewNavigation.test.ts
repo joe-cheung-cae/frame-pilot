@@ -8,6 +8,7 @@ import {
   reviewBatchScopeDetail,
   reviewBatchScopeSummary,
   reviewEmptyStateMessage,
+  reviewLoadRecoveryMessage,
   reviewSaveFailureMessage,
   reviewSelectionState,
   windowedCompareRefs,
@@ -321,6 +322,21 @@ test("explains local thumbnail fallback states", () => {
     shortTitle: "No thumbnail",
     title: "No local thumbnail is available.",
   });
+});
+
+test("explains how to recover from culling data load failures", () => {
+  assert.equal(
+    reviewLoadRecoveryMessage("workspace"),
+    "Confirm the local FramePilot API is running, then reload the culling workspace. Original photos remain unchanged.",
+  );
+  assert.equal(
+    reviewLoadRecoveryMessage("photos"),
+    "Confirm the local FramePilot API is running, then load all photos again. Review status changes already saved stay in the local project database.",
+  );
+  assert.equal(
+    reviewLoadRecoveryMessage("groups"),
+    "Confirm the local FramePilot API is running, then load all groups again. Existing grouping metadata stays in the local project database.",
+  );
 });
 
 test("returns every photo when the filmstrip fits inside the window", () => {

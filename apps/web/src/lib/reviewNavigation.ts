@@ -45,6 +45,8 @@ type ReviewAssetFallback = {
   hasAssetUrl: boolean;
 };
 
+type ReviewLoadRecoveryScope = "groups" | "photos" | "workspace";
+
 function photoCountLabel(count: number): string {
   return `${count} ${count === 1 ? "photo" : "photos"}`;
 }
@@ -164,7 +166,19 @@ export function reviewAssetFallbackMessage({
         detail: "Run import or processing again to create a local preview without modifying the original file.",
         shortTitle: "No preview",
         title: "No local preview is available.",
-      };
+    };
+}
+
+export function reviewLoadRecoveryMessage(scope: ReviewLoadRecoveryScope): string {
+  if (scope === "photos") {
+    return "Confirm the local FramePilot API is running, then load all photos again. Review status changes already saved stay in the local project database.";
+  }
+
+  if (scope === "groups") {
+    return "Confirm the local FramePilot API is running, then load all groups again. Existing grouping metadata stays in the local project database.";
+  }
+
+  return "Confirm the local FramePilot API is running, then reload the culling workspace. Original photos remain unchanged.";
 }
 
 export function nextPhotoIdAfterMark(
