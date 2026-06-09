@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  importPreviewCompletionMessage,
   importLoadRecoveryMessage,
   importProcessBlockMessage,
   importRegistrationMessage,
@@ -34,6 +35,12 @@ test("classifies import registration feedback tone", () => {
   assert.equal(importRegistrationTone({ importedCount: 1, skippedCount: 2 }), "neutral");
   assert.equal(importRegistrationTone({ importedCount: 0, skippedCount: 3 }), "warning");
   assert.equal(importRegistrationTone({ importedCount: 0, skippedCount: 0 }), "warning");
+});
+
+test("summarizes preview completion only when images were imported", () => {
+  assert.equal(importPreviewCompletionMessage(2), "2 images imported and previewed.");
+  assert.equal(importPreviewCompletionMessage(1), "1 image imported and previewed.");
+  assert.equal(importPreviewCompletionMessage(0), "");
 });
 
 test("explains why import must finish before processing", () => {

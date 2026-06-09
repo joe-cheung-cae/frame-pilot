@@ -10,6 +10,7 @@ import { api, assetUrl, Photo } from "@/lib/api";
 import {
   type ImportFeedbackTone,
   importLoadRecoveryMessage,
+  importPreviewCompletionMessage,
   importProcessBlockMessage,
   importRegistrationMessage,
   importRegistrationTone,
@@ -139,10 +140,11 @@ export function ImportPanel({ projectId }: { projectId: string }) {
         lastImportPhotoIds.slice(0, 12).map((photoId) => api.getPhoto(projectId, photoId)),
       );
       setRecentImports(refreshed);
-      setMessage(
-        `${lastImportPhotoIds.length} ${pluralize(lastImportPhotoIds.length, "image")} imported and previewed.`,
-      );
-      setMessageTone("success");
+      const completionMessage = importPreviewCompletionMessage(lastImportPhotoIds.length);
+      if (completionMessage) {
+        setMessage(completionMessage);
+        setMessageTone("success");
+      }
     })();
   }, [completedImportJobId, currentImportJobQuery.data, lastImportPhotoIds, projectId, queryClient]);
 

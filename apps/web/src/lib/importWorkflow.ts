@@ -58,6 +58,14 @@ export function importRegistrationTone({
   return skippedCount > 0 ? "neutral" : "success";
 }
 
+export function importPreviewCompletionMessage(importedCount: number): string {
+  if (importedCount <= 0) {
+    return "";
+  }
+
+  return `${importedCount} ${pluralize(importedCount, "image")} imported and previewed.`;
+}
+
 export function importProcessBlockMessage({
   hasImportedPhotos,
   importStatus,
