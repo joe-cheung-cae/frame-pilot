@@ -22,6 +22,7 @@ import {
 import { invalidateProjectExportQueries } from "@/lib/queryInvalidation";
 import {
   DEFAULT_EXPORT_STATUS_PREFERENCE,
+  exportPreferenceMessageTone,
   loadExportStatusPreference,
   toggleExportStatusPreferenceWithMessage,
 } from "@/lib/settings";
@@ -29,6 +30,11 @@ import {
 type Mode = "csv" | "folder" | "zip";
 
 const RECENT_EXPORT_LIMIT = 50;
+const PREFERENCE_MESSAGE_CLASS = {
+  neutral: "text-neutral-600",
+  success: "text-leaf",
+  warning: "text-coral",
+} as const;
 
 function projectExportRoot(rootPath: string) {
   return `${rootPath.replace(/[\\/]+$/, "")}/exports`;
@@ -217,7 +223,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         <p className={`text-sm ${!statuses.length ? "text-coral" : "text-neutral-600"}`}>{exportBlockMessage}</p>
       ) : null}
       {preferenceMessage ? (
-        <p className={`text-sm ${preferenceMessage.includes("saved") ? "text-leaf" : "text-neutral-600"}`}>
+        <p className={`text-sm ${PREFERENCE_MESSAGE_CLASS[exportPreferenceMessageTone(preferenceMessage)]}`}>
           {preferenceMessage}
         </p>
       ) : null}

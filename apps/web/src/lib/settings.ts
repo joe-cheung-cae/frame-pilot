@@ -5,6 +5,7 @@ type SaveExportStatusPreferenceResult = {
   saved: boolean;
   statuses: ExportStatus[];
 };
+export type ExportPreferenceMessageTone = "neutral" | "success" | "warning";
 
 export const DEFAULT_EXPORT_STATUS_PREFERENCE: ExportStatus[] = ["Pick", "Maybe"];
 export const EXPORT_STATUS_PREFERENCE_KEY = "framepilot.defaultExportStatuses";
@@ -108,4 +109,19 @@ export function toggleSavedExportStatusPreference(
     message: result.saved ? "Saved locally." : "Preference changed for this session. Browser storage did not save it.",
     statuses: result.statuses,
   };
+}
+
+export function exportPreferenceMessageTone(message: string): ExportPreferenceMessageTone {
+  if (message === "Export preference saved locally." || message === "Saved locally.") {
+    return "success";
+  }
+
+  if (
+    message === "Choose at least one status before exporting. The empty selection was not saved." ||
+    message === "Keep at least one default export status."
+  ) {
+    return "warning";
+  }
+
+  return "neutral";
 }

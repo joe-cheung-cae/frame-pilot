@@ -4,10 +4,17 @@ import { useEffect, useState } from "react";
 import { EXPORT_STATUSES, type ExportStatus } from "@/lib/exportSelection";
 import {
   DEFAULT_EXPORT_STATUS_PREFERENCE,
+  exportPreferenceMessageTone,
   isOnlySelectedExportStatus,
   loadExportStatusPreference,
   toggleSavedExportStatusPreference,
 } from "@/lib/settings";
+
+const PREFERENCE_MESSAGE_CLASS = {
+  neutral: "text-neutral-600",
+  success: "text-leaf",
+  warning: "text-coral",
+} as const;
 
 export function SettingsPanel() {
   const [statuses, setStatuses] = useState<ExportStatus[]>(DEFAULT_EXPORT_STATUS_PREFERENCE);
@@ -59,7 +66,7 @@ export function SettingsPanel() {
         </div>
         <p className="text-sm text-neutral-600">At least one default status stays selected for future exports.</p>
         {message ? (
-          <p className={`text-sm ${message === "Saved locally." ? "text-leaf" : "text-coral"}`}>{message}</p>
+          <p className={`text-sm ${PREFERENCE_MESSAGE_CLASS[exportPreferenceMessageTone(message)]}`}>{message}</p>
         ) : null}
       </div>
     </section>

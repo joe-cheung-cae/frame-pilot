@@ -8,6 +8,7 @@ import {
   normalizeExportStatusPreference,
   saveExportStatusPreference,
   isOnlySelectedExportStatus,
+  exportPreferenceMessageTone,
   toggleSavedExportStatusPreference,
   toggleExportStatusPreference,
   toggleExportStatusPreferenceWithMessage,
@@ -151,4 +152,19 @@ test("keeps export preferences usable when browser storage cannot save", () => {
     message: "Export preference changed for this session only.",
     statuses: ["Pick", "Maybe"],
   });
+});
+
+test("classifies export preference feedback tone without substring matches", () => {
+  assert.equal(exportPreferenceMessageTone("Export preference saved locally."), "success");
+  assert.equal(exportPreferenceMessageTone("Saved locally."), "success");
+  assert.equal(
+    exportPreferenceMessageTone("Choose at least one status before exporting. The empty selection was not saved."),
+    "warning",
+  );
+  assert.equal(exportPreferenceMessageTone("Keep at least one default export status."), "warning");
+  assert.equal(exportPreferenceMessageTone("Export preference changed for this session only."), "neutral");
+  assert.equal(
+    exportPreferenceMessageTone("Preference changed for this session. Browser storage did not save it."),
+    "neutral",
+  );
 });
