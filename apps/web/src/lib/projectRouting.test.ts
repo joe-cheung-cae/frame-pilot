@@ -106,6 +106,10 @@ test("summarizes project progress by workflow stage", () => {
     "1 photo registered; import still running",
   );
   assert.equal(
+    projectProgressSummary({ total_images: 0, processed_images: 0, active_import_job: { status: "queued" } }),
+    "Import still running; registered photos will appear as local previews are created",
+  );
+  assert.equal(
     projectProgressSummary({ total_images: 3, processed_images: 0, active_import_job: null }),
     "3 photos imported; processing not started",
   );

@@ -61,6 +61,9 @@ export function projectNextActionLabel(project: ProjectActionState): string {
 
 export function projectProgressSummary(project: ProjectProgressState): string {
   if (projectHasActiveImport(project)) {
+    if (project.total_images <= 0) {
+      return "Import still running; registered photos will appear as local previews are created";
+    }
     return `${project.total_images} ${photoLabel(project.total_images)} registered; import still running`;
   }
 
