@@ -8,9 +8,11 @@ import { ChangeEvent, useEffect, useState } from "react";
 import { FileImage, Loader2, Play, RotateCcw, StopCircle } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import {
+  type ImportFeedbackTone,
   importLoadRecoveryMessage,
   importProcessBlockMessage,
   importRegistrationMessage,
+  importRegistrationTone,
   importSelectionBlockMessage,
   importTerminalStatusMessage,
 } from "@/lib/importWorkflow";
@@ -26,8 +28,15 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
   return count === 1 ? singular : plural;
 }
 
+const IMPORT_MESSAGE_CLASS: Record<ImportFeedbackTone, string> = {
+  neutral: "text-neutral-600",
+  success: "text-leaf",
+  warning: "text-coral",
+};
+
 export function ImportPanel({ projectId }: { projectId: string }) {
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<ImportFeedbackTone>("neutral");
   const [skipped, setSkipped] = useState<{ filename: string; reason: string }[]>([]);
   const [showAllSkipped, setShowAllSkipped] = useState(false);
   const [recentImports, setRecentImports] = useState<Photo[]>([]);
@@ -44,6 +53,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     mutationFn: (files: readonly File[]) => api.importPhotos(projectId, files),
     onMutate: () => {
       setMessage("");
+      setMessageTone("neutral");
       setSkipped([]);
       setShowAllSkipped(false);
       setRecentImports([]);
@@ -54,6 +64,9 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     onSuccess: async (result) => {
       setMessage(
         importRegistrationMessage({ importedCount: result.imported.length, skippedCount: result.skipped.length }),
+      );
+      setMessageTone(
+        importRegistrationTone({ importedCount: result.imported.length, skippedCount: result.skipped.length }),
       );
       setSkipped(result.skipped);
       setRecentImports(result.imported);
@@ -66,6 +79,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     mutationFn: (jobId: string) => api.retryJob(projectId, jobId),
     onSuccess: async (job) => {
       setMessage("Retry started. Generating missing previews...");
+      setMessageTone("neutral");
       setSkipped([]);
       setShowAllSkipped(false);
       setCurrentImportJobId(job.id);
@@ -77,6 +91,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     mutationFn: (jobId: string) => api.cancelJob(projectId, jobId),
     onSuccess: async (job) => {
       setMessage("Cancellation requested. Finishing the current safe checkpoint...");
+      setMessageTone("neutral");
       setCurrentImportJobId(job.id);
       await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
@@ -117,6 +132,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       await invalidateProjectWorkflowQueries(queryClient, projectId);
       if (job.status === "failed" || job.status === "cancelled") {
         setMessage("");
+        setMessageTone("neutral");
         return;
       }
       const refreshed = await Promise.all(
@@ -126,6 +142,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       setMessage(
         `${lastImportPhotoIds.length} ${pluralize(lastImportPhotoIds.length, "image")} imported and previewed.`,
       );
+      setMessageTone("success");
     })();
   }, [completedImportJobId, currentImportJobQuery.data, lastImportPhotoIds, projectId, queryClient]);
 
@@ -272,7 +289,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           ) : null}
         </div>
       ) : null}
-      {message ? <p className="text-sm text-leaf">{message}</p> : null}
+      {message ? <p className={`text-sm ${IMPORT_MESSAGE_CLASS[messageTone]}`}>{message}</p> : null}
       {skipped.length ? (
         <div className="rounded border border-line bg-white p-3 text-sm text-neutral-700">
           <p className="font-medium text-coral">

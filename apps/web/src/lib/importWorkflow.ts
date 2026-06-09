@@ -4,6 +4,7 @@ type ImportRegistrationSummary = {
   importedCount: number;
   skippedCount: number;
 };
+export type ImportFeedbackTone = "neutral" | "success" | "warning";
 
 type ImportProcessBlockReason = {
   hasImportedPhotos: boolean;
@@ -44,6 +45,17 @@ export function importRegistrationMessage({
   }
 
   return `${registered} ${skippedCount} ${pluralize(skippedCount, "file")} skipped.`;
+}
+
+export function importRegistrationTone({
+  importedCount,
+  skippedCount,
+}: ImportRegistrationSummary): ImportFeedbackTone {
+  if (importedCount <= 0) {
+    return "warning";
+  }
+
+  return skippedCount > 0 ? "neutral" : "success";
 }
 
 export function importProcessBlockMessage({

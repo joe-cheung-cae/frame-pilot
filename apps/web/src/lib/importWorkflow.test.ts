@@ -5,6 +5,7 @@ import {
   importLoadRecoveryMessage,
   importProcessBlockMessage,
   importRegistrationMessage,
+  importRegistrationTone,
   importSelectionBlockMessage,
   importTerminalStatusMessage,
 } from "./importWorkflow.ts";
@@ -26,6 +27,13 @@ test("explains import registration with no supported images", () => {
     "3 files skipped. No supported images were registered.",
   );
   assert.equal(importRegistrationMessage({ importedCount: 0, skippedCount: 0 }), "No images were registered.");
+});
+
+test("classifies import registration feedback tone", () => {
+  assert.equal(importRegistrationTone({ importedCount: 2, skippedCount: 0 }), "success");
+  assert.equal(importRegistrationTone({ importedCount: 1, skippedCount: 2 }), "neutral");
+  assert.equal(importRegistrationTone({ importedCount: 0, skippedCount: 3 }), "warning");
+  assert.equal(importRegistrationTone({ importedCount: 0, skippedCount: 0 }), "warning");
 });
 
 test("explains why import must finish before processing", () => {
