@@ -85,6 +85,7 @@ export function reviewProgressAfterFilterChange(progress: ReviewProgress, filter
   return {
     ...progress,
     activeGroupId: null,
+    activePhotoId: null,
     filter,
   };
 }

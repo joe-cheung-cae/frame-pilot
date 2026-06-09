@@ -122,7 +122,7 @@ test("applies requested review filters to fallback entry progress", () => {
   });
 });
 
-test("clears active group when changing review filters", () => {
+test("clears active selection when changing review filters", () => {
   assert.deepEqual(
     reviewProgressAfterFilterChange(
       {
@@ -137,7 +137,7 @@ test("clears active group when changing review filters", () => {
     ),
     {
       activeGroupId: null,
-      activePhotoId: "photo-1",
+      activePhotoId: null,
       compareMode: true,
       filter: "Maybes",
       largePreview: true,
