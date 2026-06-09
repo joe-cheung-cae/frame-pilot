@@ -59,6 +59,10 @@ function hasActiveReviewFilter(filter: string): boolean {
   return filter !== "All";
 }
 
+function fullProjectBatchHint(projectPhotoCount: number): string {
+  return `Load all photos before batch marking if you need the full project of ${photoCountLabel(projectPhotoCount)}.`;
+}
+
 export function reviewBatchScopeSummary({
   activeGroupIndex,
   filter,
@@ -86,15 +90,18 @@ export function reviewBatchScopeDetail({
   visiblePhotoCount,
 }: ReviewBatchScope): string {
   if (!visiblePhotoCount) {
+    const partialHint = photosPartiallyLoaded ? ` ${fullProjectBatchHint(projectPhotoCount)}` : "";
     if (activeGroupIndex >= 0) {
-      return hasActiveReviewFilter(filter)
+      const emptyScope = hasActiveReviewFilter(filter)
         ? `No loaded photos in this group match the ${filter} filter.`
         : "No loaded photos are available in this group.";
+      return `${emptyScope}${partialHint}`;
     }
 
-    return hasActiveReviewFilter(filter)
+    const emptyScope = hasActiveReviewFilter(filter)
       ? `No loaded photos match the ${filter} filter.`
       : "No loaded photos are available to batch mark.";
+    return `${emptyScope}${partialHint}`;
   }
 
   const scope =
@@ -110,7 +117,7 @@ export function reviewBatchScopeDetail({
     return scope;
   }
 
-  return `${scope} Load all photos before batch marking if you need the full project of ${photoCountLabel(projectPhotoCount)}.`;
+  return `${scope} ${fullProjectBatchHint(projectPhotoCount)}`;
 }
 
 export function reviewEmptyStateMessage({

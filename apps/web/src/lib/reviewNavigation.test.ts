@@ -229,6 +229,20 @@ test("explains empty batch scope", () => {
   );
 });
 
+test("explains empty batch scope with partial loading", () => {
+  assert.equal(
+    reviewBatchScopeDetail({
+      activeGroupIndex: -1,
+      filter: "Pick",
+      loadedPhotoCount: 500,
+      photosPartiallyLoaded: true,
+      projectPhotoCount: 1200,
+      visiblePhotoCount: 0,
+    }),
+    "No loaded photos match the Pick filter. Load all photos before batch marking if you need the full project of 1200 photos.",
+  );
+});
+
 test("explains empty review states for fully loaded photos", () => {
   assert.deepEqual(
     reviewEmptyStateMessage({
