@@ -287,6 +287,22 @@ test("explains empty review states for partially loaded photos", () => {
   );
 });
 
+test("uses singular grammar for partially loaded one-photo projects", () => {
+  assert.deepEqual(
+    reviewEmptyStateMessage({
+      filter: "All",
+      hasActiveGroup: false,
+      loadedPhotoCount: 0,
+      photosPartiallyLoaded: true,
+      projectPhotoCount: 1,
+    }),
+    {
+      detail: "Only 0 of 1 photo is loaded.",
+      title: "No loaded photos are available.",
+    },
+  );
+});
+
 test("explains save failures after optimistic review updates roll back", () => {
   assert.equal(
     reviewSaveFailureMessage({ errorMessage: "Network error", isBatch: false }),

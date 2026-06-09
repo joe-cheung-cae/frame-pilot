@@ -51,6 +51,10 @@ function photoCountLabel(count: number): string {
   return `${count} ${count === 1 ? "photo" : "photos"}`;
 }
 
+function loadedVerb(count: number): string {
+  return count === 1 ? "is" : "are";
+}
+
 function hasActiveReviewFilter(filter: string): boolean {
   return filter !== "All";
 }
@@ -128,7 +132,7 @@ export function reviewEmptyStateMessage({
   }
 
   return {
-    detail: `Only ${loadedPhotoCount} of ${photoCountLabel(projectPhotoCount)} are loaded.`,
+    detail: `Only ${loadedPhotoCount} of ${photoCountLabel(projectPhotoCount)} ${loadedVerb(projectPhotoCount)} loaded.`,
     title,
   };
 }
