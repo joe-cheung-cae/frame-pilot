@@ -12,6 +12,10 @@ type ProjectProgressState = Pick<Project, "total_images" | "processed_images"> &
 };
 export type ProjectWorkflowStep = "import" | "process" | "cull" | "export";
 
+function photoLabel(count: number): string {
+  return count === 1 ? "photo" : "photos";
+}
+
 export function projectHasActiveImport(project: { active_import_job?: ActiveImportState }): boolean {
   const status = project.active_import_job?.status;
   return status === "queued" || status === "running";
@@ -57,7 +61,7 @@ export function projectNextActionLabel(project: ProjectActionState): string {
 
 export function projectProgressSummary(project: ProjectProgressState): string {
   if (projectHasActiveImport(project)) {
-    return `${project.total_images} ${project.total_images === 1 ? "photo" : "photos"} registered; import still running`;
+    return `${project.total_images} ${photoLabel(project.total_images)} registered; import still running`;
   }
 
   if (project.total_images <= 0) {
@@ -65,10 +69,10 @@ export function projectProgressSummary(project: ProjectProgressState): string {
   }
 
   if (project.processed_images <= 0) {
-    return `${project.total_images} ${project.total_images === 1 ? "photo" : "photos"} imported; processing not started`;
+    return `${project.total_images} ${photoLabel(project.total_images)} imported; processing not started`;
   }
 
-  return `${project.processed_images} of ${project.total_images} photos processed`;
+  return `${project.processed_images} of ${project.total_images} ${photoLabel(project.total_images)} processed`;
 }
 
 export function projectWorkflowStepHref(project: ProjectRouteState, step: ProjectWorkflowStep): string {

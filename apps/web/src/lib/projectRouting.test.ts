@@ -113,6 +113,10 @@ test("summarizes project progress by workflow stage", () => {
     projectProgressSummary({ total_images: 3, processed_images: 2, active_import_job: null }),
     "2 of 3 photos processed",
   );
+  assert.equal(
+    projectProgressSummary({ total_images: 1, processed_images: 1, active_import_job: null }),
+    "1 of 1 photo processed",
+  );
 });
 
 test("routes workflow cards to the next available prerequisite", () => {
