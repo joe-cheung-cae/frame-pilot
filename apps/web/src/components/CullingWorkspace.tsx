@@ -24,7 +24,12 @@ import {
 } from "lucide-react";
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
-import { groupConfidenceLabel, groupScoreSummaryRows, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
+import {
+  groupConfidenceLabel,
+  groupPhotoCountLabel,
+  groupScoreSummaryRows,
+  parseGroupScoreSummary,
+} from "@/lib/groupScoreSummary";
 import { reviewHeaderSummary } from "@/lib/reviewHeaderSummary";
 import { reviewMetadataRows } from "@/lib/reviewMetadata";
 import { reviewProgressForEntry, reviewProgressStorageKey } from "@/lib/reviewProgress";
@@ -603,7 +608,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               const summary = parseGroupScoreSummary(group.score_summary);
               const groupNumber = (groupIndexById.get(group.id) ?? 0) + 1;
               const isActiveGroup = activeGroup?.id === group.id;
-              const groupPhotoLabel = `${group.photo_count} ${group.photo_count === 1 ? "photo" : "photos"}`;
+              const groupPhotoLabel = groupPhotoCountLabel(group.photo_count);
               return (
                 <button
                   className={`focus-ring rounded border px-3 py-2 text-left ${isActiveGroup ? "border-leaf bg-mist" : "border-line bg-white"}`}
@@ -746,7 +751,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   <div className="rounded border border-line bg-mist p-3 text-sm">
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-semibold">{groupConfidenceLabel(activeGroupSummary)}</p>
-                      <p className="text-neutral-600">{activeGroup.photo_count} photos</p>
+                      <p className="text-neutral-600">{groupPhotoCountLabel(activeGroup.photo_count)}</p>
                     </div>
                     {activeGroupSummary ? (
                       <>

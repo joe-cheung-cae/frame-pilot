@@ -48,6 +48,10 @@ export function groupConfidenceLabel(summary: GroupScoreSummary | null): string 
   return summary ? CONFIDENCE_LABELS[summary.confidence] : "Confidence pending";
 }
 
+export function groupPhotoCountLabel(count: number): string {
+  return `${count} ${count === 1 ? "photo" : "photos"}`;
+}
+
 export function groupScoreSummaryRows(summary: GroupScoreSummary): GroupScoreSummaryRow[] {
   return [
     ["Best", summary.best_score.toFixed(2)],

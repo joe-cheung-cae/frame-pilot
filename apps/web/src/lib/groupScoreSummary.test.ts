@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { groupConfidenceLabel, groupScoreSummaryRows, parseGroupScoreSummary } from "./groupScoreSummary.ts";
+import {
+  groupConfidenceLabel,
+  groupPhotoCountLabel,
+  groupScoreSummaryRows,
+  parseGroupScoreSummary,
+} from "./groupScoreSummary.ts";
 
 test("parses persisted group score summaries", () => {
   const summary = parseGroupScoreSummary(
@@ -49,4 +54,10 @@ test("formats group score summary rows", () => {
       ["Reject", "0"],
     ],
   );
+});
+
+test("formats group photo counts", () => {
+  assert.equal(groupPhotoCountLabel(1), "1 photo");
+  assert.equal(groupPhotoCountLabel(2), "2 photos");
+  assert.equal(groupPhotoCountLabel(0), "0 photos");
 });
