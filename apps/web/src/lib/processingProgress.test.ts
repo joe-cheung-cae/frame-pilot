@@ -165,7 +165,11 @@ test("explains processing recovery for cancelled and partial jobs", () => {
   );
   assert.equal(
     processingRecoveryMessage({ failedItems: 2, retryable: true, status: "complete_with_errors" }),
-    "Successfully processed photos are ready for culling. Review failed photos before exporting a final set.",
+    "Successfully processed photos are ready for culling. Review 2 failed photos before exporting a final set.",
+  );
+  assert.equal(
+    processingRecoveryMessage({ failedItems: 1, retryable: true, status: "complete_with_errors" }),
+    "Successfully processed photos are ready for culling. Review 1 failed photo before exporting a final set.",
   );
 });
 

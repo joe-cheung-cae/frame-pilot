@@ -117,7 +117,10 @@ export function processingRecoveryMessage({ failedItems, retryable, status }: Pr
   }
 
   if (status === "complete_with_errors" && failedItems > 0) {
-    return "Successfully processed photos are ready for culling. Review failed photos before exporting a final set.";
+    return `Successfully processed photos are ready for culling. Review ${failedItems} failed ${pluralize(
+      failedItems,
+      "photo",
+    )} before exporting a final set.`;
   }
 
   return "";
