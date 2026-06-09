@@ -136,7 +136,7 @@ test("explains how to recover from import data load and action failures", () => 
   );
   assert.equal(
     importLoadRecoveryMessage("retry"),
-    "Confirm the local FramePilot API is running, then retry local preview generation again.",
+    "Confirm the local FramePilot API is running, then retry local preview generation. Original source photos remain unchanged.",
   );
   assert.equal(
     importLoadRecoveryMessage("cancel"),

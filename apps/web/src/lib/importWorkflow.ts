@@ -132,7 +132,7 @@ export function importLoadRecoveryMessage(scope: ImportLoadScope): string {
   }
 
   if (scope === "retry") {
-    return "Confirm the local FramePilot API is running, then retry local preview generation again.";
+    return "Confirm the local FramePilot API is running, then retry local preview generation. Original source photos remain unchanged.";
   }
 
   if (scope === "cancel") {
