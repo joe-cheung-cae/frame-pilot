@@ -25,6 +25,10 @@ type ProcessingActionBlockReason = {
   isProcessing: boolean;
 };
 
+function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return count === 1 ? singular : plural;
+}
+
 export function processingStatusLabel(status: ProcessingJob["status"] | null | undefined): string {
   if (!status) {
     return "Ready";
@@ -78,8 +82,13 @@ export function processingProgressSummary(
   project: ProcessingProgressProject | null | undefined,
 ): string {
   if (job) {
-    const noun = job.job_type === "import" ? "files" : "photos";
-    return `${job.processed_items} of ${job.total_items} ${noun} · ${job.failed_items} failed · ${processingProgressPercent(job)}%`;
+    const noun = job.job_type === "import" ? pluralize(job.total_items, "file") : pluralize(job.total_items, "photo");
+    const parts = [`${job.processed_items} of ${job.total_items} ${noun}`];
+    if (job.failed_items > 0) {
+      parts.push(`${job.failed_items} failed`);
+    }
+    parts.push(`${processingProgressPercent(job)}%`);
+    return parts.join(" · ");
   }
   return `${project?.processed_images ?? 0} of ${project?.total_images ?? 0} processed`;
 }

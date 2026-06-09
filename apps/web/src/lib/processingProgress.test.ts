@@ -78,6 +78,54 @@ test("formats active job progress with failed item counts", () => {
   );
 });
 
+test("formats active job progress without noisy zero-failure counts", () => {
+  assert.equal(
+    processingProgressSummary(
+      {
+        failed_items: 0,
+        job_type: "processing",
+        processed_items: 8,
+        progress_percent: 83.2,
+        status: "running",
+        total_items: 12,
+      },
+      { processed_images: 0, total_images: 12 },
+    ),
+    "8 of 12 photos · 83%",
+  );
+});
+
+test("formats singular active job progress nouns", () => {
+  assert.equal(
+    processingProgressSummary(
+      {
+        failed_items: 0,
+        job_type: "import",
+        processed_items: 1,
+        progress_percent: 100,
+        status: "complete",
+        total_items: 1,
+      },
+      { processed_images: 0, total_images: 1 },
+    ),
+    "1 of 1 file · 100%",
+  );
+  assert.equal(
+    processingProgressSummary(
+      {
+        failed_items: 1,
+        job_type: "processing",
+        processed_items: 1,
+        progress_percent: 50,
+        status: "running",
+        total_items: 1,
+      },
+      { processed_images: 0, total_images: 1 },
+    ),
+    "1 of 1 photo · 1 failed · 50%",
+  );
+});
+
 test("formats processing failure notices", () => {
   assert.equal(processingFailureNotice(undefined), null);
   assert.equal(processingFailureNotice({ error_message: null, failed_items: 0, job_type: "processing" }), null);
