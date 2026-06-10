@@ -95,16 +95,16 @@ export function importSelectionBlockMessage({
   isImportRunning,
   isRetrying,
 }: ImportSelectionBlockReason): string {
+  if (isCancelling) {
+    return "Cancellation is being requested. Wait for FramePilot to reach a safe checkpoint.";
+  }
+
   if (isImportRunning) {
     return "Import is running. Wait for the current import to finish before adding more files.";
   }
 
   if (isRetrying) {
     return "Import retry is starting. Wait for the retry job to appear before choosing more files.";
-  }
-
-  if (isCancelling) {
-    return "Cancellation is being requested. Wait for FramePilot to reach a safe checkpoint.";
   }
 
   return "";

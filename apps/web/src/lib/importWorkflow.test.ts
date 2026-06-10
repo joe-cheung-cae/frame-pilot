@@ -77,6 +77,10 @@ test("returns no process blocker when imports are ready", () => {
 
 test("explains why import selection is blocked during active import work", () => {
   assert.equal(
+    importSelectionBlockMessage({ isCancelling: true, isImportRunning: true, isRetrying: false }),
+    "Cancellation is being requested. Wait for FramePilot to reach a safe checkpoint.",
+  );
+  assert.equal(
     importSelectionBlockMessage({ isCancelling: false, isImportRunning: true, isRetrying: false }),
     "Import is running. Wait for the current import to finish before adding more files.",
   );
