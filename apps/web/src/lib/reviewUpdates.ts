@@ -50,3 +50,21 @@ export function reconcileOptimisticPhotoUpdates(
     return mergePatchedFields(photo, updatedPhoto, patch);
   });
 }
+
+export function mergeLoadedPhotosWithCurrentReviews(
+  loadedPhotos: readonly Photo[],
+  currentPhotos: readonly Photo[],
+) {
+  const currentById = new Map(currentPhotos.map((photo) => [photo.id, photo]));
+
+  return loadedPhotos.map((loadedPhoto) => {
+    const currentPhoto = currentById.get(loadedPhoto.id);
+    if (!currentPhoto) return loadedPhoto;
+
+    return {
+      ...loadedPhoto,
+      user_status: currentPhoto.user_status,
+      star_rating: currentPhoto.star_rating,
+    };
+  });
+}

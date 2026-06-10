@@ -51,7 +51,11 @@ import {
 } from "@/lib/reviewNavigation";
 import { reviewScoreRows } from "@/lib/reviewScores";
 import { reviewShortcutCommandForKey, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
-import { reconcileOptimisticPhotoUpdates, rollbackOptimisticPhotoUpdates } from "@/lib/reviewUpdates";
+import {
+  mergeLoadedPhotosWithCurrentReviews,
+  reconcileOptimisticPhotoUpdates,
+  rollbackOptimisticPhotoUpdates,
+} from "@/lib/reviewUpdates";
 import { useReviewStore } from "@/store/reviewStore";
 
 const FILMSTRIP_WINDOW_SIZE = 80;
@@ -183,7 +187,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const loadAllPhotosMutation = useMutation({
     mutationFn: () => api.listAllPhotos(projectId),
     onSuccess: (allPhotos) => {
-      queryClient.setQueryData(["photos", projectId], allPhotos);
+      queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) =>
+        mergeLoadedPhotosWithCurrentReviews(allPhotos, currentPhotos ?? []),
+      );
       setAllPhotosLoaded(true);
     },
   });

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import type { Photo, PhotoPatch } from "./api.ts";
 import {
+  mergeLoadedPhotosWithCurrentReviews,
   reconcileOptimisticPhotoUpdates,
   rollbackOptimisticPhotoUpdates,
 } from "./reviewUpdates.ts";
@@ -98,4 +99,25 @@ test("ignores a stale successful response after a newer same-field update", () =
   );
 
   assert.equal(result[0].user_status, "Reject");
+});
+
+test("preserves current review fields when a full-photo load finishes", () => {
+  const loadedFirst = { ...photo("first", "Unreviewed"), overall_score: 88 };
+  const result = mergeLoadedPhotosWithCurrentReviews(
+    [loadedFirst, photo("second", "Unreviewed")],
+    [photo("first", "Pick", 4)],
+  );
+
+  assert.deepEqual(
+    result.map(({ id, user_status, star_rating, overall_score }) => ({
+      id,
+      user_status,
+      star_rating,
+      overall_score,
+    })),
+    [
+      { id: "first", user_status: "Pick", star_rating: 4, overall_score: 88 },
+      { id: "second", user_status: "Unreviewed", star_rating: 0, overall_score: 0 },
+    ],
+  );
 });
