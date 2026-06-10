@@ -11,6 +11,7 @@ import {
   hasActiveProcessingJob,
   processingActionBlockMessage,
   processingFailureNotice,
+  processingJobHasReviewableResults,
   processingJobTypeLabel,
   processingLoadRecoveryMessage,
   processingProgressPercent,
@@ -57,7 +58,8 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   const job = jobQuery.data ?? startedJob ?? resumedJob;
   const progress = processingProgressPercent(job);
   const hasImportedPhotos = Boolean(project.data?.total_images);
-  const canOpenCulling = job?.status === "complete" || Boolean(project.data?.processed_images);
+  const hasReviewableResults = processingJobHasReviewableResults(job?.status);
+  const canOpenCulling = hasReviewableResults || Boolean(project.data?.processed_images);
   const statusLabel = processingStatusLabel(job?.status);
   const isProcessing = job?.status === "queued" || job?.status === "running" || mutation.isPending;
   const isImportRunning = activeImportJob?.status === "queued" || activeImportJob?.status === "running";
@@ -73,7 +75,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   const processingFailuresHref = `/projects/${projectId}/cull?filter=${encodeURIComponent(PROCESSING_FAILURE_FILTER)}`;
 
   useEffect(() => {
-    if (job?.status !== "complete") {
+    if (!processingJobHasReviewableResults(job?.status)) {
       return;
     }
     void queryClient.invalidateQueries({ queryKey: ["project", projectId] });

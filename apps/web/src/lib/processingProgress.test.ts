@@ -7,6 +7,7 @@ import {
   hasActiveProcessingJob,
   processingActionBlockMessage,
   processingFailureNotice,
+  processingJobHasReviewableResults,
   processingJobTypeLabel,
   processingLoadRecoveryMessage,
   processingProgressPercent,
@@ -21,6 +22,14 @@ test("formats processing status labels", () => {
   assert.equal(processingStatusLabel("complete_with_errors"), "Complete with errors");
   assert.equal(processingStatusLabel("cancelled"), "Cancelled");
   assert.equal(processingStatusLabel("failed"), "Failed");
+});
+
+test("recognizes processing states with reviewable results", () => {
+  assert.equal(processingJobHasReviewableResults("complete"), true);
+  assert.equal(processingJobHasReviewableResults("complete_with_errors"), true);
+  assert.equal(processingJobHasReviewableResults("running"), false);
+  assert.equal(processingJobHasReviewableResults("failed"), false);
+  assert.equal(processingJobHasReviewableResults(null), false);
 });
 
 test("formats processing job type labels", () => {

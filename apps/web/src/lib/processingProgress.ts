@@ -39,6 +39,12 @@ export function processingStatusLabel(status: ProcessingJob["status"] | null | u
   return status[0].toUpperCase() + status.slice(1);
 }
 
+export function processingJobHasReviewableResults(
+  status: ProcessingJob["status"] | null | undefined,
+): boolean {
+  return status === "complete" || status === "complete_with_errors";
+}
+
 export function processingJobTypeLabel(jobType: string): string {
   if (jobType === "import") {
     return "Import";
