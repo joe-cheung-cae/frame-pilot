@@ -75,6 +75,16 @@ export async function loadAvailableImportedPhotos<T>(
   return results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
 }
 
+export async function loadAvailableImportedPhotosForJob<T>(
+  jobId: string,
+  photoIds: readonly string[],
+  loadPhoto: (photoId: string) => Promise<T>,
+  currentJobId: () => string | null,
+): Promise<T[] | null> {
+  const photos = await loadAvailableImportedPhotos(photoIds, loadPhoto);
+  return currentJobId() === jobId ? photos : null;
+}
+
 export function importProcessBlockMessage({
   hasImportedPhotos,
   importStatus,

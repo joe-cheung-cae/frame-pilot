@@ -10,6 +10,7 @@ import {
   importSelectionBlockMessage,
   importTerminalStatusMessage,
   loadAvailableImportedPhotos,
+  loadAvailableImportedPhotosForJob,
 } from "./importWorkflow.ts";
 
 test("summarizes import registration before preview generation", () => {
@@ -53,6 +54,25 @@ test("keeps available recent imports when one photo refresh fails", async () => 
   });
 
   assert.deepEqual(photos, [{ id: "photo-1" }, { id: "photo-3" }]);
+});
+
+test("ignores an old import completion refresh after a newer import starts", async () => {
+  let currentJobId: string | null = "job-1";
+  let finishLoading: ((photo: { id: string }) => void) | undefined;
+  const pending = loadAvailableImportedPhotosForJob(
+    "job-1",
+    ["photo-1"],
+    () =>
+      new Promise<{ id: string }>((resolve) => {
+        finishLoading = resolve;
+      }),
+    () => currentJobId,
+  );
+
+  currentJobId = "job-2";
+  finishLoading?.({ id: "photo-1" });
+
+  assert.equal(await pending, null);
 });
 
 test("explains why import must finish before processing", () => {

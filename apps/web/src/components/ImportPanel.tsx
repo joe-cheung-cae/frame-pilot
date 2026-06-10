@@ -4,7 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { ChangeEvent, useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { FileImage, Loader2, Play, RotateCcw, StopCircle } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
 import {
@@ -16,7 +16,7 @@ import {
   importRegistrationTone,
   importSelectionBlockMessage,
   importTerminalStatusMessage,
-  loadAvailableImportedPhotos,
+  loadAvailableImportedPhotosForJob,
 } from "@/lib/importWorkflow";
 import {
   activeJobOfType,
@@ -43,9 +43,16 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   const [showAllSkipped, setShowAllSkipped] = useState(false);
   const [recentImports, setRecentImports] = useState<Photo[]>([]);
   const [currentImportJobId, setCurrentImportJobId] = useState<string | null>(null);
+  const currentImportJobIdRef = useRef<string | null>(null);
   const [completedImportJobId, setCompletedImportJobId] = useState<string | null>(null);
   const [lastImportPhotoIds, setLastImportPhotoIds] = useState<string[]>([]);
   const queryClient = useQueryClient();
+
+  function selectCurrentImportJob(jobId: string | null) {
+    currentImportJobIdRef.current = jobId;
+    setCurrentImportJobId(jobId);
+  }
+
   const project = useQuery({
     queryKey: ["project", projectId],
     queryFn: () => api.getProject(projectId),
@@ -59,7 +66,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       setSkipped([]);
       setShowAllSkipped(false);
       setRecentImports([]);
-      setCurrentImportJobId(null);
+      selectCurrentImportJob(null);
       setCompletedImportJobId(null);
       setLastImportPhotoIds([]);
     },
@@ -73,7 +80,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       setSkipped(result.skipped);
       setRecentImports(result.imported);
       setLastImportPhotoIds(result.imported.map((photo) => photo.id));
-      setCurrentImportJobId(result.job?.id ?? null);
+      selectCurrentImportJob(result.job?.id ?? null);
       await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
   });
@@ -84,7 +91,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       setMessageTone("neutral");
       setSkipped([]);
       setShowAllSkipped(false);
-      setCurrentImportJobId(job.id);
+      selectCurrentImportJob(job.id);
       setCompletedImportJobId(null);
       await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
@@ -94,7 +101,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     onSuccess: async (job) => {
       setMessage("Cancellation requested. Finishing the current safe checkpoint...");
       setMessageTone("neutral");
-      setCurrentImportJobId(job.id);
+      selectCurrentImportJob(job.id);
       await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
   });
@@ -132,15 +139,21 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     setCompletedImportJobId(job.id);
     void (async () => {
       await invalidateProjectWorkflowQueries(queryClient, projectId);
+      if (currentImportJobIdRef.current !== job.id) {
+        return;
+      }
       if (job.status === "failed" || job.status === "cancelled") {
         setMessage("");
         setMessageTone("neutral");
         return;
       }
-      const refreshed = await loadAvailableImportedPhotos(
+      const refreshed = await loadAvailableImportedPhotosForJob(
+        job.id,
         lastImportPhotoIds,
         (photoId) => api.getPhoto(projectId, photoId),
+        () => currentImportJobIdRef.current,
       );
+      if (!refreshed) return;
       setRecentImports(refreshed);
       const completionMessage = importPreviewCompletionMessage(lastImportPhotoIds.length);
       if (completionMessage) {
