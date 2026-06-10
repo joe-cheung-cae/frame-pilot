@@ -16,6 +16,7 @@ import {
   importRegistrationTone,
   importSelectionBlockMessage,
   importTerminalStatusMessage,
+  loadAvailableImportedPhotos,
 } from "@/lib/importWorkflow";
 import {
   activeJobOfType,
@@ -136,8 +137,9 @@ export function ImportPanel({ projectId }: { projectId: string }) {
         setMessageTone("neutral");
         return;
       }
-      const refreshed = await Promise.all(
-        lastImportPhotoIds.slice(0, 12).map((photoId) => api.getPhoto(projectId, photoId)),
+      const refreshed = await loadAvailableImportedPhotos(
+        lastImportPhotoIds,
+        (photoId) => api.getPhoto(projectId, photoId),
       );
       setRecentImports(refreshed);
       const completionMessage = importPreviewCompletionMessage(lastImportPhotoIds.length);

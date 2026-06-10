@@ -66,6 +66,15 @@ export function importPreviewCompletionMessage(importedCount: number): string {
   return `${importedCount} ${pluralize(importedCount, "image")} imported and previewed.`;
 }
 
+export async function loadAvailableImportedPhotos<T>(
+  photoIds: readonly string[],
+  loadPhoto: (photoId: string) => Promise<T>,
+  limit = 12,
+): Promise<T[]> {
+  const results = await Promise.allSettled(photoIds.slice(0, Math.max(0, limit)).map(loadPhoto));
+  return results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
+}
+
 export function importProcessBlockMessage({
   hasImportedPhotos,
   importStatus,

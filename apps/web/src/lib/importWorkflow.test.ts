@@ -9,6 +9,7 @@ import {
   importRegistrationTone,
   importSelectionBlockMessage,
   importTerminalStatusMessage,
+  loadAvailableImportedPhotos,
 } from "./importWorkflow.ts";
 
 test("summarizes import registration before preview generation", () => {
@@ -41,6 +42,17 @@ test("summarizes preview completion only when images were imported", () => {
   assert.equal(importPreviewCompletionMessage(2), "2 images imported and previewed.");
   assert.equal(importPreviewCompletionMessage(1), "1 image imported and previewed.");
   assert.equal(importPreviewCompletionMessage(0), "");
+});
+
+test("keeps available recent imports when one photo refresh fails", async () => {
+  const photos = await loadAvailableImportedPhotos(["photo-1", "photo-2", "photo-3"], async (photoId) => {
+    if (photoId === "photo-2") {
+      throw new Error("Photo unavailable");
+    }
+    return { id: photoId };
+  });
+
+  assert.deepEqual(photos, [{ id: "photo-1" }, { id: "photo-3" }]);
 });
 
 test("explains why import must finish before processing", () => {
