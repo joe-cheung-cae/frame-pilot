@@ -84,6 +84,10 @@ export function importProcessBlockMessage({
     return "Wait for import previews to finish before processing this project.";
   }
 
+  if (hasImportedPhotos) {
+    return "";
+  }
+
   if (importStatus === "failed") {
     return "Retry the failed import before processing this project.";
   }
@@ -92,11 +96,7 @@ export function importProcessBlockMessage({
     return "Retry import or add more images before processing this project.";
   }
 
-  if (!hasImportedPhotos) {
-    return "Import images before processing this project.";
-  }
-
-  return "";
+  return "Import images before processing this project.";
 }
 
 export function importSelectionBlockMessage({

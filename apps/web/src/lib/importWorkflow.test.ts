@@ -62,9 +62,20 @@ test("explains why import must finish before processing", () => {
   );
 });
 
-test("explains failed and cancelled import blockers", () => {
+test("allows processing existing photos after failed and cancelled imports", () => {
   assert.equal(
     importProcessBlockMessage({ hasImportedPhotos: true, importStatus: "failed", isImportRunning: false }),
+    "",
+  );
+  assert.equal(
+    importProcessBlockMessage({ hasImportedPhotos: true, importStatus: "cancelled", isImportRunning: false }),
+    "",
+  );
+});
+
+test("explains failed and cancelled import blockers when no photos are available", () => {
+  assert.equal(
+    importProcessBlockMessage({ hasImportedPhotos: false, importStatus: "failed", isImportRunning: false }),
     "Retry the failed import before processing this project.",
   );
   assert.equal(

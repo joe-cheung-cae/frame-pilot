@@ -163,16 +163,13 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   const latestImportJob = importJobsQuery.data?.find((job) => job.job_type === "import");
   const importJob = currentImportJobQuery.data ?? activeImportJob ?? mutation.data?.job ?? latestImportJob;
   const isImportRunning = importJob?.status === "queued" || importJob?.status === "running" || mutation.isPending;
-  const canProcessProject =
-    !isImportRunning &&
-    importJob?.status !== "failed" &&
-    importJob?.status !== "cancelled" &&
-    Boolean(project.data?.total_images || recentImports.length);
+  const hasImportedPhotos = Boolean(project.data?.total_images || recentImports.length);
   const processBlockMessage = importProcessBlockMessage({
-    hasImportedPhotos: Boolean(project.data?.total_images || recentImports.length),
+    hasImportedPhotos,
     importStatus: importJob?.status,
     isImportRunning,
   });
+  const canProcessProject = !processBlockMessage;
   const canRetryImport = Boolean(importJob?.retryable) && !isImportRunning && !retryMutation.isPending;
   const importSelectionBlock = importSelectionBlockMessage({
     isCancelling: cancelMutation.isPending,
