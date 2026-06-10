@@ -7,6 +7,7 @@ import {
   hasActiveProcessingJob,
   processingActionBlockMessage,
   processingFailureNotice,
+  processingJobForDisplay,
   processingJobHasReviewableResults,
   processingJobTypeLabel,
   processingLoadRecoveryMessage,
@@ -251,4 +252,29 @@ test("selects the newest active job by type from ordered jobs", () => {
 
   assert.equal(activeJobOfType(jobs, "import"), activeImport);
   assert.equal(activeJobOfType(jobs, "export"), undefined);
+});
+
+test("prioritizes a current active processing job over stale started job data", () => {
+  const active = { id: "job-2", job_type: "processing", status: "running" as const };
+  const started = { id: "job-1", job_type: "processing", status: "complete" as const };
+
+  assert.equal(processingJobForDisplay([active, started], started), active);
+});
+
+test("uses a newly started processing job before history refreshes", () => {
+  const started = { id: "job-2", job_type: "processing", status: "queued" as const };
+  const previous = { id: "job-1", job_type: "processing", status: "complete" as const };
+
+  assert.equal(processingJobForDisplay([previous], started), started);
+});
+
+test("falls back to the latest processing job after page reload", () => {
+  const latest = { id: "job-3", job_type: "processing", status: "failed" as const };
+  const jobs = [
+    { id: "import-1", job_type: "import", status: "complete" as const },
+    latest,
+    { id: "job-2", job_type: "processing", status: "complete" as const },
+  ];
+
+  assert.equal(processingJobForDisplay(jobs, undefined), latest);
 });

@@ -7,10 +7,10 @@ import { Loader2, Play, Rows3, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   activeJobOfType,
-  activeProcessingJob,
   hasActiveProcessingJob,
   processingActionBlockMessage,
   processingFailureNotice,
+  processingJobForDisplay,
   processingJobHasReviewableResults,
   processingJobTypeLabel,
   processingLoadRecoveryMessage,
@@ -41,10 +41,9 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
     retry: false,
     refetchInterval: (query) => (hasActiveProcessingJob(query.state.data) ? 1000 : false),
   });
-  const startedJob = mutation.data;
-  const resumedJob = activeProcessingJob(jobsQuery.data);
+  const trackedJob = processingJobForDisplay(jobsQuery.data, mutation.data);
   const activeImportJob = project.data?.active_import_job ?? activeJobOfType(jobsQuery.data, "import");
-  const currentJobId = startedJob?.id ?? resumedJob?.id;
+  const currentJobId = trackedJob?.id;
   const jobQuery = useQuery({
     queryKey: ["job", projectId, currentJobId],
     queryFn: () => api.getJob(projectId, currentJobId ?? ""),
@@ -55,7 +54,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
       return status === "queued" || status === "running" ? 1000 : false;
     },
   });
-  const job = jobQuery.data ?? startedJob ?? resumedJob;
+  const job = jobQuery.data ?? trackedJob;
   const progress = processingProgressPercent(job);
   const hasImportedPhotos = Boolean(project.data?.total_images);
   const hasReviewableResults = processingJobHasReviewableResults(job?.status);

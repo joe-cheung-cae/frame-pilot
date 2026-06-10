@@ -18,6 +18,7 @@ type ProcessingLoadScope = "history" | "job" | "project";
 type ProcessingProgressProject = Pick<Project, "processed_images" | "total_images">;
 
 type ProcessingJobCandidate = Pick<ProcessingJob, "job_type" | "status">;
+type ProcessingDisplayJobCandidate = ProcessingJobCandidate & Pick<ProcessingJob, "id">;
 
 type ProcessingActionBlockReason = {
   hasImportedPhotos: boolean;
@@ -74,6 +75,22 @@ export function activeJobOfType<T extends ProcessingJobCandidate>(
 
 export function activeProcessingJob<T extends ProcessingJobCandidate>(jobs: readonly T[] | null | undefined): T | undefined {
   return activeJobOfType(jobs, "processing");
+}
+
+export function processingJobForDisplay<
+  THistoryJob extends ProcessingDisplayJobCandidate,
+  TStartedJob extends ProcessingDisplayJobCandidate,
+>(
+  jobs: readonly THistoryJob[] | null | undefined,
+  startedJob: TStartedJob | null | undefined,
+): THistoryJob | TStartedJob | undefined {
+  const activeJob = activeProcessingJob(jobs);
+  if (activeJob) return activeJob;
+
+  const startedJobInHistory = startedJob && jobs?.some((job) => job.id === startedJob.id);
+  if (startedJob && !startedJobInHistory) return startedJob;
+
+  return jobs?.find((job) => job.job_type === "processing") ?? startedJob ?? undefined;
 }
 
 export function processingProgressPercent(job: Pick<ProcessingJob, "progress_percent"> | null | undefined): number {
