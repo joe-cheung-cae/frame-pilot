@@ -51,6 +51,7 @@ import {
 } from "@/lib/reviewNavigation";
 import { reviewScoreRows } from "@/lib/reviewScores";
 import { reviewShortcutCommandForKey, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
+import { reconcileOptimisticPhotoUpdates, rollbackOptimisticPhotoUpdates } from "@/lib/reviewUpdates";
 import { useReviewStore } from "@/store/reviewStore";
 
 const FILMSTRIP_WINDOW_SIZE = 80;
@@ -234,31 +235,45 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     onMutate: async ({ photo, patch }) => {
       const queryKey = ["photos", projectId];
       await queryClient.cancelQueries({ queryKey });
-      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey);
-      const previousStatusCounts =
-        queryClient.getQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey);
+      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey)?.filter((item) => item.id === photo.id) ?? [];
+      const previousPhoto = previousPhotos[0];
       queryClient.setQueryData<Photo[]>(queryKey, (currentPhotos) =>
         currentPhotos?.map((item) => (item.id === photo.id ? { ...item, ...patch } : item)),
       );
-      if (patch.user_status) {
+      if (patch.user_status && previousPhoto) {
         const nextStatus = patch.user_status;
         queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
-          currentCounts ? applyStatusCountChange(currentCounts, photo.user_status, nextStatus) : currentCounts,
+          currentCounts ? applyStatusCountChange(currentCounts, previousPhoto.user_status, nextStatus) : currentCounts,
         );
       }
-      return { previousPhotos, previousStatusCounts };
+      return { previousPhotos };
     },
-    onError: (_error, _variables, context) => {
-      if (context?.previousPhotos) {
-        queryClient.setQueryData(["photos", projectId], context.previousPhotos);
-      }
-      if (context?.previousStatusCounts) {
-        queryClient.setQueryData(photoStatusCountsQueryKey, context.previousStatusCounts);
+    onError: (_error, { patch }, context) => {
+      if (!context?.previousPhotos.length) return;
+
+      let rolledBackPhotos: Photo[] = [];
+      queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) => {
+        if (!currentPhotos) return currentPhotos;
+        const result = rollbackOptimisticPhotoUpdates(currentPhotos, context.previousPhotos, patch);
+        rolledBackPhotos = result.rolledBackPhotos;
+        return result.photos;
+      });
+      if (patch.user_status && rolledBackPhotos.length) {
+        const optimisticStatus = patch.user_status;
+        queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
+          currentCounts
+            ? rolledBackPhotos.reduce(
+                (counts, previousPhoto) =>
+                  applyStatusCountChange(counts, optimisticStatus, previousPhoto.user_status),
+                currentCounts,
+              )
+            : currentCounts,
+        );
       }
     },
-    onSuccess: (updatedPhoto) => {
+    onSuccess: (updatedPhoto, { patch }) => {
       queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) =>
-        currentPhotos?.map((item) => (item.id === updatedPhoto.id ? updatedPhoto : item)),
+        currentPhotos ? reconcileOptimisticPhotoUpdates(currentPhotos, [updatedPhoto], patch) : currentPhotos,
       );
     },
   });
@@ -270,38 +285,49 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       const queryKey = ["photos", projectId];
       const targetIds = new Set(photoIds);
       await queryClient.cancelQueries({ queryKey });
-      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey);
-      const previousStatusCounts =
-        queryClient.getQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey);
+      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey)?.filter((photo) => targetIds.has(photo.id)) ?? [];
       queryClient.setQueryData<Photo[]>(queryKey, (currentPhotos) =>
         currentPhotos?.map((item) => (targetIds.has(item.id) ? { ...item, ...patch } : item)),
       );
-      if (patch.user_status && previousPhotos) {
+      if (patch.user_status && previousPhotos.length) {
         const nextStatus = patch.user_status;
-        const targetPhotos = previousPhotos.filter((photo) => targetIds.has(photo.id));
         queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
           currentCounts
-            ? targetPhotos.reduce(
+            ? previousPhotos.reduce(
                 (counts, photo) => applyStatusCountChange(counts, photo.user_status, nextStatus),
                 currentCounts,
               )
             : currentCounts,
         );
       }
-      return { previousPhotos, previousStatusCounts };
+      return { previousPhotos };
     },
-    onError: (_error, _variables, context) => {
-      if (context?.previousPhotos) {
-        queryClient.setQueryData(["photos", projectId], context.previousPhotos);
-      }
-      if (context?.previousStatusCounts) {
-        queryClient.setQueryData(photoStatusCountsQueryKey, context.previousStatusCounts);
+    onError: (_error, { patch }, context) => {
+      if (!context?.previousPhotos.length) return;
+
+      let rolledBackPhotos: Photo[] = [];
+      queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) => {
+        if (!currentPhotos) return currentPhotos;
+        const result = rollbackOptimisticPhotoUpdates(currentPhotos, context.previousPhotos, patch);
+        rolledBackPhotos = result.rolledBackPhotos;
+        return result.photos;
+      });
+      if (patch.user_status && rolledBackPhotos.length) {
+        const optimisticStatus = patch.user_status;
+        queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
+          currentCounts
+            ? rolledBackPhotos.reduce(
+                (counts, previousPhoto) =>
+                  applyStatusCountChange(counts, optimisticStatus, previousPhoto.user_status),
+                currentCounts,
+              )
+            : currentCounts,
+        );
       }
     },
-    onSuccess: (updatedPhotos) => {
-      const updatedById = new Map(updatedPhotos.map((photo) => [photo.id, photo]));
+    onSuccess: (updatedPhotos, { patch }) => {
       queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) =>
-        currentPhotos?.map((item) => updatedById.get(item.id) ?? item),
+        currentPhotos ? reconcileOptimisticPhotoUpdates(currentPhotos, updatedPhotos, patch) : currentPhotos,
       );
     },
   });
