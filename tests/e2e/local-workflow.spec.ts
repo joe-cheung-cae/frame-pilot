@@ -900,6 +900,33 @@ test("shows culling not-ready state while import is active", async ({ page }) =>
   expect(photoListRequests).toBe(0);
 });
 
+test("shows culling not-ready state while processing is active", async ({ page }) => {
+  const runningJob = {
+    ...completedJob,
+    id: "job-culling-running",
+    status: "running",
+    current_step: "grouping photos",
+    processed_items: 1,
+    progress_percent: 33,
+    completed_at: null,
+  };
+
+  await page.route(projectListRoute("jobs"), async (route) => {
+    await route.fulfill({ json: [runningJob] });
+  });
+
+  await page.goto(`/projects/${project.id}/cull`);
+
+  await expect(page.getByRole("heading", { name: "Processing Still Running" })).toBeVisible();
+  await expect(page.getByText("grouping photos · 1 of 3 photos · 33%")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back to Processing Progress" })).toHaveAttribute(
+    "href",
+    `/projects/${project.id}/process`,
+  );
+  await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toHaveCount(0);
+  expect(photoListRequests).toBe(0);
+});
+
 test("shows processing job polling errors", async ({ page }) => {
   failJobDetail = true;
   await page.goto(`/projects/${project.id}/process`);

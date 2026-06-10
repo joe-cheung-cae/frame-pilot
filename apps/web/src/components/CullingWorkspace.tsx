@@ -34,7 +34,7 @@ import { reviewHeaderSummary } from "@/lib/reviewHeaderSummary";
 import { reviewMetadataRows } from "@/lib/reviewMetadata";
 import { reviewProgressForEntry, reviewProgressStorageKey } from "@/lib/reviewProgress";
 import { photoMatchesReviewFilter, REVIEW_FILTERS } from "@/lib/reviewFilters";
-import { processingProgressSummary } from "@/lib/processingProgress";
+import { activeProcessingJob as findActiveProcessingJob, processingProgressSummary } from "@/lib/processingProgress";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
@@ -76,16 +76,25 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
   const activeImportJob = project.data?.active_import_job ?? null;
   const isImportRunning = activeImportJob?.status === "queued" || activeImportJob?.status === "running";
+  const jobsQuery = useQuery({
+    queryKey: ["jobs", projectId, "culling-active"],
+    queryFn: () => api.listJobs(projectId, { limit: 10, offset: 0 }),
+    enabled: project.isSuccess && !isImportRunning,
+    retry: false,
+    refetchInterval: (query) => (findActiveProcessingJob(query.state.data) ? 1000 : 5000),
+  });
+  const activeProcessingJob = findActiveProcessingJob(jobsQuery.data);
+  const isProcessing = Boolean(activeProcessingJob);
   const photosQuery = useQuery({
     queryKey: ["photos", projectId],
     queryFn: () => api.listPhotos(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
-    enabled: project.isSuccess && !isImportRunning,
+    enabled: project.isSuccess && jobsQuery.isSuccess && !isImportRunning && !isProcessing,
     retry: false,
   });
   const groupsQuery = useQuery({
     queryKey: ["groups", projectId],
     queryFn: () => api.listGroups(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
-    enabled: project.isSuccess && !isImportRunning,
+    enabled: project.isSuccess && jobsQuery.isSuccess && !isImportRunning && !isProcessing,
     retry: false,
   });
   const {
@@ -453,8 +462,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     hasAssetUrl: Boolean(preview),
   });
   const previewZoomLabel = `${Math.round(previewZoom * 100)}%`;
-  const isLoading = project.isLoading || (!isImportRunning && (photosQuery.isLoading || groupsQuery.isLoading));
-  const loadError = project.error ?? (!isImportRunning ? (photosQuery.error ?? groupsQuery.error) : null);
+  const isLoading =
+    project.isLoading ||
+    (!isImportRunning && (jobsQuery.isLoading || (!isProcessing && (photosQuery.isLoading || groupsQuery.isLoading))));
+  const loadError =
+    project.error ??
+    (!isImportRunning ? (jobsQuery.error ?? (!isProcessing ? (photosQuery.error ?? groupsQuery.error) : null)) : null);
   const loadErrorMessage = loadError instanceof Error ? loadError.message : "Start the local API and try again.";
   const saveError = updateMutation.error ?? batchUpdateMutation.error;
   const saveErrorMessage = saveError
@@ -504,6 +517,30 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         >
           <Upload size={18} />
           Back to Import Progress
+        </Link>
+      </section>
+    );
+  }
+
+  if (isProcessing && activeProcessingJob) {
+    return (
+      <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
+        <div>
+          <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
+          <h1 className="mt-1 text-2xl font-semibold">Processing Still Running</h1>
+        </div>
+        <p className="text-sm text-neutral-700">
+          Wait for grouping and ranking to finish before opening the culling workspace.
+        </p>
+        <p className="text-sm text-neutral-700">
+          {activeProcessingJob.current_step} · {processingProgressSummary(activeProcessingJob, project.data)}
+        </p>
+        <Link
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
+          href={`/projects/${projectId}/process`}
+        >
+          <Play size={18} />
+          Back to Processing Progress
         </Link>
       </section>
     );
