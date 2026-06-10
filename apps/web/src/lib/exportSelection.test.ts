@@ -79,6 +79,15 @@ test("explains why export action is blocked", () => {
   assert.equal(
     exportActionBlockMessage({
       isExporting: false,
+      isStatusCountsLoading: true,
+      selectedCount: 0,
+      selectedStatuses: [],
+    }),
+    "Choose at least one status to export.",
+  );
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: false,
       isStatusCountsLoading: false,
       selectedCount: 0,
       selectedStatuses: ["Pick"],

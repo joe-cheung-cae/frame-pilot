@@ -51,12 +51,12 @@ export function exportActionBlockMessage({
     return "Export is running. Wait for it to finish before changing export settings.";
   }
 
-  if (isStatusCountsLoading) {
-    return "Loading photo status counts before export.";
-  }
-
   if (!selectedStatuses.length) {
     return "Choose at least one status to export.";
+  }
+
+  if (isStatusCountsLoading) {
+    return "Loading photo status counts before export.";
   }
 
   if (selectedCount === 0) {
