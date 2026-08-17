@@ -26,3 +26,10 @@ def reset_settings_cache() -> None:
     from app.db.session import reset_engine_cache
 
     reset_engine_cache()
+    try:
+        from app.main import reset_db_ready_flag
+
+        reset_db_ready_flag()
+    except ImportError:
+        # app.main may not be importable yet during early bootstrap.
+        pass

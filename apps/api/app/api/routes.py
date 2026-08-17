@@ -30,8 +30,6 @@ from app.services.importing import (
     complete_import_job,
     create_import_job,
     create_import_retry_job,
-    fail_stale_import_job,
-    import_job_is_stale,
     import_timing_stage,
     invalidate_project_processing,
     photo_needs_import_retry,
@@ -40,10 +38,9 @@ from app.services.importing import (
     run_import_derivative_job,
     update_import_job,
 )
+from app.services.jobs import fail_stale_job, fail_stale_jobs_for_project, job_is_stale
 from app.services.processing import (
     create_processing_job,
-    fail_stale_processing_job,
-    processing_job_is_stale,
     project_export_root,
     run_processing_job,
 )
@@ -124,8 +121,8 @@ def _get_active_import_job(session: Session, project_id: str) -> ProcessingJob |
 
 def _get_current_active_import_job(session: Session, project_id: str) -> ProcessingJob | None:
     while active_job := _get_active_import_job(session, project_id):
-        if import_job_is_stale(active_job):
-            fail_stale_import_job(session, active_job)
+        if job_is_stale(active_job):
+            fail_stale_job(session, active_job)
             continue
         return active_job
     return None
@@ -172,16 +169,13 @@ def _project_read(session: Session, project: Project) -> ProjectRead:
 
 
 def _fail_stale_active_jobs(session: Session, project_id: str) -> None:
-    active_jobs = session.exec(
-        select(ProcessingJob)
-        .where(ProcessingJob.project_id == project_id)
-        .where(ProcessingJob.status.in_(["queued", "running"]))
-    ).all()
-    for job in active_jobs:
-        if job.job_type == "import" and import_job_is_stale(job):
-            fail_stale_import_job(session, job)
-        elif job.job_type == "processing" and processing_job_is_stale(job):
-            fail_stale_processing_job(session, job)
+    fail_stale_jobs_for_project(session, project_id)
+
+
+def _ensure_fresh_job(session: Session, job: ProcessingJob) -> ProcessingJob:
+    if job_is_stale(job):
+        return fail_stale_job(session, job)
+    return job
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -205,9 +199,23 @@ def get_project_endpoint(project_id: str, session: Session = Depends(get_session
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project_endpoint(project_id: str, session: Session = Depends(get_session)):
     project = _get_project(session, project_id)
-    for model in (ExportRecord, ProcessingJob, Photo, PhotoGroup):
-        for item in session.exec(select(model).where(model.project_id == project_id)).all():
-            session.delete(item)
+    for export in session.exec(select(ExportRecord).where(ExportRecord.project_id == project_id)).all():
+        session.delete(export)
+    for job in session.exec(select(ProcessingJob).where(ProcessingJob.project_id == project_id)).all():
+        session.delete(job)
+    photos = list(session.exec(select(Photo).where(Photo.project_id == project_id)).all())
+    for photo in photos:
+        photo.group_id = None
+        session.add(photo)
+    session.flush()
+    for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project_id)).all():
+        group.representative_photo_id = None
+        session.add(group)
+    session.flush()
+    for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project_id)).all():
+        session.delete(group)
+    for photo in photos:
+        session.delete(photo)
     session.delete(project)
     session.commit()
     return None
@@ -357,8 +365,8 @@ def process_project_endpoint(
         raise HTTPException(status_code=422, detail="Import photos before processing this project")
     active_job = _get_active_processing_job(session, project_id)
     if active_job is not None:
-        if processing_job_is_stale(active_job):
-            fail_stale_processing_job(session, active_job)
+        if job_is_stale(active_job):
+            fail_stale_job(session, active_job)
         else:
             return active_job
     job = create_processing_job(session, project)
@@ -371,11 +379,7 @@ def get_job_endpoint(project_id: str, job_id: str, session: Session = Depends(ge
     job = session.get(ProcessingJob, job_id)
     if job is None or job.project_id != project_id:
         raise HTTPException(status_code=404, detail="Processing job not found")
-    if import_job_is_stale(job):
-        job = fail_stale_import_job(session, job)
-    elif processing_job_is_stale(job):
-        job = fail_stale_processing_job(session, job)
-    return job
+    return _ensure_fresh_job(session, job)
 
 
 @router.post("/projects/{project_id}/jobs/{job_id}/cancel", response_model=JobRead)
@@ -388,10 +392,7 @@ def cancel_job_endpoint(
     job = session.get(ProcessingJob, job_id)
     if job is None or job.project_id != project_id:
         raise HTTPException(status_code=404, detail="Processing job not found")
-    if import_job_is_stale(job):
-        job = fail_stale_import_job(session, job)
-    elif processing_job_is_stale(job):
-        job = fail_stale_processing_job(session, job)
+    job = _ensure_fresh_job(session, job)
     if job.job_type != "import":
         raise HTTPException(status_code=422, detail="Only import jobs can be cancelled")
     if job.status in {"complete", "complete_with_errors", "failed", "cancelled"}:
@@ -412,8 +413,7 @@ def retry_job_endpoint(
     job = session.get(ProcessingJob, job_id)
     if job is None or job.project_id != project_id:
         raise HTTPException(status_code=404, detail="Processing job not found")
-    if import_job_is_stale(job):
-        job = fail_stale_import_job(session, job)
+    job = _ensure_fresh_job(session, job)
     if job.job_type != "import":
         raise HTTPException(status_code=422, detail="Only import jobs can be retried")
     if not job.retryable:
@@ -421,8 +421,8 @@ def retry_job_endpoint(
 
     active_job = _get_active_import_job(session, project_id)
     if active_job is not None:
-        if import_job_is_stale(active_job):
-            fail_stale_import_job(session, active_job)
+        if job_is_stale(active_job):
+            fail_stale_job(session, active_job)
         else:
             raise HTTPException(status_code=409, detail="An import job is already running")
 

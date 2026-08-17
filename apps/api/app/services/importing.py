@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO
 
@@ -16,6 +16,13 @@ from app.ai.embeddings import image_embedding, perceptual_hash
 from app.db.session import get_engine
 from app.image.scoring import compute_quality_scores_for_image
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
+from app.services.jobs import (
+    TERMINAL_JOB_STATUSES,
+    as_utc,
+    job_is_stale,
+    mark_job_failed,
+    progress_percent,
+)
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 PLANNED_HEIC_EXTENSIONS = {".heic", ".heif"}
@@ -31,8 +38,6 @@ PREVIEW_WEBP_METHOD = 2
 DERIVATIVE_RESAMPLE = Image.Resampling.BICUBIC
 DERIVATIVE_REDUCING_GAP = 2.0
 IMPORT_JOB_UPDATE_MIN_SECONDS = 0.75
-STALE_IMPORT_JOB_AFTER = 30 * 60
-TERMINAL_IMPORT_JOB_STATUSES = {"complete", "complete_with_errors", "failed", "cancelled"}
 
 ImportProgressCallback = Callable[[str], None]
 
@@ -65,18 +70,6 @@ class ImportRegistration:
     is_new: bool
 
 
-def _progress_percent(processed_items: int, failed_items: int, total_items: int) -> float:
-    if total_items <= 0:
-        return 100.0
-    return round(min(100.0, ((processed_items + failed_items) / total_items) * 100), 2)
-
-
-def _as_utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
-
-
 def _skipped_files_message(skipped: list[dict[str, str]]) -> str | None:
     if not skipped:
         return None
@@ -96,7 +89,7 @@ def create_import_job(session: Session, project: Project, total_items: int) -> P
         total_items=total_items,
         processed_items=0,
         failed_items=0,
-        progress_percent=_progress_percent(0, 0, total_items),
+        progress_percent=progress_percent(0, 0, total_items),
         started_at=now,
         updated_at=now,
     )
@@ -116,7 +109,7 @@ def create_import_retry_job(session: Session, project: Project, photo_ids: list[
         total_items=len(photo_ids),
         processed_items=0,
         failed_items=0,
-        progress_percent=_progress_percent(0, 0, len(photo_ids)),
+        progress_percent=progress_percent(0, 0, len(photo_ids)),
         started_at=now,
         updated_at=now,
     )
@@ -135,13 +128,13 @@ def update_import_job(
     force: bool = False,
 ) -> None:
     now = utc_now()
-    should_commit = force or (now - _as_utc(job.updated_at)).total_seconds() >= IMPORT_JOB_UPDATE_MIN_SECONDS
+    should_commit = force or (now - as_utc(job.updated_at)).total_seconds() >= IMPORT_JOB_UPDATE_MIN_SECONDS
     job.current_step = current_step
     if processed_items is not None:
         job.processed_items = processed_items
     if failed_items is not None:
         job.failed_items = failed_items
-    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
+    job.progress_percent = progress_percent(job.processed_items, job.failed_items, job.total_items)
     job.updated_at = now
     session.add(job)
     if should_commit:
@@ -176,30 +169,17 @@ def complete_import_job(
 
 
 def import_job_is_stale(job: ProcessingJob, now: datetime | None = None) -> bool:
-    if job.job_type != "import" or job.status not in {"queued", "running"}:
-        return False
-    current_time = _as_utc(now or utc_now())
-    return (current_time - _as_utc(job.updated_at)).total_seconds() >= STALE_IMPORT_JOB_AFTER
+    return job.job_type == "import" and job_is_stale(job, now)
 
 
 def fail_stale_import_job(session: Session, job: ProcessingJob) -> ProcessingJob:
-    now = utc_now()
-    reason = "Import job was interrupted before completion"
-    job.status = "failed"
-    job.current_step = "failed - stale"
-    job.error_message = reason
-    job.failed_items = max(0, job.total_items - job.processed_items) if job.total_items else 1
-    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
-    job.completed_at = now
-    job.updated_at = now
-    session.add(job)
-    session.commit()
-    session.refresh(job)
-    return job
+    from app.services.jobs import fail_stale_job
+
+    return fail_stale_job(session, job)
 
 
 def request_import_job_cancellation(session: Session, job: ProcessingJob) -> ProcessingJob:
-    if job.job_type != "import" or job.status in TERMINAL_IMPORT_JOB_STATUSES:
+    if job.job_type != "import" or job.status in TERMINAL_JOB_STATUSES:
         return job
     now = utc_now()
     job.cancellation_requested = True
@@ -462,9 +442,6 @@ def photo_needs_import_retry(photo: Photo) -> bool:
 
 
 def invalidate_project_processing(session: Session, project: Project) -> None:
-    for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
-        session.delete(group)
-
     photos = session.exec(select(Photo).where(Photo.project_id == project.id)).all()
     for photo in photos:
         photo.group_id = None
@@ -472,6 +449,10 @@ def invalidate_project_processing(session: Session, project: Project) -> None:
         photo.recommendation_explanation = "Processing should be run again after the latest import."
         photo.updated_at = utc_now()
         session.add(photo)
+    session.flush()
+
+    for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
+        session.delete(group)
 
     project.processed_images = 0
     project.updated_at = utc_now()
@@ -756,18 +737,7 @@ def process_registered_import_photo(
 
 
 def _fail_import_job(session: Session, job: ProcessingJob, reason: str) -> ProcessingJob:
-    now = utc_now()
-    job.status = "failed"
-    job.current_step = "failed"
-    job.error_message = reason
-    job.failed_items = max(1, job.total_items - job.processed_items)
-    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
-    job.completed_at = now
-    job.updated_at = now
-    session.add(job)
-    session.commit()
-    session.refresh(job)
-    return job
+    return mark_job_failed(session, job, reason)
 
 
 def _cancel_import_job(session: Session, job: ProcessingJob, processed_count: int, failed_count: int) -> ProcessingJob:
@@ -776,7 +746,7 @@ def _cancel_import_job(session: Session, job: ProcessingJob, processed_count: in
     job.current_step = "cancelled"
     job.processed_items = processed_count
     job.failed_items = failed_count
-    job.progress_percent = _progress_percent(processed_count, failed_count, job.total_items)
+    job.progress_percent = progress_percent(processed_count, failed_count, job.total_items)
     job.error_message = "Import job was cancelled by user request"
     job.cancellation_requested = True
     job.cancelled_at = now
@@ -790,7 +760,7 @@ def _cancel_import_job(session: Session, job: ProcessingJob, processed_count: in
 
 def _import_job_cancellation_requested(session: Session, job: ProcessingJob) -> bool:
     session.refresh(job)
-    return job.cancellation_requested and job.status not in TERMINAL_IMPORT_JOB_STATUSES
+    return job.cancellation_requested and job.status not in TERMINAL_JOB_STATUSES
 
 
 def _mark_import_photo_failed(session: Session, photo: Photo, reason: str) -> None:
@@ -799,6 +769,22 @@ def _mark_import_photo_failed(session: Session, photo: Photo, reason: str) -> No
     photo.recommendation_explanation = "Import derivative generation failed for this photo."
     photo.updated_at = utc_now()
     session.add(photo)
+    session.commit()
+
+
+def _reset_import_photos_after_crash(session: Session, photo_ids: list[str], reason: str) -> None:
+    for photo_id in photo_ids:
+        photo = session.get(Photo, photo_id)
+        if photo is None:
+            continue
+        if photo.processing_state in {"processing", "imported"} and not _photo_derivatives_exist(photo):
+            photo.processing_state = "failed"
+            photo.processing_error = reason
+            photo.recommendation_explanation = (
+                "Import derivative generation was interrupted. Retry the import job to regenerate local derived files."
+            )
+            photo.updated_at = utc_now()
+            session.add(photo)
     session.commit()
 
 
@@ -812,105 +798,114 @@ def run_import_derivative_job(
         job = session.get(ProcessingJob, job_id)
         if job is None:
             return
-        project = session.get(Project, job.project_id)
-        if project is None:
-            _fail_import_job(session, job, "Project not found")
-            return
+        try:
+            project = session.get(Project, job.project_id)
+            if project is None:
+                _fail_import_job(session, job, "Project not found")
+                return
 
-        processed_count = 0
-        failed_count = len(skipped)
-        update_import_job(
-            session,
-            job,
-            "derivative_generation",
-            processed_count,
-            failed_count,
-            force=True,
-        )
-        if _import_job_cancellation_requested(session, job):
-            _cancel_import_job(session, job, processed_count, failed_count)
-            return
-
-        for index, photo_id in enumerate(photo_ids, start=1):
+            processed_count = 0
+            failed_count = len(skipped)
+            update_import_job(
+                session,
+                job,
+                "derivative_generation",
+                processed_count,
+                failed_count,
+                force=True,
+            )
             if _import_job_cancellation_requested(session, job):
                 _cancel_import_job(session, job, processed_count, failed_count)
                 return
-            photo = session.get(Photo, photo_id)
-            if photo is None or photo.project_id != project.id:
-                skipped.append({"filename": photo_id, "reason": "Registered photo was not found"})
-                failed_count += 1
-                update_import_job(
-                    session,
-                    job,
-                    f"photo_missing {index} of {len(photo_ids)}",
-                    processed_count,
-                    failed_count,
-                    force=True,
-                )
-                continue
-            if _photo_derivatives_exist(photo):
-                photo.processing_state = "imported"
-                photo.processing_error = None
-                photo.recommendation_explanation = "Import derivatives are available."
-                photo.updated_at = utc_now()
-                session.add(photo)
-                session.commit()
-                processed_count += 1
-                update_import_job(
-                    session,
-                    job,
-                    f"derivative_generation {index} of {len(photo_ids)}",
-                    processed_count,
-                    failed_count,
-                    force=True,
-                )
+
+            for index, photo_id in enumerate(photo_ids, start=1):
                 if _import_job_cancellation_requested(session, job):
                     _cancel_import_job(session, job, processed_count, failed_count)
                     return
-                continue
+                photo = session.get(Photo, photo_id)
+                if photo is None or photo.project_id != project.id:
+                    skipped.append({"filename": photo_id, "reason": "Registered photo was not found"})
+                    failed_count += 1
+                    update_import_job(
+                        session,
+                        job,
+                        f"photo_missing {index} of {len(photo_ids)}",
+                        processed_count,
+                        failed_count,
+                        force=True,
+                    )
+                    continue
+                if _photo_derivatives_exist(photo):
+                    photo.processing_state = "imported"
+                    photo.processing_error = None
+                    photo.recommendation_explanation = "Import derivatives are available."
+                    photo.updated_at = utc_now()
+                    session.add(photo)
+                    session.commit()
+                    processed_count += 1
+                    update_import_job(
+                        session,
+                        job,
+                        f"derivative_generation {index} of {len(photo_ids)}",
+                        processed_count,
+                        failed_count,
+                        force=True,
+                    )
+                    if _import_job_cancellation_requested(session, job):
+                        _cancel_import_job(session, job, processed_count, failed_count)
+                        return
+                    continue
 
-            def progress_callback(
-                stage: str,
-                current_index: int = index,
-                current_processed_count: int = processed_count,
-                current_failed_count: int = failed_count,
-            ) -> None:
-                update_import_job(
-                    session,
-                    job,
-                    f"{stage} {current_index} of {len(photo_ids)}",
-                    current_processed_count,
-                    current_failed_count,
-                )
+                def progress_callback(
+                    stage: str,
+                    current_index: int = index,
+                    current_processed_count: int = processed_count,
+                    current_failed_count: int = failed_count,
+                ) -> None:
+                    update_import_job(
+                        session,
+                        job,
+                        f"{stage} {current_index} of {len(photo_ids)}",
+                        current_processed_count,
+                        current_failed_count,
+                    )
 
-            try:
-                process_registered_import_photo(session, project, photo, progress_callback=progress_callback)
-                processed_count += 1
-                update_import_job(
-                    session,
-                    job,
-                    f"derivative_generation {index} of {len(photo_ids)}",
-                    processed_count,
-                    failed_count,
-                    force=True,
-                )
-                if _import_job_cancellation_requested(session, job):
-                    _cancel_import_job(session, job, processed_count, failed_count)
-                    return
-            except ValueError as error:
-                _mark_import_photo_failed(session, photo, str(error))
-                skipped.append({"filename": photo.filename, "reason": str(error)})
-                failed_count += 1
-                update_import_job(
-                    session,
-                    job,
-                    f"file_failed {index} of {len(photo_ids)}",
-                    processed_count,
-                    failed_count,
-                    force=True,
-                )
-                if _import_job_cancellation_requested(session, job):
-                    _cancel_import_job(session, job, processed_count, failed_count)
-                    return
+                try:
+                    process_registered_import_photo(session, project, photo, progress_callback=progress_callback)
+                    processed_count += 1
+                    update_import_job(
+                        session,
+                        job,
+                        f"derivative_generation {index} of {len(photo_ids)}",
+                        processed_count,
+                        failed_count,
+                        force=True,
+                    )
+                    if _import_job_cancellation_requested(session, job):
+                        _cancel_import_job(session, job, processed_count, failed_count)
+                        return
+                except ValueError as error:
+                    _mark_import_photo_failed(session, photo, str(error))
+                    skipped.append({"filename": photo.filename, "reason": str(error)})
+                    failed_count += 1
+                    update_import_job(
+                        session,
+                        job,
+                        f"file_failed {index} of {len(photo_ids)}",
+                        processed_count,
+                        failed_count,
+                        force=True,
+                    )
+                    if _import_job_cancellation_requested(session, job):
+                        _cancel_import_job(session, job, processed_count, failed_count)
+                        return
 
-        complete_import_job(session, job, processed_count, skipped)
+            complete_import_job(session, job, processed_count, skipped)
+        except Exception as error:
+            session.rollback()
+            job = session.get(ProcessingJob, job_id)
+            if job is None or job.status in TERMINAL_JOB_STATUSES:
+                return
+            reason = f"Import derivative worker crashed: {error}"
+            _reset_import_photos_after_crash(session, photo_ids, reason)
+            mark_job_failed(session, job, reason)
