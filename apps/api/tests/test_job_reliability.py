@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
@@ -161,3 +162,41 @@ def test_processing_worker_marks_job_failed_on_unexpected_exception(tmp_path, mo
         assert job is not None
         assert job.status == "failed"
         assert "processing boom" in (job.error_message or "")
+
+
+def test_interrupted_export_is_failed_on_startup_and_not_left_running(tmp_path, monkeypatch):
+    from datetime import UTC, datetime
+    from pathlib import Path
+
+    from app.models.entities import ExportRecord
+
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Interrupted export"}).json()
+
+    with Session(get_engine()) as session:
+        record = ExportRecord(
+            project_id=project["id"],
+            mode="zip",
+            status="running",
+            selected_count=3,
+            statuses='["Pick"]',
+            output_path=str(Path(project["root_path"]) / "exports" / "zip" / "partial.zip"),
+            created_at=datetime.now(UTC),
+        )
+        Path(record.output_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(record.output_path).write_bytes(b"partial")
+        session.add(record)
+        session.commit()
+        export_id = record.id
+
+    reset_db_ready_flag()
+    ensure_db_ready()
+
+    with Session(get_engine()) as session:
+        refreshed = session.get(ExportRecord, export_id)
+        assert refreshed is not None
+        assert refreshed.status == "failed"
+        assert refreshed.completed_at is not None
+        assert "restarted" in (refreshed.error_message or "").lower()
+        assert not Path(refreshed.output_path).exists()
