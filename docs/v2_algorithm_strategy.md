@@ -28,7 +28,7 @@ Grouping is intentionally conservative. The current pipeline:
 6. Uses perceptual hash distance when hashes exist.
 7. Falls back to local embedding similarity when hashes are unavailable or invalid.
 8. Merges matching pairs with union-find.
-9. Splits merged groups when their capture-time span exceeds the burst window.
+9. Splits merged groups when consecutive inter-frame capture-time gaps exceed the burst window.
 
 The goal is to group burst-like and near-duplicate frames without over-merging unrelated photos from the same shoot.
 
@@ -39,7 +39,7 @@ Current deterministic thresholds:
 - Filename proximity: candidate pairs must be within `3` filename sequence numbers when capture time is missing on either side.
 - Perceptual hash similarity: pairs match when Hamming distance is `8` bits or lower.
 - Embedding fallback similarity: pairs match when cosine similarity is at least `0.96`.
-- Time-span splitting: merged groups split when a dated sub-sequence spans more than `30` seconds.
+- Inter-frame gap splitting: merged groups split when consecutive capture-time gaps exceed `30` seconds, so long continuous bursts stay together.
 
 ## Ranking
 

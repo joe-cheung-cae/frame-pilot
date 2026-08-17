@@ -70,7 +70,7 @@ Projects are stored in local project directories. v2.0 copies imported originals
 
 ## SQLite Assumptions
 
-The app assumes single-user local SQLite access. It is not designed for multi-user concurrent editing, shared remote databases, or distributed project state. SQLite WAL is not currently enabled by the app; if it is added later, it should be documented and tested as a local concurrency tuning decision.
+The app assumes single-user local SQLite access. It is not designed for multi-user concurrent editing, shared remote databases, or distributed project state. The app enables SQLite WAL with a bounded busy timeout for local reader/writer concurrency during import and processing; this remains a single-process local tuning choice, not multi-user database support.
 
 ## Unsupported Scenarios
 

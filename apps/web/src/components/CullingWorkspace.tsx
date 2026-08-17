@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -46,11 +47,9 @@ import {
   reviewSaveFailureMessage,
   reviewSelectionState,
   windowedCompareRefs,
-  windowedGroupRefs,
-  windowedPhotoRefs,
 } from "@/lib/reviewNavigation";
 import { reviewScoreRows } from "@/lib/reviewScores";
-import { reviewShortcutCommandForKey, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
+import { reviewShortcutCommandFromEvent, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
 import {
   mergeLoadedPhotosWithCurrentReviews,
   reconcileOptimisticPhotoUpdates,
@@ -58,10 +57,9 @@ import {
 } from "@/lib/reviewUpdates";
 import { useReviewStore } from "@/store/reviewStore";
 
-const FILMSTRIP_WINDOW_SIZE = 80;
-const GROUP_WINDOW_SIZE = 80;
 const COMPARE_WINDOW_SIZE = 6;
-const CULLING_INITIAL_PAGE_LIMIT = 500;
+const FILMSTRIP_ITEM_WIDTH = 120;
+const GROUP_ITEM_HEIGHT = 64;
 
 export function CullingWorkspace({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -69,10 +67,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const searchParams = useSearchParams();
   const requestedFilter = searchParams.get("filter");
   const filterButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const filmstripButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const groupButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const skipNextProgressSave = useRef<string | null>(null);
-  const [allPhotosLoaded, setAllPhotosLoaded] = useState(false);
-  const [allGroupsLoaded, setAllGroupsLoaded] = useState(false);
+  const [, setAllPhotosLoaded] = useState(false);
+  const [, setAllGroupsLoaded] = useState(false);
   const [failedAssetUrls, setFailedAssetUrls] = useState<Set<string>>(() => new Set());
+  const [liveAnnouncement, setLiveAnnouncement] = useState("");
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
   const activeImportJob = project.data?.active_import_job ?? null;
   const isImportRunning = activeImportJob?.status === "queued" || activeImportJob?.status === "running";
@@ -87,13 +88,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const isProcessing = Boolean(activeProcessingJob);
   const photosQuery = useQuery({
     queryKey: ["photos", projectId],
-    queryFn: () => api.listPhotos(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+    queryFn: () => api.listAllPhotos(projectId),
     enabled: project.isSuccess && jobsQuery.isSuccess && !isImportRunning && !isProcessing,
     retry: false,
   });
   const groupsQuery = useQuery({
     queryKey: ["groups", projectId],
-    queryFn: () => api.listGroups(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+    queryFn: () => api.listAllGroups(projectId),
     enabled: project.isSuccess && jobsQuery.isSuccess && !isImportRunning && !isProcessing,
     retry: false,
   });
@@ -117,8 +118,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const photos = useMemo(() => photosQuery.data ?? [], [photosQuery.data]);
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
   const projectPhotoCount = project.data?.total_images ?? photos.length;
-  const photosPartiallyLoaded = projectPhotoCount > photos.length && !allPhotosLoaded;
-  const groupsMayBePartial = groups.length === CULLING_INITIAL_PAGE_LIMIT && !allGroupsLoaded;
+  const photosPartiallyLoaded = false;
+  const groupsMayBePartial = false;
   const duplicateGroupIds = useMemo(
     () => new Set(groups.filter((group) => group.photo_count > 1).map((group) => group.id)),
     [groups],
@@ -155,14 +156,21 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     () => windowedCompareRefs(compareCandidates, activePhoto?.id ?? null, COMPARE_WINDOW_SIZE),
     [activePhoto?.id, compareCandidates],
   );
-  const filmstripPhotos = useMemo(
-    () => windowedPhotoRefs(visiblePhotos, activePhoto?.id ?? null, FILMSTRIP_WINDOW_SIZE),
-    [activePhoto?.id, visiblePhotos],
-  );
-  const sidebarGroups = useMemo(
-    () => windowedGroupRefs(groups, activeGroup?.id ?? activeGroupId, GROUP_WINDOW_SIZE),
-    [activeGroup?.id, activeGroupId, groups],
-  );
+  const filmstripParentRef = useRef<HTMLDivElement | null>(null);
+  const groupListParentRef = useRef<HTMLDivElement | null>(null);
+  const filmstripVirtualizer = useVirtualizer({
+    horizontal: true,
+    count: visiblePhotos.length,
+    getScrollElement: () => filmstripParentRef.current,
+    estimateSize: () => FILMSTRIP_ITEM_WIDTH,
+    overscan: 6,
+  });
+  const groupVirtualizer = useVirtualizer({
+    count: groups.length,
+    getScrollElement: () => groupListParentRef.current,
+    estimateSize: () => GROUP_ITEM_HEIGHT,
+    overscan: 8,
+  });
   const visiblePhotoIds = useMemo(() => visiblePhotos.map((photo) => photo.id), [visiblePhotos]);
   const metadataRows = useMemo(() => reviewMetadataRows(activePhoto), [activePhoto]);
   const photoStatusCountsQueryKey = useMemo(() => ["photo-status-counts", projectId], [projectId]);
@@ -389,6 +397,11 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   function mark(status: Photo["user_status"]) {
     if (activePhoto) {
       const nextPhotoId = nextPhotoIdAfterMark(visiblePhotos, activePhoto.id);
+      setLiveAnnouncement(
+        nextPhotoId
+          ? `Marked ${activePhoto.filename} as ${status}. Advanced to next photo.`
+          : `Marked ${activePhoto.filename} as ${status}.`,
+      );
       if (nextPhotoId) {
         setActivePhotoId(nextPhotoId);
       }
@@ -398,12 +411,18 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
 
   function batchMark(status: Photo["user_status"]) {
     if (visiblePhotoIds.length) {
+      setLiveAnnouncement(`Marked ${visiblePhotoIds.length} photos as ${status}.`);
       batchUpdateMutation.mutate({ photoIds: visiblePhotoIds, patch: { user_status: status } });
     }
   }
 
   function rate(star_rating: number) {
     if (activePhoto) {
+      setLiveAnnouncement(
+        star_rating > 0
+          ? `Set ${activePhoto.filename} to ${star_rating} stars.`
+          : `Cleared star rating for ${activePhoto.filename}.`,
+      );
       updateMutation.mutate({ photo: activePhoto, patch: { star_rating } });
     }
   }
@@ -429,9 +448,28 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   }
 
   useEffect(() => {
+    if (!activePhoto?.id) {
+      return;
+    }
+    const index = visiblePhotos.findIndex((photo) => photo.id === activePhoto.id);
+    if (index >= 0) {
+      filmstripVirtualizer.scrollToIndex(index, { align: "auto" });
+    }
+  }, [activePhoto?.id, filmstripVirtualizer, visiblePhotos]);
+
+  useEffect(() => {
+    if (!activeGroup?.id) {
+      return;
+    }
+    const index = groups.findIndex((group) => group.id === activeGroup.id);
+    if (index >= 0) {
+      groupVirtualizer.scrollToIndex(index, { align: "auto" });
+    }
+  }, [activeGroup?.id, groupVirtualizer, groups]);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      const command = reviewShortcutCommandForKey(event.key);
+      const command = reviewShortcutCommandFromEvent(event);
       if (!command) return;
       if (reviewShortcutNeedsPreventDefault(command)) {
         event.preventDefault();
@@ -588,6 +626,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
 
   return (
     <section className="grid min-h-[calc(100vh-73px)] grid-rows-[auto_1fr_auto] lg:h-[calc(100vh-73px)] lg:min-h-0 lg:overflow-hidden">
+      <div className="sr-only" aria-live="polite" role="status">
+        {liveAnnouncement}
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-3">
         <div>
           <h1 className="text-lg font-semibold">{project.data?.name ?? "Culling Workspace"}</h1>
@@ -668,32 +709,50 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 Show filtered photos
               </button>
             ) : null}
-            {groups.length > sidebarGroups.length ? (
-              <span className="rounded border border-line px-3 py-2 text-xs text-neutral-600">
-                {sidebarGroups.length} of {groups.length} groups
-              </span>
-            ) : null}
-            {sidebarGroups.map((group) => {
-              const summary = parseGroupScoreSummary(group.score_summary);
-              const groupNumber = (groupIndexById.get(group.id) ?? 0) + 1;
-              const isActiveGroup = activeGroup?.id === group.id;
-              const groupPhotoLabel = groupPhotoCountLabel(group.photo_count);
-              return (
-                <button
-                  className={`focus-ring rounded border px-3 py-2 text-left ${isActiveGroup ? "border-leaf bg-mist" : "border-line bg-white"}`}
-                  key={group.id}
-                  onClick={() => selectGroup(group.id, group.representative_photo_id)}
-                  aria-current={isActiveGroup ? "true" : undefined}
-                  aria-label={`Group ${groupNumber}, ${groupPhotoLabel}, ${groupConfidenceLabel(summary)}`}
-                >
-                  <span className="flex items-center justify-between gap-3">
-                    <span>Group {groupNumber}</span>
-                    <span>{group.photo_count}</span>
-                  </span>
-                  <span className="mt-1 block text-xs text-neutral-500">{groupConfidenceLabel(summary)}</span>
-                </button>
-              );
-            })}
+            <div ref={groupListParentRef} className="max-h-[50vh] overflow-y-auto lg:max-h-none">
+              <div
+                className="relative w-full"
+                style={{ height: `${groupVirtualizer.getTotalSize()}px` }}
+                role="listbox"
+                aria-label="Photo groups"
+              >
+                {groupVirtualizer.getVirtualItems().map((virtualItem) => {
+                  const group = groups[virtualItem.index];
+                  const summary = parseGroupScoreSummary(group.score_summary);
+                  const groupNumber = virtualItem.index + 1;
+                  const isActiveGroup = activeGroup?.id === group.id;
+                  const groupPhotoLabel = groupPhotoCountLabel(group.photo_count);
+                  return (
+                    <button
+                      className={`focus-ring absolute left-0 top-0 w-full rounded border px-3 py-2 text-left ${isActiveGroup ? "border-leaf bg-mist" : "border-line bg-white"}`}
+                      key={group.id}
+                      data-index={virtualItem.index}
+                      style={{
+                        height: `${virtualItem.size}px`,
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }}
+                      onClick={() => selectGroup(group.id, group.representative_photo_id)}
+                      aria-current={isActiveGroup ? "true" : undefined}
+                      aria-label={`Group ${groupNumber}, ${groupPhotoLabel}, ${groupConfidenceLabel(summary)}`}
+                      role="option"
+                      aria-selected={isActiveGroup}
+                      ref={(node) => {
+                        groupButtonRefs.current[group.id] = node;
+                        if (node) {
+                          groupVirtualizer.measureElement(node);
+                        }
+                      }}
+                    >
+                      <span className="flex items-center justify-between gap-3">
+                        <span>Group {groupNumber}</span>
+                        <span>{group.photo_count}</span>
+                      </span>
+                      <span className="mt-1 block text-xs text-neutral-500">{groupConfidenceLabel(summary)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </aside>
         <div
@@ -962,7 +1021,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           </aside>
         ) : null}
       </div>
-      <div className="flex min-h-28 items-center gap-3 overflow-x-auto border-t border-line bg-white px-4 py-3 lg:min-h-0">
+      <div className="flex min-h-28 items-center gap-3 border-t border-line bg-white px-4 py-3 lg:min-h-0">
         <button
           className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line"
           onClick={() => move(-1)}
@@ -970,46 +1029,64 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         >
           <ArrowLeft size={18} />
         </button>
-        {visiblePhotos.length > filmstripPhotos.length ? (
-          <span className="shrink-0 rounded border border-line px-3 py-2 text-xs text-neutral-600">
-            {filmstripPhotos.length} of {visiblePhotos.length}
-          </span>
-        ) : null}
-        {filmstripPhotos.map((photo) => {
-          const thumbnail = assetUrl(projectId, photo.thumbnail_path);
-          const thumbnailFallback = reviewAssetFallbackMessage({
-            assetType: "thumbnail",
-            hasAssetUrl: Boolean(thumbnail),
-          });
-          return (
-            <button
-              className={`focus-ring relative h-20 w-28 shrink-0 overflow-hidden rounded border ${photo.id === activePhoto?.id ? "border-leaf" : "border-line"}`}
-              key={photo.id}
-              onClick={() => setActivePhotoId(photo.id)}
-              aria-current={photo.id === activePhoto?.id ? "true" : undefined}
-              aria-label={`Select ${photo.filename}`}
-            >
-              {thumbnail && !assetHasFailed(thumbnail) ? (
-                <img
-                  className="h-full w-full object-cover"
-                  src={thumbnail}
-                  alt={photo.filename}
-                  loading="lazy"
-                  decoding="async"
-                  onError={() => markAssetFailed(thumbnail)}
-                />
-              ) : (
-                <span className="grid h-full place-items-center px-1 text-center text-xs">
-                  {thumbnailFallback.shortTitle}
-                </span>
-              )}
-              <span className="absolute bottom-1 left-1 rounded bg-white/90 px-1 text-xs">{photo.user_status}</span>
-              {photo.ai_recommendation === "Pick" ? (
-                <Check className="absolute right-1 top-1 rounded bg-leaf text-white" size={16} />
-              ) : null}
-            </button>
-          );
-        })}
+        <div ref={filmstripParentRef} className="min-w-0 flex-1 overflow-x-auto">
+          <div
+            className="relative h-20"
+            style={{ width: `${filmstripVirtualizer.getTotalSize()}px` }}
+            role="listbox"
+            aria-label="Photo filmstrip"
+          >
+            {filmstripVirtualizer.getVirtualItems().map((virtualItem) => {
+              const photo = visiblePhotos[virtualItem.index];
+              const thumbnail = assetUrl(projectId, photo.thumbnail_path);
+              const thumbnailFallback = reviewAssetFallbackMessage({
+                assetType: "thumbnail",
+                hasAssetUrl: Boolean(thumbnail),
+              });
+              return (
+                <button
+                  className={`focus-ring absolute top-0 h-20 w-28 overflow-hidden rounded border ${photo.id === activePhoto?.id ? "border-leaf" : "border-line"}`}
+                  key={photo.id}
+                  data-index={virtualItem.index}
+                  style={{
+                    left: 0,
+                    transform: `translateX(${virtualItem.start}px)`,
+                  }}
+                  onClick={() => setActivePhotoId(photo.id)}
+                  aria-current={photo.id === activePhoto?.id ? "true" : undefined}
+                  aria-label={`Select ${photo.filename}`}
+                  role="option"
+                  aria-selected={photo.id === activePhoto?.id}
+                  ref={(node) => {
+                    filmstripButtonRefs.current[photo.id] = node;
+                    if (node) {
+                      filmstripVirtualizer.measureElement(node);
+                    }
+                  }}
+                >
+                  {thumbnail && !assetHasFailed(thumbnail) ? (
+                    <img
+                      className="h-full w-full object-cover"
+                      src={thumbnail}
+                      alt={photo.filename}
+                      loading="lazy"
+                      decoding="async"
+                      onError={() => markAssetFailed(thumbnail)}
+                    />
+                  ) : (
+                    <span className="grid h-full place-items-center px-1 text-center text-xs">
+                      {thumbnailFallback.shortTitle}
+                    </span>
+                  )}
+                  <span className="absolute bottom-1 left-1 rounded bg-white/90 px-1 text-xs">{photo.user_status}</span>
+                  {photo.ai_recommendation === "Pick" ? (
+                    <Check className="absolute right-1 top-1 rounded bg-leaf text-white" size={16} />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <button
           className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line"
           onClick={() => move(1)}

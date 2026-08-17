@@ -1,5 +1,4 @@
 import json
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlmodel import Session, select
@@ -8,15 +7,13 @@ from app.db.session import get_engine
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.services.grouping import group_similar_photos
 from app.services.importing import ensure_photo_derivatives
+from app.services.jobs import (
+    TERMINAL_JOB_STATUSES,
+    job_is_stale,
+    mark_job_failed,
+    progress_percent,
+)
 from app.services.ranking import RankedPhoto, rank_group
-
-STALE_PROCESSING_JOB_AFTER = timedelta(minutes=30)
-
-
-def _progress_percent(processed_items: int, failed_items: int, total_items: int) -> float:
-    if total_items <= 0:
-        return 100.0
-    return round(min(100.0, ((processed_items + failed_items) / total_items) * 100), 2)
 
 
 def _failed_photo_count_message(count: int) -> str:
@@ -36,17 +33,11 @@ def _save_job(
         job.processed_items = processed_items
     if failed_items is not None:
         job.failed_items = failed_items
-    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
+    job.progress_percent = progress_percent(job.processed_items, job.failed_items, job.total_items)
     job.updated_at = utc_now()
     session.add(job)
     session.commit()
     session.refresh(job)
-
-
-def _as_utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
 
 
 def _photo_embedding(photo: Photo) -> list[float]:
@@ -104,10 +95,7 @@ def _mark_photo_failed(session: Session, photo: Photo, reason: str, explanation:
     session.add(photo)
 
 
-def _reset_project_after_processing_failure(session: Session, project_id: str, reason: str) -> None:
-    for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project_id)).all():
-        session.delete(group)
-
+def reset_project_after_processing_failure(session: Session, project_id: str, reason: str) -> None:
     photos = list(session.exec(select(Photo).where(Photo.project_id == project_id)).all())
     for photo in photos:
         photo.group_id = None
@@ -120,12 +108,20 @@ def _reset_project_after_processing_failure(session: Session, project_id: str, r
             photo.processing_error = reason
         photo.updated_at = utc_now()
         session.add(photo)
+    session.flush()
+
+    for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project_id)).all():
+        session.delete(group)
 
     project = session.get(Project, project_id)
     if project is not None:
         project.processed_images = 0
         project.updated_at = utc_now()
         session.add(project)
+
+
+def _reset_project_after_processing_failure(session: Session, project_id: str, reason: str) -> None:
+    reset_project_after_processing_failure(session, project_id, reason)
 
 
 def _group_score_summary(group_type: str, ranked: list[RankedPhoto]) -> str:
@@ -188,30 +184,14 @@ def _complete_unchanged_job(session: Session, job: ProcessingJob, total_items: i
     return job
 
 
-def processing_job_is_stale(job: ProcessingJob, now: datetime | None = None) -> bool:
-    if job.job_type != "processing":
-        return False
-    if job.status not in {"queued", "running"}:
-        return False
-    current_time = _as_utc(now or utc_now())
-    return current_time - _as_utc(job.updated_at) >= STALE_PROCESSING_JOB_AFTER
+def processing_job_is_stale(job: ProcessingJob, now=None) -> bool:
+    return job.job_type == "processing" and job_is_stale(job, now)
 
 
 def fail_stale_processing_job(session: Session, job: ProcessingJob) -> ProcessingJob:
-    reason = "Processing job was interrupted before completion"
-    _reset_project_after_processing_failure(session, job.project_id, reason)
-    now = utc_now()
-    job.status = "failed"
-    job.current_step = "failed - stale"
-    job.error_message = reason
-    job.failed_items = max(0, job.total_items - job.processed_items) if job.total_items else 1
-    job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
-    job.completed_at = now
-    job.updated_at = now
-    session.add(job)
-    session.commit()
-    session.refresh(job)
-    return job
+    from app.services.jobs import fail_stale_job
+
+    return fail_stale_job(session, job)
 
 
 def create_processing_job(session: Session, project: Project) -> ProcessingJob:
@@ -236,17 +216,20 @@ def run_processing_job(job_id: str) -> None:
         job = session.get(ProcessingJob, job_id)
         if job is None:
             return
-        project = session.get(Project, job.project_id)
-        if project is None:
-            job.status = "failed"
-            job.current_step = "failed"
-            job.error_message = "Project not found"
-            job.completed_at = utc_now()
-            job.updated_at = utc_now()
-            session.add(job)
-            session.commit()
-            return
-        process_project(session, project, job)
+        try:
+            project = session.get(Project, job.project_id)
+            if project is None:
+                mark_job_failed(session, job, "Project not found")
+                return
+            process_project(session, project, job)
+        except Exception as error:
+            session.rollback()
+            job = session.get(ProcessingJob, job_id)
+            if job is None or job.status in TERMINAL_JOB_STATUSES:
+                return
+            reason = f"Processing worker crashed: {error}"
+            reset_project_after_processing_failure(session, job.project_id, reason)
+            mark_job_failed(session, job, reason)
 
 
 def process_project(session: Session, project: Project, job: ProcessingJob | None = None) -> ProcessingJob:
@@ -259,7 +242,7 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
     job.total_items = len(photos)
     job.processed_items = 0
     job.failed_items = 0
-    job.progress_percent = _progress_percent(0, 0, len(photos))
+    job.progress_percent = progress_percent(0, 0, len(photos))
     job.error_message = None
     job.started_at = utc_now()
     job.completed_at = None
@@ -272,20 +255,39 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         return _complete_unchanged_job(session, job, len(photos))
 
     try:
+        existing_groups = {
+            group.id: group
+            for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all()
+        }
+        preserved_photos = [
+            photo
+            for photo in photos
+            if photo.processing_state == "processed"
+            and photo.group_id
+            and photo.group_id in existing_groups
+            and not photo.processing_error
+            and not _missing_derivative_paths(photo)
+        ]
+        preserved_ids = {photo.id for photo in preserved_photos}
+        preserved_group_ids = {photo.group_id for photo in preserved_photos if photo.group_id}
+
         _save_job(session, job, "clearing stale groups", 0)
-        for existing in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
-            session.delete(existing)
-        for photo in photos:
+        work_photos = [photo for photo in photos if photo.id not in preserved_ids]
+        for photo in work_photos:
             photo.group_id = None
             photo.processing_state = "processing"
             photo.processing_error = None
             session.add(photo)
+        session.flush()
+        for existing in list(existing_groups.values()):
+            if existing.id not in preserved_group_ids:
+                session.delete(existing)
         session.commit()
 
-        _save_job(session, job, "validating generated files", 0)
+        _save_job(session, job, "validating generated files", len(preserved_photos))
         derivative_failed_photos = []
         derivative_failed_ids = set()
-        for photo in photos:
+        for photo in work_photos:
             missing_derivatives = _missing_derivative_paths(photo)
             if not missing_derivatives:
                 continue
@@ -305,8 +307,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
                 )
         session.commit()
 
-        _save_job(session, job, "validating similarity data", 0, len(derivative_failed_photos))
-        candidate_photos = [photo for photo in photos if photo.id not in derivative_failed_ids]
+        _save_job(session, job, "validating similarity data", len(preserved_photos), len(derivative_failed_photos))
+        candidate_photos = [photo for photo in work_photos if photo.id not in derivative_failed_ids]
         group_inputs, similarity_failed_photos = _build_group_inputs(candidate_photos)
         for photo in similarity_failed_photos:
             _mark_photo_failed(
@@ -320,14 +322,24 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
 
         failed_photos = derivative_failed_photos + similarity_failed_photos
 
-        _save_job(session, job, "grouping photos", 0, len(failed_photos))
+        _save_job(session, job, "grouping photos", len(preserved_photos), len(failed_photos))
         failed_photo_ids = {failed.id for failed in failed_photos}
         photo_map = {photo.id: photo for photo in candidate_photos if photo.id not in failed_photo_ids}
         grouped_photos = group_similar_photos(group_inputs)
+        next_sequence = max(
+            (group.sequence for group in existing_groups.values() if group.id in preserved_group_ids),
+            default=0,
+        )
 
         for index, grouped in enumerate(grouped_photos, start=1):
             _save_job(session, job, f"ranking group {index} of {len(grouped_photos)}", job.processed_items)
-            group = PhotoGroup(project_id=project.id, group_type=grouped.group_type, photo_count=len(grouped.photo_ids))
+            next_sequence += 1
+            group = PhotoGroup(
+                project_id=project.id,
+                group_type=grouped.group_type,
+                sequence=next_sequence,
+                photo_count=len(grouped.photo_ids),
+            )
             session.add(group)
             session.commit()
             session.refresh(group)
@@ -358,7 +370,7 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
                 photo = photo_map[item.photo_id]
                 photo.ai_recommendation = item.recommendation
                 photo.recommendation_explanation = item.explanation
-                photo.overall_score = max(photo.overall_score, item.score)
+                photo.overall_score = item.score
                 photo.processing_state = "processed"
                 photo.processing_error = None
                 photo.updated_at = utc_now()
@@ -374,25 +386,25 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
 
         job.status = "complete"
         job.current_step = "complete"
-        job.processed_items = len(group_inputs)
+        job.processed_items = len(preserved_ids) + len(group_inputs)
         job.failed_items = len(failed_photos)
         job.progress_percent = 100.0
         if failed_photos:
             job.error_message = _failed_photo_count_message(len(failed_photos))
         job.completed_at = utc_now()
-        project.processed_images = len(group_inputs)
+        project.processed_images = len(preserved_ids) + len(group_inputs)
         project.last_processed_at = job.completed_at
         project.updated_at = utc_now()
         session.add(project)
     except Exception as error:
         session.rollback()
         failure_reason = str(error)
-        _reset_project_after_processing_failure(session, project.id, failure_reason)
+        reset_project_after_processing_failure(session, project.id, failure_reason)
         job.status = "failed"
         job.current_step = "failed"
         job.error_message = failure_reason
-        job.failed_items = max(1, job.total_items - job.processed_items) if job.total_items else 1
-        job.progress_percent = _progress_percent(job.processed_items, job.failed_items, job.total_items)
+        job.failed_items = max(0, job.total_items - job.processed_items) if job.total_items else 1
+        job.progress_percent = progress_percent(job.processed_items, job.failed_items, job.total_items)
         job.completed_at = utc_now()
 
     job.updated_at = utc_now()

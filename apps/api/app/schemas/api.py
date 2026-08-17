@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     root_path: str | None = None
+    acknowledge_nonempty: bool = False
 
     @field_validator("name")
     @classmethod
@@ -157,13 +158,14 @@ class PhotoUpdate(BaseModel):
 
 
 class PhotoBatchUpdate(PhotoUpdate):
-    photo_ids: list[str] = Field(min_length=1)
+    photo_ids: list[str] = Field(min_length=1, max_length=500)
 
 
 class GroupRead(BaseModel):
     id: str
     project_id: str
     group_type: str
+    sequence: int = 0
     representative_photo_id: str | None
     photo_count: int
     score_summary: str

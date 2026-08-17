@@ -59,7 +59,18 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     retry: false,
   });
   const mutation = useMutation({
-    mutationFn: (files: readonly File[]) => api.importPhotos(projectId, files),
+    mutationFn: (files: readonly File[]) =>
+      api.importPhotos(projectId, files, {
+        onBatchComplete: (result, batchIndex, batchCount) => {
+          if (result.job?.id) {
+            selectCurrentImportJob(result.job.id);
+          }
+          setMessage(
+            `Uploading batch ${batchIndex + 1} of ${batchCount}. ${result.imported.length} files accepted in this batch.`,
+          );
+          setMessageTone("neutral");
+        },
+      }),
     onMutate: () => {
       setMessage("");
       setMessageTone("neutral");

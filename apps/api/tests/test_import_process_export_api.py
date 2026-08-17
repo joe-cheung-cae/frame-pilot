@@ -42,6 +42,17 @@ def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
     return current
 
 
+def _wait_for_export(client: TestClient, project_id: str, export_record: dict) -> dict:
+    current = export_record
+    for _ in range(20):
+        if current["status"] in {"complete", "failed"}:
+            return current
+        response = client.get(f"/api/projects/{project_id}/exports/{current['id']}")
+        assert response.status_code == 200
+        current = response.json()
+    return current
+
+
 def _wait_for_imported_photo(
     client: TestClient,
     project_id: str,
@@ -203,7 +214,8 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
         json={"mode": "csv", "statuses": ["Pick"]},
     )
     assert export_response.status_code == 201
-    export_record = export_response.json()
+    export_record = _wait_for_export(client, project["id"], export_response.json())
+    assert export_record["status"] == "complete"
     assert export_record["output_path"].endswith(".csv")
     assert export_record["selected_count"] == 1
     assert export_record["statuses"] == '["Pick"]'
@@ -681,10 +693,10 @@ def test_multi_file_import_invalidates_processing_once(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     invalidate_calls = 0
 
-    def counted_invalidation(session, project):
+    def counted_invalidation(session, project, touched_photo_ids=None):
         nonlocal invalidate_calls
         invalidate_calls += 1
-        invalidate_project_processing(session, project)
+        invalidate_project_processing(session, project, touched_photo_ids=touched_photo_ids)
 
     monkeypatch.setattr("app.api.routes.invalidate_project_processing", counted_invalidation)
     client = TestClient(create_app())
@@ -2004,8 +2016,10 @@ def test_import_after_processing_invalidates_stale_groups_and_recommendations(tm
     assert process_response.status_code == 202
     job = _wait_for_job(client, project["id"], process_response.json())
     assert job["status"] == "complete"
-    assert client.get(f"/api/projects/{project['id']}/groups").json()
+    groups_before = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert groups_before
     assert client.get(f"/api/projects/{project['id']}/photos/{first_photo['id']}").json()["ai_recommendation"] == "Pick"
+    first_group_id = groups_before[0]["id"]
 
     second_import = client.post(
         f"/api/projects/{project['id']}/import",
@@ -2017,10 +2031,14 @@ def test_import_after_processing_invalidates_stale_groups_and_recommendations(tm
     assert updated_project["total_images"] == 2
     assert updated_project["processed_images"] == 0
     assert updated_project["last_processed_at"] is not None
-    assert client.get(f"/api/projects/{project['id']}/groups").json() == []
+    groups_after = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert [group["id"] for group in groups_after] == [first_group_id]
     updated_first = client.get(f"/api/projects/{project['id']}/photos/{first_photo['id']}").json()
-    assert updated_first["group_id"] is None
-    assert updated_first["ai_recommendation"] == "Unreviewed"
+    assert updated_first["group_id"] == first_group_id
+    assert updated_first["ai_recommendation"] == "Pick"
+    second_photo_id = second_import.json()["imported"][0]["id"]
+    updated_second = client.get(f"/api/projects/{project['id']}/photos/{second_photo_id}").json()
+    assert updated_second["group_id"] is None
 
 
 def test_group_list_returns_groups_in_creation_order(tmp_path, monkeypatch):
@@ -2628,11 +2646,8 @@ def test_failed_export_records_failed_history_and_removes_partial_artifact(tmp_p
 
     response = client.post(f"/api/projects/{project['id']}/export", json={"mode": "csv", "statuses": ["Pick"]})
 
-    assert response.status_code == 500
-    assert response.json()["detail"] == "Export failed"
-    history = client.get(f"/api/projects/{project['id']}/export").json()
-    assert len(history) == 1
-    record = history[0]
+    assert response.status_code == 201
+    record = _wait_for_export(client, project["id"], response.json())
     assert record["mode"] == "csv"
     assert record["status"] == "failed"
     assert record["selected_count"] == 1
@@ -2671,7 +2686,9 @@ def test_failed_export_cleanup_does_not_remove_artifact_outside_export_root(tmp_
 
     response = client.post(f"/api/projects/{project['id']}/export", json={"mode": "csv", "statuses": ["Pick"]})
 
-    assert response.status_code == 500
+    assert response.status_code == 201
+    record = _wait_for_export(client, project["id"], response.json())
+    assert record["status"] == "failed"
     assert outside_artifact.read_text() == "outside partial export"
 
 
@@ -2720,12 +2737,9 @@ def test_file_export_fails_when_selected_original_is_missing(tmp_path, monkeypat
 
     response = client.post(f"/api/projects/{project['id']}/exports", json={"mode": "zip", "statuses": ["Pick"]})
 
-    assert response.status_code == 500
+    assert response.status_code == 201
     expected_error = f"Original file is missing: {missing_original}"
-    assert response.json()["detail"] == expected_error
-    history = client.get(f"/api/projects/{project['id']}/exports").json()
-    assert len(history) == 1
-    record = history[0]
+    record = _wait_for_export(client, project["id"], response.json())
     assert record["mode"] == "zip"
     assert record["status"] == "failed"
     assert record["selected_count"] == 1
@@ -2792,12 +2806,9 @@ def test_file_export_rejects_source_paths_outside_project_originals(tmp_path, mo
 
     response = client.post(f"/api/projects/{project['id']}/exports", json={"mode": mode, "statuses": ["Pick"]})
 
-    assert response.status_code == 500
+    assert response.status_code == 201
     expected_error = "Export source file must stay inside the project originals directory"
-    assert response.json()["detail"] == expected_error
-    history = client.get(f"/api/projects/{project['id']}/exports").json()
-    assert len(history) == 1
-    record = history[0]
+    record = _wait_for_export(client, project["id"], response.json())
     assert record["mode"] == mode
     assert record["status"] == "failed"
     assert record["error_message"] == expected_error

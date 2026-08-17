@@ -130,7 +130,7 @@ def _union(parent: list[int], left: int, right: int) -> None:
         parent[right_root] = left_root
 
 
-def _split_group_by_time_span(group: list[dict[str, Any]], max_time_gap_seconds: int) -> list[list[dict[str, Any]]]:
+def _split_group_by_time_gaps(group: list[dict[str, Any]], max_time_gap_seconds: int) -> list[list[dict[str, Any]]]:
     if len(group) <= 1:
         return [group]
 
@@ -140,18 +140,16 @@ def _split_group_by_time_span(group: list[dict[str, Any]], max_time_gap_seconds:
 
     splits: list[list[dict[str, Any]]] = []
     current: list[dict[str, Any]] = []
-    current_start: datetime | None = None
+    previous_time: datetime | None = None
 
     for photo, capture_time in dated_group:
-        if current_start is not None and capture_time is not None:
-            span_seconds = abs((capture_time - current_start).total_seconds())
-            if span_seconds > max_time_gap_seconds:
+        if previous_time is not None and capture_time is not None:
+            gap_seconds = abs((capture_time - previous_time).total_seconds())
+            if gap_seconds > max_time_gap_seconds:
                 splits.append(current)
                 current = []
-                current_start = capture_time
-        if current_start is None:
-            current_start = capture_time
         current.append(photo)
+        previous_time = capture_time
 
     if current:
         splits.append(current)
@@ -193,7 +191,7 @@ def group_similar_photos(
     groups = list(grouped_by_root.values())
     split_groups = []
     for group in groups:
-        split_groups.extend(_split_group_by_time_span(group, max_time_gap_seconds))
+        split_groups.extend(_split_group_by_time_gaps(group, max_time_gap_seconds))
 
     return [
         SimilarPhotoGroup(

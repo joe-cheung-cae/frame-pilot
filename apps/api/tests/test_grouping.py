@@ -281,7 +281,32 @@ def test_grouping_uses_perceptual_hash_distance_when_available():
     assert [group.photo_ids for group in groups] == [["a", "b"], ["c"]]
 
 
-def test_grouping_splits_transitive_matches_when_time_span_is_too_large():
+def test_grouping_keeps_long_continuous_bursts_together():
+    from datetime import datetime, timedelta
+
+    start = datetime(2026, 1, 1, 10, 0, 0)
+    photos = [
+        {
+            "id": f"frame-{index}",
+            "filename": f"IMG_{index:04d}.jpg",
+            "capture_time": (start + timedelta(milliseconds=500 * index)).isoformat(),
+            "embedding": [1.0, 0.0],
+            "perceptual_hash": "0000000000000000",
+            "width": 6000,
+            "height": 4000,
+            "camera_model": "Camera A",
+            "focal_length": "35",
+        }
+        for index in range(100)
+    ]
+
+    groups = group_similar_photos(photos, max_time_gap_seconds=30)
+
+    assert len(groups) == 1
+    assert len(groups[0].photo_ids) == 100
+
+
+def test_grouping_splits_on_inter_frame_gaps_not_total_span():
     photos = [
         {
             "id": "a",
@@ -304,8 +329,15 @@ def test_grouping_splits_transitive_matches_when_time_span_is_too_large():
             "embedding": [1.0, 0.0],
             "perceptual_hash": "0000000000000000",
         },
+        {
+            "id": "d",
+            "filename": "IMG_0004.jpg",
+            "capture_time": "2026-01-01T10:10:00",
+            "embedding": [1.0, 0.0],
+            "perceptual_hash": "0000000000000000",
+        },
     ]
 
     groups = group_similar_photos(photos, max_time_gap_seconds=30)
 
-    assert [group.photo_ids for group in groups] == [["a", "b"], ["c"]]
+    assert [group.photo_ids for group in groups] == [["a", "b", "c"], ["d"]]

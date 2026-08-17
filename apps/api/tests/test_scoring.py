@@ -128,3 +128,18 @@ def test_pillow_scoring_does_not_modify_source_file(tmp_path):
         compute_quality_scores_for_image(opened.convert("RGB"))
 
     assert source.read_bytes() == before
+
+
+def test_noise_score_prefers_clean_high_contrast_over_noisy_flat_image():
+    clean_high_contrast = np.zeros((128, 128), dtype=np.uint8)
+    clean_high_contrast[:, 64:] = 255
+
+    noisy = np.full((128, 128), 128, dtype=np.uint8)
+    rng = np.random.default_rng(42)
+    noisy = np.clip(noisy.astype(np.int16) + rng.integers(-40, 41, size=noisy.shape), 0, 255).astype(np.uint8)
+
+    clean_scores = compute_quality_scores(clean_high_contrast)
+    noisy_scores = compute_quality_scores(noisy)
+
+    assert clean_scores.noise_score < noisy_scores.noise_score
+    assert clean_scores.contrast_score > noisy_scores.contrast_score

@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { collectPagedList, listPageQuery } from "./api.ts";
+import {
+  API_BASE,
+  assetUrl,
+  chunkItems,
+  collectPagedList,
+  IMPORT_UPLOAD_BATCH_SIZE,
+  listPageQuery,
+} from "./api.ts";
 
 test("builds empty list query when pagination is omitted", () => {
   assert.equal(listPageQuery(), "");
@@ -53,4 +60,34 @@ test("fetches one empty page after exact page-size boundaries", async () => {
 test("rejects invalid page limits", async () => {
   await assert.rejects(() => collectPagedList(async () => [], 0), /positive integer/);
   await assert.rejects(() => collectPagedList(async () => [], 1.5), /positive integer/);
+});
+
+test("chunks files into bounded import upload batches", () => {
+  const files = Array.from({ length: 250 }, (_, index) => `file-${index}`);
+  const batches = chunkItems(files, IMPORT_UPLOAD_BATCH_SIZE);
+  assert.equal(batches.length, 3);
+  assert.equal(batches[0].length, 100);
+  assert.equal(batches[1].length, 100);
+  assert.equal(batches[2].length, 50);
+  assert.deepEqual(batches.flat(), files);
+});
+
+test("rejects invalid import batch sizes", () => {
+  assert.throws(() => chunkItems(["a"], 0), /positive integer/);
+});
+
+test("assetUrl encodes special characters and supports windows separators", () => {
+  const posix = assetUrl("proj", "/data/projects/proj/thumbnails/holiday #1 (50%).jpg");
+  assert.equal(
+    posix,
+    `${API_BASE}/api/assets/proj/${encodeURIComponent("thumbnails")}/${encodeURIComponent("holiday #1 (50%).jpg")}`,
+  );
+  assert.equal(posix?.includes("#"), false);
+  assert.equal(posix?.includes(" "), false);
+
+  const windows = assetUrl("proj", "C:\\data\\projects\\proj\\previews\\shot.jpg");
+  assert.equal(
+    windows,
+    `${API_BASE}/api/assets/proj/${encodeURIComponent("previews")}/${encodeURIComponent("shot.jpg")}`,
+  );
 });

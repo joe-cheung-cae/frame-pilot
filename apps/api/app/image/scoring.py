@@ -144,7 +144,15 @@ def compute_quality_scores(image: np.ndarray) -> QualityScores:
     contrast_score = normalize_score(float(gray.std()), 80.0)
 
     high_freq = np.abs(gray - mean_luma)
-    noise_score = normalize_score(float(np.percentile(high_freq, 95)), 130.0)
+    # Estimate noise from high-frequency residual in low-gradient (flat) patches.
+    padded = np.pad(gray, 1, mode="edge")
+    grad_x = padded[1:-1, 2:] - padded[1:-1, :-2]
+    grad_y = padded[2:, 1:-1] - padded[:-2, 1:-1]
+    gradient_magnitude = np.hypot(grad_x, grad_y)
+    flat_mask = gradient_magnitude <= float(np.percentile(gradient_magnitude, 35))
+    flat_residual = high_freq[flat_mask] if flat_mask.any() else high_freq.ravel()
+    noise_mad = float(np.median(np.abs(flat_residual - np.median(flat_residual))))
+    noise_score = normalize_score(noise_mad * 1.4826, 18.0)
     face_presence, face_sharpness_score, eye_open_confidence, face_quality_score = _detect_face_signals(
         image, gray, sharpness_score
     )

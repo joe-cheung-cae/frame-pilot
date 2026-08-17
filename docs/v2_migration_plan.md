@@ -23,7 +23,7 @@ The current v2 baseline uses local SQLite metadata and a project layout under `.
 
 Projects record `schema_version`, `source_mode`, and `source_root_path`. v2 currently creates projects in `copy` mode; reference mode remains a planned future storage mode.
 
-Startup database initialization already applies small compatibility migrations for fields such as export record status and processing job failure counts. New compatibility migrations should follow that explicit, idempotent style unless the schema grows enough to justify a dedicated migration runner.
+Startup database initialization uses a versioned migration runner keyed by a `schema_meta.version` row. Fresh databases create the current SQLModel tables and record the current schema version once per process start. Older local databases upgrade through ordered additive migrations; opening a database with a newer schema version than the running build fails with a clear error instead of silently misbehaving.
 
 ## SQLite Schema Evolution
 

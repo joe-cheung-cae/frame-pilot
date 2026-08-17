@@ -76,6 +76,7 @@ class PhotoGroup(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     project_id: str = Field(index=True, foreign_key="project.id")
     group_type: str = "single"
+    sequence: int = 0
     representative_photo_id: str | None = Field(default=None, foreign_key="photo.id")
     photo_count: int = 0
     score_summary: str = "{}"

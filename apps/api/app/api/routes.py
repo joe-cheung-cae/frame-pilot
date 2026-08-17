@@ -4,7 +4,7 @@ import shutil
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import case, func
 from sqlmodel import Session, select
@@ -26,12 +26,11 @@ from app.schemas.api import (
 )
 from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
 from app.services.importing import (
+    IMPORT_MAX_FILES_PER_REQUEST,
     ImportTimingCollector,
     complete_import_job,
     create_import_job,
     create_import_retry_job,
-    fail_stale_import_job,
-    import_job_is_stale,
     import_timing_stage,
     invalidate_project_processing,
     photo_needs_import_retry,
@@ -40,10 +39,15 @@ from app.services.importing import (
     run_import_derivative_job,
     update_import_job,
 )
+from app.services.jobs import (
+    STALE_JOB_AFTER,
+    as_utc,
+    fail_stale_job,
+    fail_stale_jobs_for_project,
+    job_is_stale,
+)
 from app.services.processing import (
     create_processing_job,
-    fail_stale_processing_job,
-    processing_job_is_stale,
     project_export_root,
     run_processing_job,
 )
@@ -124,8 +128,8 @@ def _get_active_import_job(session: Session, project_id: str) -> ProcessingJob |
 
 def _get_current_active_import_job(session: Session, project_id: str) -> ProcessingJob | None:
     while active_job := _get_active_import_job(session, project_id):
-        if import_job_is_stale(active_job):
-            fail_stale_import_job(session, active_job)
+        if job_is_stale(active_job):
+            fail_stale_job(session, active_job)
             continue
         return active_job
     return None
@@ -151,9 +155,10 @@ def _job_read(job: ProcessingJob) -> JobRead:
     )
 
 
-def _project_read(session: Session, project: Project) -> ProjectRead:
-    _fail_stale_active_jobs(session, project.id)
-    session.refresh(project)
+def _project_read(session: Session, project: Project, *, sweep_stale: bool = True) -> ProjectRead:
+    if sweep_stale:
+        _fail_stale_active_jobs(session, project.id)
+        session.refresh(project)
     active_import_job = _get_current_active_import_job(session, project.id)
     return ProjectRead(
         id=project.id,
@@ -172,29 +177,75 @@ def _project_read(session: Session, project: Project) -> ProjectRead:
 
 
 def _fail_stale_active_jobs(session: Session, project_id: str) -> None:
-    active_jobs = session.exec(
-        select(ProcessingJob)
-        .where(ProcessingJob.project_id == project_id)
-        .where(ProcessingJob.status.in_(["queued", "running"]))
-    ).all()
-    for job in active_jobs:
-        if job.job_type == "import" and import_job_is_stale(job):
-            fail_stale_import_job(session, job)
-        elif job.job_type == "processing" and processing_job_is_stale(job):
-            fail_stale_processing_job(session, job)
+    fail_stale_jobs_for_project(session, project_id)
+
+
+def _ensure_fresh_job(session: Session, job: ProcessingJob) -> ProcessingJob:
+    if job_is_stale(job):
+        return fail_stale_job(session, job)
+    return job
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 def create_project_endpoint(payload: ProjectCreate, session: Session = Depends(get_session)):
     try:
-        return create_project(session, payload.name, payload.root_path)
+        return create_project(
+            session,
+            payload.name,
+            payload.root_path,
+            acknowledge_nonempty=payload.acknowledge_nonempty,
+        )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @router.get("/projects", response_model=list[ProjectRead])
 def list_projects_endpoint(session: Session = Depends(get_session)):
-    return [_project_read(session, project) for project in list_projects(session)]
+    projects = list_projects(session)
+    if not projects:
+        return []
+
+    project_ids = [project.id for project in projects]
+    active_jobs = list(
+        session.exec(
+            select(ProcessingJob)
+            .where(ProcessingJob.project_id.in_(project_ids))
+            .where(ProcessingJob.status.in_(["queued", "running"]))
+        ).all()
+    )
+    for job in active_jobs:
+        if job_is_stale(job):
+            fail_stale_job(session, job)
+
+    active_import_by_project: dict[str, ProcessingJob] = {}
+    for job in session.exec(
+        select(ProcessingJob)
+        .where(ProcessingJob.project_id.in_(project_ids))
+        .where(ProcessingJob.job_type == "import")
+        .where(ProcessingJob.status.in_(["queued", "running"]))
+        .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
+    ).all():
+        active_import_by_project.setdefault(job.project_id, job)
+
+    return [
+        ProjectRead(
+            id=project.id,
+            name=project.name,
+            root_path=project.root_path,
+            source_mode=project.source_mode,
+            source_root_path=project.source_root_path,
+            created_at=project.created_at,
+            updated_at=project.updated_at,
+            total_images=project.total_images,
+            processed_images=project.processed_images,
+            last_processed_at=project.last_processed_at,
+            schema_version=project.schema_version,
+            active_import_job=(
+                _job_read(active_import_by_project[project.id]) if project.id in active_import_by_project else None
+            ),
+        )
+        for project in projects
+    ]
 
 
 @router.get("/projects/{project_id}", response_model=ProjectRead)
@@ -205,9 +256,23 @@ def get_project_endpoint(project_id: str, session: Session = Depends(get_session
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project_endpoint(project_id: str, session: Session = Depends(get_session)):
     project = _get_project(session, project_id)
-    for model in (ExportRecord, ProcessingJob, Photo, PhotoGroup):
-        for item in session.exec(select(model).where(model.project_id == project_id)).all():
-            session.delete(item)
+    for export in session.exec(select(ExportRecord).where(ExportRecord.project_id == project_id)).all():
+        session.delete(export)
+    for job in session.exec(select(ProcessingJob).where(ProcessingJob.project_id == project_id)).all():
+        session.delete(job)
+    photos = list(session.exec(select(Photo).where(Photo.project_id == project_id)).all())
+    for photo in photos:
+        photo.group_id = None
+        session.add(photo)
+    session.flush()
+    for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project_id)).all():
+        group.representative_photo_id = None
+        session.add(group)
+    session.flush()
+    for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project_id)).all():
+        session.delete(group)
+    for photo in photos:
+        session.delete(photo)
     session.delete(project)
     session.commit()
     return None
@@ -227,6 +292,9 @@ def import_photos_endpoint(
     project_id: str,
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
+    job_id: str | None = Form(default=None),
+    expected_total: int | None = Form(default=None),
+    finalize: bool = Form(default=True),
     include_timing: bool = Query(default=False),
     session: Session = Depends(get_session),
 ):
@@ -234,26 +302,81 @@ def import_photos_endpoint(
     timing = ImportTimingCollector() if timing_enabled else None
     started = time.perf_counter()
     project = _get_project(session, project_id)
-    total_files = len(files)
-    job = create_import_job(session, project, total_files)
+
+    if not files:
+        raise HTTPException(status_code=422, detail="At least one file is required")
+    if len(files) > IMPORT_MAX_FILES_PER_REQUEST:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Too many files in one request ({len(files)}). "
+                f"Upload at most {IMPORT_MAX_FILES_PER_REQUEST} files per request and append with job_id."
+            ),
+        )
+    if expected_total is not None and expected_total < len(files):
+        raise HTTPException(status_code=422, detail="expected_total must be >= the number of files in this request")
+
+    active_import_job = _get_current_active_import_job(session, project_id)
+    if job_id:
+        job = session.get(ProcessingJob, job_id)
+        if job is None or job.project_id != project_id or job.job_type != "import":
+            raise HTTPException(status_code=404, detail="Import job not found")
+        if job_is_stale(job):
+            job = fail_stale_job(session, job)
+        if job.status not in {"queued", "running"}:
+            raise HTTPException(status_code=409, detail="Import job is no longer accepting files")
+        if active_import_job is not None and active_import_job.id != job.id:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Another import job is already running for this project",
+                    "job_id": active_import_job.id,
+                },
+            )
+    else:
+        if active_import_job is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "An import job is already running for this project",
+                    "job_id": active_import_job.id,
+                },
+            )
+        job = create_import_job(session, project, expected_total or len(files))
+
+    if expected_total is not None and expected_total > job.total_items:
+        job.total_items = expected_total
+        job.progress_percent = 0.0
+        job.updated_at = utc_now()
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+
+    batch_size = len(files)
     imported: list[Photo] = []
     derivative_photo_ids: list[str] = []
+    newly_imported_ids: list[str] = []
     skipped: list[dict[str, str]] = []
     new_import_count = 0
-    failed_count = 0
+    failed_count = job.failed_items
+    registered_before = (
+        0 if job.current_step.startswith("derivative_generation") else max(0, job.processed_items)
+    )
+
     for index, upload in enumerate(files, start=1):
         filename = upload.filename or "image"
+        absolute_index = registered_before + index
 
         def update_stage(
             stage: str,
-            current_index: int = index,
+            current_index: int = absolute_index,
             current_failed_count: int = failed_count,
         ) -> None:
             update_import_job(
                 session,
                 job,
-                f"{stage} {current_index} of {total_files}",
-                0,
+                f"{stage} {current_index} of {job.total_items or batch_size}",
+                registered_before,
                 current_failed_count,
             )
 
@@ -273,11 +396,12 @@ def import_photos_endpoint(
                 derivative_photo_ids.append(photo.id)
             if registration.is_new and project.total_images > before_total:
                 new_import_count += 1
+                newly_imported_ids.append(photo.id)
             update_import_job(
                 session,
                 job,
-                f"file_copy_or_register {index} of {total_files}",
-                0,
+                f"file_copy_or_register {absolute_index} of {job.total_items or batch_size}",
+                registered_before + len(imported),
                 failed_count,
                 force=True,
             )
@@ -287,38 +411,92 @@ def import_photos_endpoint(
             update_import_job(
                 session,
                 job,
-                f"file_skipped {index} of {total_files}",
-                0,
+                f"file_skipped {absolute_index} of {job.total_items or batch_size}",
+                registered_before + len(imported),
                 failed_count,
                 force=True,
             )
-    if not imported and skipped:
-        complete_import_job(session, job, len(imported), skipped)
+
+    registered_count = registered_before + len(imported)
+    update_import_job(
+        session,
+        job,
+        f"receive_files {registered_count} of {job.total_items or registered_count}",
+        registered_count,
+        failed_count,
+        force=True,
+    )
+
+    if not imported and skipped and finalize and registered_before == 0:
+        complete_import_job(session, job, 0, skipped)
         details = "; ".join(f"{item['filename']}: {item['reason']}" for item in skipped)
         raise HTTPException(status_code=422, detail=details)
+
     if new_import_count:
         update_import_job(
             session,
             job,
             "processing_invalidation",
-            0,
+            registered_count,
             failed_count,
             force=True,
         )
         with import_timing_stage(timing, "processing_invalidation"):
-            invalidate_project_processing(session, project)
+            invalidate_project_processing(session, project, touched_photo_ids=newly_imported_ids)
         with import_timing_stage(timing, "import_endpoint_commit"):
             session.commit()
-    if derivative_photo_ids:
+        if not finalize:
+            update_import_job(
+                session,
+                job,
+                f"receive_files {registered_count} of {job.total_items or registered_count}",
+                registered_count,
+                failed_count,
+                force=True,
+            )
+
+    if not finalize:
+        response = {
+            "imported": imported,
+            "skipped": skipped,
+            "job": job,
+            "total_files": batch_size,
+            "accepted_files": len(imported),
+            "skipped_files": len(skipped),
+            "failed_files": len(skipped),
+        }
+        if timing is not None:
+            total_seconds = round(time.perf_counter() - started, 6)
+            timing.record("import_endpoint_total", total_seconds)
+            response["timing"] = {
+                "total_files": batch_size,
+                "imported_files": len(imported),
+                "skipped_files": len(skipped),
+                "total_seconds": total_seconds,
+                "stages": timing.summary(),
+            }
+        return response
+
+    pending_derivative_ids = [
+        photo.id
+        for photo in session.exec(
+            select(Photo)
+            .where(Photo.project_id == project_id)
+            .where(Photo.processing_state == "processing")
+            .order_by(Photo.created_at, Photo.id)
+        ).all()
+    ]
+    if pending_derivative_ids:
         update_import_job(session, job, "derivative_generation", 0, failed_count, force=True)
-        background_tasks.add_task(run_import_derivative_job, job.id, derivative_photo_ids, skipped)
+        background_tasks.add_task(run_import_derivative_job, job.id, pending_derivative_ids, skipped)
     else:
-        job = complete_import_job(session, job, len(imported), skipped)
+        job = complete_import_job(session, job, registered_count, skipped)
+
     response = {
         "imported": imported,
         "skipped": skipped,
         "job": job,
-        "total_files": total_files,
+        "total_files": batch_size,
         "accepted_files": len(imported),
         "skipped_files": len(skipped),
         "failed_files": len(skipped),
@@ -327,7 +505,7 @@ def import_photos_endpoint(
         total_seconds = round(time.perf_counter() - started, 6)
         timing.record("import_endpoint_total", total_seconds)
         response["timing"] = {
-            "total_files": len(files),
+            "total_files": batch_size,
             "imported_files": len(imported),
             "skipped_files": len(skipped),
             "total_seconds": total_seconds,
@@ -357,8 +535,8 @@ def process_project_endpoint(
         raise HTTPException(status_code=422, detail="Import photos before processing this project")
     active_job = _get_active_processing_job(session, project_id)
     if active_job is not None:
-        if processing_job_is_stale(active_job):
-            fail_stale_processing_job(session, active_job)
+        if job_is_stale(active_job):
+            fail_stale_job(session, active_job)
         else:
             return active_job
     job = create_processing_job(session, project)
@@ -371,11 +549,7 @@ def get_job_endpoint(project_id: str, job_id: str, session: Session = Depends(ge
     job = session.get(ProcessingJob, job_id)
     if job is None or job.project_id != project_id:
         raise HTTPException(status_code=404, detail="Processing job not found")
-    if import_job_is_stale(job):
-        job = fail_stale_import_job(session, job)
-    elif processing_job_is_stale(job):
-        job = fail_stale_processing_job(session, job)
-    return job
+    return _ensure_fresh_job(session, job)
 
 
 @router.post("/projects/{project_id}/jobs/{job_id}/cancel", response_model=JobRead)
@@ -388,10 +562,7 @@ def cancel_job_endpoint(
     job = session.get(ProcessingJob, job_id)
     if job is None or job.project_id != project_id:
         raise HTTPException(status_code=404, detail="Processing job not found")
-    if import_job_is_stale(job):
-        job = fail_stale_import_job(session, job)
-    elif processing_job_is_stale(job):
-        job = fail_stale_processing_job(session, job)
+    job = _ensure_fresh_job(session, job)
     if job.job_type != "import":
         raise HTTPException(status_code=422, detail="Only import jobs can be cancelled")
     if job.status in {"complete", "complete_with_errors", "failed", "cancelled"}:
@@ -412,8 +583,7 @@ def retry_job_endpoint(
     job = session.get(ProcessingJob, job_id)
     if job is None or job.project_id != project_id:
         raise HTTPException(status_code=404, detail="Processing job not found")
-    if import_job_is_stale(job):
-        job = fail_stale_import_job(session, job)
+    job = _ensure_fresh_job(session, job)
     if job.job_type != "import":
         raise HTTPException(status_code=422, detail="Only import jobs can be retried")
     if not job.retryable:
@@ -421,8 +591,8 @@ def retry_job_endpoint(
 
     active_job = _get_active_import_job(session, project_id)
     if active_job is not None:
-        if import_job_is_stale(active_job):
-            fail_stale_import_job(session, active_job)
+        if job_is_stale(active_job):
+            fail_stale_job(session, active_job)
         else:
             raise HTTPException(status_code=409, detail="An import job is already running")
 
@@ -476,7 +646,16 @@ def list_photos_endpoint(
     statement = (
         select(Photo)
         .where(Photo.project_id == project_id)
-        .order_by(Photo.group_id, recommendation_order, Photo.overall_score.desc(), Photo.filename)
+        .outerjoin(PhotoGroup, Photo.group_id == PhotoGroup.id)
+        .order_by(
+            case((Photo.group_id.is_(None), 1), else_=0),
+            PhotoGroup.sequence,
+            PhotoGroup.created_at,
+            Photo.group_id,
+            recommendation_order,
+            Photo.overall_score.desc(),
+            Photo.filename,
+        )
     )
     if offset:
         statement = statement.offset(offset)
@@ -514,9 +693,13 @@ def batch_update_photos_endpoint(
 ):
     _get_project(session, project_id)
     requested_ids = list(dict.fromkeys(payload.photo_ids))
-    photos = list(
-        session.exec(select(Photo).where(Photo.project_id == project_id).where(Photo.id.in_(requested_ids))).all()
-    )
+    photos: list[Photo] = []
+    chunk_size = 400
+    for start in range(0, len(requested_ids), chunk_size):
+        chunk_ids = requested_ids[start : start + chunk_size]
+        photos.extend(
+            session.exec(select(Photo).where(Photo.project_id == project_id).where(Photo.id.in_(chunk_ids))).all()
+        )
     photo_by_id = {photo.id: photo for photo in photos}
     missing_ids = [photo_id for photo_id in requested_ids if photo_id not in photo_by_id]
     if missing_ids:
@@ -531,8 +714,8 @@ def batch_update_photos_endpoint(
         photo.updated_at = now
         session.add(photo)
     session.commit()
-    for photo in photos:
-        session.refresh(photo)
+    for photo_id in requested_ids:
+        session.refresh(photo_by_id[photo_id])
     return [photo_by_id[photo_id] for photo_id in requested_ids]
 
 
@@ -563,7 +746,9 @@ def list_groups_endpoint(
 ):
     _get_project(session, project_id)
     statement = (
-        select(PhotoGroup).where(PhotoGroup.project_id == project_id).order_by(PhotoGroup.created_at, PhotoGroup.id)
+        select(PhotoGroup)
+        .where(PhotoGroup.project_id == project_id)
+        .order_by(PhotoGroup.sequence, PhotoGroup.created_at, PhotoGroup.id)
     )
     if offset:
         statement = statement.offset(offset)
@@ -580,10 +765,87 @@ def get_group_endpoint(project_id: str, group_id: str, session: Session = Depend
     return group
 
 
+def _fail_stale_exports(session: Session, project_id: str | None = None) -> None:
+    statement = select(ExportRecord).where(ExportRecord.status == "running")
+    if project_id is not None:
+        statement = statement.where(ExportRecord.project_id == project_id)
+    now = utc_now()
+    for record in session.exec(statement).all():
+        if as_utc(now) - as_utc(record.created_at) < STALE_JOB_AFTER:
+            continue
+        try:
+            project = session.get(Project, record.project_id)
+            if project is not None:
+                export_root = project_export_root(project)
+                _remove_partial_export(Path(record.output_path), export_root)
+        except Exception:
+            pass
+        record.status = "failed"
+        record.error_message = "Export was interrupted before completion"
+        record.completed_at = now
+        session.add(record)
+    session.commit()
+
+
+def run_export_job(export_id: str, mode: str, photo_dicts: list[dict], project_root: str) -> None:
+    from app.db.session import get_engine
+
+    with Session(get_engine()) as session:
+        record = session.get(ExportRecord, export_id)
+        if record is None:
+            return
+        project = session.get(Project, record.project_id)
+        if project is None:
+            record.status = "failed"
+            record.error_message = "Project not found"
+            record.completed_at = utc_now()
+            session.add(record)
+            session.commit()
+            return
+        try:
+            export_root = project_export_root(project)
+            target = Path(record.output_path)
+            if mode == "csv":
+                output_path = write_selection_csv(target, photo_dicts)
+            elif mode == "folder":
+                output_path = copy_selected_files(target, photo_dicts, project_root=Path(project_root))
+            else:
+                output_path = zip_selected_files(target, photo_dicts, project_root=Path(project_root))
+            record.status = "complete"
+            record.output_path = str(output_path)
+            record.error_message = None
+            record.completed_at = utc_now()
+            session.add(record)
+            session.commit()
+        except Exception as error:
+            session.rollback()
+            record = session.get(ExportRecord, export_id)
+            if record is None:
+                return
+            try:
+                export_root = project_export_root(project)
+                _remove_partial_export(Path(record.output_path), export_root)
+            except Exception:
+                pass
+            record.status = "failed"
+            record.error_message = (
+                str(error) if isinstance(error, (FileNotFoundError, ValueError)) and str(error) else "Export failed"
+            )
+            record.completed_at = utc_now()
+            session.add(record)
+            session.commit()
+
+
 @router.post("/projects/{project_id}/exports", response_model=ExportRead, status_code=status.HTTP_201_CREATED)
 @router.post("/projects/{project_id}/export", response_model=ExportRead, status_code=status.HTTP_201_CREATED)
-def create_export_endpoint(project_id: str, payload: ExportCreate, session: Session = Depends(get_session)):
+def create_export_endpoint(
+    project_id: str,
+    payload: ExportCreate,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
     project = _get_project(session, project_id)
+    _fail_stale_exports(session, project_id)
     photos = list(
         session.exec(
             select(Photo)
@@ -613,34 +875,7 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
     session.add(record)
     session.commit()
     session.refresh(record)
-
-    try:
-        if payload.mode == "csv":
-            output_path = write_selection_csv(target, photo_dicts)
-        elif payload.mode == "folder":
-            output_path = copy_selected_files(target, photo_dicts, project_root=Path(project.root_path))
-        else:
-            output_path = zip_selected_files(target, photo_dicts, project_root=Path(project.root_path))
-    except Exception as error:
-        session.rollback()
-        _remove_partial_export(target, export_root)
-        error_message = (
-            str(error) if isinstance(error, (FileNotFoundError, ValueError)) and str(error) else "Export failed"
-        )
-        record.status = "failed"
-        record.output_path = str(target)
-        record.error_message = error_message
-        record.completed_at = utc_now()
-        session.add(record)
-        session.commit()
-        raise HTTPException(status_code=500, detail=error_message) from error
-
-    record.status = "complete"
-    record.output_path = str(output_path)
-    record.completed_at = utc_now()
-    session.add(record)
-    session.commit()
-    session.refresh(record)
+    background_tasks.add_task(run_export_job, record.id, payload.mode, photo_dicts, project.root_path)
     return record
 
 
@@ -653,6 +888,7 @@ def list_exports_endpoint(
     session: Session = Depends(get_session),
 ):
     _get_project(session, project_id)
+    _fail_stale_exports(session, project_id)
     statement = (
         select(ExportRecord)
         .where(ExportRecord.project_id == project_id)

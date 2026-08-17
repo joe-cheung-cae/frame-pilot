@@ -69,7 +69,15 @@ When `POST /api/projects` omits `root_path` or sends it blank, FramePilot uses t
 
 ## Import Response
 
-`POST /api/projects/{project_id}/imports` accepts multiple files under the `files` form field.
+`POST /api/projects/{project_id}/imports` accepts multiple files under the `files` form field. Each request may include at most 100 files. Larger selections should be uploaded in chunks that share one logical import job.
+
+Optional form fields:
+
+- `job_id`: append this chunk to an existing running import job
+- `expected_total`: total files across all chunks for progress display
+- `finalize`: `true` (default) starts derivative generation for pending photos; `false` keeps the job open for more chunks
+
+A new import without `job_id` returns `409` when another import job is already active for the project.
 
 The response contains accepted photo records, synchronously skipped files, import counts, and the import job to poll. Newly accepted photos may still have `processing_state` set to `processing` and may not have thumbnail, preview, metadata, score, hash, or embedding fields populated until the background derivative job completes.
 
@@ -162,9 +170,9 @@ If the same project has a queued or running import job, the process endpoint ret
 ```
 
 Processing can start after the import job reaches a terminal state such as `complete`, `complete_with_errors`, `failed`, or `cancelled`.
-If an earlier queued or running processing job has not updated for more than 30 minutes, project and jobs endpoints mark that stale job as failed. Stale processing cleanup clears partial groups, removes photo group assignments, returns processed or in-progress photos to retryable `imported` state with the interruption reason, and resets the project processed count to zero. A later process request can then start a replacement job and rebuild groups from the imported photo set.
+If an earlier queued or running processing job has not updated for more than 10 minutes, project and jobs endpoints mark that stale job as failed. Stale processing cleanup clears partial groups, removes photo group assignments, returns processed or in-progress photos to retryable `imported` state with the interruption reason, and resets the project processed count to zero. A later process request can then start a replacement job and rebuild groups from the imported photo set. API startup also marks leftover active jobs failed immediately after a process restart.
 
-`GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls the returned import job after upload/register returns, and the processing UI uses job history to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job has not updated for more than 30 minutes, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
+`GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls the returned import job after upload/register returns, and the processing UI uses job history to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job has not updated for more than 10 minutes, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
 
 `POST /api/projects/{project_id}/jobs/{job_id}/cancel` requests cooperative cancellation for a queued or running import job. It sets `cancellation_requested` and returns the updated job with `202 Accepted`; terminal import jobs return as a safe no-op with `200 OK`. This endpoint does not kill the API process, delete original files, delete copied originals, or remove generated derivatives. The background worker checks the request before each photo and after each photo-level derivative/scoring/hash pass, then marks the job `cancelled` with `cancelled_at` and `completed_at` once it reaches a safe checkpoint. Already completed photo derivatives remain cached, while unprocessed photos stay retryable.
 
