@@ -165,8 +165,6 @@ def test_processing_worker_marks_job_failed_on_unexpected_exception(tmp_path, mo
 
 
 def test_interrupted_export_is_failed_on_startup_and_not_left_running(tmp_path, monkeypatch):
-    from datetime import UTC, datetime
-
     from app.models.entities import ExportRecord
 
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
