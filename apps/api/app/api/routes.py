@@ -4,7 +4,7 @@ import shutil
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import case, func
 from sqlmodel import Session, select
@@ -26,6 +26,7 @@ from app.schemas.api import (
 )
 from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
 from app.services.importing import (
+    IMPORT_MAX_FILES_PER_REQUEST,
     ImportTimingCollector,
     complete_import_job,
     create_import_job,
@@ -235,6 +236,9 @@ def import_photos_endpoint(
     project_id: str,
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
+    job_id: str | None = Form(default=None),
+    expected_total: int | None = Form(default=None),
+    finalize: bool = Form(default=True),
     include_timing: bool = Query(default=False),
     session: Session = Depends(get_session),
 ):
@@ -242,26 +246,80 @@ def import_photos_endpoint(
     timing = ImportTimingCollector() if timing_enabled else None
     started = time.perf_counter()
     project = _get_project(session, project_id)
-    total_files = len(files)
-    job = create_import_job(session, project, total_files)
+
+    if not files:
+        raise HTTPException(status_code=422, detail="At least one file is required")
+    if len(files) > IMPORT_MAX_FILES_PER_REQUEST:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Too many files in one request ({len(files)}). "
+                f"Upload at most {IMPORT_MAX_FILES_PER_REQUEST} files per request and append with job_id."
+            ),
+        )
+    if expected_total is not None and expected_total < len(files):
+        raise HTTPException(status_code=422, detail="expected_total must be >= the number of files in this request")
+
+    active_import_job = _get_current_active_import_job(session, project_id)
+    if job_id:
+        job = session.get(ProcessingJob, job_id)
+        if job is None or job.project_id != project_id or job.job_type != "import":
+            raise HTTPException(status_code=404, detail="Import job not found")
+        if job_is_stale(job):
+            job = fail_stale_job(session, job)
+        if job.status not in {"queued", "running"}:
+            raise HTTPException(status_code=409, detail="Import job is no longer accepting files")
+        if active_import_job is not None and active_import_job.id != job.id:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Another import job is already running for this project",
+                    "job_id": active_import_job.id,
+                },
+            )
+    else:
+        if active_import_job is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "An import job is already running for this project",
+                    "job_id": active_import_job.id,
+                },
+            )
+        job = create_import_job(session, project, expected_total or len(files))
+
+    if expected_total is not None and expected_total > job.total_items:
+        job.total_items = expected_total
+        job.progress_percent = 0.0
+        job.updated_at = utc_now()
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+
+    batch_size = len(files)
     imported: list[Photo] = []
     derivative_photo_ids: list[str] = []
     skipped: list[dict[str, str]] = []
     new_import_count = 0
-    failed_count = 0
+    failed_count = job.failed_items
+    registered_before = (
+        0 if job.current_step.startswith("derivative_generation") else max(0, job.processed_items)
+    )
+
     for index, upload in enumerate(files, start=1):
         filename = upload.filename or "image"
+        absolute_index = registered_before + index
 
         def update_stage(
             stage: str,
-            current_index: int = index,
+            current_index: int = absolute_index,
             current_failed_count: int = failed_count,
         ) -> None:
             update_import_job(
                 session,
                 job,
-                f"{stage} {current_index} of {total_files}",
-                0,
+                f"{stage} {current_index} of {job.total_items or batch_size}",
+                registered_before,
                 current_failed_count,
             )
 
@@ -284,8 +342,8 @@ def import_photos_endpoint(
             update_import_job(
                 session,
                 job,
-                f"file_copy_or_register {index} of {total_files}",
-                0,
+                f"file_copy_or_register {absolute_index} of {job.total_items or batch_size}",
+                registered_before + len(imported),
                 failed_count,
                 force=True,
             )
@@ -295,21 +353,33 @@ def import_photos_endpoint(
             update_import_job(
                 session,
                 job,
-                f"file_skipped {index} of {total_files}",
-                0,
+                f"file_skipped {absolute_index} of {job.total_items or batch_size}",
+                registered_before + len(imported),
                 failed_count,
                 force=True,
             )
-    if not imported and skipped:
-        complete_import_job(session, job, len(imported), skipped)
+
+    registered_count = registered_before + len(imported)
+    update_import_job(
+        session,
+        job,
+        f"receive_files {registered_count} of {job.total_items or registered_count}",
+        registered_count,
+        failed_count,
+        force=True,
+    )
+
+    if not imported and skipped and finalize and registered_before == 0:
+        complete_import_job(session, job, 0, skipped)
         details = "; ".join(f"{item['filename']}: {item['reason']}" for item in skipped)
         raise HTTPException(status_code=422, detail=details)
+
     if new_import_count:
         update_import_job(
             session,
             job,
             "processing_invalidation",
-            0,
+            registered_count,
             failed_count,
             force=True,
         )
@@ -317,16 +387,58 @@ def import_photos_endpoint(
             invalidate_project_processing(session, project)
         with import_timing_stage(timing, "import_endpoint_commit"):
             session.commit()
-    if derivative_photo_ids:
+        if not finalize:
+            update_import_job(
+                session,
+                job,
+                f"receive_files {registered_count} of {job.total_items or registered_count}",
+                registered_count,
+                failed_count,
+                force=True,
+            )
+
+    if not finalize:
+        response = {
+            "imported": imported,
+            "skipped": skipped,
+            "job": job,
+            "total_files": batch_size,
+            "accepted_files": len(imported),
+            "skipped_files": len(skipped),
+            "failed_files": len(skipped),
+        }
+        if timing is not None:
+            total_seconds = round(time.perf_counter() - started, 6)
+            timing.record("import_endpoint_total", total_seconds)
+            response["timing"] = {
+                "total_files": batch_size,
+                "imported_files": len(imported),
+                "skipped_files": len(skipped),
+                "total_seconds": total_seconds,
+                "stages": timing.summary(),
+            }
+        return response
+
+    pending_derivative_ids = [
+        photo.id
+        for photo in session.exec(
+            select(Photo)
+            .where(Photo.project_id == project_id)
+            .where(Photo.processing_state == "processing")
+            .order_by(Photo.created_at, Photo.id)
+        ).all()
+    ]
+    if pending_derivative_ids:
         update_import_job(session, job, "derivative_generation", 0, failed_count, force=True)
-        background_tasks.add_task(run_import_derivative_job, job.id, derivative_photo_ids, skipped)
+        background_tasks.add_task(run_import_derivative_job, job.id, pending_derivative_ids, skipped)
     else:
-        job = complete_import_job(session, job, len(imported), skipped)
+        job = complete_import_job(session, job, registered_count, skipped)
+
     response = {
         "imported": imported,
         "skipped": skipped,
         "job": job,
-        "total_files": total_files,
+        "total_files": batch_size,
         "accepted_files": len(imported),
         "skipped_files": len(skipped),
         "failed_files": len(skipped),
@@ -335,7 +447,7 @@ def import_photos_endpoint(
         total_seconds = round(time.perf_counter() - started, 6)
         timing.record("import_endpoint_total", total_seconds)
         response["timing"] = {
-            "total_files": len(files),
+            "total_files": batch_size,
             "imported_files": len(imported),
             "skipped_files": len(skipped),
             "total_seconds": total_seconds,
