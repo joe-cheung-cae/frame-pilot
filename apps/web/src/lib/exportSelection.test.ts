@@ -5,7 +5,15 @@ import {
   applyStatusCountChange,
   countPhotosByStatus,
   EXPORT_STATUSES,
+  exportActionBlockMessage,
+  exportActionRecoveryMessage,
+  exportLoadRecoveryMessage,
+  exportRecoveryMessage,
+  exportSelectedCountLabel,
+  exportStatusCountLabel,
+  formatExportRecordStatus,
   formatExportStatusSummary,
+  hasRunningExport,
   isExportDownloadable,
   selectedPhotoCount,
   type ExportStatus,
@@ -27,6 +35,77 @@ test("sums selected export statuses", () => {
 
   assert.equal(selectedPhotoCount(counts, ["Pick", "Maybe"]), 5);
   assert.equal(selectedPhotoCount(counts, []), 0);
+});
+
+test("formats selected export counts without showing fallback zeros while loading", () => {
+  assert.equal(exportSelectedCountLabel({ isLoading: true, selectedCount: 0 }), "Loading selected photos");
+  assert.equal(exportSelectedCountLabel({ isLoading: false, selectedCount: 1 }), "1 photo selected");
+  assert.equal(exportSelectedCountLabel({ isLoading: false, selectedCount: 2 }), "2 photos selected");
+});
+
+test("formats status counts without showing fallback zeros while loading", () => {
+  assert.equal(exportStatusCountLabel({ count: 0, isLoading: true }), "Loading");
+  assert.equal(exportStatusCountLabel({ count: 4, isLoading: false }), "4");
+});
+
+test("explains why export action is blocked", () => {
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: true,
+      isStatusCountsLoading: false,
+      selectedCount: 2,
+      selectedStatuses: ["Pick"],
+    }),
+    "Export is running. Wait for it to finish before changing export settings.",
+  );
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: false,
+      isStatusCountsLoading: true,
+      selectedCount: 0,
+      selectedStatuses: ["Pick"],
+    }),
+    "Loading photo status counts before export.",
+  );
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: false,
+      isStatusCountsLoading: false,
+      selectedCount: 0,
+      selectedStatuses: [],
+    }),
+    "Choose at least one status to export.",
+  );
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: false,
+      isStatusCountsLoading: true,
+      selectedCount: 0,
+      selectedStatuses: [],
+    }),
+    "Choose at least one status to export.",
+  );
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: false,
+      isStatusCountsLoading: false,
+      selectedCount: 0,
+      selectedStatuses: ["Pick"],
+    }),
+    "No photos match the selected statuses.",
+  );
+});
+
+test("allows export action when settings select photos", () => {
+  assert.equal(
+    exportActionBlockMessage({
+      isExporting: false,
+      isStatusCountsLoading: false,
+      selectedCount: 1,
+      selectedStatuses: ["Pick"],
+    }),
+    "",
+  );
 });
 
 test("moves status counts when a photo status changes", () => {
@@ -61,6 +140,52 @@ test("formats export status summaries from stored JSON", () => {
   assert.equal(formatExportStatusSummary('["Maybe","Pick"]'), "Pick, Maybe");
   assert.equal(formatExportStatusSummary("[]"), "No statuses");
   assert.equal(formatExportStatusSummary("not json"), "Unknown statuses");
+});
+
+test("formats export record statuses for history", () => {
+  assert.equal(formatExportRecordStatus("running"), "Running");
+  assert.equal(formatExportRecordStatus("complete"), "Complete");
+  assert.equal(formatExportRecordStatus("failed"), "Failed");
+});
+
+test("explains export recovery for failed records", () => {
+  assert.equal(
+    exportRecoveryMessage("failed"),
+    "Original photos remain unchanged. Adjust the selection or export folder and run export again.",
+  );
+  assert.equal(exportRecoveryMessage("running"), "");
+  assert.equal(exportRecoveryMessage("complete"), "");
+});
+
+test("explains how to recover from export data load failures", () => {
+  assert.equal(
+    exportLoadRecoveryMessage("project"),
+    "Confirm the local FramePilot API is running, then reload the export page. Project data stays on this computer.",
+  );
+  assert.equal(
+    exportLoadRecoveryMessage("statusCounts"),
+    "Confirm the local FramePilot API is running, then reload counts before exporting.",
+  );
+  assert.equal(
+    exportLoadRecoveryMessage("history"),
+    "Confirm the local FramePilot API is running, then reload export history. Previous exports stay in the local project folder.",
+  );
+});
+
+test("explains how to recover from export action failures", () => {
+  assert.equal(
+    exportActionRecoveryMessage("copyPath"),
+    "The export path is still visible above. Select and copy it manually if browser clipboard access is blocked.",
+  );
+  assert.equal(
+    exportActionRecoveryMessage("runExport"),
+    "Original photos remain unchanged. Confirm the local API and export folder are available, then run export again.",
+  );
+});
+
+test("detects running export records", () => {
+  assert.equal(hasRunningExport([{ status: "complete" }, { status: "failed" }]), false);
+  assert.equal(hasRunningExport([{ status: "complete" }, { status: "running" }]), true);
 });
 
 test("allows downloads only for completed file exports", () => {

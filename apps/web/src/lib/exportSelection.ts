@@ -1,6 +1,8 @@
 import type { ExportRecord, Photo } from "@/lib/api";
 
 export type ExportStatus = Photo["user_status"];
+export type ExportActionScope = "copyPath" | "runExport";
+export type ExportLoadScope = "history" | "project" | "statusCounts";
 
 export const EXPORT_STATUSES: ExportStatus[] = ["Pick", "Maybe", "Reject", "Unreviewed"];
 
@@ -14,6 +16,54 @@ export function countPhotosByStatus(photos: readonly Pick<Photo, "user_status">[
 
 export function selectedPhotoCount(counts: Record<ExportStatus, number>, statuses: readonly ExportStatus[]): number {
   return statuses.reduce((total, status) => total + counts[status], 0);
+}
+
+export function exportSelectedCountLabel({
+  isLoading,
+  selectedCount,
+}: {
+  isLoading: boolean;
+  selectedCount: number;
+}): string {
+  if (isLoading) {
+    return "Loading selected photos";
+  }
+
+  return `${selectedCount} ${selectedCount === 1 ? "photo" : "photos"} selected`;
+}
+
+export function exportStatusCountLabel({ count, isLoading }: { count: number; isLoading: boolean }): string {
+  return isLoading ? "Loading" : String(count);
+}
+
+export function exportActionBlockMessage({
+  isExporting,
+  isStatusCountsLoading,
+  selectedCount,
+  selectedStatuses,
+}: {
+  isExporting: boolean;
+  isStatusCountsLoading: boolean;
+  selectedCount: number;
+  selectedStatuses: readonly ExportStatus[];
+}): string {
+  if (isExporting) {
+    return "Export is running. Wait for it to finish before changing export settings.";
+  }
+
+  if (!selectedStatuses.length) {
+    return "Choose at least one status to export.";
+  }
+
+  if (isStatusCountsLoading) {
+    return "Loading photo status counts before export.";
+  }
+
+  if (selectedCount === 0) {
+    return "No photos match the selected statuses.";
+  }
+
+  return "";
 }
 
 export function applyStatusCountChange(
@@ -45,6 +95,50 @@ export function formatExportStatusSummary(rawStatuses: string): string {
 
   const selected = EXPORT_STATUSES.filter((status) => parsed.includes(status));
   return selected.length ? selected.join(", ") : "No statuses";
+}
+
+export function formatExportRecordStatus(status: ExportRecord["status"]): string {
+  if (status === "running") {
+    return "Running";
+  }
+
+  if (status === "complete") {
+    return "Complete";
+  }
+
+  return "Failed";
+}
+
+export function exportRecoveryMessage(status: ExportRecord["status"]): string {
+  if (status !== "failed") {
+    return "";
+  }
+
+  return "Original photos remain unchanged. Adjust the selection or export folder and run export again.";
+}
+
+export function exportLoadRecoveryMessage(scope: ExportLoadScope): string {
+  if (scope === "statusCounts") {
+    return "Confirm the local FramePilot API is running, then reload counts before exporting.";
+  }
+
+  if (scope === "history") {
+    return "Confirm the local FramePilot API is running, then reload export history. Previous exports stay in the local project folder.";
+  }
+
+  return "Confirm the local FramePilot API is running, then reload the export page. Project data stays on this computer.";
+}
+
+export function exportActionRecoveryMessage(scope: ExportActionScope): string {
+  if (scope === "copyPath") {
+    return "The export path is still visible above. Select and copy it manually if browser clipboard access is blocked.";
+  }
+
+  return "Original photos remain unchanged. Confirm the local API and export folder are available, then run export again.";
+}
+
+export function hasRunningExport(records: readonly Pick<ExportRecord, "status">[]): boolean {
+  return records.some((record) => record.status === "running");
 }
 
 export function isExportDownloadable(record: Pick<ExportRecord, "mode" | "status">): boolean {

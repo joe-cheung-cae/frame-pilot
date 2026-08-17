@@ -24,15 +24,26 @@ import {
 } from "lucide-react";
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
-import { groupConfidenceLabel, groupScoreSummaryRows, parseGroupScoreSummary } from "@/lib/groupScoreSummary";
+import {
+  groupConfidenceLabel,
+  groupPhotoCountLabel,
+  groupScoreSummaryRows,
+  parseGroupScoreSummary,
+} from "@/lib/groupScoreSummary";
 import { reviewHeaderSummary } from "@/lib/reviewHeaderSummary";
 import { reviewMetadataRows } from "@/lib/reviewMetadata";
 import { reviewProgressForEntry, reviewProgressStorageKey } from "@/lib/reviewProgress";
 import { photoMatchesReviewFilter, REVIEW_FILTERS } from "@/lib/reviewFilters";
-import { processingProgressSummary } from "@/lib/processingProgress";
+import { activeProcessingJob as findActiveProcessingJob, processingProgressSummary } from "@/lib/processingProgress";
 import {
   groupAfterMove,
   nextPhotoIdAfterMark,
+  reviewAssetFallbackMessage,
+  reviewBatchScopeDetail,
+  reviewBatchScopeSummary,
+  reviewEmptyStateMessage,
+  reviewLoadRecoveryMessage,
+  reviewSaveFailureMessage,
   reviewSelectionState,
   windowedCompareRefs,
   windowedGroupRefs,
@@ -40,6 +51,11 @@ import {
 } from "@/lib/reviewNavigation";
 import { reviewScoreRows } from "@/lib/reviewScores";
 import { reviewShortcutCommandForKey, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
+import {
+  mergeLoadedPhotosWithCurrentReviews,
+  reconcileOptimisticPhotoUpdates,
+  rollbackOptimisticPhotoUpdates,
+} from "@/lib/reviewUpdates";
 import { useReviewStore } from "@/store/reviewStore";
 
 const FILMSTRIP_WINDOW_SIZE = 80;
@@ -60,16 +76,25 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
   const activeImportJob = project.data?.active_import_job ?? null;
   const isImportRunning = activeImportJob?.status === "queued" || activeImportJob?.status === "running";
+  const jobsQuery = useQuery({
+    queryKey: ["jobs", projectId, "culling-active"],
+    queryFn: () => api.listJobs(projectId, { limit: 10, offset: 0 }),
+    enabled: project.isSuccess && !isImportRunning,
+    retry: false,
+    refetchInterval: (query) => (findActiveProcessingJob(query.state.data) ? 1000 : 5000),
+  });
+  const activeProcessingJob = findActiveProcessingJob(jobsQuery.data);
+  const isProcessing = Boolean(activeProcessingJob);
   const photosQuery = useQuery({
     queryKey: ["photos", projectId],
     queryFn: () => api.listPhotos(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
-    enabled: project.isSuccess && !isImportRunning,
+    enabled: project.isSuccess && jobsQuery.isSuccess && !isImportRunning && !isProcessing,
     retry: false,
   });
   const groupsQuery = useQuery({
     queryKey: ["groups", projectId],
     queryFn: () => api.listGroups(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
-    enabled: project.isSuccess && !isImportRunning,
+    enabled: project.isSuccess && jobsQuery.isSuccess && !isImportRunning && !isProcessing,
     retry: false,
   });
   const {
@@ -78,14 +103,16 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     compareMode,
     filter,
     largePreview,
-    zoomPreview,
+    previewZoom,
+    resetPreviewZoom,
     setActiveGroupId,
     setActivePhotoId,
     setFilter,
     setReviewProgress,
     toggleCompareMode,
     toggleLargePreview,
-    toggleZoomPreview,
+    zoomPreviewIn,
+    zoomPreviewOut,
   } = useReviewStore();
   const photos = useMemo(() => photosQuery.data ?? [], [photosQuery.data]);
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
@@ -139,6 +166,27 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const visiblePhotoIds = useMemo(() => visiblePhotos.map((photo) => photo.id), [visiblePhotos]);
   const metadataRows = useMemo(() => reviewMetadataRows(activePhoto), [activePhoto]);
   const photoStatusCountsQueryKey = useMemo(() => ["photo-status-counts", projectId], [projectId]);
+  const batchScopeGroupIndex = activeGroupId ? activeGroupIndex : -1;
+  const emptyState = reviewEmptyStateMessage({
+    filter,
+    hasActiveGroup: Boolean(activeGroupId),
+    loadedPhotoCount: photos.length,
+    photosPartiallyLoaded,
+    projectPhotoCount,
+  });
+  const batchScopeSummary = reviewBatchScopeSummary({
+    activeGroupIndex: batchScopeGroupIndex,
+    filter,
+    visiblePhotoCount: visiblePhotos.length,
+  });
+  const batchScopeDetail = reviewBatchScopeDetail({
+    activeGroupIndex: batchScopeGroupIndex,
+    filter,
+    loadedPhotoCount: photos.length,
+    photosPartiallyLoaded,
+    projectPhotoCount,
+    visiblePhotoCount: visiblePhotos.length,
+  });
 
   useEffect(() => {
     setAllPhotosLoaded(false);
@@ -148,7 +196,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const loadAllPhotosMutation = useMutation({
     mutationFn: () => api.listAllPhotos(projectId),
     onSuccess: (allPhotos) => {
-      queryClient.setQueryData(["photos", projectId], allPhotos);
+      queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) =>
+        mergeLoadedPhotosWithCurrentReviews(allPhotos, currentPhotos ?? []),
+      );
       setAllPhotosLoaded(true);
     },
   });
@@ -187,44 +237,58 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           compareMode,
           filter,
           largePreview,
-          zoomPreview,
+          previewZoom,
         }),
       );
     } catch {
       // Keep review usable if browser storage is unavailable.
     }
-  }, [activeGroupId, activePhotoId, compareMode, filter, largePreview, projectId, zoomPreview]);
+  }, [activeGroupId, activePhotoId, compareMode, filter, largePreview, previewZoom, projectId]);
 
   const updateMutation = useMutation({
     mutationFn: ({ photo, patch }: { photo: Photo; patch: PhotoPatch }) => api.updatePhoto(projectId, photo.id, patch),
     onMutate: async ({ photo, patch }) => {
       const queryKey = ["photos", projectId];
       await queryClient.cancelQueries({ queryKey });
-      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey);
-      const previousStatusCounts =
-        queryClient.getQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey);
+      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey)?.filter((item) => item.id === photo.id) ?? [];
+      const previousPhoto = previousPhotos[0];
       queryClient.setQueryData<Photo[]>(queryKey, (currentPhotos) =>
         currentPhotos?.map((item) => (item.id === photo.id ? { ...item, ...patch } : item)),
       );
-      if (patch.user_status) {
+      if (patch.user_status && previousPhoto) {
         const nextStatus = patch.user_status;
         queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
-          currentCounts ? applyStatusCountChange(currentCounts, photo.user_status, nextStatus) : currentCounts,
+          currentCounts ? applyStatusCountChange(currentCounts, previousPhoto.user_status, nextStatus) : currentCounts,
         );
       }
-      return { previousPhotos, previousStatusCounts };
+      return { previousPhotos };
     },
-    onError: (_error, _variables, context) => {
-      if (context?.previousPhotos) {
-        queryClient.setQueryData(["photos", projectId], context.previousPhotos);
-      }
-      if (context?.previousStatusCounts) {
-        queryClient.setQueryData(photoStatusCountsQueryKey, context.previousStatusCounts);
+    onError: (_error, { patch }, context) => {
+      if (!context?.previousPhotos.length) return;
+
+      let rolledBackPhotos: Photo[] = [];
+      queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) => {
+        if (!currentPhotos) return currentPhotos;
+        const result = rollbackOptimisticPhotoUpdates(currentPhotos, context.previousPhotos, patch);
+        rolledBackPhotos = result.rolledBackPhotos;
+        return result.photos;
+      });
+      if (patch.user_status && rolledBackPhotos.length) {
+        const optimisticStatus = patch.user_status;
+        queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
+          currentCounts
+            ? rolledBackPhotos.reduce(
+                (counts, previousPhoto) =>
+                  applyStatusCountChange(counts, optimisticStatus, previousPhoto.user_status),
+                currentCounts,
+              )
+            : currentCounts,
+        );
       }
     },
-    onSuccess: (updatedPhoto) => {
+    onSuccess: (updatedPhoto, { patch }) => {
       queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) =>
-        currentPhotos?.map((item) => (item.id === updatedPhoto.id ? updatedPhoto : item)),
+        currentPhotos ? reconcileOptimisticPhotoUpdates(currentPhotos, [updatedPhoto], patch) : currentPhotos,
       );
     },
   });
@@ -236,38 +300,49 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       const queryKey = ["photos", projectId];
       const targetIds = new Set(photoIds);
       await queryClient.cancelQueries({ queryKey });
-      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey);
-      const previousStatusCounts =
-        queryClient.getQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey);
+      const previousPhotos = queryClient.getQueryData<Photo[]>(queryKey)?.filter((photo) => targetIds.has(photo.id)) ?? [];
       queryClient.setQueryData<Photo[]>(queryKey, (currentPhotos) =>
         currentPhotos?.map((item) => (targetIds.has(item.id) ? { ...item, ...patch } : item)),
       );
-      if (patch.user_status && previousPhotos) {
+      if (patch.user_status && previousPhotos.length) {
         const nextStatus = patch.user_status;
-        const targetPhotos = previousPhotos.filter((photo) => targetIds.has(photo.id));
         queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
           currentCounts
-            ? targetPhotos.reduce(
+            ? previousPhotos.reduce(
                 (counts, photo) => applyStatusCountChange(counts, photo.user_status, nextStatus),
                 currentCounts,
               )
             : currentCounts,
         );
       }
-      return { previousPhotos, previousStatusCounts };
+      return { previousPhotos };
     },
-    onError: (_error, _variables, context) => {
-      if (context?.previousPhotos) {
-        queryClient.setQueryData(["photos", projectId], context.previousPhotos);
-      }
-      if (context?.previousStatusCounts) {
-        queryClient.setQueryData(photoStatusCountsQueryKey, context.previousStatusCounts);
+    onError: (_error, { patch }, context) => {
+      if (!context?.previousPhotos.length) return;
+
+      let rolledBackPhotos: Photo[] = [];
+      queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) => {
+        if (!currentPhotos) return currentPhotos;
+        const result = rollbackOptimisticPhotoUpdates(currentPhotos, context.previousPhotos, patch);
+        rolledBackPhotos = result.rolledBackPhotos;
+        return result.photos;
+      });
+      if (patch.user_status && rolledBackPhotos.length) {
+        const optimisticStatus = patch.user_status;
+        queryClient.setQueryData<Record<ExportStatus, number>>(photoStatusCountsQueryKey, (currentCounts) =>
+          currentCounts
+            ? rolledBackPhotos.reduce(
+                (counts, previousPhoto) =>
+                  applyStatusCountChange(counts, optimisticStatus, previousPhoto.user_status),
+                currentCounts,
+              )
+            : currentCounts,
+        );
       }
     },
-    onSuccess: (updatedPhotos) => {
-      const updatedById = new Map(updatedPhotos.map((photo) => [photo.id, photo]));
+    onSuccess: (updatedPhotos, { patch }) => {
       queryClient.setQueryData<Photo[]>(["photos", projectId], (currentPhotos) =>
-        currentPhotos?.map((item) => updatedById.get(item.id) ?? item),
+        currentPhotos ? reconcileOptimisticPhotoUpdates(currentPhotos, updatedPhotos, patch) : currentPhotos,
       );
     },
   });
@@ -367,7 +442,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       if (command.type === "mark") mark(command.status);
       if (command.type === "rate") rate(command.rating);
       if (command.type === "toggle_large_preview") toggleLargePreview();
-      if (command.type === "toggle_zoom") toggleZoomPreview();
+      if (command.type === "reset_zoom") resetPreviewZoom();
+      if (command.type === "zoom_in") zoomPreviewIn();
+      if (command.type === "zoom_out") zoomPreviewOut();
       if (command.type === "toggle_compare") toggleCompareMode();
       if (command.type === "cycle_group") cycleGroup();
       if (command.type === "focus_filters") focusFilterControls();
@@ -380,10 +457,25 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   });
 
   const preview = activePhoto ? assetUrl(projectId, activePhoto.preview_path) : null;
-  const isLoading = project.isLoading || (!isImportRunning && (photosQuery.isLoading || groupsQuery.isLoading));
-  const loadError = project.error ?? (!isImportRunning ? (photosQuery.error ?? groupsQuery.error) : null);
+  const previewFallback = reviewAssetFallbackMessage({
+    assetType: "preview",
+    hasAssetUrl: Boolean(preview),
+  });
+  const previewZoomLabel = `${Math.round(previewZoom * 100)}%`;
+  const isLoading =
+    project.isLoading ||
+    (!isImportRunning && (jobsQuery.isLoading || (!isProcessing && (photosQuery.isLoading || groupsQuery.isLoading))));
+  const loadError =
+    project.error ??
+    (!isImportRunning ? (jobsQuery.error ?? (!isProcessing ? (photosQuery.error ?? groupsQuery.error) : null)) : null);
   const loadErrorMessage = loadError instanceof Error ? loadError.message : "Start the local API and try again.";
   const saveError = updateMutation.error ?? batchUpdateMutation.error;
+  const saveErrorMessage = saveError
+    ? reviewSaveFailureMessage({
+        errorMessage: saveError.message,
+        isBatch: Boolean(batchUpdateMutation.error),
+      })
+    : "";
 
   if (isLoading) {
     return (
@@ -401,6 +493,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
         <h1 className="text-2xl font-semibold">Culling Workspace</h1>
         <p className="text-sm text-coral">Could not load this project: {loadErrorMessage}</p>
+        <p className="text-sm text-neutral-600">{reviewLoadRecoveryMessage("workspace")}</p>
       </section>
     );
   }
@@ -424,6 +517,30 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         >
           <Upload size={18} />
           Back to Import Progress
+        </Link>
+      </section>
+    );
+  }
+
+  if (isProcessing && activeProcessingJob) {
+    return (
+      <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
+        <div>
+          <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
+          <h1 className="mt-1 text-2xl font-semibold">Processing Still Running</h1>
+        </div>
+        <p className="text-sm text-neutral-700">
+          Wait for grouping and ranking to finish before opening the culling workspace.
+        </p>
+        <p className="text-sm text-neutral-700">
+          {activeProcessingJob.current_step} · {processingProgressSummary(activeProcessingJob, project.data)}
+        </p>
+        <Link
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
+          href={`/projects/${projectId}/process`}
+        >
+          <Play size={18} />
+          Back to Processing Progress
         </Link>
       </section>
     );
@@ -470,7 +587,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   }
 
   return (
-    <section className="grid min-h-[calc(100vh-73px)] grid-rows-[auto_1fr_auto]">
+    <section className="grid min-h-[calc(100vh-73px)] grid-rows-[auto_1fr_auto] lg:h-[calc(100vh-73px)] lg:min-h-0 lg:overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-3">
         <div>
           <h1 className="text-lg font-semibold">{project.data?.name ?? "Culling Workspace"}</h1>
@@ -484,9 +601,14 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
             })}
           </p>
           {loadAllPhotosMutation.error || loadAllGroupsMutation.error ? (
-            <p className="mt-1 text-xs text-coral">
-              {(loadAllPhotosMutation.error ?? loadAllGroupsMutation.error)?.message}
-            </p>
+            <div className="mt-1 grid gap-1 text-xs">
+              <p className="text-coral">
+                {(loadAllPhotosMutation.error ?? loadAllGroupsMutation.error)?.message}
+              </p>
+              <p className="text-neutral-600">
+                {reviewLoadRecoveryMessage(loadAllPhotosMutation.error ? "photos" : "groups")}
+              </p>
+            </div>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -507,8 +629,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           </Link>
         </div>
       </div>
-      <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[260px_1fr_320px]">
-        <aside className="border-b border-line bg-white p-4 lg:border-b-0 lg:border-r">
+      <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_320px]">
+        <aside className="min-h-0 border-b border-line bg-white p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r">
           <h2 className="mb-3 text-sm font-semibold">Filters</h2>
           <div className="grid gap-1">
             {REVIEW_FILTERS.map((item, index) => (
@@ -555,7 +677,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               const summary = parseGroupScoreSummary(group.score_summary);
               const groupNumber = (groupIndexById.get(group.id) ?? 0) + 1;
               const isActiveGroup = activeGroup?.id === group.id;
-              const groupPhotoLabel = `${group.photo_count} ${group.photo_count === 1 ? "photo" : "photos"}`;
+              const groupPhotoLabel = groupPhotoCountLabel(group.photo_count);
               return (
                 <button
                   className={`focus-ring rounded border px-3 py-2 text-left ${isActiveGroup ? "border-leaf bg-mist" : "border-line bg-white"}`}
@@ -575,12 +697,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           </div>
         </aside>
         <div
-          className={`grid min-h-[420px] place-items-center overflow-auto bg-neutral-900 p-4 ${
+          className={`grid min-h-[320px] min-w-0 place-items-center overflow-auto bg-neutral-900 p-4 lg:min-h-0 ${
             largePreview ? "lg:col-span-2" : ""
           }`}
         >
           {compareMode && comparePhotos.length > 1 ? (
-            <div className="grid w-full gap-3 md:grid-cols-2">
+            <div className="grid h-full w-full min-w-0 gap-3 md:grid-cols-2">
               {compareCandidates.length > comparePhotos.length ? (
                 <span className="md:col-span-2 justify-self-start rounded bg-white/90 px-2 py-1 text-xs text-ink">
                   {comparePhotos.length} of {compareCandidates.length} compare candidates
@@ -588,9 +710,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               ) : null}
               {comparePhotos.map((photo) => {
                 const comparePreview = assetUrl(projectId, photo.preview_path);
+                const compareFallback = reviewAssetFallbackMessage({
+                  assetType: "preview",
+                  hasAssetUrl: Boolean(comparePreview),
+                });
                 return (
                   <button
-                    className={`focus-ring grid min-h-72 place-items-center overflow-hidden rounded border bg-neutral-950 p-2 ${
+                    className={`focus-ring grid min-h-72 min-w-0 place-items-center overflow-auto rounded border bg-neutral-950 p-2 lg:min-h-0 ${
                       photo.id === activePhoto?.id ? "border-leaf" : "border-neutral-700"
                     }`}
                     key={photo.id}
@@ -598,7 +724,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   >
                     {comparePreview && !assetHasFailed(comparePreview) ? (
                       <img
-                        className="max-h-[56vh] max-w-full object-contain"
+                        className="block"
+                        style={{ height: "100%", objectFit: "contain", width: "100%" }}
                         src={comparePreview}
                         alt={`Compare ${photo.filename}`}
                         loading="lazy"
@@ -606,9 +733,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                         onError={() => markAssetFailed(comparePreview)}
                       />
                     ) : (
-                      <span className="text-sm text-white">
-                        {comparePreview ? "Preview failed to load" : "No preview"}
-                      </span>
+                      <span className="text-sm text-white">{compareFallback.shortTitle}</span>
                     )}
                     <span className="mt-2 justify-self-start rounded bg-white/90 px-2 py-1 text-xs text-ink">
                       {photo.filename} · {photo.ai_recommendation}
@@ -618,35 +743,60 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               })}
             </div>
           ) : preview && !assetHasFailed(preview) ? (
-            <img
-              className={
-                zoomPreview
-                  ? "mx-auto max-w-none object-contain"
-                  : "mx-auto max-h-[72vh] max-w-full object-contain"
-              }
-              src={preview}
-              alt={activePhoto?.filename ?? "Preview"}
-              decoding="async"
-              onError={() => markAssetFailed(preview)}
-            />
+            <div
+              className={`h-full w-full min-w-0 ${previewZoom <= 1 ? "grid place-items-center" : ""}`}
+            >
+              <div
+                className={`grid place-items-center ${previewZoom <= 1 ? "" : "origin-top-left"}`}
+                style={{ height: `${previewZoom * 100}%`, minHeight: 0, minWidth: 0, width: `${previewZoom * 100}%` }}
+              >
+                <img
+                  className="block h-full w-full object-contain"
+                  src={preview}
+                  alt={activePhoto?.filename ?? "Preview"}
+                  decoding="async"
+                  onError={() => markAssetFailed(preview)}
+                />
+              </div>
+            </div>
           ) : preview ? (
             <div className="grid place-items-center gap-3 text-center text-white">
               <ImageOff size={38} />
-              <p>Preview failed to load.</p>
+              <div className="grid max-w-md gap-2 px-6">
+                <p>{previewFallback.title}</p>
+                <p className="text-sm text-white/75">{previewFallback.detail}</p>
+              </div>
             </div>
-          ) : (
+          ) : activePhoto ? (
             <div className="grid place-items-center gap-3 text-center text-white">
               <ImageOff size={38} />
-              <p>
-                {activeGroupId ? "No photos in this group match the current filter." : "No photos match this filter."}
-              </p>
+              <div className="grid max-w-md gap-2 px-6">
+                <p>{previewFallback.title}</p>
+                <p className="text-sm text-white/75">{previewFallback.detail}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid max-w-md place-items-center gap-3 px-6 text-center text-white">
+              <ImageOff size={38} />
+              <p>{emptyState.title}</p>
+              {emptyState.detail ? <p className="text-sm text-white/75">{emptyState.detail}</p> : null}
+              {photosPartiallyLoaded ? (
+                <button
+                  className="focus-ring rounded border border-white/40 bg-white/10 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  disabled={loadAllPhotosMutation.isPending}
+                  onClick={() => loadAllPhotosMutation.mutate()}
+                  type="button"
+                >
+                  {loadAllPhotosMutation.isPending ? "Loading..." : "Load all photos"}
+                </button>
+              ) : null}
             </div>
           )}
         </div>
         {!largePreview ? (
-          <aside className="border-t border-line bg-white p-4 lg:border-l lg:border-t-0">
+          <aside className="min-h-0 border-t border-line bg-white p-4 lg:overflow-y-auto lg:border-l lg:border-t-0">
             {activePhoto ? (
-              <div className="grid gap-5">
+              <div className="grid gap-4">
                 <div>
                   <h2 className="font-semibold">{activePhoto.filename}</h2>
                   <p className="text-sm text-neutral-600">
@@ -670,7 +820,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   <div className="rounded border border-line bg-mist p-3 text-sm">
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-semibold">{groupConfidenceLabel(activeGroupSummary)}</p>
-                      <p className="text-neutral-600">{activeGroup.photo_count} photos</p>
+                      <p className="text-neutral-600">{groupPhotoCountLabel(activeGroup.photo_count)}</p>
                     </div>
                     {activeGroupSummary ? (
                       <>
@@ -710,9 +860,10 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 ) : null}
                 <div className="rounded border border-line p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold">Batch visible</p>
-                    <p className="text-xs text-neutral-600">{visiblePhotos.length} photos</p>
+                    <p className="text-sm font-semibold">Batch mark</p>
+                    <p className="text-right text-xs text-neutral-600">{batchScopeSummary}</p>
                   </div>
+                  <p className="mt-2 text-xs leading-5 text-neutral-600">{batchScopeDetail}</p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <button
                       className="focus-ring rounded bg-leaf px-2 py-2 text-xs font-medium text-white disabled:opacity-50"
@@ -748,68 +899,70 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    className="focus-ring rounded bg-leaf px-3 py-2 text-sm font-medium text-white"
-                    onClick={() => mark("Pick")}
-                    aria-pressed={activePhoto.user_status === "Pick"}
-                    aria-label="Set active photo to Pick"
-                  >
-                    Pick
-                  </button>
-                  <button
-                    className="focus-ring rounded bg-gold px-3 py-2 text-sm font-medium text-white"
-                    onClick={() => mark("Maybe")}
-                    aria-pressed={activePhoto.user_status === "Maybe"}
-                    aria-label="Set active photo to Maybe"
-                  >
-                    Maybe
-                  </button>
-                  <button
-                    className="focus-ring rounded bg-coral px-3 py-2 text-sm font-medium text-white"
-                    onClick={() => mark("Reject")}
-                    aria-pressed={activePhoto.user_status === "Reject"}
-                    aria-label="Set active photo to Reject"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    className="focus-ring rounded border border-line px-3 py-2 text-sm font-medium"
-                    onClick={() => mark("Unreviewed")}
-                    aria-pressed={activePhoto.user_status === "Unreviewed"}
-                    aria-label="Set active photo to Unreviewed"
-                  >
-                    Unreviewed
-                  </button>
-                </div>
-                {saveError ? <p className="text-sm text-coral">{saveError.message}</p> : null}
-                <div className="flex gap-1">
-                  <button
-                    className="focus-ring rounded p-2 text-neutral-600"
-                    onClick={() => rate(0)}
-                    aria-label="Clear rating"
-                    aria-pressed={activePhoto.star_rating === 0}
-                  >
-                    <StarOff size={20} />
-                  </button>
-                  {[1, 2, 3, 4, 5].map((rating) => (
+                <div className="sticky bottom-0 -mx-4 grid gap-3 border-t border-line bg-white px-4 pb-1 pt-3 shadow-[0_-8px_18px_rgba(21,21,21,0.06)]">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
-                      className="focus-ring rounded p-2 text-gold"
-                      key={rating}
-                      onClick={() => rate(rating)}
-                      aria-label={`${rating} stars`}
-                      aria-pressed={activePhoto.star_rating === rating}
+                      className="focus-ring rounded bg-leaf px-3 py-2 text-sm font-medium text-white"
+                      onClick={() => mark("Pick")}
+                      aria-pressed={activePhoto.user_status === "Pick"}
+                      aria-label="Set active photo to Pick"
                     >
-                      <Star fill={activePhoto.star_rating >= rating ? "currentColor" : "none"} size={20} />
+                      Pick
                     </button>
-                  ))}
+                    <button
+                      className="focus-ring rounded bg-gold px-3 py-2 text-sm font-medium text-white"
+                      onClick={() => mark("Maybe")}
+                      aria-pressed={activePhoto.user_status === "Maybe"}
+                      aria-label="Set active photo to Maybe"
+                    >
+                      Maybe
+                    </button>
+                    <button
+                      className="focus-ring rounded bg-coral px-3 py-2 text-sm font-medium text-white"
+                      onClick={() => mark("Reject")}
+                      aria-pressed={activePhoto.user_status === "Reject"}
+                      aria-label="Set active photo to Reject"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      className="focus-ring rounded border border-line px-3 py-2 text-sm font-medium"
+                      onClick={() => mark("Unreviewed")}
+                      aria-pressed={activePhoto.user_status === "Unreviewed"}
+                      aria-label="Set active photo to Unreviewed"
+                    >
+                      Unreviewed
+                    </button>
+                  </div>
+                  {saveErrorMessage ? <p className="text-sm text-coral">{saveErrorMessage}</p> : null}
+                  <div className="flex gap-1">
+                    <button
+                      className="focus-ring rounded p-2 text-neutral-600"
+                      onClick={() => rate(0)}
+                      aria-label="Clear rating"
+                      aria-pressed={activePhoto.star_rating === 0}
+                    >
+                      <StarOff size={20} />
+                    </button>
+                    {[1, 2, 3, 4, 5].map((rating) => (
+                      <button
+                        className="focus-ring rounded p-2 text-gold"
+                        key={rating}
+                        onClick={() => rate(rating)}
+                        aria-label={`${rating} stars`}
+                        aria-pressed={activePhoto.star_rating === rating}
+                      >
+                        <Star fill={activePhoto.star_rating >= rating ? "currentColor" : "none"} size={20} />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : null}
           </aside>
         ) : null}
       </div>
-      <div className="flex min-h-28 items-center gap-3 overflow-x-auto border-t border-line bg-white px-4 py-3">
+      <div className="flex min-h-28 items-center gap-3 overflow-x-auto border-t border-line bg-white px-4 py-3 lg:min-h-0">
         <button
           className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line"
           onClick={() => move(-1)}
@@ -824,6 +977,10 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         ) : null}
         {filmstripPhotos.map((photo) => {
           const thumbnail = assetUrl(projectId, photo.thumbnail_path);
+          const thumbnailFallback = reviewAssetFallbackMessage({
+            assetType: "thumbnail",
+            hasAssetUrl: Boolean(thumbnail),
+          });
           return (
             <button
               className={`focus-ring relative h-20 w-28 shrink-0 overflow-hidden rounded border ${photo.id === activePhoto?.id ? "border-leaf" : "border-line"}`}
@@ -842,8 +999,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   onError={() => markAssetFailed(thumbnail)}
                 />
               ) : (
-                <span className="grid h-full place-items-center text-xs">
-                  {thumbnail ? "Preview failed" : "No preview"}
+                <span className="grid h-full place-items-center px-1 text-center text-xs">
+                  {thumbnailFallback.shortTitle}
                 </span>
               )}
               <span className="absolute bottom-1 left-1 rounded bg-white/90 px-1 text-xs">{photo.user_status}</span>
@@ -879,14 +1036,30 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           <Columns2 size={18} />
         </button>
         <button
-          className={`focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border ${
-            zoomPreview ? "border-leaf bg-mist text-leaf" : "border-line"
-          }`}
-          onClick={toggleZoomPreview}
-          aria-label="Toggle zoom"
-          aria-pressed={zoomPreview}
+          className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line disabled:opacity-50"
+          onClick={zoomPreviewOut}
+          aria-label="Zoom preview out"
+          disabled={previewZoom <= 0.25}
         >
-          {zoomPreview ? <ZoomOut size={18} /> : <ZoomIn size={18} />}
+          <ZoomOut size={18} />
+        </button>
+        <button
+          className={`focus-ring grid h-10 min-w-16 shrink-0 place-items-center rounded border px-2 text-xs font-medium ${
+            previewZoom === 1 ? "border-leaf bg-mist text-leaf" : "border-line"
+          }`}
+          onClick={resetPreviewZoom}
+          aria-label="Fit preview to window"
+          aria-pressed={previewZoom === 1}
+        >
+          {previewZoomLabel}
+        </button>
+        <button
+          className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line disabled:opacity-50"
+          onClick={zoomPreviewIn}
+          aria-label="Zoom preview in"
+          disabled={previewZoom >= 4}
+        >
+          <ZoomIn size={18} />
         </button>
       </div>
     </section>

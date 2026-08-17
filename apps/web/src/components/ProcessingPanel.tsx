@@ -7,10 +7,16 @@ import { Loader2, Play, Rows3, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   activeJobOfType,
-  activeProcessingJob,
+  hasActiveProcessingJob,
+  processingActionBlockMessage,
   processingFailureNotice,
+  processingJobForDisplay,
+  processingJobHasReviewableResults,
+  processingJobTypeLabel,
+  processingLoadRecoveryMessage,
   processingProgressPercent,
   processingProgressSummary,
+  processingRecoveryMessage,
   processingStatusLabel,
 } from "@/lib/processingProgress";
 import { PROCESSING_FAILURE_FILTER } from "@/lib/reviewFilters";
@@ -33,11 +39,11 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
     queryKey: ["jobs", projectId, jobLimit],
     queryFn: () => api.listJobs(projectId, { limit: jobLimit, offset: 0 }),
     retry: false,
+    refetchInterval: (query) => (hasActiveProcessingJob(query.state.data) ? 1000 : false),
   });
-  const startedJob = mutation.data;
-  const resumedJob = activeProcessingJob(jobsQuery.data);
+  const trackedJob = processingJobForDisplay(jobsQuery.data, mutation.data);
   const activeImportJob = project.data?.active_import_job ?? activeJobOfType(jobsQuery.data, "import");
-  const currentJobId = startedJob?.id ?? resumedJob?.id;
+  const currentJobId = trackedJob?.id;
   const jobQuery = useQuery({
     queryKey: ["job", projectId, currentJobId],
     queryFn: () => api.getJob(projectId, currentJobId ?? ""),
@@ -48,20 +54,27 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
       return status === "queued" || status === "running" ? 1000 : false;
     },
   });
-  const job = jobQuery.data ?? startedJob ?? resumedJob;
+  const job = jobQuery.data ?? trackedJob;
   const progress = processingProgressPercent(job);
   const hasImportedPhotos = Boolean(project.data?.total_images);
-  const canOpenCulling = job?.status === "complete" || Boolean(project.data?.processed_images);
+  const hasReviewableResults = processingJobHasReviewableResults(job?.status);
+  const canOpenCulling = hasReviewableResults || Boolean(project.data?.processed_images);
   const statusLabel = processingStatusLabel(job?.status);
   const isProcessing = job?.status === "queued" || job?.status === "running" || mutation.isPending;
   const isImportRunning = activeImportJob?.status === "queued" || activeImportJob?.status === "running";
   const processingActionLabel = job?.status === "failed" ? "Retry Grouping and Ranking" : "Run Grouping and Ranking";
+  const processingBlockMessage = processingActionBlockMessage({ hasImportedPhotos, isImportRunning, isProcessing });
   const canLoadMoreJobs = (jobsQuery.data?.length ?? 0) >= jobLimit;
   const jobFailureNotice = processingFailureNotice(job);
+  const jobRecoveryMessage = processingRecoveryMessage({
+    failedItems: job?.failed_items ?? 0,
+    retryable: Boolean(job?.retryable),
+    status: job?.status,
+  });
   const processingFailuresHref = `/projects/${projectId}/cull?filter=${encodeURIComponent(PROCESSING_FAILURE_FILTER)}`;
 
   useEffect(() => {
-    if (job?.status !== "complete") {
+    if (!processingJobHasReviewableResults(job?.status)) {
       return;
     }
     void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
@@ -98,6 +111,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
             {job.error_message ?? "Processing failed. Review the imported files and try again."}
           </p>
         ) : null}
+        {jobRecoveryMessage ? <p className="mt-3 text-sm text-neutral-700">{jobRecoveryMessage}</p> : null}
         {jobFailureNotice && job?.status !== "failed" ? (
           <div className="mt-3 grid gap-2 text-sm">
             <p className="text-coral">{jobFailureNotice}</p>
@@ -129,7 +143,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
       <div className="flex flex-wrap gap-3">
         <button
           className="focus-ring inline-flex items-center gap-2 rounded bg-leaf px-4 py-3 font-medium text-white disabled:opacity-50"
-          disabled={isProcessing || isImportRunning || !hasImportedPhotos}
+          disabled={Boolean(processingBlockMessage)}
           onClick={() => mutation.mutate()}
         >
           {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
@@ -154,20 +168,29 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           </Link>
         ) : null}
       </div>
-      {!hasImportedPhotos ? (
-        <p className="text-sm text-neutral-600">
-          Import JPEG, PNG, or WebP images before running grouping and ranking.
-        </p>
+      {processingBlockMessage ? <p className="text-sm text-neutral-600">{processingBlockMessage}</p> : null}
+      {project.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{project.error.message}</p>
+          <p className="text-neutral-600">{processingLoadRecoveryMessage("project")}</p>
+        </div>
       ) : null}
-      {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
       {jobQuery.isError ? (
-        <p className="text-sm text-coral">Could not load processing job status: {jobQuery.error.message}</p>
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">Could not load processing job status: {jobQuery.error.message}</p>
+          <p className="text-neutral-600">{processingLoadRecoveryMessage("job")}</p>
+        </div>
       ) : null}
       <div className="grid gap-3">
         <h2 className="text-sm font-semibold">Job History</h2>
         {jobsQuery.isLoading ? <p className="text-sm text-neutral-600">Loading job history...</p> : null}
-        {jobsQuery.isError ? <p className="text-sm text-coral">{jobsQuery.error.message}</p> : null}
+        {jobsQuery.isError ? (
+          <div className="grid gap-1 text-sm">
+            <p className="text-coral">{jobsQuery.error.message}</p>
+            <p className="text-neutral-600">{processingLoadRecoveryMessage("history")}</p>
+          </div>
+        ) : null}
         {jobsQuery.data?.length ? (
           <div className="grid gap-2">
             {jobsQuery.data.map((record) => {
@@ -179,9 +202,9 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
                 >
                   <div>
                     <p className="font-medium">
-                      {record.job_type}
+                      {processingJobTypeLabel(record.job_type)}
                       <span className={record.status === "failed" ? "ml-2 text-coral" : "ml-2 text-neutral-500"}>
-                        {record.status}
+                        {processingStatusLabel(record.status)}
                       </span>
                     </p>
                     <p className="text-neutral-600">{record.current_step}</p>

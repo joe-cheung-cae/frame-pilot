@@ -2,6 +2,10 @@ export type ReviewHeaderPhoto = {
   user_status: "Pick" | "Maybe" | "Reject" | "Unreviewed";
 };
 
+function pickLabel(count: number): string {
+  return count === 1 ? "pick" : "picks";
+}
+
 export function reviewHeaderSummary({
   activeGroupIndex,
   groupCount,
@@ -17,7 +21,7 @@ export function reviewHeaderSummary({
 }): string {
   const picks = photos.filter((photo) => photo.user_status === "Pick").length;
   const reviewed = photos.filter((photo) => photo.user_status !== "Unreviewed").length;
-  return `${reviewed}/${photos.length} loaded reviewed · ${picks} loaded picks${
+  return `${reviewed}/${photos.length} loaded reviewed · ${picks} loaded ${pickLabel(picks)}${
     photosPartiallyLoaded ? ` · ${photos.length} of ${projectPhotoCount} loaded` : ""
   }${activeGroupIndex >= 0 ? ` · Group ${activeGroupIndex + 1} of ${groupCount}` : ""}`;
 }

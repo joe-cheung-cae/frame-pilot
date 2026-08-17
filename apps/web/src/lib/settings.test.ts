@@ -7,6 +7,11 @@ import {
   loadExportStatusPreference,
   normalizeExportStatusPreference,
   saveExportStatusPreference,
+  isOnlySelectedExportStatus,
+  exportPreferenceMessageTone,
+  toggleSavedExportStatusPreference,
+  toggleExportStatusPreference,
+  toggleExportStatusPreferenceWithMessage,
 } from "./settings.ts";
 
 function memoryStorage(initial: Record<string, string> = {}) {
@@ -17,6 +22,15 @@ function memoryStorage(initial: Record<string, string> = {}) {
       values[key] = value;
     },
     values,
+  };
+}
+
+function throwingStorage() {
+  return {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error("Storage unavailable");
+    },
   };
 }
 
@@ -44,4 +58,113 @@ test("saves normalized export status preferences locally", () => {
 
   assert.deepEqual(saved, ["Pick", "Maybe"]);
   assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick","Maybe"]');
+});
+
+test("keeps normalized export status preferences when storage cannot save", () => {
+  assert.deepEqual(saveExportStatusPreference(["Reject"], throwingStorage()), ["Reject"]);
+});
+
+test("toggles and saves non-empty export status preferences", () => {
+  const storage = memoryStorage();
+
+  const saved = toggleExportStatusPreference(["Pick"], "Maybe", storage);
+
+  assert.deepEqual(saved, ["Pick", "Maybe"]);
+  assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick","Maybe"]');
+});
+
+test("toggles export preferences with save feedback", () => {
+  const storage = memoryStorage();
+
+  const result = toggleExportStatusPreferenceWithMessage(["Pick"], "Maybe", storage);
+
+  assert.deepEqual(result, {
+    message: "Export preference saved locally.",
+    statuses: ["Pick", "Maybe"],
+  });
+  assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick","Maybe"]');
+});
+
+test("allows a temporary empty export status selection without overwriting storage", () => {
+  const storage = memoryStorage({ [EXPORT_STATUS_PREFERENCE_KEY]: '["Pick"]' });
+
+  const selected = toggleExportStatusPreference(["Pick"], "Pick", storage);
+
+  assert.deepEqual(selected, []);
+  assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick"]');
+});
+
+test("reports temporary empty export preferences without overwriting storage", () => {
+  const storage = memoryStorage({ [EXPORT_STATUS_PREFERENCE_KEY]: '["Pick"]' });
+
+  const result = toggleExportStatusPreferenceWithMessage(["Pick"], "Pick", storage);
+
+  assert.deepEqual(result, {
+    message: "Choose at least one status before exporting. The empty selection was not saved.",
+    statuses: [],
+  });
+  assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick"]');
+});
+
+test("detects the final selected export status", () => {
+  assert.equal(isOnlySelectedExportStatus(["Pick"], "Pick"), true);
+  assert.equal(isOnlySelectedExportStatus(["Pick", "Maybe"], "Pick"), false);
+  assert.equal(isOnlySelectedExportStatus(["Pick"], "Maybe"), false);
+});
+
+test("keeps settings preferences non-empty when toggling the final status", () => {
+  const storage = memoryStorage({ [EXPORT_STATUS_PREFERENCE_KEY]: '["Pick"]' });
+
+  const result = toggleSavedExportStatusPreference(["Pick"], "Pick", storage);
+
+  assert.deepEqual(result, {
+    message: "Keep at least one default export status.",
+    statuses: ["Pick"],
+  });
+  assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick"]');
+});
+
+test("saves settings preferences after valid toggles", () => {
+  const storage = memoryStorage({ [EXPORT_STATUS_PREFERENCE_KEY]: '["Pick"]' });
+
+  const result = toggleSavedExportStatusPreference(["Pick"], "Maybe", storage);
+
+  assert.deepEqual(result, {
+    message: "Saved locally.",
+    statuses: ["Pick", "Maybe"],
+  });
+  assert.equal(storage.values[EXPORT_STATUS_PREFERENCE_KEY], '["Pick","Maybe"]');
+});
+
+test("keeps settings usable when browser storage cannot save preferences", () => {
+  const result = toggleSavedExportStatusPreference(["Pick"], "Maybe", throwingStorage());
+
+  assert.deepEqual(result, {
+    message: "Preference changed for this session. Browser storage did not save it.",
+    statuses: ["Pick", "Maybe"],
+  });
+});
+
+test("keeps export preferences usable when browser storage cannot save", () => {
+  const result = toggleExportStatusPreferenceWithMessage(["Pick"], "Maybe", throwingStorage());
+
+  assert.deepEqual(result, {
+    message: "Export preference changed for this session only.",
+    statuses: ["Pick", "Maybe"],
+  });
+});
+
+test("classifies export preference feedback tone without substring matches", () => {
+  assert.equal(exportPreferenceMessageTone("Export preference saved locally."), "success");
+  assert.equal(exportPreferenceMessageTone("Saved locally."), "success");
+  assert.equal(
+    exportPreferenceMessageTone("Choose at least one status before exporting. The empty selection was not saved."),
+    "warning",
+  );
+  assert.equal(exportPreferenceMessageTone("Keep at least one default export status."), "warning");
+  assert.equal(exportPreferenceMessageTone("Export preference changed for this session only."), "neutral");
+  assert.equal(
+    exportPreferenceMessageTone("Preference changed for this session. Browser storage did not save it."),
+    "neutral",
+  );
 });

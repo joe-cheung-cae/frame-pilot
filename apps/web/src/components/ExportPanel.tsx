@@ -6,16 +6,35 @@ import { useEffect, useState } from "react";
 import { api, exportDownloadUrl } from "@/lib/api";
 import {
   EXPORT_STATUSES,
+  exportActionBlockMessage,
+  exportActionRecoveryMessage,
+  exportLoadRecoveryMessage,
+  exportRecoveryMessage,
+  exportSelectedCountLabel,
+  exportStatusCountLabel,
+  formatExportRecordStatus,
   formatExportStatusSummary,
+  hasRunningExport,
   isExportDownloadable,
   selectedPhotoCount,
   type ExportStatus,
 } from "@/lib/exportSelection";
-import { DEFAULT_EXPORT_STATUS_PREFERENCE, loadExportStatusPreference } from "@/lib/settings";
+import { invalidateProjectExportQueries } from "@/lib/queryInvalidation";
+import {
+  DEFAULT_EXPORT_STATUS_PREFERENCE,
+  exportPreferenceMessageTone,
+  loadExportStatusPreference,
+  toggleExportStatusPreferenceWithMessage,
+} from "@/lib/settings";
 
 type Mode = "csv" | "folder" | "zip";
 
 const RECENT_EXPORT_LIMIT = 50;
+const PREFERENCE_MESSAGE_CLASS = {
+  neutral: "text-neutral-600",
+  success: "text-leaf",
+  warning: "text-coral",
+} as const;
 
 function projectExportRoot(rootPath: string) {
   return `${rootPath.replace(/[\\/]+$/, "")}/exports`;
@@ -32,6 +51,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const [exportLimit, setExportLimit] = useState(RECENT_EXPORT_LIMIT);
   const [copiedPath, setCopiedPath] = useState("");
   const [copyError, setCopyError] = useState("");
+  const [preferenceMessage, setPreferenceMessage] = useState("");
   const exportHistoryQueryKey = ["exports", projectId, exportLimit];
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
@@ -47,9 +67,11 @@ export function ExportPanel({ projectId }: { projectId: string }) {
     queryKey: exportHistoryQueryKey,
     queryFn: () => api.listExports(projectId, { limit: exportLimit, offset: 0 }),
     retry: false,
+    refetchInterval: (query) => (hasRunningExport(query.state.data ?? []) ? 1000 : false),
   });
   const statusCounts = statusCountsQuery.data ?? { Pick: 0, Maybe: 0, Reject: 0, Unreviewed: 0 };
   const selectedCount = selectedPhotoCount(statusCounts, statuses);
+  const statusCountsLoading = statusCountsQuery.isLoading;
   const canLoadMoreExports = (exportsQuery.data?.length ?? 0) >= exportLimit;
 
   useEffect(() => {
@@ -63,19 +85,29 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       }
       return api.exportSelection(projectId, mode, statuses);
     },
+    onError: () => {
+      void invalidateProjectExportQueries(queryClient, projectId);
+    },
     onSuccess: (record) => {
       queryClient.setQueryData(exportHistoryQueryKey, (current: unknown) =>
         Array.isArray(current) ? [record, ...current] : [record],
       );
+      void invalidateProjectExportQueries(queryClient, projectId);
     },
   });
+  const exportBlockMessage = exportActionBlockMessage({
+    isExporting: mutation.isPending,
+    isStatusCountsLoading: statusCountsLoading,
+    selectedCount,
+    selectedStatuses: statuses,
+  });
+  const exportControlsDisabled = mutation.isPending;
 
   function toggleStatus(status: ExportStatus) {
     setStatuses((current) => {
-      if (current.includes(status)) {
-        return current.filter((item) => item !== status);
-      }
-      return [...current, status];
+      const result = toggleExportStatusPreferenceWithMessage(current, status);
+      setPreferenceMessage(result.message);
+      return result.statuses;
     });
   }
 
@@ -106,7 +138,9 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
       <div>
-        <p className="text-sm text-neutral-600">{photoCountLabel(selectedCount)} selected</p>
+        <p className="text-sm text-neutral-600">
+          {exportSelectedCountLabel({ isLoading: statusCountsLoading, selectedCount })}
+        </p>
         <h1 className="mt-1 text-3xl font-semibold">Export Selection</h1>
         {projectQuery.data?.root_path ? (
           <p className="mt-2 break-all text-sm text-neutral-600">
@@ -119,19 +153,24 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         <div className="grid gap-2 sm:grid-cols-4">
           {EXPORT_STATUSES.map((status) => (
             <label
-              className="focus-within:ring-2 focus-within:ring-leaf flex cursor-pointer items-center justify-between gap-3 rounded border border-line px-3 py-2 text-sm"
+              className={`focus-within:ring-2 focus-within:ring-leaf flex items-center justify-between gap-3 rounded border border-line px-3 py-2 text-sm ${
+                exportControlsDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+              }`}
               key={status}
             >
               <span className="flex items-center gap-2">
                 <input
                   checked={statuses.includes(status)}
                   className="h-4 w-4 accent-leaf"
+                  disabled={exportControlsDisabled}
                   onChange={() => toggleStatus(status)}
                   type="checkbox"
                 />
                 {status}
               </span>
-              <span className="text-neutral-600">{statusCounts[status]}</span>
+              <span className="text-neutral-600">
+                {exportStatusCountLabel({ count: statusCounts[status], isLoading: statusCountsLoading })}
+              </span>
             </label>
           ))}
         </div>
@@ -146,7 +185,10 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           return (
             <button
               aria-pressed={mode === item.mode}
-              className={`focus-ring flex min-h-24 items-center justify-center gap-3 rounded border px-4 font-medium ${mode === item.mode ? "border-leaf bg-white text-leaf" : "border-line bg-white"}`}
+              className={`focus-ring flex min-h-24 items-center justify-center gap-3 rounded border px-4 font-medium disabled:cursor-not-allowed disabled:opacity-60 ${
+                mode === item.mode ? "border-leaf bg-white text-leaf" : "border-line bg-white"
+              }`}
+              disabled={exportControlsDisabled}
               key={item.mode}
               onClick={() => setMode(item.mode)}
               type="button"
@@ -159,21 +201,35 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       </div>
       <button
         className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white disabled:opacity-50"
-        disabled={mutation.isPending || statusCountsQuery.isLoading || !statuses.length || selectedCount === 0}
+        disabled={Boolean(exportBlockMessage)}
         onClick={() => mutation.mutate()}
       >
         {mutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
         Export
       </button>
-      {!statuses.length ? <p className="text-sm text-coral">Choose at least one status to export.</p> : null}
-      {projectQuery.isError ? <p className="text-sm text-coral">{projectQuery.error.message}</p> : null}
-      {statusCountsQuery.isError ? <p className="text-sm text-coral">{statusCountsQuery.error.message}</p> : null}
-      {statuses.length > 0 && selectedCount === 0 && !statusCountsQuery.isLoading && !statusCountsQuery.isError ? (
-        <p className="text-sm text-neutral-600">No photos match the selected statuses.</p>
+      {projectQuery.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{projectQuery.error.message}</p>
+          <p className="text-neutral-600">{exportLoadRecoveryMessage("project")}</p>
+        </div>
+      ) : null}
+      {statusCountsQuery.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{statusCountsQuery.error.message}</p>
+          <p className="text-neutral-600">{exportLoadRecoveryMessage("statusCounts")}</p>
+        </div>
+      ) : null}
+      {exportBlockMessage && !statusCountsQuery.isError ? (
+        <p className={`text-sm ${!statuses.length ? "text-coral" : "text-neutral-600"}`}>{exportBlockMessage}</p>
+      ) : null}
+      {preferenceMessage ? (
+        <p className={`text-sm ${PREFERENCE_MESSAGE_CLASS[exportPreferenceMessageTone(preferenceMessage)]}`}>
+          {preferenceMessage}
+        </p>
       ) : null}
       {mutation.data ? (
         <div className="grid gap-3 rounded border border-line bg-white p-4 text-sm">
-          <p className="text-leaf">
+          <p className="break-all text-leaf">
             {photoCountLabel(mutation.data.selected_count)} exported
             {mutation.data.mode === "folder" ? ` to ${mutation.data.output_path}` : "."}
           </p>
@@ -190,48 +246,75 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           ) : null}
         </div>
       ) : null}
-      {copyError ? <p className="text-sm text-coral">{copyError}</p> : null}
-      {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
+      {copyError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{copyError}</p>
+          <p className="text-neutral-600">{exportActionRecoveryMessage("copyPath")}</p>
+        </div>
+      ) : null}
+      {mutation.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{mutation.error.message}</p>
+          <p className="text-neutral-600">{exportActionRecoveryMessage("runExport")}</p>
+        </div>
+      ) : null}
       <div className="grid gap-3">
         <h2 className="text-sm font-semibold">Export History</h2>
         {exportsQuery.isLoading ? (
           <p className="text-sm text-neutral-600">Loading export history...</p>
         ) : null}
-        {exportsQuery.isError ? <p className="text-sm text-coral">{exportsQuery.error.message}</p> : null}
+        {exportsQuery.isError ? (
+          <div className="grid gap-1 text-sm">
+            <p className="text-coral">{exportsQuery.error.message}</p>
+            <p className="text-neutral-600">{exportLoadRecoveryMessage("history")}</p>
+          </div>
+        ) : null}
         {exportsQuery.data?.length ? (
           <div className="grid gap-2">
-            {exportsQuery.data.map((record) => (
-              <div
-                className="grid gap-1 rounded border border-line bg-white p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
-                key={record.id}
-              >
-                <div>
-                  <p className="font-medium">
-                    {record.mode.toUpperCase()} · {photoCountLabel(record.selected_count)}
-                    <span className={record.status === "failed" ? "ml-2 text-coral" : "ml-2 text-neutral-500"}>
-                      {record.status}
-                    </span>
-                  </p>
-                  <p className="text-neutral-600">Statuses: {formatExportStatusSummary(record.statuses)}</p>
-                  <p className="text-neutral-600">{record.output_path}</p>
-                  {record.status === "failed" && record.error_message ? (
-                    <p className="text-coral">{record.error_message}</p>
-                  ) : null}
+            {exportsQuery.data.map((record) => {
+              const recoveryMessage = exportRecoveryMessage(record.status);
+              return (
+                <div
+                  className="grid gap-1 rounded border border-line bg-white p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
+                  key={record.id}
+                >
+                  <div>
+                    <p className="font-medium">
+                      {record.mode.toUpperCase()} · {photoCountLabel(record.selected_count)}
+                      <span
+                        className={`ml-2 ${
+                          record.status === "failed"
+                            ? "text-coral"
+                            : record.status === "running"
+                              ? "text-leaf"
+                              : "text-neutral-500"
+                        }`}
+                      >
+                        {formatExportRecordStatus(record.status)}
+                      </span>
+                    </p>
+                    <p className="text-neutral-600">Statuses: {formatExportStatusSummary(record.statuses)}</p>
+                    <p className="break-all text-neutral-600">{record.output_path}</p>
+                    {record.status === "failed" && record.error_message ? (
+                      <p className="text-coral">{record.error_message}</p>
+                    ) : null}
+                    {recoveryMessage ? <p className="text-neutral-600">{recoveryMessage}</p> : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {copyPathButton(record.output_path)}
+                    {isExportDownloadable(record) ? (
+                      <a
+                        className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-3 py-2 font-medium text-white"
+                        href={exportDownloadUrl(projectId, record.id)}
+                      >
+                        <Download size={16} />
+                        Download
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {copyPathButton(record.output_path)}
-                  {isExportDownloadable(record) ? (
-                    <a
-                      className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-3 py-2 font-medium text-white"
-                      href={exportDownloadUrl(projectId, record.id)}
-                    >
-                      <Download size={16} />
-                      Download
-                    </a>
-                  ) : null}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
         {canLoadMoreExports ? (

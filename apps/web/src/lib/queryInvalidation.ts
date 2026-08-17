@@ -19,3 +19,7 @@ export async function invalidateProjectWorkflowQueries(queryClient: QueryInvalid
     projectWorkflowQueryKeys(projectId).map((queryKey) => queryClient.invalidateQueries({ queryKey })),
   );
 }
+
+export async function invalidateProjectExportQueries(queryClient: QueryInvalidator, projectId: string) {
+  await queryClient.invalidateQueries({ queryKey: ["exports", projectId] });
+}

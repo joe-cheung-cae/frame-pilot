@@ -4,9 +4,20 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { ChangeEvent, useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { FileImage, Loader2, Play, RotateCcw, StopCircle } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
+import {
+  type ImportFeedbackTone,
+  importLoadRecoveryMessage,
+  importPreviewCompletionMessage,
+  importProcessBlockMessage,
+  importRegistrationMessage,
+  importRegistrationTone,
+  importSelectionBlockMessage,
+  importTerminalStatusMessage,
+  loadAvailableImportedPhotosForJob,
+} from "@/lib/importWorkflow";
 import {
   activeJobOfType,
   processingProgressPercent,
@@ -19,39 +30,57 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
   return count === 1 ? singular : plural;
 }
 
+const IMPORT_MESSAGE_CLASS: Record<ImportFeedbackTone, string> = {
+  neutral: "text-neutral-600",
+  success: "text-leaf",
+  warning: "text-coral",
+};
+
 export function ImportPanel({ projectId }: { projectId: string }) {
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<ImportFeedbackTone>("neutral");
   const [skipped, setSkipped] = useState<{ filename: string; reason: string }[]>([]);
   const [showAllSkipped, setShowAllSkipped] = useState(false);
   const [recentImports, setRecentImports] = useState<Photo[]>([]);
   const [currentImportJobId, setCurrentImportJobId] = useState<string | null>(null);
+  const currentImportJobIdRef = useRef<string | null>(null);
   const [completedImportJobId, setCompletedImportJobId] = useState<string | null>(null);
   const [lastImportPhotoIds, setLastImportPhotoIds] = useState<string[]>([]);
   const queryClient = useQueryClient();
+
+  function selectCurrentImportJob(jobId: string | null) {
+    currentImportJobIdRef.current = jobId;
+    setCurrentImportJobId(jobId);
+  }
+
   const project = useQuery({
     queryKey: ["project", projectId],
     queryFn: () => api.getProject(projectId),
     retry: false,
   });
   const mutation = useMutation({
-    mutationFn: (files: FileList) => api.importPhotos(projectId, files),
+    mutationFn: (files: readonly File[]) => api.importPhotos(projectId, files),
     onMutate: () => {
       setMessage("");
+      setMessageTone("neutral");
       setSkipped([]);
       setShowAllSkipped(false);
       setRecentImports([]);
-      setCurrentImportJobId(null);
+      selectCurrentImportJob(null);
       setCompletedImportJobId(null);
       setLastImportPhotoIds([]);
     },
     onSuccess: async (result) => {
       setMessage(
-        `${result.imported.length} ${pluralize(result.imported.length, "image")} registered. Generating previews...`,
+        importRegistrationMessage({ importedCount: result.imported.length, skippedCount: result.skipped.length }),
+      );
+      setMessageTone(
+        importRegistrationTone({ importedCount: result.imported.length, skippedCount: result.skipped.length }),
       );
       setSkipped(result.skipped);
       setRecentImports(result.imported);
       setLastImportPhotoIds(result.imported.map((photo) => photo.id));
-      setCurrentImportJobId(result.job?.id ?? null);
+      selectCurrentImportJob(result.job?.id ?? null);
       await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
   });
@@ -59,9 +88,10 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     mutationFn: (jobId: string) => api.retryJob(projectId, jobId),
     onSuccess: async (job) => {
       setMessage("Retry started. Generating missing previews...");
+      setMessageTone("neutral");
       setSkipped([]);
       setShowAllSkipped(false);
-      setCurrentImportJobId(job.id);
+      selectCurrentImportJob(job.id);
       setCompletedImportJobId(null);
       await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
@@ -70,7 +100,8 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     mutationFn: (jobId: string) => api.cancelJob(projectId, jobId),
     onSuccess: async (job) => {
       setMessage("Cancellation requested. Finishing the current safe checkpoint...");
-      setCurrentImportJobId(job.id);
+      setMessageTone("neutral");
+      selectCurrentImportJob(job.id);
       await invalidateProjectWorkflowQueries(queryClient, projectId);
     },
   });
@@ -108,23 +139,35 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     setCompletedImportJobId(job.id);
     void (async () => {
       await invalidateProjectWorkflowQueries(queryClient, projectId);
-      if (job.status === "failed" || job.status === "cancelled") {
-        setMessage("");
+      if (currentImportJobIdRef.current !== job.id) {
         return;
       }
-      const refreshed = await Promise.all(
-        lastImportPhotoIds.slice(0, 12).map((photoId) => api.getPhoto(projectId, photoId)),
+      if (job.status === "failed" || job.status === "cancelled") {
+        setMessage("");
+        setMessageTone("neutral");
+        return;
+      }
+      const refreshed = await loadAvailableImportedPhotosForJob(
+        job.id,
+        lastImportPhotoIds,
+        (photoId) => api.getPhoto(projectId, photoId),
+        () => currentImportJobIdRef.current,
       );
+      if (!refreshed) return;
       setRecentImports(refreshed);
-      setMessage(
-        `${lastImportPhotoIds.length} ${pluralize(lastImportPhotoIds.length, "image")} imported and previewed.`,
-      );
+      const completionMessage = importPreviewCompletionMessage(lastImportPhotoIds.length);
+      if (completionMessage) {
+        setMessage(completionMessage);
+        setMessageTone("success");
+      }
     })();
   }, [completedImportJobId, currentImportJobQuery.data, lastImportPhotoIds, projectId, queryClient]);
 
   function onFiles(event: ChangeEvent<HTMLInputElement>) {
-    if (event.target.files?.length) {
-      mutation.mutate(event.target.files);
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (files.length) {
+      mutation.mutate(files);
     }
   }
 
@@ -133,12 +176,20 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   const latestImportJob = importJobsQuery.data?.find((job) => job.job_type === "import");
   const importJob = currentImportJobQuery.data ?? activeImportJob ?? mutation.data?.job ?? latestImportJob;
   const isImportRunning = importJob?.status === "queued" || importJob?.status === "running" || mutation.isPending;
-  const canProcessProject =
-    !isImportRunning &&
-    importJob?.status !== "failed" &&
-    importJob?.status !== "cancelled" &&
-    Boolean(project.data?.total_images || recentImports.length);
+  const hasImportedPhotos = Boolean(project.data?.total_images || recentImports.length);
+  const processBlockMessage = importProcessBlockMessage({
+    hasImportedPhotos,
+    importStatus: importJob?.status,
+    isImportRunning,
+  });
+  const canProcessProject = !processBlockMessage;
   const canRetryImport = Boolean(importJob?.retryable) && !isImportRunning && !retryMutation.isPending;
+  const importSelectionBlock = importSelectionBlockMessage({
+    isCancelling: cancelMutation.isPending,
+    isImportRunning,
+    isRetrying: retryMutation.isPending,
+  });
+  const importSelectionDisabled = Boolean(importSelectionBlock);
   const canCancelImport =
     Boolean(importJob) &&
     importJob?.job_type === "import" &&
@@ -146,6 +197,13 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     !importJob.cancellation_requested &&
     !cancelMutation.isPending;
   const importProgress = processingProgressPercent(importJob);
+  const importTerminalMessage = importTerminalStatusMessage({
+    retryable: Boolean(importJob?.retryable),
+    status: importJob?.status,
+  });
+  const importStatusError = currentImportJobQuery.error ?? importJobsQuery.error;
+  const importStatusErrorMessage =
+    importStatusError instanceof Error ? importStatusError.message : "Import status is unavailable.";
 
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
@@ -157,20 +215,36 @@ export function ImportPanel({ projectId }: { projectId: string }) {
         ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="focus-within:ring-2 focus-within:ring-leaf grid min-h-56 cursor-pointer place-items-center rounded border border-dashed border-line bg-white p-8 text-center">
-          <input className="sr-only" type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={onFiles} />
+        <label
+          className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+            importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+          }`}
+        >
+          <input
+            className="sr-only"
+            type="file"
+            multiple
+            accept="image/jpeg,image/png,image/webp"
+            disabled={importSelectionDisabled}
+            onChange={onFiles}
+          />
           <span className="grid gap-3">
             <FileImage className="mx-auto text-leaf" size={34} />
             <span className="font-medium">Choose image files</span>
             <span className="text-sm text-neutral-600">JPEG, PNG, and WebP are supported.</span>
           </span>
         </label>
-        <label className="focus-within:ring-2 focus-within:ring-leaf grid min-h-56 cursor-pointer place-items-center rounded border border-dashed border-line bg-white p-8 text-center">
+        <label
+          className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+            importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+          }`}
+        >
           <input
             className="sr-only"
             type="file"
             multiple
             accept="image/jpeg,image/png,image/webp"
+            disabled={importSelectionDisabled}
             onChange={onFiles}
             {...{ webkitdirectory: "", directory: "" }}
           />
@@ -182,6 +256,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           </span>
         </label>
       </div>
+      {importSelectionBlock ? <p className="text-sm text-neutral-600">{importSelectionBlock}</p> : null}
       {mutation.isPending ? (
         <p className="inline-flex items-center gap-2 text-sm">
           <Loader2 className="animate-spin" size={16} />
@@ -201,6 +276,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
               style={{ width: `${importProgress}%` }}
             />
           </div>
+          {importTerminalMessage ? <p className="text-neutral-700">{importTerminalMessage}</p> : null}
           {importJob.error_message ? <p className="text-coral">{importJob.error_message}</p> : null}
           {importJob.cancellation_requested && importJob.status !== "cancelled" ? (
             <p className="text-neutral-600">Cancellation requested. FramePilot will stop after a safe checkpoint.</p>
@@ -227,7 +303,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           ) : null}
         </div>
       ) : null}
-      {message ? <p className="text-sm text-leaf">{message}</p> : null}
+      {message ? <p className={`text-sm ${IMPORT_MESSAGE_CLASS[messageTone]}`}>{message}</p> : null}
       {skipped.length ? (
         <div className="rounded border border-line bg-white p-3 text-sm text-neutral-700">
           <p className="font-medium text-coral">
@@ -280,10 +356,36 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           ) : null}
         </div>
       ) : null}
-      {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
-      {cancelMutation.isError ? <p className="text-sm text-coral">{cancelMutation.error.message}</p> : null}
-      {retryMutation.isError ? <p className="text-sm text-coral">{retryMutation.error.message}</p> : null}
-      {project.isError ? <p className="text-sm text-coral">{project.error.message}</p> : null}
+      {mutation.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{mutation.error.message}</p>
+          <p className="text-neutral-600">{importLoadRecoveryMessage("import")}</p>
+        </div>
+      ) : null}
+      {cancelMutation.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{cancelMutation.error.message}</p>
+          <p className="text-neutral-600">{importLoadRecoveryMessage("cancel")}</p>
+        </div>
+      ) : null}
+      {retryMutation.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{retryMutation.error.message}</p>
+          <p className="text-neutral-600">{importLoadRecoveryMessage("retry")}</p>
+        </div>
+      ) : null}
+      {currentImportJobQuery.isError || importJobsQuery.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">Could not load import status: {importStatusErrorMessage}</p>
+          <p className="text-neutral-600">{importLoadRecoveryMessage("job")}</p>
+        </div>
+      ) : null}
+      {project.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{project.error.message}</p>
+          <p className="text-neutral-600">{importLoadRecoveryMessage("project")}</p>
+        </div>
+      ) : null}
       {canProcessProject ? (
         <Link
           className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
@@ -302,7 +404,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             <Play size={18} />
             Process Project
           </button>
-          <p className="text-sm text-neutral-600">Import images before processing this project.</p>
+          {processBlockMessage ? <p className="text-sm text-neutral-600">{processBlockMessage}</p> : null}
         </div>
       )}
     </section>

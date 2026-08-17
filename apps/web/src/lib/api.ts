@@ -255,9 +255,9 @@ export const api = {
   },
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   getPhoto: (projectId: string, photoId: string) => request<Photo>(`/api/projects/${projectId}/photos/${photoId}`),
-  importPhotos: (projectId: string, files: FileList) => {
+  importPhotos: (projectId: string, files: readonly File[]) => {
     const body = new FormData();
-    Array.from(files).forEach((file) => body.append("files", file));
+    files.forEach((file) => body.append("files", file));
     return request<ImportResult>(`/api/projects/${projectId}/imports`, { method: "POST", body });
   },
   processProject: (projectId: string) =>

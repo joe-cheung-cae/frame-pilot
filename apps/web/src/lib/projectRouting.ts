@@ -7,10 +7,27 @@ type ProjectRouteState = Pick<Project, "id" | "total_images" | "processed_images
 type ProjectActionState = Pick<Project, "total_images" | "processed_images"> & {
   active_import_job?: ActiveImportState;
 };
+type ProjectProgressState = Pick<Project, "total_images" | "processed_images"> & {
+  active_import_job?: ActiveImportState;
+};
+export type ProjectWorkflowStep = "import" | "process" | "cull" | "export";
+
+function photoLabel(count: number): string {
+  return count === 1 ? "photo" : "photos";
+}
 
 export function projectHasActiveImport(project: { active_import_job?: ActiveImportState }): boolean {
   const status = project.active_import_job?.status;
   return status === "queued" || status === "running";
+}
+
+export function projectsHaveActiveImport(projects: readonly { active_import_job?: ActiveImportState }[]): boolean {
+  return projects.some((project) => projectHasActiveImport(project));
+}
+
+export function projectLoadRecoveryMessage(scope: "dashboard" | "list"): string {
+  const target = scope === "dashboard" ? "project details" : "project list";
+  return `Confirm the local FramePilot API is running, then reload the ${target}. Project data stays on this computer.`;
 }
 
 export function projectNextHref(project: ProjectRouteState): string {
@@ -40,4 +57,75 @@ export function projectNextActionLabel(project: ProjectActionState): string {
     return "Continue culling";
   }
   return "Review culling";
+}
+
+export function projectProgressSummary(project: ProjectProgressState): string {
+  if (projectHasActiveImport(project)) {
+    if (project.total_images <= 0) {
+      return "Import still running; registered photos will appear as local previews are created";
+    }
+    return `${project.total_images} ${photoLabel(project.total_images)} registered; import still running`;
+  }
+
+  if (project.total_images <= 0) {
+    return "No photos imported yet";
+  }
+
+  if (project.processed_images <= 0) {
+    return `${project.total_images} ${photoLabel(project.total_images)} imported; processing not started`;
+  }
+
+  return `${project.processed_images} of ${project.total_images} ${photoLabel(project.total_images)} processed`;
+}
+
+export function projectWorkflowStepHref(project: ProjectRouteState, step: ProjectWorkflowStep): string {
+  if (step === "import") {
+    return `/projects/${project.id}/import`;
+  }
+
+  if (projectHasActiveImport(project) && (step === "process" || step === "cull" || step === "export")) {
+    return `/projects/${project.id}/import`;
+  }
+
+  if (project.total_images <= 0) {
+    return `/projects/${project.id}/import`;
+  }
+
+  if (step === "cull" && project.processed_images <= 0) {
+    return `/projects/${project.id}/process`;
+  }
+
+  if (step === "export" && project.processed_images <= 0) {
+    return `/projects/${project.id}/process`;
+  }
+
+  return `/projects/${project.id}/${step}`;
+}
+
+export function projectWorkflowStepHint(project: ProjectActionState, step: ProjectWorkflowStep): string {
+  if (step === "import") {
+    return project.total_images > 0 ? "Add more local images" : "Start with local images";
+  }
+
+  if (projectHasActiveImport(project) && (step === "process" || step === "cull" || step === "export")) {
+    return "Finish import first";
+  }
+
+  if (project.total_images <= 0) {
+    return "Import photos first";
+  }
+
+  if (step === "process") {
+    return project.processed_images > 0 ? "Refresh grouping and ranking" : "Run grouping and ranking";
+  }
+
+  if (step === "cull") {
+    return project.processed_images > 0 ? "Review recommendations" : "Process photos first";
+  }
+
+  if (step === "export" && project.processed_images <= 0) {
+    return "Process photos first";
+  }
+
+  return "Export selected statuses";
 }

@@ -19,7 +19,33 @@ test("formats loaded review counts for the culling header", () => {
       photosPartiallyLoaded: false,
       projectPhotoCount: 4,
     }),
-    "3/4 loaded reviewed · 1 loaded picks",
+    "3/4 loaded reviewed · 1 loaded pick",
+  );
+});
+
+test("formats loaded pick counts with singular and plural labels", () => {
+  assert.equal(
+    reviewHeaderSummary({
+      activeGroupIndex: -1,
+      groupCount: 0,
+      photos: [{ user_status: "Pick" }],
+      photosPartiallyLoaded: false,
+      projectPhotoCount: 1,
+    }),
+    "1/1 loaded reviewed · 1 loaded pick",
+  );
+  assert.equal(
+    reviewHeaderSummary({
+      activeGroupIndex: -1,
+      groupCount: 0,
+      photos: [
+        { user_status: "Pick" },
+        { user_status: "Pick" },
+      ],
+      photosPartiallyLoaded: false,
+      projectPhotoCount: 2,
+    }),
+    "2/2 loaded reviewed · 2 loaded picks",
   );
 });
 
@@ -32,7 +58,7 @@ test("includes partial photo loading in the culling header", () => {
       photosPartiallyLoaded: true,
       projectPhotoCount: 10,
     }),
-    "3/4 loaded reviewed · 1 loaded picks · 4 of 10 loaded",
+    "3/4 loaded reviewed · 1 loaded pick · 4 of 10 loaded",
   );
 });
 
@@ -45,6 +71,6 @@ test("includes active group position in the culling header", () => {
       photosPartiallyLoaded: false,
       projectPhotoCount: 4,
     }),
-    "3/4 loaded reviewed · 1 loaded picks · Group 2 of 5",
+    "3/4 loaded reviewed · 1 loaded pick · Group 2 of 5",
   );
 });
