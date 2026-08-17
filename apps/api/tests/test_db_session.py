@@ -1,7 +1,14 @@
 from sqlalchemy import create_engine, inspect, text
 from sqlmodel import SQLModel
 
-from app.db.session import _ensure_export_record_columns, _ensure_performance_indexes
+from app.core.config import reset_settings_cache
+from app.db.session import (
+    SQLITE_BUSY_TIMEOUT_MS,
+    _ensure_export_record_columns,
+    _ensure_performance_indexes,
+    get_engine,
+    reset_engine_cache,
+)
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project  # noqa: F401
 
 
@@ -52,3 +59,36 @@ def test_init_db_adds_large_project_query_indexes(tmp_path):
     assert "ix_processingjob_project_active" in job_indexes
     assert "ix_processingjob_project_created" in job_indexes
     assert "ix_exportrecord_project_created" in export_indexes
+
+
+def test_get_engine_reuses_cached_engine_for_same_data_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "shared"))
+    reset_settings_cache()
+
+    first = get_engine()
+    second = get_engine()
+    assert first is second
+
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "other"))
+    reset_settings_cache()
+    third = get_engine()
+    assert third is not first
+
+    reset_engine_cache()
+    fourth = get_engine()
+    assert fourth is not third
+
+
+def test_get_engine_applies_wal_and_busy_timeout(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "wal"))
+    reset_settings_cache()
+
+    engine = get_engine()
+    with engine.connect() as connection:
+        journal_mode = connection.execute(text("PRAGMA journal_mode")).scalar()
+        busy_timeout = connection.execute(text("PRAGMA busy_timeout")).scalar()
+        foreign_keys = connection.execute(text("PRAGMA foreign_keys")).scalar()
+
+    assert str(journal_mode).lower() == "wal"
+    assert int(busy_timeout) == SQLITE_BUSY_TIMEOUT_MS
+    assert int(foreign_keys) == 1

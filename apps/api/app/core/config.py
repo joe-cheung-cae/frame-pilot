@@ -22,3 +22,7 @@ def get_settings() -> Settings:
 
 def reset_settings_cache() -> None:
     get_settings.cache_clear()
+    # Import lazily to avoid a circular import with app.db.session.
+    from app.db.session import reset_engine_cache
+
+    reset_engine_cache()

@@ -1,15 +1,38 @@
 from collections.abc import Generator
+from functools import lru_cache
 
-from sqlalchemy import inspect, text
+from sqlalchemy import event, inspect, text
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.core.config import get_settings
 
+SQLITE_BUSY_TIMEOUT_MS = 5000
+
+
+def _configure_sqlite_connection(dbapi_connection, _connection_record) -> None:
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+    cursor.close()
+
+
+@lru_cache
+def _engine_for_url(database_url: str):
+    connect_args = {"check_same_thread": False}
+    engine = create_engine(database_url, connect_args=connect_args)
+    event.listen(engine, "connect", _configure_sqlite_connection)
+    return engine
+
 
 def get_engine():
     settings = get_settings()
-    connect_args = {"check_same_thread": False}
-    return create_engine(settings.database_url, connect_args=connect_args)
+    return _engine_for_url(settings.database_url)
+
+
+def reset_engine_cache() -> None:
+    _engine_for_url.cache_clear()
 
 
 def init_db() -> None:
