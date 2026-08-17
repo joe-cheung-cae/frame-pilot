@@ -36,14 +36,11 @@ def reset_engine_cache() -> None:
 
 
 def init_db() -> None:
+    from app.db.migrations import run_migrations
+
     engine = get_engine()
     SQLModel.metadata.create_all(engine)
-    _ensure_project_columns(engine)
-    _ensure_export_record_columns(engine)
-    _ensure_photo_group_columns(engine)
-    _ensure_photo_columns(engine)
-    _ensure_processing_job_columns(engine)
-    _ensure_performance_indexes(engine)
+    run_migrations(engine)
 
 
 def _ensure_export_record_columns(engine) -> None:
