@@ -83,13 +83,27 @@ def test_create_project_treats_blank_root_path_as_default(tmp_path, monkeypatch)
 def test_create_project_rejects_unusable_root_path_without_metadata(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
-    blocked_root = tmp_path / "blocked-root"
+    blocked_root = tmp_path / "projects" / "blocked-root"
+    blocked_root.parent.mkdir(parents=True, exist_ok=True)
     blocked_root.write_text("not a directory")
 
     response = client.post("/api/projects", json={"name": "Bad storage", "root_path": str(blocked_root)})
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Project root path must be a usable local directory"
+    assert client.get("/api/projects").json() == []
+
+
+def test_create_project_rejects_root_outside_allowlist(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    outside = tmp_path.parent / "outside-project-root"
+    outside.mkdir(parents=True, exist_ok=True)
+
+    response = client.post("/api/projects", json={"name": "Outside", "root_path": str(outside)})
+
+    assert response.status_code == 422
+    assert "allowlisted" in response.json()["detail"]
     assert client.get("/api/projects").json() == []
 
 

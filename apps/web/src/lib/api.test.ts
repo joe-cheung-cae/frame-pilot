@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { chunkItems, collectPagedList, IMPORT_UPLOAD_BATCH_SIZE, listPageQuery } from "./api.ts";
+import {
+  API_BASE,
+  assetUrl,
+  chunkItems,
+  collectPagedList,
+  IMPORT_UPLOAD_BATCH_SIZE,
+  listPageQuery,
+} from "./api.ts";
 
 test("builds empty list query when pagination is omitted", () => {
   assert.equal(listPageQuery(), "");
@@ -68,9 +75,6 @@ test("chunks files into bounded import upload batches", () => {
 test("rejects invalid import batch sizes", () => {
   assert.throws(() => chunkItems(["a"], 0), /positive integer/);
 });
-
-
-import { assetUrl, API_BASE } from "./api.ts";
 
 test("assetUrl encodes special characters and supports windows separators", () => {
   const posix = assetUrl("proj", "/data/projects/proj/thumbnails/holiday #1 (50%).jpg");

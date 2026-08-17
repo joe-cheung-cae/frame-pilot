@@ -155,9 +155,10 @@ def _job_read(job: ProcessingJob) -> JobRead:
     )
 
 
-def _project_read(session: Session, project: Project) -> ProjectRead:
-    _fail_stale_active_jobs(session, project.id)
-    session.refresh(project)
+def _project_read(session: Session, project: Project, *, sweep_stale: bool = True) -> ProjectRead:
+    if sweep_stale:
+        _fail_stale_active_jobs(session, project.id)
+        session.refresh(project)
     active_import_job = _get_current_active_import_job(session, project.id)
     return ProjectRead(
         id=project.id,
@@ -188,14 +189,63 @@ def _ensure_fresh_job(session: Session, job: ProcessingJob) -> ProcessingJob:
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 def create_project_endpoint(payload: ProjectCreate, session: Session = Depends(get_session)):
     try:
-        return create_project(session, payload.name, payload.root_path)
+        return create_project(
+            session,
+            payload.name,
+            payload.root_path,
+            acknowledge_nonempty=payload.acknowledge_nonempty,
+        )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @router.get("/projects", response_model=list[ProjectRead])
 def list_projects_endpoint(session: Session = Depends(get_session)):
-    return [_project_read(session, project) for project in list_projects(session)]
+    projects = list_projects(session)
+    if not projects:
+        return []
+
+    project_ids = [project.id for project in projects]
+    active_jobs = list(
+        session.exec(
+            select(ProcessingJob)
+            .where(ProcessingJob.project_id.in_(project_ids))
+            .where(ProcessingJob.status.in_(["queued", "running"]))
+        ).all()
+    )
+    for job in active_jobs:
+        if job_is_stale(job):
+            fail_stale_job(session, job)
+
+    active_import_by_project: dict[str, ProcessingJob] = {}
+    for job in session.exec(
+        select(ProcessingJob)
+        .where(ProcessingJob.project_id.in_(project_ids))
+        .where(ProcessingJob.job_type == "import")
+        .where(ProcessingJob.status.in_(["queued", "running"]))
+        .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
+    ).all():
+        active_import_by_project.setdefault(job.project_id, job)
+
+    return [
+        ProjectRead(
+            id=project.id,
+            name=project.name,
+            root_path=project.root_path,
+            source_mode=project.source_mode,
+            source_root_path=project.source_root_path,
+            created_at=project.created_at,
+            updated_at=project.updated_at,
+            total_images=project.total_images,
+            processed_images=project.processed_images,
+            last_processed_at=project.last_processed_at,
+            schema_version=project.schema_version,
+            active_import_job=(
+                _job_read(active_import_by_project[project.id]) if project.id in active_import_by_project else None
+            ),
+        )
+        for project in projects
+    ]
 
 
 @router.get("/projects/{project_id}", response_model=ProjectRead)
