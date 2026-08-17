@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   REVIEW_SHORTCUT_HELP_SECTIONS,
   reviewShortcutCommandForKey,
+  reviewShortcutCommandFromEvent,
   reviewShortcutNeedsPreventDefault,
 } from "./reviewShortcuts.ts";
 
@@ -81,4 +82,12 @@ test("documents shortcuts by culling workflow section", () => {
       "E: Open export",
     ],
   );
+});
+
+test("ignores shortcuts when modifier keys or IME composition are active", () => {
+  assert.equal(reviewShortcutCommandFromEvent({ key: "p", ctrlKey: true }), null);
+  assert.equal(reviewShortcutCommandFromEvent({ key: "x", metaKey: true }), null);
+  assert.equal(reviewShortcutCommandFromEvent({ key: "c", altKey: true }), null);
+  assert.equal(reviewShortcutCommandFromEvent({ key: "f", isComposing: true }), null);
+  assert.deepEqual(reviewShortcutCommandFromEvent({ key: "p" }), { type: "mark", status: "Pick" });
 });

@@ -8,7 +8,7 @@ from sqlalchemy import inspect, text
 
 from app.db import session as db_session
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 
 
 class UnsupportedSchemaVersionError(RuntimeError):
@@ -60,8 +60,35 @@ def _migrate_to_1(engine) -> None:
     db_session._ensure_performance_indexes(engine)
 
 
+def _migrate_to_2(engine) -> None:
+    """Add stable PhotoGroup.sequence for capture-time review ordering."""
+    db_session._ensure_photo_group_columns(engine)
+    inspector = inspect(engine)
+    if not inspector.has_table("photogroup"):
+        return
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                UPDATE photogroup
+                SET sequence = (
+                    SELECT COUNT(*)
+                    FROM photogroup AS earlier
+                    WHERE earlier.project_id = photogroup.project_id
+                      AND (
+                        earlier.created_at < photogroup.created_at
+                        OR (earlier.created_at = photogroup.created_at AND earlier.id <= photogroup.id)
+                      )
+                )
+                WHERE sequence = 0
+                """
+            )
+        )
+
+
 MIGRATIONS: dict[int, Callable] = {
     1: _migrate_to_1,
+    2: _migrate_to_2,
 }
 
 

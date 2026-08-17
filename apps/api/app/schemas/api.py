@@ -164,6 +164,7 @@ class GroupRead(BaseModel):
     id: str
     project_id: str
     group_type: str
+    sequence: int = 0
     representative_photo_id: str | None
     photo_count: int
     score_summary: str

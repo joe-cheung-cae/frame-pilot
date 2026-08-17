@@ -311,7 +311,12 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
 
         for index, grouped in enumerate(grouped_photos, start=1):
             _save_job(session, job, f"ranking group {index} of {len(grouped_photos)}", job.processed_items)
-            group = PhotoGroup(project_id=project.id, group_type=grouped.group_type, photo_count=len(grouped.photo_ids))
+            group = PhotoGroup(
+                project_id=project.id,
+                group_type=grouped.group_type,
+                sequence=index,
+                photo_count=len(grouped.photo_ids),
+            )
             session.add(group)
             session.commit()
             session.refresh(group)
@@ -342,7 +347,7 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
                 photo = photo_map[item.photo_id]
                 photo.ai_recommendation = item.recommendation
                 photo.recommendation_explanation = item.explanation
-                photo.overall_score = max(photo.overall_score, item.score)
+                photo.overall_score = item.score
                 photo.processing_state = "processed"
                 photo.processing_error = None
                 photo.updated_at = utc_now()

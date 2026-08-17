@@ -100,6 +100,8 @@ def _ensure_photo_group_columns(engine) -> None:
     statements = []
     if "score_summary" not in existing:
         statements.append("ALTER TABLE photogroup ADD COLUMN score_summary VARCHAR NOT NULL DEFAULT '{}'")
+    if "sequence" not in existing:
+        statements.append("ALTER TABLE photogroup ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0")
 
     if not statements:
         return

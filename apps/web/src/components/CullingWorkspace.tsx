@@ -50,7 +50,7 @@ import {
   windowedPhotoRefs,
 } from "@/lib/reviewNavigation";
 import { reviewScoreRows } from "@/lib/reviewScores";
-import { reviewShortcutCommandForKey, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
+import { reviewShortcutCommandFromEvent, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
 import {
   mergeLoadedPhotosWithCurrentReviews,
   reconcileOptimisticPhotoUpdates,
@@ -430,8 +430,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      const command = reviewShortcutCommandForKey(event.key);
+      const command = reviewShortcutCommandFromEvent(event);
       if (!command) return;
       if (reviewShortcutNeedsPreventDefault(command)) {
         event.preventDefault();

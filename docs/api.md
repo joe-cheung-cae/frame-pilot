@@ -69,7 +69,15 @@ When `POST /api/projects` omits `root_path` or sends it blank, FramePilot uses t
 
 ## Import Response
 
-`POST /api/projects/{project_id}/imports` accepts multiple files under the `files` form field.
+`POST /api/projects/{project_id}/imports` accepts multiple files under the `files` form field. Each request may include at most 100 files. Larger selections should be uploaded in chunks that share one logical import job.
+
+Optional form fields:
+
+- `job_id`: append this chunk to an existing running import job
+- `expected_total`: total files across all chunks for progress display
+- `finalize`: `true` (default) starts derivative generation for pending photos; `false` keeps the job open for more chunks
+
+A new import without `job_id` returns `409` when another import job is already active for the project.
 
 The response contains accepted photo records, synchronously skipped files, import counts, and the import job to poll. Newly accepted photos may still have `processing_state` set to `processing` and may not have thumbnail, preview, metadata, score, hash, or embedding fields populated until the background derivative job completes.
 

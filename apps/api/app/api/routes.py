@@ -588,7 +588,16 @@ def list_photos_endpoint(
     statement = (
         select(Photo)
         .where(Photo.project_id == project_id)
-        .order_by(Photo.group_id, recommendation_order, Photo.overall_score.desc(), Photo.filename)
+        .outerjoin(PhotoGroup, Photo.group_id == PhotoGroup.id)
+        .order_by(
+            case((Photo.group_id.is_(None), 1), else_=0),
+            PhotoGroup.sequence,
+            PhotoGroup.created_at,
+            Photo.group_id,
+            recommendation_order,
+            Photo.overall_score.desc(),
+            Photo.filename,
+        )
     )
     if offset:
         statement = statement.offset(offset)
@@ -675,7 +684,9 @@ def list_groups_endpoint(
 ):
     _get_project(session, project_id)
     statement = (
-        select(PhotoGroup).where(PhotoGroup.project_id == project_id).order_by(PhotoGroup.created_at, PhotoGroup.id)
+        select(PhotoGroup)
+        .where(PhotoGroup.project_id == project_id)
+        .order_by(PhotoGroup.sequence, PhotoGroup.created_at, PhotoGroup.id)
     )
     if offset:
         statement = statement.offset(offset)

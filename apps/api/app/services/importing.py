@@ -1,6 +1,7 @@
 import hashlib
 import json
 import math
+import os
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from PIL import ExifTags, Image, ImageOps, UnidentifiedImageError
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.ai.embeddings import image_embedding, perceptual_hash
@@ -231,6 +233,33 @@ def _unique_path(directory: Path, filename: str) -> Path:
         if not next_candidate.exists():
             return next_candidate
         index += 1
+
+
+def _reserve_unique_path(directory: Path, filename: str) -> Path:
+    """Atomically reserve a destination path with O_EXCL to avoid overwrite races."""
+    directory.mkdir(parents=True, exist_ok=True)
+    safe_name = Path(filename).name
+    stem = Path(safe_name).stem
+    suffix = Path(safe_name).suffix
+    index = 0
+    while True:
+        candidate = directory / safe_name if index == 0 else directory / f"{stem}-{index}{suffix}"
+        try:
+            fd = os.open(candidate, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            return candidate
+        except FileExistsError:
+            index += 1
+
+
+def _project_photo_count(session: Session, project_id: str) -> int:
+    return int(session.exec(select(func.count()).select_from(Photo).where(Photo.project_id == project_id)).one())
+
+
+def _sync_project_total_images(session: Session, project: Project) -> None:
+    project.total_images = _project_photo_count(session, project.id)
+    project.updated_at = utc_now()
+    session.add(project)
 
 
 def _parse_capture_time(value: object) -> datetime | None:
@@ -480,7 +509,7 @@ def import_image_file(
         safe_name = Path(filename).name
         originals_dir = project_root / "originals"
         originals_dir.mkdir(parents=True, exist_ok=True)
-        source_path = _unique_path(originals_dir, safe_name)
+        source_path = _reserve_unique_path(originals_dir, safe_name)
         if progress_callback:
             progress_callback("file_copy_or_register")
         with import_timing_stage(timing, "file_copy"):
@@ -576,9 +605,7 @@ def import_image_file(
             session.add(photo)
             if invalidate_processing:
                 invalidate_project_processing(session, project)
-            project.total_images += 1
-            project.updated_at = utc_now()
-            session.add(project)
+            _sync_project_total_images(session, project)
 
         with import_timing_stage(timing, "db_commit"):
             session.commit()
@@ -606,7 +633,7 @@ def register_import_file(
     safe_name = Path(filename).name
     originals_dir = project_root / "originals"
     originals_dir.mkdir(parents=True, exist_ok=True)
-    source_path = _unique_path(originals_dir, safe_name)
+    source_path = _reserve_unique_path(originals_dir, safe_name)
     if progress_callback:
         progress_callback("file_copy_or_register")
     with import_timing_stage(timing, "file_copy"):
@@ -641,9 +668,7 @@ def register_import_file(
             recommendation_explanation="Import derivatives are still being generated.",
         )
         session.add(photo)
-        project.total_images += 1
-        project.updated_at = utc_now()
-        session.add(project)
+        _sync_project_total_images(session, project)
 
     with import_timing_stage(timing, "db_commit"):
         session.commit()

@@ -78,6 +78,40 @@ export function reviewShortcutCommandForKey(key: string): ReviewShortcutCommand 
   return null;
 }
 
+export type ReviewShortcutEventLike = {
+  key: string;
+  altKey?: boolean;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  isComposing?: boolean;
+  target?: EventTarget | null;
+};
+
+function reviewShortcutTargetBlocksCommands(target: EventTarget | null | undefined): boolean {
+  if (!target || typeof target !== "object") {
+    return false;
+  }
+  const element = target as {
+    isContentEditable?: boolean;
+    tagName?: string;
+  };
+  if (element.isContentEditable) {
+    return true;
+  }
+  const tagName = element.tagName?.toUpperCase();
+  return tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
+}
+
+export function reviewShortcutCommandFromEvent(event: ReviewShortcutEventLike): ReviewShortcutCommand | null {
+  if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) {
+    return null;
+  }
+  if (reviewShortcutTargetBlocksCommands(event.target)) {
+    return null;
+  }
+  return reviewShortcutCommandForKey(event.key);
+}
+
 export function reviewShortcutNeedsPreventDefault(command: ReviewShortcutCommand): boolean {
   return command.type !== "export";
 }

@@ -85,6 +85,7 @@ export type PhotoGroup = {
   id: string;
   project_id: string;
   group_type: string;
+  sequence: number;
   representative_photo_id: string | null;
   photo_count: number;
   score_summary: string;
