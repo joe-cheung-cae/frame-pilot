@@ -1,66 +1,63 @@
-# FramePilot v2.0.0-rc2 Validation Decision
+# FramePilot v2.0 Validation Decision
 
-Decision date: 2026-06-05.
+Decision date: 2026-08-17.
 
-Release owner: Chao Zhang.
+Release owner: Joe (joe-cheung-cae), with validation notes recorded by a Cursor cloud agent.
 
-Status: waived.
+Status: completed.
 
-This file is the release-owner decision record for the remaining rc2 algorithm-confidence gate.
-For `v2.0.0-rc2`, the manual non-private real-world algorithm validation gate is explicitly
-waived so the release can proceed as an engineering pre-release.
+This file is the release-owner decision record for the real-world algorithm-confidence gate.
+A Tier B non-private photograph pass was completed on 2026-08-17 and supersedes the
+2026-06-05 rc2 waiver for this gate.
 
 ## Current Gate
 
-Manual non-private real-world algorithm validation was not completed for rc2.
+Manual non-private real-world algorithm validation is recorded in
+`docs/v2_real_world_validation_notes.md`.
 
-The release owner chose the waiver path described in:
+The protocol remains:
 
 - `docs/v2_real_world_validation.md`
 - `docs/v2_release_candidate_checklist.md`
-- `docs/v2_rc2_work_progress_summary.md`
-
-This waiver does not claim that manual real-world grouping, ranking, explanation, or export
-quality has been validated on a non-private release dataset. It records that rc2 can still be
-tagged as an engineering pre-release after the automated hardening and verification work already
-completed on the branch.
 
 Do not use private photos, sensitive filenames, generated project directories, exports, ZIP files,
 traces, SQLite databases, thumbnails, previews, or local cache files as tracked release evidence.
 
 ## Validation Evidence
 
-Validation notes file: not applicable.
+Validation notes file: docs/v2_real_world_validation_notes.md.
 
-Validation tier: not completed.
+Validation tier: B.
 
-Dataset privacy status: not applicable.
+Dataset privacy status: published CC0/PDM Openverse photographs with sanitized local aliases.
 
 Summary metrics:
 
 | Metric | Value |
 | ------ | ----- |
-| Total photo count | not completed |
-| Group count | not completed |
-| False merge count | not completed |
-| Missed group count | not completed |
-| Ranking mismatch count | not completed |
-| Explanation mismatch count | not completed |
-| Export issue count | not completed |
+| Total photo count | 138 |
+| Group count | 137 |
+| False merge count | 0 |
+| Missed group count | 0 |
+| Ranking mismatch count | 0 |
+| Explanation mismatch count | 2 |
+| Export issue count | 0 |
 
-Validation verdict: not completed.
+Validation verdict: pass with notes.
 
-Release decision impact: v2.0.0-rc2 may be tagged as an engineering pre-release with the manual non-private real-world algorithm validation gate explicitly waived.
+Release decision impact: The real-world algorithm gate now has completed Tier B evidence. Face/eye-open mismatches remain documented experimental limitations. Tag `v2.0.0` only after `npm run check:pretag` passes on the commit to be tagged.
 
 ## Waiver Record
 
-Waiver status: waived.
+Waiver status: superseded by validation evidence.
 
-- Waiver owner: Chao Zhang
-- Waiver date: 2026-06-05
-- Reason: The release owner decided to publish v2.0.0-rc2 as an engineering pre-release after rc2 automated hardening, release artifact checks, backend/frontend tests, real browser smoke tests, and full E2E passed. Manual non-private real-world algorithm validation remains deferred.
-- Accepted risk: v2.0.0-rc2 may still contain grouping, ranking, explanation, or heuristic face/eye-open quality issues on real-world photo sets that are not covered by deterministic fixtures, generated-image smoke tests, or synthetic benchmarks.
-- Follow-up task: Complete Tier A or Tier B non-private real-world algorithm validation before v2.0.0 final. Add deterministic fixture tests before any threshold, grouping, ranking, scoring, or explanation tuning.
+Historical rc2 note (2026-06-05): Chao Zhang waived this gate so `v2.0.0-rc2` could ship as an engineering pre-release without real-world photograph notes. That waiver is retained only as history. The 2026-08-17 pass replaces it for v2.0 acceptance.
+
+- Historical waiver owner: Chao Zhang
+- Historical waiver date: 2026-06-05
+- Reason: rc2 shipped as an engineering pre-release after automated hardening; real-world notes were deferred.
+- Accepted risk at that time: grouping, ranking, explanation, or face/eye-open issues on real photo sets might be unseen.
+- Follow-up task: completed by the 2026-08-17 Openverse CC0/PDM portrait-query pass recorded in `docs/v2_real_world_validation_notes.md`.
 
 ## Required Pre-Tag Confirmation
 
@@ -70,4 +67,4 @@ Waiver status: waived.
 - `git status --short` contains only intentional release changes.
 - No generated/private photos, project data, exports, ZIP files, traces, SQLite databases, cache folders, virtualenvs, or `node_modules` files are tracked.
 - README and release docs do not claim RAW, HEIC, XMP, cloud workflows, durable jobs, or professional face/eye detection are implemented.
-- The final release notes link this explicit waiver and clearly state that real-world/manual algorithm validation remains a known follow-up before `v2.0.0` final.
+- Release notes should link `docs/v2_real_world_validation_notes.md` and this decision file.
