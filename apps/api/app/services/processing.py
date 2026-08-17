@@ -255,21 +255,39 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         return _complete_unchanged_job(session, job, len(photos))
 
     try:
+        existing_groups = {
+            group.id: group
+            for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all()
+        }
+        preserved_photos = [
+            photo
+            for photo in photos
+            if photo.processing_state == "processed"
+            and photo.group_id
+            and photo.group_id in existing_groups
+            and not photo.processing_error
+            and not _missing_derivative_paths(photo)
+        ]
+        preserved_ids = {photo.id for photo in preserved_photos}
+        preserved_group_ids = {photo.group_id for photo in preserved_photos if photo.group_id}
+
         _save_job(session, job, "clearing stale groups", 0)
-        for photo in photos:
+        work_photos = [photo for photo in photos if photo.id not in preserved_ids]
+        for photo in work_photos:
             photo.group_id = None
             photo.processing_state = "processing"
             photo.processing_error = None
             session.add(photo)
         session.flush()
-        for existing in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
-            session.delete(existing)
+        for existing in list(existing_groups.values()):
+            if existing.id not in preserved_group_ids:
+                session.delete(existing)
         session.commit()
 
-        _save_job(session, job, "validating generated files", 0)
+        _save_job(session, job, "validating generated files", len(preserved_photos))
         derivative_failed_photos = []
         derivative_failed_ids = set()
-        for photo in photos:
+        for photo in work_photos:
             missing_derivatives = _missing_derivative_paths(photo)
             if not missing_derivatives:
                 continue
@@ -289,8 +307,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
                 )
         session.commit()
 
-        _save_job(session, job, "validating similarity data", 0, len(derivative_failed_photos))
-        candidate_photos = [photo for photo in photos if photo.id not in derivative_failed_ids]
+        _save_job(session, job, "validating similarity data", len(preserved_photos), len(derivative_failed_photos))
+        candidate_photos = [photo for photo in work_photos if photo.id not in derivative_failed_ids]
         group_inputs, similarity_failed_photos = _build_group_inputs(candidate_photos)
         for photo in similarity_failed_photos:
             _mark_photo_failed(
@@ -304,17 +322,22 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
 
         failed_photos = derivative_failed_photos + similarity_failed_photos
 
-        _save_job(session, job, "grouping photos", 0, len(failed_photos))
+        _save_job(session, job, "grouping photos", len(preserved_photos), len(failed_photos))
         failed_photo_ids = {failed.id for failed in failed_photos}
         photo_map = {photo.id: photo for photo in candidate_photos if photo.id not in failed_photo_ids}
         grouped_photos = group_similar_photos(group_inputs)
+        next_sequence = max(
+            (group.sequence for group in existing_groups.values() if group.id in preserved_group_ids),
+            default=0,
+        )
 
         for index, grouped in enumerate(grouped_photos, start=1):
             _save_job(session, job, f"ranking group {index} of {len(grouped_photos)}", job.processed_items)
+            next_sequence += 1
             group = PhotoGroup(
                 project_id=project.id,
                 group_type=grouped.group_type,
-                sequence=index,
+                sequence=next_sequence,
                 photo_count=len(grouped.photo_ids),
             )
             session.add(group)
@@ -363,13 +386,13 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
 
         job.status = "complete"
         job.current_step = "complete"
-        job.processed_items = len(group_inputs)
+        job.processed_items = len(preserved_ids) + len(group_inputs)
         job.failed_items = len(failed_photos)
         job.progress_percent = 100.0
         if failed_photos:
             job.error_message = _failed_photo_count_message(len(failed_photos))
         job.completed_at = utc_now()
-        project.processed_images = len(group_inputs)
+        project.processed_images = len(preserved_ids) + len(group_inputs)
         project.last_processed_at = job.completed_at
         project.updated_at = utc_now()
         session.add(project)

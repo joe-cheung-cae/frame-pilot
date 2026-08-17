@@ -693,10 +693,10 @@ def test_multi_file_import_invalidates_processing_once(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     invalidate_calls = 0
 
-    def counted_invalidation(session, project):
+    def counted_invalidation(session, project, touched_photo_ids=None):
         nonlocal invalidate_calls
         invalidate_calls += 1
-        invalidate_project_processing(session, project)
+        invalidate_project_processing(session, project, touched_photo_ids=touched_photo_ids)
 
     monkeypatch.setattr("app.api.routes.invalidate_project_processing", counted_invalidation)
     client = TestClient(create_app())
@@ -2016,8 +2016,10 @@ def test_import_after_processing_invalidates_stale_groups_and_recommendations(tm
     assert process_response.status_code == 202
     job = _wait_for_job(client, project["id"], process_response.json())
     assert job["status"] == "complete"
-    assert client.get(f"/api/projects/{project['id']}/groups").json()
+    groups_before = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert groups_before
     assert client.get(f"/api/projects/{project['id']}/photos/{first_photo['id']}").json()["ai_recommendation"] == "Pick"
+    first_group_id = groups_before[0]["id"]
 
     second_import = client.post(
         f"/api/projects/{project['id']}/import",
@@ -2029,10 +2031,14 @@ def test_import_after_processing_invalidates_stale_groups_and_recommendations(tm
     assert updated_project["total_images"] == 2
     assert updated_project["processed_images"] == 0
     assert updated_project["last_processed_at"] is not None
-    assert client.get(f"/api/projects/{project['id']}/groups").json() == []
+    groups_after = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert [group["id"] for group in groups_after] == [first_group_id]
     updated_first = client.get(f"/api/projects/{project['id']}/photos/{first_photo['id']}").json()
-    assert updated_first["group_id"] is None
-    assert updated_first["ai_recommendation"] == "Unreviewed"
+    assert updated_first["group_id"] == first_group_id
+    assert updated_first["ai_recommendation"] == "Pick"
+    second_photo_id = second_import.json()["imported"][0]["id"]
+    updated_second = client.get(f"/api/projects/{project['id']}/photos/{second_photo_id}").json()
+    assert updated_second["group_id"] is None
 
 
 def test_group_list_returns_groups_in_creation_order(tmp_path, monkeypatch):

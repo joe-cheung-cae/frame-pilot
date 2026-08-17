@@ -355,6 +355,7 @@ def import_photos_endpoint(
     batch_size = len(files)
     imported: list[Photo] = []
     derivative_photo_ids: list[str] = []
+    newly_imported_ids: list[str] = []
     skipped: list[dict[str, str]] = []
     new_import_count = 0
     failed_count = job.failed_items
@@ -395,6 +396,7 @@ def import_photos_endpoint(
                 derivative_photo_ids.append(photo.id)
             if registration.is_new and project.total_images > before_total:
                 new_import_count += 1
+                newly_imported_ids.append(photo.id)
             update_import_job(
                 session,
                 job,
@@ -440,7 +442,7 @@ def import_photos_endpoint(
             force=True,
         )
         with import_timing_stage(timing, "processing_invalidation"):
-            invalidate_project_processing(session, project)
+            invalidate_project_processing(session, project, touched_photo_ids=newly_imported_ids)
         with import_timing_stage(timing, "import_endpoint_commit"):
             session.commit()
         if not finalize:

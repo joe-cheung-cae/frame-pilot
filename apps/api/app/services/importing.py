@@ -471,8 +471,27 @@ def photo_needs_import_retry(photo: Photo) -> bool:
     return photo.processing_state in {"processing", "failed"} or not _photo_derivatives_exist(photo)
 
 
-def invalidate_project_processing(session: Session, project: Project) -> None:
-    photos = session.exec(select(Photo).where(Photo.project_id == project.id)).all()
+def invalidate_project_processing(
+    session: Session,
+    project: Project,
+    *,
+    touched_photo_ids: list[str] | None = None,
+) -> None:
+    """Invalidate processing results.
+
+    When ``touched_photo_ids`` is provided, only those photos lose grouping /
+    recommendations so incremental imports keep unaffected groups intact.
+    """
+    if touched_photo_ids is None:
+        photos = list(session.exec(select(Photo).where(Photo.project_id == project.id)).all())
+    else:
+        touched = set(touched_photo_ids)
+        photos = [
+            photo
+            for photo in session.exec(select(Photo).where(Photo.project_id == project.id)).all()
+            if photo.id in touched
+        ]
+
     for photo in photos:
         photo.group_id = None
         photo.ai_recommendation = "Unreviewed"
@@ -481,8 +500,19 @@ def invalidate_project_processing(session: Session, project: Project) -> None:
         session.add(photo)
     session.flush()
 
-    for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
-        session.delete(group)
+    if touched_photo_ids is None:
+        for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
+            session.delete(group)
+    else:
+        # Drop groups that no longer have any members after the scoped clear.
+        remaining_groups = {
+            photo.group_id
+            for photo in session.exec(select(Photo).where(Photo.project_id == project.id)).all()
+            if photo.group_id
+        }
+        for group in session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project.id)).all():
+            if group.id not in remaining_groups:
+                session.delete(group)
 
     project.processed_images = 0
     project.updated_at = utc_now()
@@ -604,7 +634,7 @@ def import_image_file(
             )
             session.add(photo)
             if invalidate_processing:
-                invalidate_project_processing(session, project)
+                invalidate_project_processing(session, project, touched_photo_ids=[photo.id])
             _sync_project_total_images(session, project)
 
         with import_timing_stage(timing, "db_commit"):

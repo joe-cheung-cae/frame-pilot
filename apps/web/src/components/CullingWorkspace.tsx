@@ -69,10 +69,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const searchParams = useSearchParams();
   const requestedFilter = searchParams.get("filter");
   const filterButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const filmstripButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const groupButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const skipNextProgressSave = useRef<string | null>(null);
   const [allPhotosLoaded, setAllPhotosLoaded] = useState(false);
   const [allGroupsLoaded, setAllGroupsLoaded] = useState(false);
   const [failedAssetUrls, setFailedAssetUrls] = useState<Set<string>>(() => new Set());
+  const [liveAnnouncement, setLiveAnnouncement] = useState("");
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
   const activeImportJob = project.data?.active_import_job ?? null;
   const isImportRunning = activeImportJob?.status === "queued" || activeImportJob?.status === "running";
@@ -87,13 +90,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const isProcessing = Boolean(activeProcessingJob);
   const photosQuery = useQuery({
     queryKey: ["photos", projectId],
-    queryFn: () => api.listPhotos(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+    queryFn: () => api.listAllPhotos(projectId),
     enabled: project.isSuccess && jobsQuery.isSuccess && !isImportRunning && !isProcessing,
     retry: false,
   });
   const groupsQuery = useQuery({
     queryKey: ["groups", projectId],
-    queryFn: () => api.listGroups(projectId, { limit: CULLING_INITIAL_PAGE_LIMIT, offset: 0 }),
+    queryFn: () => api.listAllGroups(projectId),
     enabled: project.isSuccess && jobsQuery.isSuccess && !isImportRunning && !isProcessing,
     retry: false,
   });
@@ -117,8 +120,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const photos = useMemo(() => photosQuery.data ?? [], [photosQuery.data]);
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
   const projectPhotoCount = project.data?.total_images ?? photos.length;
-  const photosPartiallyLoaded = projectPhotoCount > photos.length && !allPhotosLoaded;
-  const groupsMayBePartial = groups.length === CULLING_INITIAL_PAGE_LIMIT && !allGroupsLoaded;
+  const photosPartiallyLoaded = false;
+  const groupsMayBePartial = false;
   const duplicateGroupIds = useMemo(
     () => new Set(groups.filter((group) => group.photo_count > 1).map((group) => group.id)),
     [groups],
@@ -389,6 +392,11 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   function mark(status: Photo["user_status"]) {
     if (activePhoto) {
       const nextPhotoId = nextPhotoIdAfterMark(visiblePhotos, activePhoto.id);
+      setLiveAnnouncement(
+        nextPhotoId
+          ? `Marked ${activePhoto.filename} as ${status}. Advanced to next photo.`
+          : `Marked ${activePhoto.filename} as ${status}.`,
+      );
       if (nextPhotoId) {
         setActivePhotoId(nextPhotoId);
       }
@@ -398,12 +406,18 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
 
   function batchMark(status: Photo["user_status"]) {
     if (visiblePhotoIds.length) {
+      setLiveAnnouncement(`Marked ${visiblePhotoIds.length} photos as ${status}.`);
       batchUpdateMutation.mutate({ photoIds: visiblePhotoIds, patch: { user_status: status } });
     }
   }
 
   function rate(star_rating: number) {
     if (activePhoto) {
+      setLiveAnnouncement(
+        star_rating > 0
+          ? `Set ${activePhoto.filename} to ${star_rating} stars.`
+          : `Cleared star rating for ${activePhoto.filename}.`,
+      );
       updateMutation.mutate({ photo: activePhoto, patch: { star_rating } });
     }
   }
@@ -427,6 +441,28 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       return next;
     });
   }
+
+  useEffect(() => {
+    if (!activePhoto?.id) {
+      return;
+    }
+    filmstripButtonRefs.current[activePhoto.id]?.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+      behavior: "smooth",
+    });
+  }, [activePhoto?.id]);
+
+  useEffect(() => {
+    if (!activeGroup?.id) {
+      return;
+    }
+    groupButtonRefs.current[activeGroup.id]?.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+      behavior: "smooth",
+    });
+  }, [activeGroup?.id]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -587,6 +623,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
 
   return (
     <section className="grid min-h-[calc(100vh-73px)] grid-rows-[auto_1fr_auto] lg:h-[calc(100vh-73px)] lg:min-h-0 lg:overflow-hidden">
+      <div className="sr-only" aria-live="polite" role="status">
+        {liveAnnouncement}
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-3">
         <div>
           <h1 className="text-lg font-semibold">{project.data?.name ?? "Culling Workspace"}</h1>
@@ -684,6 +723,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   onClick={() => selectGroup(group.id, group.representative_photo_id)}
                   aria-current={isActiveGroup ? "true" : undefined}
                   aria-label={`Group ${groupNumber}, ${groupPhotoLabel}, ${groupConfidenceLabel(summary)}`}
+                  ref={(node) => {
+                    groupButtonRefs.current[group.id] = node;
+                  }}
                 >
                   <span className="flex items-center justify-between gap-3">
                     <span>Group {groupNumber}</span>
@@ -987,6 +1029,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               onClick={() => setActivePhotoId(photo.id)}
               aria-current={photo.id === activePhoto?.id ? "true" : undefined}
               aria-label={`Select ${photo.filename}`}
+              ref={(node) => {
+                filmstripButtonRefs.current[photo.id] = node;
+              }}
             >
               {thumbnail && !assetHasFailed(thumbnail) ? (
                 <img
