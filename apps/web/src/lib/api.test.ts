@@ -68,3 +68,22 @@ test("chunks files into bounded import upload batches", () => {
 test("rejects invalid import batch sizes", () => {
   assert.throws(() => chunkItems(["a"], 0), /positive integer/);
 });
+
+
+import { assetUrl, API_BASE } from "./api.ts";
+
+test("assetUrl encodes special characters and supports windows separators", () => {
+  const posix = assetUrl("proj", "/data/projects/proj/thumbnails/holiday #1 (50%).jpg");
+  assert.equal(
+    posix,
+    `${API_BASE}/api/assets/proj/${encodeURIComponent("thumbnails")}/${encodeURIComponent("holiday #1 (50%).jpg")}`,
+  );
+  assert.equal(posix?.includes("#"), false);
+  assert.equal(posix?.includes(" "), false);
+
+  const windows = assetUrl("proj", "C:\\data\\projects\\proj\\previews\\shot.jpg");
+  assert.equal(
+    windows,
+    `${API_BASE}/api/assets/proj/${encodeURIComponent("previews")}/${encodeURIComponent("shot.jpg")}`,
+  );
+});

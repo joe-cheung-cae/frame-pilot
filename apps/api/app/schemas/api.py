@@ -157,7 +157,7 @@ class PhotoUpdate(BaseModel):
 
 
 class PhotoBatchUpdate(PhotoUpdate):
-    photo_ids: list[str] = Field(min_length=1)
+    photo_ids: list[str] = Field(min_length=1, max_length=500)
 
 
 class GroupRead(BaseModel):

@@ -131,6 +131,7 @@ export type ListPageOptions = {
 
 export const DEFAULT_LIST_PAGE_LIMIT = 500;
 export const IMPORT_UPLOAD_BATCH_SIZE = 100;
+export const PHOTO_BATCH_UPDATE_SIZE = 500;
 
 export function chunkItems<T>(items: readonly T[], size = IMPORT_UPLOAD_BATCH_SIZE): T[][] {
   if (!Number.isInteger(size) || size < 1) {
@@ -348,11 +349,18 @@ export const api = {
   listAllPhotos,
   updatePhoto: (projectId: string, photoId: string, patch: PhotoPatch) =>
     request<Photo>(`/api/projects/${projectId}/photos/${photoId}`, { method: "PATCH", body: JSON.stringify(patch) }),
-  batchUpdatePhotos: (projectId: string, photoIds: string[], patch: PhotoPatch) =>
-    request<Photo[]>(`/api/projects/${projectId}/photos/batch`, {
-      method: "PATCH",
-      body: JSON.stringify({ photo_ids: photoIds, ...patch }),
-    }),
+  batchUpdatePhotos: async (projectId: string, photoIds: string[], patch: PhotoPatch) => {
+    const batches = chunkItems(photoIds, PHOTO_BATCH_UPDATE_SIZE);
+    const updated: Photo[] = [];
+    for (const batch of batches) {
+      const page = await request<Photo[]>(`/api/projects/${projectId}/photos/batch`, {
+        method: "PATCH",
+        body: JSON.stringify({ photo_ids: batch, ...patch }),
+      });
+      updated.push(...page);
+    }
+    return updated;
+  },
   listGroups,
   listAllGroups,
   listExports,
@@ -372,11 +380,12 @@ export function assetUrl(projectId: string, path: string | null): string | null 
   if (!path) {
     return null;
   }
-  const parts = path.split("/");
+  const normalized = path.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
   const filename = parts.at(-1);
   const kind = parts.at(-2);
   if (!filename || !kind) {
     return null;
   }
-  return `${API_BASE}/api/assets/${projectId}/${kind}/${filename}`;
+  return `${API_BASE}/api/assets/${projectId}/${encodeURIComponent(kind)}/${encodeURIComponent(filename)}`;
 }

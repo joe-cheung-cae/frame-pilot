@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import shutil
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from sqlmodel import Session, select
 
-from app.models.entities import ProcessingJob, utc_now
+from app.models.entities import ExportRecord, ProcessingJob, Project, utc_now
 
 ACTIVE_JOB_STATUSES = frozenset({"queued", "running"})
 TERMINAL_JOB_STATUSES = frozenset({"complete", "complete_with_errors", "failed", "cancelled"})
@@ -87,7 +89,7 @@ def fail_stale_jobs_for_project(session: Session, project_id: str) -> None:
 
 
 def fail_active_jobs_on_startup(session: Session) -> int:
-    """Mark any queued/running jobs as failed after an API process restart."""
+    """Mark any queued/running jobs and exports as failed after an API process restart."""
     active_jobs = list(
         session.exec(select(ProcessingJob).where(ProcessingJob.status.in_(list(ACTIVE_JOB_STATUSES)))).all()
     )
@@ -104,4 +106,36 @@ def fail_active_jobs_on_startup(session: Session) -> int:
         else:
             reason = f"API process restarted while this {job.job_type} job was still active"
             mark_job_failed(session, job, reason, current_step="failed - restart")
-    return len(active_jobs)
+
+    running_exports = list(session.exec(select(ExportRecord).where(ExportRecord.status == "running")).all())
+    for record in running_exports:
+        project = session.get(Project, record.project_id)
+        if project is not None:
+            try:
+                from app.services.processing import project_export_root
+
+                export_root = project_export_root(project)
+                target = Path(record.output_path)
+                try:
+                    resolved_target = target.resolve(strict=True)
+                    resolved_export_root = export_root.resolve(strict=True)
+                except FileNotFoundError:
+                    pass
+                else:
+                    if resolved_target.is_relative_to(resolved_export_root):
+                        if target.is_symlink():
+                            target.unlink()
+                        elif resolved_target.is_dir():
+                            shutil.rmtree(resolved_target)
+                        else:
+                            resolved_target.unlink()
+            except Exception:
+                pass
+        record.status = "failed"
+        record.error_message = "API process restarted while this export was still running"
+        record.completed_at = utc_now()
+        session.add(record)
+    if running_exports:
+        session.commit()
+
+    return len(active_jobs) + len(running_exports)

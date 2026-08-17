@@ -39,7 +39,13 @@ from app.services.importing import (
     run_import_derivative_job,
     update_import_job,
 )
-from app.services.jobs import fail_stale_job, fail_stale_jobs_for_project, job_is_stale
+from app.services.jobs import (
+    STALE_JOB_AFTER,
+    as_utc,
+    fail_stale_job,
+    fail_stale_jobs_for_project,
+    job_is_stale,
+)
 from app.services.processing import (
     create_processing_job,
     project_export_root,
@@ -635,9 +641,13 @@ def batch_update_photos_endpoint(
 ):
     _get_project(session, project_id)
     requested_ids = list(dict.fromkeys(payload.photo_ids))
-    photos = list(
-        session.exec(select(Photo).where(Photo.project_id == project_id).where(Photo.id.in_(requested_ids))).all()
-    )
+    photos: list[Photo] = []
+    chunk_size = 400
+    for start in range(0, len(requested_ids), chunk_size):
+        chunk_ids = requested_ids[start : start + chunk_size]
+        photos.extend(
+            session.exec(select(Photo).where(Photo.project_id == project_id).where(Photo.id.in_(chunk_ids))).all()
+        )
     photo_by_id = {photo.id: photo for photo in photos}
     missing_ids = [photo_id for photo_id in requested_ids if photo_id not in photo_by_id]
     if missing_ids:
@@ -652,8 +662,8 @@ def batch_update_photos_endpoint(
         photo.updated_at = now
         session.add(photo)
     session.commit()
-    for photo in photos:
-        session.refresh(photo)
+    for photo_id in requested_ids:
+        session.refresh(photo_by_id[photo_id])
     return [photo_by_id[photo_id] for photo_id in requested_ids]
 
 
@@ -703,10 +713,87 @@ def get_group_endpoint(project_id: str, group_id: str, session: Session = Depend
     return group
 
 
+def _fail_stale_exports(session: Session, project_id: str | None = None) -> None:
+    statement = select(ExportRecord).where(ExportRecord.status == "running")
+    if project_id is not None:
+        statement = statement.where(ExportRecord.project_id == project_id)
+    now = utc_now()
+    for record in session.exec(statement).all():
+        if as_utc(now) - as_utc(record.created_at) < STALE_JOB_AFTER:
+            continue
+        try:
+            project = session.get(Project, record.project_id)
+            if project is not None:
+                export_root = project_export_root(project)
+                _remove_partial_export(Path(record.output_path), export_root)
+        except Exception:
+            pass
+        record.status = "failed"
+        record.error_message = "Export was interrupted before completion"
+        record.completed_at = now
+        session.add(record)
+    session.commit()
+
+
+def run_export_job(export_id: str, mode: str, photo_dicts: list[dict], project_root: str) -> None:
+    from app.db.session import get_engine
+
+    with Session(get_engine()) as session:
+        record = session.get(ExportRecord, export_id)
+        if record is None:
+            return
+        project = session.get(Project, record.project_id)
+        if project is None:
+            record.status = "failed"
+            record.error_message = "Project not found"
+            record.completed_at = utc_now()
+            session.add(record)
+            session.commit()
+            return
+        try:
+            export_root = project_export_root(project)
+            target = Path(record.output_path)
+            if mode == "csv":
+                output_path = write_selection_csv(target, photo_dicts)
+            elif mode == "folder":
+                output_path = copy_selected_files(target, photo_dicts, project_root=Path(project_root))
+            else:
+                output_path = zip_selected_files(target, photo_dicts, project_root=Path(project_root))
+            record.status = "complete"
+            record.output_path = str(output_path)
+            record.error_message = None
+            record.completed_at = utc_now()
+            session.add(record)
+            session.commit()
+        except Exception as error:
+            session.rollback()
+            record = session.get(ExportRecord, export_id)
+            if record is None:
+                return
+            try:
+                export_root = project_export_root(project)
+                _remove_partial_export(Path(record.output_path), export_root)
+            except Exception:
+                pass
+            record.status = "failed"
+            record.error_message = (
+                str(error) if isinstance(error, (FileNotFoundError, ValueError)) and str(error) else "Export failed"
+            )
+            record.completed_at = utc_now()
+            session.add(record)
+            session.commit()
+
+
 @router.post("/projects/{project_id}/exports", response_model=ExportRead, status_code=status.HTTP_201_CREATED)
 @router.post("/projects/{project_id}/export", response_model=ExportRead, status_code=status.HTTP_201_CREATED)
-def create_export_endpoint(project_id: str, payload: ExportCreate, session: Session = Depends(get_session)):
+def create_export_endpoint(
+    project_id: str,
+    payload: ExportCreate,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
     project = _get_project(session, project_id)
+    _fail_stale_exports(session, project_id)
     photos = list(
         session.exec(
             select(Photo)
@@ -736,34 +823,7 @@ def create_export_endpoint(project_id: str, payload: ExportCreate, session: Sess
     session.add(record)
     session.commit()
     session.refresh(record)
-
-    try:
-        if payload.mode == "csv":
-            output_path = write_selection_csv(target, photo_dicts)
-        elif payload.mode == "folder":
-            output_path = copy_selected_files(target, photo_dicts, project_root=Path(project.root_path))
-        else:
-            output_path = zip_selected_files(target, photo_dicts, project_root=Path(project.root_path))
-    except Exception as error:
-        session.rollback()
-        _remove_partial_export(target, export_root)
-        error_message = (
-            str(error) if isinstance(error, (FileNotFoundError, ValueError)) and str(error) else "Export failed"
-        )
-        record.status = "failed"
-        record.output_path = str(target)
-        record.error_message = error_message
-        record.completed_at = utc_now()
-        session.add(record)
-        session.commit()
-        raise HTTPException(status_code=500, detail=error_message) from error
-
-    record.status = "complete"
-    record.output_path = str(output_path)
-    record.completed_at = utc_now()
-    session.add(record)
-    session.commit()
-    session.refresh(record)
+    background_tasks.add_task(run_export_job, record.id, payload.mode, photo_dicts, project.root_path)
     return record
 
 
@@ -776,6 +836,7 @@ def list_exports_endpoint(
     session: Session = Depends(get_session),
 ):
     _get_project(session, project_id)
+    _fail_stale_exports(session, project_id)
     statement = (
         select(ExportRecord)
         .where(ExportRecord.project_id == project_id)

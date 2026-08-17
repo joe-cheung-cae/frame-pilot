@@ -42,6 +42,17 @@ def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
     return current
 
 
+def _wait_for_export(client: TestClient, project_id: str, export_record: dict) -> dict:
+    current = export_record
+    for _ in range(20):
+        if current["status"] in {"complete", "failed"}:
+            return current
+        response = client.get(f"/api/projects/{project_id}/exports/{current['id']}")
+        assert response.status_code == 200
+        current = response.json()
+    return current
+
+
 def _wait_for_imported_photo(
     client: TestClient,
     project_id: str,
@@ -203,7 +214,8 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
         json={"mode": "csv", "statuses": ["Pick"]},
     )
     assert export_response.status_code == 201
-    export_record = export_response.json()
+    export_record = _wait_for_export(client, project["id"], export_response.json())
+    assert export_record["status"] == "complete"
     assert export_record["output_path"].endswith(".csv")
     assert export_record["selected_count"] == 1
     assert export_record["statuses"] == '["Pick"]'
@@ -2628,11 +2640,8 @@ def test_failed_export_records_failed_history_and_removes_partial_artifact(tmp_p
 
     response = client.post(f"/api/projects/{project['id']}/export", json={"mode": "csv", "statuses": ["Pick"]})
 
-    assert response.status_code == 500
-    assert response.json()["detail"] == "Export failed"
-    history = client.get(f"/api/projects/{project['id']}/export").json()
-    assert len(history) == 1
-    record = history[0]
+    assert response.status_code == 201
+    record = _wait_for_export(client, project["id"], response.json())
     assert record["mode"] == "csv"
     assert record["status"] == "failed"
     assert record["selected_count"] == 1
@@ -2671,7 +2680,9 @@ def test_failed_export_cleanup_does_not_remove_artifact_outside_export_root(tmp_
 
     response = client.post(f"/api/projects/{project['id']}/export", json={"mode": "csv", "statuses": ["Pick"]})
 
-    assert response.status_code == 500
+    assert response.status_code == 201
+    record = _wait_for_export(client, project["id"], response.json())
+    assert record["status"] == "failed"
     assert outside_artifact.read_text() == "outside partial export"
 
 
@@ -2720,12 +2731,9 @@ def test_file_export_fails_when_selected_original_is_missing(tmp_path, monkeypat
 
     response = client.post(f"/api/projects/{project['id']}/exports", json={"mode": "zip", "statuses": ["Pick"]})
 
-    assert response.status_code == 500
+    assert response.status_code == 201
     expected_error = f"Original file is missing: {missing_original}"
-    assert response.json()["detail"] == expected_error
-    history = client.get(f"/api/projects/{project['id']}/exports").json()
-    assert len(history) == 1
-    record = history[0]
+    record = _wait_for_export(client, project["id"], response.json())
     assert record["mode"] == "zip"
     assert record["status"] == "failed"
     assert record["selected_count"] == 1
@@ -2792,12 +2800,9 @@ def test_file_export_rejects_source_paths_outside_project_originals(tmp_path, mo
 
     response = client.post(f"/api/projects/{project['id']}/exports", json={"mode": mode, "statuses": ["Pick"]})
 
-    assert response.status_code == 500
+    assert response.status_code == 201
     expected_error = "Export source file must stay inside the project originals directory"
-    assert response.json()["detail"] == expected_error
-    history = client.get(f"/api/projects/{project['id']}/exports").json()
-    assert len(history) == 1
-    record = history[0]
+    record = _wait_for_export(client, project["id"], response.json())
     assert record["mode"] == mode
     assert record["status"] == "failed"
     assert record["error_message"] == expected_error

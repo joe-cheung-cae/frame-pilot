@@ -4,6 +4,9 @@ import zipfile
 from collections.abc import Iterable
 from pathlib import Path
 
+STORED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
 
 def _unique_destination(directory: Path, filename: str) -> Path:
     candidate = directory / Path(filename).name
@@ -51,9 +54,16 @@ def _existing_original_path(photo: dict, project_root: Path | None = None) -> Pa
     return resolved_source
 
 
+def csv_safe_cell(value: object) -> str:
+    text = "" if value is None else str(value)
+    if text.startswith(CSV_FORMULA_PREFIXES):
+        return f"'{text}"
+    return text
+
+
 def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("w", newline="") as handle:
+    with target.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
             fieldnames=[
@@ -95,25 +105,25 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
         for photo in photos:
             writer.writerow(
                 {
-                    "filename": photo.get("filename", ""),
-                    "photo_id": photo.get("id", ""),
-                    "original_path": photo.get("original_path", ""),
-                    "project_copy_path": photo.get("project_copy_path") or "",
-                    "source_identity": photo.get("source_identity") or "",
-                    "content_hash": photo.get("content_hash") or "",
+                    "filename": csv_safe_cell(photo.get("filename", "")),
+                    "photo_id": csv_safe_cell(photo.get("id", "")),
+                    "original_path": csv_safe_cell(photo.get("original_path", "")),
+                    "project_copy_path": csv_safe_cell(photo.get("project_copy_path") or ""),
+                    "source_identity": csv_safe_cell(photo.get("source_identity") or ""),
+                    "content_hash": csv_safe_cell(photo.get("content_hash") or ""),
                     "file_size": photo.get("file_size", 0),
                     "file_mtime": "" if photo.get("file_mtime") is None else photo.get("file_mtime"),
-                    "capture_time": photo.get("capture_time") or "",
-                    "camera_model": photo.get("camera_model") or "",
-                    "lens_model": photo.get("lens_model") or "",
-                    "focal_length": photo.get("focal_length") or "",
-                    "aperture": photo.get("aperture") or "",
-                    "shutter_speed": photo.get("shutter_speed") or "",
+                    "capture_time": csv_safe_cell(photo.get("capture_time") or ""),
+                    "camera_model": csv_safe_cell(photo.get("camera_model") or ""),
+                    "lens_model": csv_safe_cell(photo.get("lens_model") or ""),
+                    "focal_length": csv_safe_cell(photo.get("focal_length") or ""),
+                    "aperture": csv_safe_cell(photo.get("aperture") or ""),
+                    "shutter_speed": csv_safe_cell(photo.get("shutter_speed") or ""),
                     "iso": "" if photo.get("iso") is None else photo.get("iso"),
-                    "status": photo.get("user_status", "Unreviewed"),
+                    "status": csv_safe_cell(photo.get("user_status", "Unreviewed")),
                     "star_rating": photo.get("star_rating", 0),
-                    "group_id": photo.get("group_id") or "",
-                    "ai_recommendation": photo.get("ai_recommendation", "Unreviewed"),
+                    "group_id": csv_safe_cell(photo.get("group_id") or ""),
+                    "ai_recommendation": csv_safe_cell(photo.get("ai_recommendation", "Unreviewed")),
                     "score": f"{float(photo.get('overall_score', 0.0) or 0.0):.3f}",
                     "sharpness_score": f"{float(photo.get('sharpness_score', 0.0) or 0.0):.3f}",
                     "exposure_score": f"{float(photo.get('exposure_score', 0.0) or 0.0):.3f}",
@@ -126,9 +136,9 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
                     "face_quality_score": f"{float(photo.get('face_quality_score', 0.0) or 0.0):.3f}",
                     "width": photo.get("width", 0),
                     "height": photo.get("height", 0),
-                    "recommendation_explanation": photo.get("recommendation_explanation", ""),
-                    "processing_state": photo.get("processing_state", ""),
-                    "processing_error": photo.get("processing_error") or "",
+                    "recommendation_explanation": csv_safe_cell(photo.get("recommendation_explanation", "")),
+                    "processing_state": csv_safe_cell(photo.get("processing_state", "")),
+                    "processing_error": csv_safe_cell(photo.get("processing_error") or ""),
                 }
             )
     return target
@@ -142,11 +152,21 @@ def copy_selected_files(target_dir: Path, photos: Iterable[dict], project_root: 
     return target_dir
 
 
+def _zip_compression_for(path: Path) -> int:
+    if path.suffix.lower() in STORED_IMAGE_EXTENSIONS:
+        return zipfile.ZIP_STORED
+    return zipfile.ZIP_DEFLATED
+
+
 def zip_selected_files(target_zip: Path, photos: Iterable[dict], project_root: Path | None = None) -> Path:
     target_zip.parent.mkdir(parents=True, exist_ok=True)
     used_names: set[str] = set()
-    with zipfile.ZipFile(target_zip, "w", zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(target_zip, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as archive:
         for photo in photos:
             source = _existing_original_path(photo, project_root)
-            archive.write(source, arcname=_unique_archive_name(used_names, source.name))
+            archive.write(
+                source,
+                arcname=_unique_archive_name(used_names, source.name),
+                compress_type=_zip_compression_for(source),
+            )
     return target_zip
