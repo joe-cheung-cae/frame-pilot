@@ -65,7 +65,7 @@ Before tagging an rc2 release candidate, run the pre-tag gate:
 npm run check:pretag
 ```
 
-This includes `npm run verify` and fails while `docs/v2_rc2_validation_decision.md` is still pending or not explicitly waived.
+This includes `npm run verify` and the validation-decision gate in `docs/v2_rc2_validation_decision.md`.
 
 For the shorter test-only path:
 
@@ -129,7 +129,8 @@ See [FramePilot v2 Release Candidate Checklist](docs/v2_release_candidate_checkl
 See [FramePilot v2 Release Review](docs/v2_release_review.md) for the current release verdict, verified workflows, blockers, and tagging recommendation.
 See [FramePilot v2 Known Limitations](docs/v2_known_limitations.md) for accepted local MVP-plus limitations.
 See [FramePilot v2 Real-World Algorithm Validation](docs/v2_real_world_validation.md) for the manual validation protocol for non-private photo sets.
-See [FramePilot v2 RC2 Validation Decision](docs/v2_rc2_validation_decision.md) for the pending release-owner record for real-world validation evidence or an explicit waiver.
+See [FramePilot v2 Real-World Validation Notes](docs/v2_real_world_validation_notes.md) for the 2026-08-17 non-private Openverse photograph pass.
+See [FramePilot v2 Validation Decision](docs/v2_rc2_validation_decision.md) for the release-owner record of that evidence (the earlier rc2 waiver is historical only).
 See [FramePilot v2 Migration Plan](docs/v2_migration_plan.md) for schema, storage, API, and project data migration rules.
 See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for grouping, ranking, explanation, and optional model policy.
 See [FramePilot v2 Iteration Review](docs/v2_iteration_review.md) for the latest repository status, verification notes, and remaining risks.

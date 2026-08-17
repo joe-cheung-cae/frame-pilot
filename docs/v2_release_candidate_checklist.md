@@ -6,7 +6,7 @@ This checklist is the release-candidate decision record for FramePilot v2.0. It 
 
 FramePilot v2.0 is a local-first MVP-plus release candidate for JPEG, PNG, and WebP photo culling. The core workflow is implemented: local project creation, local import, queryable import and processing jobs, deterministic scoring, grouping, ranking, keyboard-first review, manual status/rating overrides, CSV export, ZIP export, folder export, and local export history.
 
-Current RC decision: the rc2 working tree closes the RC1 job-sequencing, stale-processing, export source-path, release metadata, and local tooling-noise findings, but it is not ready for an unqualified tag until final verification is rerun from the commit to be tagged and real-world/manual algorithm validation notes are recorded or explicitly waived in `docs/v2_rc2_validation_decision.md`.
+Current RC decision: real-world/manual algorithm validation notes are recorded in `docs/v2_real_world_validation_notes.md` (2026-08-17, pass with notes). An unqualified `v2.0.0` tag still requires `npm run check:pretag` from the commit to be tagged.
 
 ## Implemented v2.0 Features
 
@@ -122,8 +122,8 @@ Do not make the 2,000-photo real browser-backend workflow a v2.0 release gate un
 
 - Deterministic tests cover burst grouping, missing metadata, non-merge lookalikes, blur/exposure penalties, conservative singleton recommendations, and explanations.
 - Generated synthetic benchmarks do not prove real photographer-quality ranking.
-- Real-world/manual algorithm validation still needs notes from non-private datasets unless the release owner explicitly waives that evidence for the rc2 release decision.
-- `docs/v2_rc2_validation_decision.md` is the release-owner record for completed validation notes or an explicit waiver.
+- Real-world/manual algorithm validation notes from a non-private Openverse CC0/PDM photograph set are recorded in `docs/v2_real_world_validation_notes.md` (2026-08-17, pass with notes).
+- `docs/v2_rc2_validation_decision.md` is the release-owner record for that evidence. The 2026-06-05 rc2 waiver is historical only.
 - Any threshold, scoring, grouping, ranking, or explanation change requires focused tests.
 
 ## Deferred Features
@@ -144,12 +144,12 @@ Do not make the 2,000-photo real browser-backend workflow a v2.0 release gate un
 - Documentation claims RAW, HEIC, XMP, cloud workflows, durable jobs, or professional face/eye detection are implemented.
 - Known limitations are not linked from README.
 - Release owner cannot explain what is implemented, verified, unverified, deferred, and locally safe.
-- Manual non-private real-world algorithm validation notes are absent and the release owner has not explicitly waived that evidence.
+- Manual non-private real-world algorithm validation notes are absent and the release owner has not recorded replacement evidence or an explicit waiver.
 
 ## Pre-Tag Checklist
 
 - Review `README.md`, `docs/architecture.md`, `docs/api.md`, `docs/scoring.md`, `docs/v2_performance_baseline.md`, `docs/v2_known_limitations.md`, and this checklist.
-- Complete `docs/v2_rc2_validation_decision.md` with either validation evidence or an explicit release-owner waiver.
+- Confirm `docs/v2_rc2_validation_decision.md` records completed validation evidence or an explicit release-owner waiver.
 - Run `npm run check:pretag`.
 - Confirm `npm run check:artifacts` passes, or rely on the same check through `npm run verify`.
 - Run or explicitly skip full E2E with a documented reason.
@@ -159,8 +159,7 @@ Do not make the 2,000-photo real browser-backend workflow a v2.0 release gate un
 
 ## Post-Release Next Steps
 
-- Record manual non-private real-world algorithm validation notes.
-- Decide whether a 2,000-photo real browser-backend run is needed before the next milestone.
+- Optional: a license-clear photographer burst/session set, and a 2,000-photo real browser-backend run, before later milestones.
 - Revisit durable local worker architecture with measured failure modes.
 - Continue culling workspace maintainability only through focused, tested extractions.
 - Plan XMP sidecar export and HEIC/RAW preview support as separate scoped milestones.

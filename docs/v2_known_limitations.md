@@ -48,7 +48,7 @@ Browser benchmark heap values come from Chromium smoke metrics such as `performa
 
 Generated JPEG benchmarks are useful for repeatability and regression detection. They do not replace real-world/manual algorithm validation with non-private camera-like photo sets. Synthetic images can underrepresent realistic noise, lens behavior, subject movement, lighting, compression artifacts, and creative intent.
 
-The rc2 release-owner decision record is `docs/v2_rc2_validation_decision.md`. Until that file records completed validation evidence or an explicit waiver, the real-world/manual algorithm-confidence gate remains open.
+The release-owner decision record is `docs/v2_rc2_validation_decision.md`. A Tier B non-private Openverse CC0/PDM photograph pass is recorded in `docs/v2_real_world_validation_notes.md` (2026-08-17) and supersedes the earlier rc2 waiver. Synthetic JPEG benchmarks still do not replace that manual review.
 
 ## Grouping And Ranking Heuristic Limits
 
@@ -60,7 +60,7 @@ Face and eye-open scores are lightweight local heuristics, not professional face
 
 ## Export Limitations
 
-CSV, ZIP, and folder exports are implemented as local synchronous operations. XMP sidecar export is planned but not implemented. Folder exports expose a local output path rather than a browser download artifact. Exported files and ZIPs are generated artifacts and must not be committed.
+CSV, ZIP, and folder exports run as local background jobs with progress and stale detection. XMP sidecar export is planned but not implemented. Folder exports expose a local output path rather than a browser download artifact. Exported files and ZIPs are generated artifacts and must not be committed.
 
 ZIP and folder exports require selected source files to resolve inside the project `originals/` directory. This is a defense-in-depth guard for corrupted metadata; it also means file exports can fail if the local copied original is missing or no longer resolves inside project storage.
 
