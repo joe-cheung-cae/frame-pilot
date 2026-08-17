@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlmodel import Session
 
 from app.api.routes import router
@@ -10,6 +11,12 @@ from app.db.session import get_engine, init_db
 from app.services.jobs import fail_active_jobs_on_startup
 
 _db_ready = False
+ALLOWED_ORIGINS = {
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3100",
+    "http://127.0.0.1:3100",
+}
 
 
 def reset_db_ready_flag() -> None:
@@ -40,16 +47,22 @@ def create_app() -> FastAPI:
     app = FastAPI(title="FramePilot API", version="2.0.0-rc2", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:3100",
-            "http://127.0.0.1:3100",
-        ],
+        allow_origins=sorted(ALLOWED_ORIGINS),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def require_local_origin(request: Request, call_next):
+        if request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
+            origin = request.headers.get("origin")
+            if origin and origin not in ALLOWED_ORIGINS:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Origin not allowed for local FramePilot API"},
+                )
+        return await call_next(request)
 
     @app.get("/health")
     def health() -> dict[str, str]:

@@ -61,7 +61,6 @@ import { useReviewStore } from "@/store/reviewStore";
 const FILMSTRIP_WINDOW_SIZE = 80;
 const GROUP_WINDOW_SIZE = 80;
 const COMPARE_WINDOW_SIZE = 6;
-const CULLING_INITIAL_PAGE_LIMIT = 500;
 
 export function CullingWorkspace({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -72,8 +71,8 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const filmstripButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const groupButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const skipNextProgressSave = useRef<string | null>(null);
-  const [allPhotosLoaded, setAllPhotosLoaded] = useState(false);
-  const [allGroupsLoaded, setAllGroupsLoaded] = useState(false);
+  const [, setAllPhotosLoaded] = useState(false);
+  const [, setAllGroupsLoaded] = useState(false);
   const [failedAssetUrls, setFailedAssetUrls] = useState<Set<string>>(() => new Set());
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
