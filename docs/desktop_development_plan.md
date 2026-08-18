@@ -1,10 +1,12 @@
 # FramePilot 桌面版开发计划
 
-> **文档版本**：1.0  
+> **文档版本**：1.2  
 > **创建日期**：2026-08-18  
+> **最近审阅**：2026-08-18 Claude Opus 5（见 `docs/plans/2026-08-18-desktop-packaging-review.md`）  
 > **目标**：将当前本地 Web 应用（v2.0.0-rc2）重新设计并打包为可安装的 Windows 与 macOS 桌面应用  
 > **仓库**：https://github.com/joe-cheung-cae/frame-pilot  
-> **相关已有规划**：`develop_plan.md` 已将 “Local desktop packaging with Tauri or Electron” 列为 stretch goal；本文件将其正式产品化。
+> **相关已有规划**：`develop_plan.md` 已将 “Local desktop packaging with Tauri or Electron” 列为 stretch goal；本文件将其正式产品化。  
+> **技术细节以实施计划为准**：`docs/plans/2026-08-18-desktop-packaging.md`。本文不新增 task id。
 
 ---
 
@@ -35,7 +37,7 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 4. 保持现有本地优先、原图不可变、隐私安全原则不变。
 5. 现有核心工作流（导入 → 处理 → 筛选 → 导出）在桌面环境下完整可用。
 
-### 2.2 Definition of Done
+### 2.2 Definition of Done（首个桌面版本 `2.1.0-desktop`）
 
 - [ ] Windows 与 macOS 均可通过标准安装包安装并运行
 - [ ] 应用启动时自动管理 Python sidecar，用户无感知后端进程
@@ -45,6 +47,10 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 - [ ] 大项目（≥500 张）不崩溃，内存占用可接受
 - [ ] 提供用户安装说明与开发者构建文档
 - [ ] CI 可自动构建双平台安装包（代码签名可后续完善）
+- [ ] 桌面 sidecar 仅监听 127.0.0.1，且拒绝非回环 Host 与未授权 Origin
+- [ ] 用户选择的项目根目录经过显式授权后才被接受（见实施计划 D2.00）
+
+不在 `2.1.0-desktop` 范围内（见 §5.6 延后清单）：分离预览窗口、并发/缓存性能选项、自动更新、系统托盘（时间允许时可选）。
 
 ---
 
@@ -72,14 +78,18 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 - 依赖：fastapi、uvicorn、pillow、imagehash、numpy、sqlmodel、python-multipart 等。
 - 作为 Tauri sidecar 随主程序启动、监控与退出。
 
-### 3.3 前端适配
+### 3.3 前端适配（已锁定：双壳、单组件库）
 
-优先路径：
+Phase 0 的 `output: 'export'` 尝试仅作为一次性调研（实施计划 D0.06），**结论已预期为不可行**：`projects/[projectId]/...` 动态 UUID 路由无法静态预渲染。
 
-1. 尝试 Next.js `output: 'export'` 静态导出，嵌入 Tauri WebView。
-2. 若静态导出受限，则将 `apps/web` 核心页面迁移为 **Vite + React + TypeScript** SPA（可高度复用现有组件与 `src/lib` 逻辑）。
+锁定方案：
 
-通信方式：初期继续使用 `http://127.0.0.1:<port>`；后续可逐步引入 Tauri IPC 提升安全性。
+- `apps/web` 保持 Next.js，服务浏览器开发与 Playwright，**不迁移、不删除**。
+- `apps/desktop` 新增 Tauri 2 + Vite + React SPA（React Router）。
+- 两个壳共享 `apps/web/src/components`、`src/lib`、`src/store`；共享文件不得直接 import `next/link` 或 `next/navigation`，统一走导航适配层（D1.01）。
+- Vite 侧必须自备 `@` 路径别名、PostCSS/Tailwind 配置，并复用 `globals.css`（D1.03a）。
+
+通信方式：`http://127.0.0.1:<port>`，端口由 Tauri 分配并在前端加载前注入。Tauri IPC 仅用于对话框、路径与在文件管理器中显示。
 
 ### 3.4 数据目录
 
@@ -87,8 +97,9 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 |------|----------------|
 | macOS | `~/Library/Application Support/FramePilot` |
 | Windows | `%APPDATA%\FramePilot` |
+| Linux（仅开发，不作为发布目标） | `~/.local/share/FramePilot` |
 
-支持通过设置或环境变量 `FRAMEPILOT_DATA_DIR` 自定义。
+支持通过 `FRAMEPILOT_DATA_DIR` 覆盖。桌面版 sidecar 必须显式接收 `--data-dir`：冻结后的可执行文件工作目录不可预测，禁止回退到相对当前目录的 `.framepilot-data`。
 
 ---
 
@@ -154,32 +165,44 @@ FramePilot Desktop
 - 保持现有 Tailwind 风格
 - 增加桌面应用常见的间距、层级与焦点管理，降低“网页感”
 
+### 5.6 明确延后（不进入 `2.1.0-desktop`）
+
+| 项目 | 原因 | 目标版本 |
+|------|------|----------|
+| 分离预览窗口（§5.3） | 需要第二个 WebView、跨窗口状态同步与第二套键盘焦点管理 | 2.2 |
+| 性能选项：并发、缓存（§5.4） | 后端导入/处理目前为单线程顺序执行，需先有并发模型 | 2.2 |
+| 自动更新与“检查更新”入口（§5.4、§6 Phase 4） | 需要托管更新清单；必须严格可选且不得阻塞启动 | 2.2 |
+| 系统托盘（§5.4） | 非 DoD 项；仅在 Phase 3 提前完成时实现（D3.06） | 2.1 可选 / 2.2 |
+| 更换数据目录（§5.4） | 涉及迁移与项目路径重写；2.1 仅只读展示（D3.03） | 2.2 |
+
+以上项目若被跳过，必须写入 `docs/v2_known_limitations.md`（D5.05）。
+
 ---
 
 ## 6. 分阶段开发计划
 
 总预估工作量（单人全职或强 AI 辅助）：**约 6–10 周**。
 
-### Phase 0：可行性验证（约 3–5 天）
+### Phase 0：可行性验证与桌面必需 API（约 3–5 天）
 
-**目标**：证明技术路径打通。
+**目标**：证明 sidecar 可被打包与托管；同时落地桌面必须依赖的后端接口。
 
-任务：
+任务（权威拆分见实施计划 D0.00–D0.09）：
 
-1. 用 PyInstaller 将现有 FastAPI 打包为 Windows / macOS 独立可执行文件，验证启动与基本 API。
-2. 创建最小 Tauri 2 项目，加载本地前端并启动 sidecar。
-3. 实现端口发现、健康检查、进程退出清理。
-4. 记录安装包体积、启动时间、内存占用基线。
+1. CI verify 工作流先行（D0.00），保证后续每次提交可被验证。
+2. sidecar CLI：仅回环绑定、显式 `--data-dir`、可机读的 ready 行。
+3. 健康检查携带版本；Origin 与 Host 白名单支持桌面模式。
+4. 基于路径的导入 API（分片请求，原图只读）。
+5. PyInstaller one-dir 打包与无 GUI 冒烟。
+6. 最小 Tauri 窗口 + sidecar 启动与健康检查（需要可用 WebView 的宿主）。
+7. 记录体积、启动时间、内存基线；写出 go/no-go。
 
-交付物：
+验收（按环境区分）：
 
-- 可行性报告
-- 技术选型最终确认（锁定 Tauri 2 或回退 Electron）
-- 最小可运行 demo
+- **无 GUI 主机（如 WSL2）**：sidecar 可启动、`/health` 正常、收到 SIGTERM 后退出；路径导入不修改原文件；`npm run test:api` 与 `npm run verify` 通过；Tauri 相关任务标记为 blocked-gui 并在 `docs/desktop_feasibility_notes.md` 记录命令与错误。
+- **有 GUI 主机（Windows / macOS / CI）**：至少一个平台出现空壳窗口并显示 “API ready”；双平台窗口验证可延后到 Phase 4 CI 完成。
 
-验收：
-
-- 双平台至少各有一个可运行的 sidecar + 空壳窗口
+Phase 0 不因缺少 GUI 而阻塞；但 `2.1.0-desktop` 发布前必须补齐双平台窗口证据。
 
 ---
 
@@ -192,7 +215,7 @@ FramePilot Desktop
 1. 新增 `apps/desktop`（或仓库根 `src-tauri`）目录，集成 Tauri 2。
 2. 实现 sidecar 生命周期管理：启动、健康检查、优雅退出、崩溃重启策略。
 3. 适配数据目录到用户标准位置，支持环境变量覆盖。
-4. 前端改为静态导出，或迁移为 Vite + React SPA（优先复用 `src/components` 与 `src/lib`）。
+4. 新增 `apps/desktop`：Vite + React SPA，复用 `apps/web/src/components`、`src/lib`、`src/store`（**不**改造 `apps/web` 为静态导出）。
 5. 基本窗口创建、关闭、单实例控制。
 6. 开发脚本：`tauri dev` 一键启动前端 + sidecar。
 
@@ -291,7 +314,7 @@ FramePilot Desktop
    - 安装 / 卸载干净性
 2. 更新 README、用户手册、已知限制文档。
 3. 性能与内存验证。
-4. 发布说明（Changelog）与版本号策略（建议 `2.1.0-desktop` 或 `3.0.0`）。
+4. 发布说明（Changelog）与版本号：首个桌面版本锁定为 `2.1.0-desktop`；`2.0.x` 继续作为本地 Web 线。不使用 `3.0.0`（无破坏性数据格式变更）。
 
 交付物：
 
@@ -311,7 +334,7 @@ FramePilot Desktop
 frame-pilot/
 ├── apps/
 │   ├── api/                 # 现有 FastAPI（保持）
-│   ├── web/                 # 现有前端（逐步静态化或迁移）
+│   ├── web/                 # 现有 Next.js（浏览器 + Playwright，保持）
 │   └── desktop/             # 新增 Tauri 壳（可选位置）
 │       ├── src-tauri/
 │       │   ├── src/
@@ -342,7 +365,7 @@ frame-pilot/
 | 系统 WebView 差异（Windows WebView2 vs macOS WebKit） | 前端兼容性 | Phase 0/1 尽早双平台测试；必要时 CSS/JS 兜底 |
 | 代码签名与公证成本、流程 | 分发体验差 | 提前申请证书；CI 中集成签名；开发阶段可用未签名包自测 |
 | Sidecar 进程管理（崩溃、端口冲突、僵尸进程） | 稳定性 | 健康检查 + 超时强制清理；启动前端口探测；平台特定退出逻辑 |
-| Next.js 静态导出兼容性 | 开发成本 | 优先验证 `output: 'export'`；不行则迁移 Vite + React |
+| Next.js 静态导出兼容性 | 开发成本 | D0.06 一次性记录；锁定 Vite 桌面壳，不迁移 `apps/web` |
 | 大图解码内存压力在 WebView 中的表现 | 大项目体验 | 继续使用现有虚拟列表与有界渲染；监控桌面场景峰值内存 |
 
 ---
@@ -364,8 +387,9 @@ frame-pilot/
 | 版本 | 含义 |
 |------|------|
 | 2.0.x | 继续完成当前本地 Web rc 稳定 |
-| 2.1.0 或 3.0.0 | 首个正式桌面安装包发布 |
-| 后续 2.x / 3.x | HEIC/RAW、XMP sidecar、可选本地模型等仍按原 develop_plan 推进 |
+| 2.1.0-desktop | 首个正式桌面安装包发布（已锁定） |
+| 2.2 | 分离预览窗口、性能选项、自动更新、托盘等延后项 |
+| 后续 3.x | HEIC/RAW、XMP sidecar、可选本地模型等按原 develop_plan 推进 |
 
 发布渠道建议：
 
@@ -392,13 +416,16 @@ frame-pilot/
 
 ## 12. 建议的立即下一步
 
-1. **确认技术选型**：采用 Tauri 2 + Python Sidecar（本计划默认），或明确改为 Electron。
-2. **启动 Phase 0**：
-   - 编写 `packaging/pyinstaller/framepilot-api.spec`
-   - 初始化最小 Tauri 2 项目
-   - 在 Windows 与 macOS 上各打一次 sidecar 包并做健康检查
-3. **锁定数据目录与端口策略**：避免与现有开发模式冲突。
-4. **（可选）** 在本仓库创建 `feature/desktop-packaging` 分支，按本文件阶段提交。
+实施级任务拆分与 Goal Mode 提示词（基于 2026-08-18 仓库现状）：
+
+- `docs/plans/2026-08-18-desktop-packaging.md` — 按 D0.00…D5.05 逐条执行的详细开发计划（含 §5.1 任务勾选表）
+- `docs/desktop_goal_mode.md` — Grok Build / Codex Goal Mode 可粘贴提示词
+- `docs/plans/2026-08-18-desktop-packaging-review.md` — Opus 5 审阅记录
+
+1. **确认技术选型**：采用 Tauri 2 + Python Sidecar（本计划默认；仅在 D0.09 书面否决后回退 Electron）。
+2. **创建分支** `feature/desktop-packaging`。
+3. **把 `docs/desktop_goal_mode.md` 的长提示词粘贴进 Goal Mode**，从 **D0.00** 开始逐条提交。
+4. **执行顺序**：先 D0.00（CI verify），再 D0.01…D0.09。任何任务完成后必须在实施计划 §5.1 勾选对应 id，并与代码同一次提交。
 
 ---
 
@@ -406,7 +433,10 @@ frame-pilot/
 
 - `README.md` — 当前功能与运行方式
 - `develop_plan.md` — v2 总规划（含桌面 stretch goal）
-- `docs/v2_architecture.md` — 架构（desktop packaging 已列为 deferred）
+- `docs/plans/2026-08-18-desktop-packaging.md` — 桌面化逐任务实施计划（Goal Mode backlog；技术冲突以此为准）
+- `docs/desktop_goal_mode.md` — 桌面化 Goal Mode 提示词
+- `docs/plans/2026-08-18-desktop-packaging-review.md` — Opus 5 对产品计划与实施计划的审阅
+- `docs/v2_architecture.md` — 架构（desktop packaging 在 v2.0 中仍为 deferred；桌面轨道单独推进）
 - `docs/v2_product_requirements.md` — 产品边界
 - `docs/v2_known_limitations.md` — 已知限制
 - `docs/v2_milestones.md` — 里程碑
@@ -419,6 +449,8 @@ frame-pilot/
 | 日期 | 版本 | 说明 |
 |------|------|------|
 | 2026-08-18 | 1.0 | 首版：基于 frame-pilot v2.0.0-rc2 现状制定的桌面化（Win/macOS）完整开发计划 |
+| 2026-08-18 | 1.1 | 增加实施计划与 Goal Mode 入口：`docs/plans/2026-08-18-desktop-packaging.md`、`docs/desktop_goal_mode.md` |
+| 2026-08-18 | 1.2 | Opus 5 审阅后对齐：锁定 Vite 双壳、`2.1.0-desktop`、WSL 可感知的 Phase 0 验收、§5.6 延后清单 |
 
 ---
 
