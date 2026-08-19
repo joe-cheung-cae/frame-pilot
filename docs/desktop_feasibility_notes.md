@@ -1,37 +1,52 @@
 # Desktop Feasibility Notes
 
-Phase 0 measurements and blockers for FramePilot desktop packaging. Drafted during `开发` on 2026-08-19. `上线` owns the final go/no-go and `docs/plans/2026-08-18-desktop-packaging.md` §5.1 ticks.
+**Status: FINAL** — Phase 0 `上线`, 2026-08-19, branch `refactor`.
 
-This host is **macOS**, not WSL2.
+Phase 0 measurements and written go/no-go for FramePilot desktop packaging. Drafted during `开发` on 2026-08-19; `测试` re-ran live sidecar/health/verify; `上线` re-checked `cargo`/`rustc` and owns this wording plus `docs/plans/2026-08-18-desktop-packaging.md` §5.1 ticks.
+
+This host is **macOS**, not WSL2. Phase 1 is not started.
+
+## Verdict
+
+**GO — close desktop Phase 0.**
+
+| Decision | Result | Why |
+| -------- | ------ | --- |
+| Close Phase 0 | **GO** | Sidecar, health, origin/Host, path import, CI, smoke, `npm run verify` hold. D0.07 is `[~]`, which is allowed. |
+| Shell | **Stay Tauri 2 + Python sidecar** | Sidecar **was** spawned. Tauri compile is blocked by missing `rustc`. That is **not** the Electron trigger. |
+| Frontend | **Vite SPA follow-up; do not export Next** | `output: 'export'` failed on dynamic `projects/[projectId]` routes. `apps/web` stays Next.js. |
+| Scoring stack | **Keep imagehash / scipy / PyWavelets** | Unpacked sidecar size was **not measured** (no PyInstaller `dist/` on this host). Do not drop scipy. |
+| Phase 1 | **Not started** | `next_stage=none`. |
 
 ## Blockers
 
 ### D0.07 Tauri GUI / Rust toolchain `[~]` — 2026-08-19
 
-Commands and exact errors:
+Re-run during `上线` on this host. Commands and exact errors:
 
 ```text
 $ cargo --version
-zsh: command not found: cargo
+zsh:1: command not found: cargo
 
 $ rustc --version
-zsh: command not found: rustc
+zsh:1: command not found: rustc
 
-$ command -v rustup || echo "rustup not found"
+$ command -v rustup || echo rustup not found
 rustup not found
 ```
 
-Captured from this workspace shell on 2026-08-19:
+This workspace eval shell printed the same missing-binary failure as:
 
 ```text
 (eval):1: command not found: cargo
 (eval):1: command not found: rustc
-rustup not found
 ```
 
-No system Rust toolchain was installed. `npm run verify` does not invoke `cargo`, `rustc`, or Tauri. A verify-safe skeleton lives under `apps/desktop/` (blank HTML health probe, locked CSP in `src-tauri/tauri.conf.json`, sidecar spawn notes in `src-tauri/src/lib.rs`). Sidecar smoke was run without a WebView.
+Both commands exited **127**. Capture: `/var/folders/b6/8k06h5td1cx92vtlp6x1_z380000gn/T/grok-goal-a63c25686341/implementer/tauri-gui.txt`.
 
-Until a dated `cargo`/`WebView` run succeeds, D0.07 stays `[~]`.
+No system Rust toolchain was installed. `npm run verify` does not invoke `cargo`, `rustc`, or Tauri (`测试` fail-if-invoked wrappers were never called). A verify-safe skeleton lives under `apps/desktop/` (blank HTML health probe, locked CSP in `src-tauri/tauri.conf.json`, sidecar spawn notes in `src-tauri/src/lib.rs`). Sidecar smoke was run without a WebView.
+
+Until a dated `cargo` / WebView run succeeds, D0.07 stays `[~]`. Missing `rustc` means Tauri cannot compile on this host. That does **not** mean Tauri cannot spawn the sidecar: the Python sidecar started twice under `测试` and once via `scripts/sidecar-smoke.sh`. Electron stays off the table.
 
 ## D0.06 — Next.js `output: 'export'` spike
 
@@ -57,34 +72,53 @@ Current App Router pages under `apps/web/src/app/projects/[projectId]/` with no 
 
 `CullingWorkspace.tsx` calls `useSearchParams()` from `next/navigation`. The export build never reached a full static emit, so Suspense warnings for `useSearchParams` were not observed on this run. They remain a known Next 15 App Router issue if export were forced later.
 
-The throwaway `output: 'export'` line was **reverted** in the same work. `apps/web` stays Next.js. Locked follow-up remains a Vite SPA in `apps/desktop` (Phase 1). No frontend migration was started.
+The throwaway `output: 'export'` line was **reverted** in the same work. Live `apps/web/next.config.ts` has no `output: 'export'`. `测试` `npm run verify` rebuilt Next.js 15.5.19 successfully (`Generating static pages (7/7)`; the five project routes stay dynamic `ƒ`). `apps/web` stays Next.js. Locked follow-up remains a Vite SPA in `apps/desktop` (Phase 1). No frontend migration was started. Next static export is **not viable**.
 
 ## Baselines
 
-Recorded 2026-08-19 on this macOS host, venv sidecar (`PYTHONPATH=apps/api .venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 0 --data-dir <tmp>`).
+Recorded 2026-08-19 on this macOS host.
 
-| Measurement                            | Result                                                                |
-| -------------------------------------- | --------------------------------------------------------------------- |
-| Ready line                             | `FRAMEPILOT_API ready host=127.0.0.1 port=<ephemeral> data_dir=<tmp>` |
-| `GET /health` body                     | `{"status":"ok","version":"2.0.0-rc2","service":"framepilot-api"}`    |
-| Time to ready + `/health`              | 0.703 s (ready ~0.663 s, curl ~0.040 s)                               |
-| Sidecar RSS after `/health`            | 98320 KB (~96 MB)                                                     |
-| PyInstaller `dist/framepilot-api` size | not built on this host (smoke used `.venv` module)                    |
-| Tauri hello RSS                        | blocked on missing rustc/WebView                                      |
-| `imagehash`                            | 4.3.2 present                                                         |
-| `numpy`                                | 2.5.2 present                                                         |
-| `scipy`                                | 1.18.0 present                                                        |
-| `pywt` (PyWavelets)                    | 1.8.0 present                                                         |
+Sidecar start and health are from `测试` live launches (venv module, not a packed binary):
+
+```text
+PYTHONPATH=apps/api .venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 0 --data-dir <tmp>
+```
+
+| Measurement | Result | Source |
+| ----------- | ------ | ------ |
+| Ready line (run 1) | `FRAMEPILOT_API ready host=127.0.0.1 port=55238 data_dir=<tmp>` | `sidecar-run-1.txt` |
+| Ready line (run 2) | `FRAMEPILOT_API ready host=127.0.0.1 port=55243 data_dir=<tmp>` | `sidecar-run-2.txt` |
+| `GET /health` body | `{"status":"ok","version":"2.0.0-rc2","service":"framepilot-api"}` | both live runs, HTTP 200 |
+| `GET /api/health` body | same JSON | run 1 only, HTTP 200 |
+| SIGTERM | process exited (wait_rc=143) | both live runs |
+| Sidecar smoke | `sidecar-smoke ok port=55271` | `sidecar-smoke.txt` |
+| Time to ready + `/health` | 0.703 s (ready ~0.663 s, curl ~0.040 s) | `开发` venv timing, same host/day |
+| Sidecar RSS after `/health` | 98320 KB (~96 MB) | `开发` measurement, same host/day |
+| PyInstaller `dist/framepilot-api` size | **not built** on this host (smoke used `.venv` module) | not measured |
+| Tauri hello RSS | **blocked-gui** — missing rustc/WebView | `tauri-gui.txt`, 2026-08-19 |
+| `imagehash` | 4.3.2 present | `开发` |
+| `numpy` | 2.5.2 present | `开发` |
+| `scipy` | 1.18.0 present | `开发` |
+| `pywt` (PyWavelets) | 1.8.0 present | `开发` |
 
 `scripts/sidecar-smoke.sh` passed: ephemeral `--data-dir`, `--port 0`, parsed ready line, curled `/health` for `version`, SIGTERM, process exited within 5 s.
 
-## Go / no-go (draft)
+`测试` also recorded: Phase 0 pytest **57 passed**; `npm run test:api` **211 passed**; `npm run verify` **exit 0** without invoking rustc/cargo.
 
-`上线` owns the final wording. Draft from `开发`:
+Unpacked sidecar **>250 MB** was **not** observed because PyInstaller `dist/` was not produced. Keep the scoring stack.
 
-- **Shell:** stay Tauri 2 + Python sidecar. Electron is only in play if a later dated run shows Tauri cannot spawn the sidecar or the WebView cannot reach loopback. This host could not compile or open a Tauri window (`cargo`/`rustc` missing), so that failure mode is not proven.
-- **Frontend:** keep `apps/web` on Next.js. Desktop UI follow-up is a Vite SPA (Phase 1). `output: 'export'` is not viable without `generateStaticParams` on the five `projects/[projectId]` routes.
-- **Scoring stack:** keep imagehash/scipy/PyWavelets. Unpacked sidecar size was not measured (no PyInstaller dist on this run). Do not drop scipy unless a later unpacked sidecar exceeds 250 MB.
-- **API work needed for desktop is in place:** loopback sidecar CLI, health `version`/`service`, origin + Host policy, path import with 100-file chunks, and copy-mode immutability tests.
+## Go / no-go (final)
 
-Phase 1 should not start from this draft.
+`上线` wording, 2026-08-19:
+
+1. **Shell: GO Tauri 2 + Python sidecar.** Electron is only in play if a dated run shows Tauri cannot spawn the sidecar or the WebView cannot reach loopback. The sidecar **was spawned** (venv CLI, twice, plus smoke). Tauri **compile** is blocked (`cargo`/`rustc` command not found, 2026-08-19). Compile-blocked is **not** the Electron trigger. Keep the `apps/desktop` skeleton and do not switch shells.
+
+2. **Frontend: GO Vite SPA follow-up. Next `output: 'export'` is not viable.** Keep `apps/web` on Next.js for browser + Playwright. Do not migrate `apps/web`. Desktop UI remains a Phase 1 Vite SPA in `apps/desktop`.
+
+3. **Scoring stack: GO keep imagehash / scipy / PyWavelets.** The drop trigger is unpacked sidecar **>250 MB**. Dist size is **not measured / not built**. Do not drop scipy.
+
+4. **Phase 0 API work is in place:** loopback sidecar CLI, health `version`/`service`, origin + Host policy, path import with 100-file leftover-file chunks, and copy-mode immutability tests. `npm run test:api` and `npm run verify` are green without Rust.
+
+5. **Do not start Phase 1 from this close-out.** Do not publish installers, push, or open a PR.
+
+Phase 0 acceptance (see §5.1 / D0.09): sidecar/health/SIGTERM `[x]`; origin+Host `[x]`; path import + immutability `[x]`; feasibility notes `[x]`; `test:api` + `verify` `[x]`; browser web app `[x]`; GUI shell `[~]` with the dated `cargo`/`rustc` error above.

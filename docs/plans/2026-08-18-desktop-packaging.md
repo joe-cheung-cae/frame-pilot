@@ -202,21 +202,21 @@ Status keys: `[ ]` not started, `[x]` done and committed, `[~]` blocked on a GUI
 
 Update this list **in the same commit** as the task it describes.
 
-Phase 0
+Phase 0 — closed `上线` 2026-08-19 on `refactor` (GO; Phase 1 not started)
 
-- [ ] D0.00 CI verify workflow
-- [ ] D0.01 Sidecar CLI launcher
-- [ ] D0.02 Health payload with version
-- [ ] D0.03 Origin and Host policy
-- [ ] D0.04a Import path expansion helper
-- [ ] D0.04b Path-based import endpoint
-- [ ] D0.04c Path import immutability tests
-- [ ] D0.05 PyInstaller spec and sidecar smoke
-- [ ] D0.06 Next static export spike (docs)
-- [ ] D0.07a Tauri artifact/gitignore hygiene
-- [ ] D0.07 Minimal Tauri shell with sidecar health
-- [ ] D0.08 Baselines
-- [ ] D0.09 Go / no-go
+- [x] D0.00 CI verify workflow
+- [x] D0.01 Sidecar CLI launcher
+- [x] D0.02 Health payload with version
+- [x] D0.03 Origin and Host policy
+- [x] D0.04a Import path expansion helper
+- [x] D0.04b Path-based import endpoint
+- [x] D0.04c Path import immutability tests
+- [x] D0.05 PyInstaller spec and sidecar smoke
+- [x] D0.06 Next static export spike (docs)
+- [x] D0.07a Tauri artifact/gitignore hygiene
+- [~] D0.07 Minimal Tauri shell with sidecar health — 2026-08-19 `cargo --version` / `rustc --version`: `zsh:1: command not found: cargo` / `zsh:1: command not found: rustc` (exit 127). See `docs/desktop_feasibility_notes.md`. Compile-blocked is not the Electron trigger; sidecar was spawned.
+- [x] D0.08 Baselines
+- [x] D0.09 Go / no-go
 
 Phase 1
 
@@ -545,14 +545,14 @@ Write: Shell Tauri 2 (or Electron only if Tauri cannot spawn sidecar / WebView c
 
 **Tests:** none (documentation). Run: `npm run test:api`
 
-**Phase 0 acceptance:**
-- [ ] Sidecar starts, answers `/health`, exits on SIGTERM
-- [ ] Origin + Host policy rejects random sites and attacker Host headers
-- [ ] Path-based import exists, chunks at 100, does not mutate sources
-- [ ] Feasibility notes committed
-- [ ] `npm run test:api` and `npm run verify` green
-- [ ] Browser web app still runs
-- [ ] GUI shell is `[x]` or `[~]` with a recorded command/error
+**Phase 0 acceptance** (ticked `上线` 2026-08-19; GUI remains `[~]`):
+- [x] Sidecar starts, answers `/health`, exits on SIGTERM
+- [x] Origin + Host policy rejects random sites and attacker Host headers
+- [x] Path-based import exists, chunks at 100, does not mutate sources
+- [x] Feasibility notes committed
+- [x] `npm run test:api` and `npm run verify` green
+- [x] Browser web app still runs
+- [~] GUI shell is `[x]` or `[~]` with a recorded command/error — 2026-08-19 `cargo --version` / `rustc --version`: command not found (exit 127); see `docs/desktop_feasibility_notes.md`
 
 ---
 
