@@ -1,8 +1,8 @@
 import type { Config } from "tailwindcss";
-import { colors } from "./src/theme/tokens";
+import { colors } from "../web/src/theme/tokens";
 
 const config: Config = {
-  content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}", "../web/src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
       colors,
