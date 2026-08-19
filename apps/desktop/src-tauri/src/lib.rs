@@ -1,5 +1,6 @@
 //! FramePilot desktop shell. Sidecar spawn is owned by Rust; `npm run verify` does not compile this crate.
 
+mod data_dir;
 mod sidecar;
 
 use std::process::Child;
@@ -8,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use data_dir::resolve_runtime_data_dir;
 use sidecar::{
     allocate_loopback_port, api_pythonpath, blocking_error_script, default_python,
     initialization_script, probe_health, recovery_action, repo_root, sidecar_spawn_spec,
@@ -163,12 +165,6 @@ fn supervise_sidecar(
     }
 }
 
-fn default_dev_data_dir() -> std::path::PathBuf {
-    let data_dir = repo_root().join(".framepilot-desktop-dev");
-    let _ = std::fs::create_dir_all(&data_dir);
-    data_dir
-}
-
 pub fn run() {
     let port = match allocate_loopback_port() {
         Ok(port) => port,
@@ -177,7 +173,13 @@ pub fn run() {
             std::process::exit(1);
         }
     };
-    let data_dir = default_dev_data_dir();
+    let data_dir = match resolve_runtime_data_dir(cfg!(not(debug_assertions))) {
+        Ok(path) => path,
+        Err(err) => {
+            eprintln!("FramePilot could not resolve the data directory: {err}");
+            std::process::exit(1);
+        }
+    };
     let root = repo_root();
     let python = default_python(&root);
     let pythonpath = api_pythonpath(&root);
