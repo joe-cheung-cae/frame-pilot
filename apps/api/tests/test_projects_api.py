@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
+from app.core.version import APP_VERSION
 from app.db.session import get_engine
 from app.main import create_app
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob
@@ -16,7 +17,28 @@ def test_api_health_returns_ok(tmp_path, monkeypatch):
     response = client.get("/api/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["service"] == "framepilot-api"
+    assert payload["version"] == APP_VERSION
+
+
+def test_unprefixed_health_returns_ok(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["service"] == "framepilot-api"
+    assert payload["version"] == APP_VERSION
+
+
+def test_create_app_version_matches_app_version(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    assert create_app().version == APP_VERSION
 
 
 def test_create_and_list_projects(tmp_path, monkeypatch):

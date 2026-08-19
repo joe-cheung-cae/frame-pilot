@@ -1,0 +1,9 @@
+{
+  "name": "@framepilot/desktop",
+  "version": "2.0.0-rc2",
+  "private": true,
+  "description": "Verify-safe Tauri 2 skeleton. Does not require rustc for npm run verify.",
+  "scripts": {
+    "dev": "echo 'desktop shell is blocked until rustc/cargo are available' && exit 1"
+  }
+}

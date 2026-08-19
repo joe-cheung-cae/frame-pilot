@@ -2,6 +2,7 @@ import hashlib
 import json
 import math
 import os
+import stat
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -41,6 +42,8 @@ DERIVATIVE_RESAMPLE = Image.Resampling.BICUBIC
 DERIVATIVE_REDUCING_GAP = 2.0
 IMPORT_JOB_UPDATE_MIN_SECONDS = 0.75
 IMPORT_MAX_FILES_PER_REQUEST = 100
+PATH_IMPORT_MAX_INPUT_ENTRIES = 5000
+PATH_IMPORT_MAX_EXPANDED_FILES = 20000
 
 ImportProgressCallback = Callable[[str], None]
 
@@ -71,6 +74,77 @@ class ImportRegistration:
     photo: Photo
     requires_derivatives: bool
     is_new: bool
+
+
+@dataclass
+class ExpandedImportPaths:
+    files: list[Path]
+    skipped: list[dict[str, str]]
+
+
+def _path_is_under(path: Path, root: Path) -> bool:
+    try:
+        return path.resolve().is_relative_to(root.resolve())
+    except (OSError, ValueError):
+        return False
+
+
+def expand_import_paths(paths: list[str], project_root: Path) -> ExpandedImportPaths:
+    if not paths:
+        raise ValueError("At least one path is required")
+    if len(paths) > PATH_IMPORT_MAX_INPUT_ENTRIES:
+        raise ValueError(
+            f"Too many input paths ({len(paths)}). At most {PATH_IMPORT_MAX_INPUT_ENTRIES} entries are allowed."
+        )
+
+    resolved_project_root = Path(project_root).resolve()
+    collected: list[Path] = []
+    skipped: list[dict[str, str]] = []
+    seen: set[Path] = set()
+
+    def consider_file(path: Path, *, walked_root: Path | None = None) -> None:
+        try:
+            resolved = path.resolve()
+        except OSError as error:
+            raise ValueError(f"Path could not be resolved: {path}") from error
+        if walked_root is not None and not _path_is_under(resolved, walked_root):
+            return
+        try:
+            mode = resolved.stat().st_mode
+        except FileNotFoundError:
+            raise ValueError(f"Path does not exist: {path}") from None
+        if not stat.S_ISREG(mode):
+            return
+        if _path_is_under(resolved, resolved_project_root):
+            skipped.append({"filename": resolved.name, "reason": "Source is inside the project folder"})
+            return
+        if resolved in seen:
+            return
+        seen.add(resolved)
+        if not is_supported_image(resolved.name):
+            skipped.append({"filename": resolved.name, "reason": unsupported_image_reason(resolved.name)})
+            return
+        collected.append(resolved)
+        if len(collected) > PATH_IMPORT_MAX_EXPANDED_FILES:
+            raise ValueError(f"Expansion exceeded {PATH_IMPORT_MAX_EXPANDED_FILES} files")
+
+    for raw in paths:
+        candidate = Path(raw)
+        if not candidate.is_absolute():
+            raise ValueError(f"Path must be absolute: {raw}")
+        if not candidate.exists():
+            raise ValueError(f"Path does not exist: {raw}")
+        if candidate.is_dir():
+            walked_root = candidate.resolve()
+            for dirpath, _dirnames, filenames in os.walk(candidate, followlinks=False):
+                current = Path(dirpath)
+                for name in filenames:
+                    consider_file(current / name, walked_root=walked_root)
+        else:
+            consider_file(candidate)
+
+    collected.sort(key=lambda item: str(item))
+    return ExpandedImportPaths(files=collected, skipped=skipped)
 
 
 def _skipped_files_message(skipped: list[dict[str, str]]) -> str | None:

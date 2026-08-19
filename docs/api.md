@@ -2,9 +2,12 @@
 
 Base URL during development: `http://127.0.0.1:8000`.
 
+`GET /health` and `GET /api/health` return `status`, `version`, and `service`. `version` is the API `APP_VERSION` value. Playwright and the desktop sidecar probe the unprefixed `/health` URL as a 2xx check.
+
 Implemented endpoints:
 
 ```text
+GET    /health
 GET    /api/health
 
 POST   /api/projects
@@ -13,6 +16,7 @@ GET    /api/projects/{project_id}
 DELETE /api/projects/{project_id}
 
 POST   /api/projects/{project_id}/imports
+POST   /api/projects/{project_id}/imports/from-paths
 POST   /api/projects/{project_id}/process
 GET    /api/projects/{project_id}/jobs
 GET    /api/projects/{project_id}/jobs/{job_id}
@@ -151,7 +155,35 @@ Import job statuses are:
 - `cancelled`: the user requested cooperative cancellation and the local background worker stopped at a safe checkpoint.
 
 If every file is skipped during synchronous validation, the endpoint returns `422` and the failed import job remains visible through `GET /api/projects/{project_id}/jobs`. Importing new photos invalidates previous groups and AI recommendations, so processing should be run again after the import job reaches a terminal state. Re-importing a file with the same uploaded filename and SHA-256 content hash reuses the existing project photo record and existing generated thumbnail/preview when they are still present; this does not create a duplicate record or reset user review status.
+Multipart responses include `remaining_paths: []` and `expanded_total` set to the number of files in that request so browser clients can ignore those fields.
+
 The singular `/api/projects/{project_id}/import` route remains available as a backward-compatible alias.
+
+## Path Import
+
+`POST /api/projects/{project_id}/imports/from-paths` copies local files that the API can already read. It does not upload photo bytes through the browser File API. Request JSON:
+
+```json
+{
+  "paths": ["/abs/folder", "/abs/file.jpg"],
+  "job_id": null,
+  "expected_total": null,
+  "finalize": true
+}
+```
+
+The API expands directories to regular files first, then consumes at most 100 expanded files in that HTTP request. A folder of 250 photos is therefore three requests (100 + 100 + 50), never one call. Expansion over the input or expanded-file caps, a relative path, a missing path, or an empty `paths` list returns `422`.
+
+`expanded_total` is the full expansion count for the submitted `paths` (250 for a 250-file folder on the first request), not the 100-file slice size. `remaining_paths` is the leftover expanded **file** paths in deterministic order — not the original folder path. After a folder of 250 files the first response has `len(remaining_paths) == 150`, then 50, then `[]`.
+
+Client loop with one `job_id`:
+
+1. POST the folder or file list. If the selection may exceed 100 expanded files, send `finalize: false`.
+2. Read `remaining_paths`, `expanded_total`, and `job.id`.
+3. Re-POST `remaining_paths` with the same `job_id` and `expected_total` set to the first `expanded_total`.
+4. Send `finalize: true` only on the last slice, when this request consumes the leftover files.
+
+Job control matches multipart import: a new import without that `job_id` returns `409` while another import is active; `expected_total` updates `job.total_items`. Each consumed file is opened `rb` and copied through the existing register/copy path. Sources are never modified, deleted, or hard-linked. When `finalize` is true, a single input directory was given, and `source_root_path` is empty, the API stores that directory as read-only project metadata. It does not rescan the folder.
 When EXIF data is available, the background derivative job records basic capture time, camera, lens, focal length, aperture, shutter speed, and ISO metadata. Numeric EXIF rationals are normalized into stable display strings.
 HEIC and RAW extensions such as `.heic`, `.dng`, `.arw`, `.cr3`, and `.nef` are recognized as planned future formats, but v2 currently skips them with explicit unsupported-format reasons instead of attempting local decoding.
 
