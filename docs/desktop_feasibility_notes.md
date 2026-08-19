@@ -130,3 +130,5 @@ User-space rustup (`curl https://sh.rustup.rs -sSf | sh -s -- -y`) installed `ru
 Windows sidecar shutdown (source; not executed on this macOS host): spawn uses `CREATE_NEW_PROCESS_GROUP`, shutdown sends `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT)`, waits 5s, then `Child::kill()` (`TerminateProcess`). Unix uses SIGTERM, wait 5s, then kill.
 
 D1.06 `cargo check` in `apps/desktop/src-tauri` succeeded on 2026-08-19 (`tauri-plugin-window-state` 2.4.1, `tauri-plugin-single-instance` 2.4.3). No `tauri dev` / WebView window was opened; GUI remains `[~]`.
+
+D1.08 HTTP sidecar smoke (`npm run test:desktop:smoke`) passed on 2026-08-19: ready line `host=127.0.0.1` with non-zero port, `GET /health` has `status`/`version`/`service`, `GET /api/projects` is a JSON array, attacker `Host` returns visible HTTP 403 JSON (`Host not allowed for local FramePilot API`), desktop Origin `:1420` CORS preflight allows, SIGTERM exits. WebView project-list render was skipped with an explicit smoke message (`desktop-smoke: skipping WebView project-list render`); D1.08 WebView remains `[~]`.

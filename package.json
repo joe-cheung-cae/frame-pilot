@@ -35,7 +35,8 @@
     "check:validation-decision": "bash scripts/check-validation-decision.sh",
     "check:pretag": "npm run verify && npm run check:validation-decision",
     "packaging:sidecar": "bash packaging/pyinstaller/build.sh",
-    "test:sidecar": "bash scripts/sidecar-smoke.sh"
+    "test:sidecar": "bash scripts/sidecar-smoke.sh",
+    "test:desktop:smoke": "bash tests/desktop/smoke.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
