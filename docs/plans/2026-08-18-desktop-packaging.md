@@ -214,7 +214,7 @@ Phase 0 — closed `上线` 2026-08-19 on `refactor` (GO; Phase 1 not started)
 - [x] D0.05 PyInstaller spec and sidecar smoke
 - [x] D0.06 Next static export spike (docs)
 - [x] D0.07a Tauri artifact/gitignore hygiene
-- [~] D0.07 Minimal Tauri shell with sidecar health — 2026-08-19 `cargo --version` / `rustc --version`: `zsh:1: command not found: cargo` / `zsh:1: command not found: rustc` (exit 127). See `docs/desktop_feasibility_notes.md`. Compile-blocked is not the Electron trigger; sidecar was spawned.
+- [~] D0.07 Minimal Tauri shell with sidecar health — Phase 0 (2026-08-19T08:26:40Z) rustc/cargo missing (exit 127). Phase 1 (2026-08-19T18:55:04+08:00) user-space rustup installed `rustc 1.97.1` / `cargo 1.97.1`; `cargo test --lib` 19 passed. No `tauri dev` WebView window was opened on this host. See `docs/desktop_feasibility_notes.md`. Missing GUI is not the Electron trigger; sidecar was spawned.
 - [x] D0.08 Baselines
 - [x] D0.09 Go / no-go
 
@@ -229,7 +229,7 @@ Phase 1
 - [x] D1.05 App-support data directory
 - [x] D1.06 Window basics and single instance
 - [x] D1.07 Dev scripts and verify wiring
-- [x] D1.08 Desktop smoke: health + project list (HTTP `[x]`; WebView `[~]`)
+- [x] D1.08 Desktop smoke: health + project list — HTTP `[x]` (`npm run test:desktop:smoke` twice, 2026-08-19T18:54:03+08:00 / 18:54:04+08:00). WebView `[~]` 2026-08-19T18:55:04+08:00: smoke skipped GUI with explicit message; no `tauri dev` window.
 - [x] D1.09 Graceful quit with a running job
 
 Phase 2
@@ -720,10 +720,10 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 **Commit:** `desktop: cancel or drain jobs before quitting`
 
 **Phase 1 acceptance:**
-- [ ] Home UI or HTTP smoke lists projects
-- [ ] Sidecar health OK
-- [ ] `npm run verify` green without Tauri
-- [ ] Browser `npm run dev` still works on :3000/:8000
+- [x] Home UI or HTTP smoke lists projects — `GET /api/projects` JSON array (empty OK) on dual sidecar and dual `test:desktop:smoke` (2026-08-19T18:53:43+08:00–18:54:04+08:00)
+- [x] Sidecar health OK — `GET /health` `{"status":"ok","version":"2.0.0-rc2","service":"framepilot-api"}` twice
+- [x] `npm run verify` green without Tauri — exit 0; fail-if-invoked `rustc`/`cargo`/`rustup`/`tauri` wrappers never called
+- [x] Browser `npm run dev` still works on :3000/:8000 — `npm run test:web` rebuilt Next.js (`Generating static pages (7/7)`; project routes stay dynamic `ƒ`); `apps/web` remains the :3000/:8000 workflow
 
 ---
 

@@ -1,10 +1,10 @@
 # Desktop Feasibility Notes
 
-**Status: FINAL** — Phase 0 `上线`, 2026-08-19, branch `refactor`.
+**Status: FINAL** — Phase 1 `上线`, 2026-08-19T18:56:00+08:00, branch `feature/desktop-packaging`.
 
-Phase 0 measurements and written go/no-go for FramePilot desktop packaging. Drafted during `开发` on 2026-08-19; `测试` re-ran live sidecar/health/verify; `上线` re-checked `cargo`/`rustc` and owns this wording plus `docs/plans/2026-08-18-desktop-packaging.md` §5.1 ticks.
+Phase 0 measurements remain below. Phase 1 close-out is in **Phase 1 notes** and **Phase 1 go/no-go**. `测试` re-ran web/desktop/verify/jobs/sidecar/cargo; `上线` owns §5.1 Phase 1 ticks.
 
-This host is **macOS**, not WSL2. Phase 1 is not started.
+This host is **macOS**, not WSL2.
 
 ## Verdict
 
@@ -134,3 +134,15 @@ D1.06 `cargo check` in `apps/desktop/src-tauri` succeeded on 2026-08-19 (`tauri-
 D1.08 HTTP sidecar smoke (`npm run test:desktop:smoke`) passed on 2026-08-19: ready line `host=127.0.0.1` with non-zero port, `GET /health` has `status`/`version`/`service`, `GET /api/projects` is a JSON array, attacker `Host` returns visible HTTP 403 JSON (`Host not allowed for local FramePilot API`), desktop Origin `:1420` CORS preflight allows, SIGTERM exits. WebView project-list render was skipped with an explicit smoke message (`desktop-smoke: skipping WebView project-list render`); D1.08 WebView remains `[~]`.
 
 D1.09 quit dialog is injected HTML in the Tauri window. No `tauri dev` WebView was opened on this host, so the on-screen confirm remains `[~]`. Rust unit tests cover Kill-after-5s and cancel-vs-quit-anyway decisions; pytest covers cancel/retry and killed-worker startup sweep.
+
+## Phase 1 go/no-go (final)
+
+`上线` wording, 2026-08-19T18:56:00+08:00, `feature/desktop-packaging`:
+
+1. **GO — close desktop Phase 1** on this feature branch. Do not publish installers. Do not open a PR. Do not merge to `main`. Do not start Phase 2.
+2. **Shell stays Tauri 2 + Python sidecar.** User-space rustup now provides `rustc 1.97.1` / `cargo 1.97.1`. `cargo test --lib` **19 passed** twice. Sidecar HTTP smoke passed twice. No WebView window was opened; D0.07 / D1.08 WebView remain dated `[~]`. That is **not** the Electron trigger.
+3. **Frontend: Vite SPA in `apps/desktop`.** Shared navigation/API/shell adapters landed. `apps/web` stays Next.js. `npm run test:web` rebuilt Next (`7/7` static pages; project routes stay dynamic `ƒ`).
+4. **`npm run verify` stays rust-free.** Fail-if-invoked `rustc`/`cargo`/`rustup`/`tauri` wrappers were never called (2026-08-19T18:54:00+08:00 capture `verify.log`).
+5. **Jobs:** cancel-then-retry leaves no photo in `processing` after retry; killed import is `failed`+retryable via startup sweep; processing jobs have no cancel route. See `docs/v2_known_limitations.md`.
+
+Phase 1 acceptance (see §5.1 / D1.09): HTTP project list `[x]`; sidecar health `[x]`; `verify` without Tauri `[x]`; browser :3000/:8000 workflow `[x]`; WebView `[~]`.
