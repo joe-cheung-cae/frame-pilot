@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
 import { ArrowRight, FolderOpen, Images, LayoutDashboard, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { Link } from "@/lib/navigation";
 import {
   projectHasActiveImport,
   projectLoadRecoveryMessage,

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { Camera, CircleHelp, FolderOpen, SlidersHorizontal } from "lucide-react";
+import { Link } from "@/lib/navigation";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (

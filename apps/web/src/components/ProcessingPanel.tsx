@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { Loader2, Play, Rows3, Upload } from "lucide-react";
 import { api } from "@/lib/api";
+import { Link } from "@/lib/navigation";
 import {
   activeJobOfType,
   hasActiveProcessingJob,

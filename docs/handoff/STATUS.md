@@ -1,23 +1,18 @@
 # Desktop Phase 1 Handoff Status
 
-- current_stage: 归档
-- status: complete
+- current_stage: 开发
+- status: in_progress
 - files changed:
-  - `docs/handoff/phase1-backlog.md` — accepted implementation contract for D1.01–D1.09 (review notes H1–H2, I1–I5, N1–N5 folded)
-  - `docs/handoff/STATUS.md` — this 归档 handoff
-- tests_run: none (docs)
+  - `apps/web/src/lib/navigation.ts` — types + re-export of `Link`, `useNavigator`, `useQueryParams`
+  - `apps/web/src/lib/navigation.next.tsx` — Next.js adapter
+  - `apps/web/src/lib/navigation.test.tsx` — adapter unit tests (N3: drive shipped adapter)
+  - shared components and component-test mocks now import `@/lib/navigation` only
+- tests_run: `npm run typecheck && npm run test:web` (see scratch `d1-01-test-web.log`)
 - next_stage: 开发
-- blockers: none (D0.07 rustc still [~] is inherited, not a Phase 1 start blocker)
+- blockers: none (D0.07 rustc still [~] is inherited)
 - branch: feature/desktop-packaging
-- HEAD_at_branch_time: 1d6ffa70858e6663f2539fb25d1358fecf519cd4 (equals `origin/main` except this pipeline)
-- timestamp: 2026-08-19T17:20:19+08:00
+- timestamp: 2026-08-19
 
-Capture directory: `/var/folders/b6/8k06h5td1cx92vtlp6x1_z380000gn/T/grok-goal-c2f1e0e66478/implementer`
-
-This stage is documentation only. No production code, tests, or build scripts were changed. §5.1 Phase 1 boxes stay `[ ]`.
-
-Verdict folded: **accept-with-notes**. Each id in `docs/handoff/phase1-backlog.md` has depends-on, files, implement, tests-first, commit-hint, and done-when. `开发` may make extra per-task commits but must finish with a `开发` stage commit and push.
+开发 started. D1.01 navigation adapter landed. §5.1 Phase 1 boxes stay `[ ]` until `上线`. Do not start D1.02 from this note.
 
 Phase 0 remains closed GO on `origin/main` (`1d6ffa7`). D0.07 `[~]` rustc/cargo/rustup missing as of 2026-08-19T08:26:40Z (`command not found`, exit 127).
-
-Do not start 开发 in 归档. Next stage implements D1.01–D1.09 tests-first on `feature/desktop-packaging`.
