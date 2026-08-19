@@ -6,9 +6,34 @@ import {
   assetUrl,
   chunkItems,
   collectPagedList,
+  exportDownloadUrl,
   IMPORT_UPLOAD_BATCH_SIZE,
   listPageQuery,
 } from "./api.ts";
+
+type TestWindow = {
+  __FRAMEPILOT_API_BASE__?: string;
+};
+
+function withWindow<T>(windowValue: TestWindow | undefined, run: () => T): T {
+  const globalObject = globalThis as { window?: TestWindow };
+  const hadWindow = Object.prototype.hasOwnProperty.call(globalThis, "window");
+  const previous = globalObject.window;
+  if (windowValue === undefined) {
+    delete globalObject.window;
+  } else {
+    globalObject.window = windowValue;
+  }
+  try {
+    return run();
+  } finally {
+    if (hadWindow) {
+      globalObject.window = previous;
+    } else {
+      delete globalObject.window;
+    }
+  }
+}
 
 test("builds empty list query when pagination is omitted", () => {
   assert.equal(listPageQuery(), "");
@@ -90,4 +115,37 @@ test("assetUrl encodes special characters and supports windows separators", () =
     windows,
     `${API_BASE}/api/assets/proj/${encodeURIComponent("previews")}/${encodeURIComponent("shot.jpg")}`,
   );
+});
+
+test("assetUrl and exportDownloadUrl use the injected host at call time", () => {
+  const injected = "http://127.0.0.1:18000";
+  withWindow({ __FRAMEPILOT_API_BASE__: injected }, () => {
+    const posix = assetUrl("proj", "/data/projects/proj/thumbnails/holiday #1 (50%).jpg");
+    assert.equal(
+      posix,
+      `${injected}/api/assets/proj/${encodeURIComponent("thumbnails")}/${encodeURIComponent("holiday #1 (50%).jpg")}`,
+    );
+    assert.equal(posix?.includes("#"), false);
+    assert.equal(posix?.includes(" "), false);
+    assert.equal(exportDownloadUrl("proj", "exp-1"), `${injected}/api/projects/proj/exports/exp-1/download`);
+  });
+});
+
+test("assetUrl and exportDownloadUrl reread the API base on each call", () => {
+  const first = "http://127.0.0.1:18000";
+  const second = "http://127.0.0.1:18001";
+  withWindow({ __FRAMEPILOT_API_BASE__: first }, () => {
+    assert.equal(exportDownloadUrl("proj", "exp-1"), `${first}/api/projects/proj/exports/exp-1/download`);
+    assert.equal(
+      assetUrl("proj", "C:\\data\\projects\\proj\\previews\\shot.jpg"),
+      `${first}/api/assets/proj/${encodeURIComponent("previews")}/${encodeURIComponent("shot.jpg")}`,
+    );
+  });
+  withWindow({ __FRAMEPILOT_API_BASE__: second }, () => {
+    assert.equal(exportDownloadUrl("proj", "exp-1"), `${second}/api/projects/proj/exports/exp-1/download`);
+    assert.equal(
+      assetUrl("proj", "C:\\data\\projects\\proj\\previews\\shot.jpg"),
+      `${second}/api/assets/proj/${encodeURIComponent("previews")}/${encodeURIComponent("shot.jpg")}`,
+    );
+  });
 });
