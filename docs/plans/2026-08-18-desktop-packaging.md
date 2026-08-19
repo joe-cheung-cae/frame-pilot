@@ -223,7 +223,7 @@ Phase 1
 - [x] D1.01 Navigation adapter
 - [x] D1.02 Runtime API base
 - [x] D1.02a Desktop shell flag
-- [ ] D1.03a Vite build, aliases, Tailwind
+- [x] D1.03a Vite build, aliases, Tailwind
 - [ ] D1.03b Desktop router
 - [ ] D1.04 Sidecar lifecycle in Rust
 - [ ] D1.05 App-support data directory
