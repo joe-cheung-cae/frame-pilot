@@ -1,4 +1,5 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-dom";
 
 type LinkProps = Omit<ComponentPropsWithoutRef<"a">, "href"> & {
   href: string;
@@ -12,23 +13,22 @@ type Navigator = {
 
 export function Link({ href, prefetch: _prefetch, children, ...rest }: LinkProps) {
   return (
-    <a href={href} {...rest}>
+    <RouterLink to={href} {...rest}>
       {children}
-    </a>
+    </RouterLink>
   );
 }
 
 export function useNavigator(): Navigator {
+  const navigate = useNavigate();
   return {
     push(href: string) {
-      window.location.assign(href);
+      navigate(href);
     },
   };
 }
 
 export function useQueryParams(): URLSearchParams {
-  if (typeof window === "undefined") {
-    return new URLSearchParams();
-  }
-  return new URLSearchParams(window.location.search);
+  const [searchParams] = useSearchParams();
+  return new URLSearchParams(searchParams.toString());
 }
