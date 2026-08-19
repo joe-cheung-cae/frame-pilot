@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import case, func
 from sqlmodel import Session, select
 
+from app.core.version import health_payload
 from app.db.session import get_session
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.schemas.api import (
@@ -17,6 +18,7 @@ from app.schemas.api import (
     GroupRead,
     ImportResult,
     JobRead,
+    PathImportRequest,
     PhotoBatchUpdate,
     PhotoRead,
     PhotoStatusCountsRead,
@@ -31,6 +33,7 @@ from app.services.importing import (
     complete_import_job,
     create_import_job,
     create_import_retry_job,
+    expand_import_paths,
     import_timing_stage,
     invalidate_project_processing,
     photo_needs_import_retry,
@@ -58,7 +61,7 @@ router = APIRouter(prefix="/api")
 
 @router.get("/health")
 def api_health_endpoint() -> dict[str, str]:
-    return {"status": "ok"}
+    return health_payload()
 
 
 def _get_project(session: Session, project_id: str) -> Project:
@@ -184,6 +187,91 @@ def _ensure_fresh_job(session: Session, job: ProcessingJob) -> ProcessingJob:
     if job_is_stale(job):
         return fail_stale_job(session, job)
     return job
+
+
+def _acquire_import_job(
+    session: Session,
+    project: Project,
+    project_id: str,
+    job_id: str | None,
+    expected_total: int | None,
+    request_file_count: int,
+) -> ProcessingJob:
+    if expected_total is not None and expected_total < request_file_count:
+        raise HTTPException(status_code=422, detail="expected_total must be >= the number of files in this request")
+
+    active_import_job = _get_current_active_import_job(session, project_id)
+    if job_id:
+        job = session.get(ProcessingJob, job_id)
+        if job is None or job.project_id != project_id or job.job_type != "import":
+            raise HTTPException(status_code=404, detail="Import job not found")
+        if job_is_stale(job):
+            job = fail_stale_job(session, job)
+        if job.status not in {"queued", "running"}:
+            raise HTTPException(status_code=409, detail="Import job is no longer accepting files")
+        if active_import_job is not None and active_import_job.id != job.id:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Another import job is already running for this project",
+                    "job_id": active_import_job.id,
+                },
+            )
+    else:
+        if active_import_job is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "An import job is already running for this project",
+                    "job_id": active_import_job.id,
+                },
+            )
+        job = create_import_job(session, project, expected_total or request_file_count)
+
+    if expected_total is not None and expected_total > job.total_items:
+        job.total_items = expected_total
+        job.progress_percent = 0.0
+        job.updated_at = utc_now()
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+    return job
+
+
+def _import_result_payload(
+    *,
+    imported: list[Photo],
+    skipped: list[dict[str, str]],
+    job: ProcessingJob,
+    total_files: int,
+    remaining_paths: list[str] | None = None,
+    expanded_total: int | None = None,
+    timing: ImportTimingCollector | None = None,
+    started: float | None = None,
+    batch_size: int | None = None,
+) -> dict:
+    response = {
+        "imported": imported,
+        "skipped": skipped,
+        "job": job,
+        "total_files": total_files,
+        "accepted_files": len(imported),
+        "skipped_files": len(skipped),
+        "failed_files": len(skipped),
+        "remaining_paths": remaining_paths or [],
+        "expanded_total": expanded_total if expanded_total is not None else total_files,
+    }
+    if timing is not None and started is not None:
+        total_seconds = round(time.perf_counter() - started, 6)
+        timing.record("import_endpoint_total", total_seconds)
+        response["timing"] = {
+            "total_files": batch_size if batch_size is not None else total_files,
+            "imported_files": len(imported),
+            "skipped_files": len(skipped),
+            "total_seconds": total_seconds,
+            "stages": timing.summary(),
+        }
+    return response
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -313,45 +401,8 @@ def import_photos_endpoint(
                 f"Upload at most {IMPORT_MAX_FILES_PER_REQUEST} files per request and append with job_id."
             ),
         )
-    if expected_total is not None and expected_total < len(files):
-        raise HTTPException(status_code=422, detail="expected_total must be >= the number of files in this request")
 
-    active_import_job = _get_current_active_import_job(session, project_id)
-    if job_id:
-        job = session.get(ProcessingJob, job_id)
-        if job is None or job.project_id != project_id or job.job_type != "import":
-            raise HTTPException(status_code=404, detail="Import job not found")
-        if job_is_stale(job):
-            job = fail_stale_job(session, job)
-        if job.status not in {"queued", "running"}:
-            raise HTTPException(status_code=409, detail="Import job is no longer accepting files")
-        if active_import_job is not None and active_import_job.id != job.id:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": "Another import job is already running for this project",
-                    "job_id": active_import_job.id,
-                },
-            )
-    else:
-        if active_import_job is not None:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": "An import job is already running for this project",
-                    "job_id": active_import_job.id,
-                },
-            )
-        job = create_import_job(session, project, expected_total or len(files))
-
-    if expected_total is not None and expected_total > job.total_items:
-        job.total_items = expected_total
-        job.progress_percent = 0.0
-        job.updated_at = utc_now()
-        session.add(job)
-        session.commit()
-        session.refresh(job)
-
+    job = _acquire_import_job(session, project, project_id, job_id, expected_total, len(files))
     batch_size = len(files)
     imported: list[Photo] = []
     derivative_photo_ids: list[str] = []
@@ -359,9 +410,7 @@ def import_photos_endpoint(
     skipped: list[dict[str, str]] = []
     new_import_count = 0
     failed_count = job.failed_items
-    registered_before = (
-        0 if job.current_step.startswith("derivative_generation") else max(0, job.processed_items)
-    )
+    registered_before = 0 if job.current_step.startswith("derivative_generation") else max(0, job.processed_items)
 
     for index, upload in enumerate(files, start=1):
         filename = upload.filename or "image"
@@ -456,26 +505,17 @@ def import_photos_endpoint(
             )
 
     if not finalize:
-        response = {
-            "imported": imported,
-            "skipped": skipped,
-            "job": job,
-            "total_files": batch_size,
-            "accepted_files": len(imported),
-            "skipped_files": len(skipped),
-            "failed_files": len(skipped),
-        }
-        if timing is not None:
-            total_seconds = round(time.perf_counter() - started, 6)
-            timing.record("import_endpoint_total", total_seconds)
-            response["timing"] = {
-                "total_files": batch_size,
-                "imported_files": len(imported),
-                "skipped_files": len(skipped),
-                "total_seconds": total_seconds,
-                "stages": timing.summary(),
-            }
-        return response
+        return _import_result_payload(
+            imported=imported,
+            skipped=skipped,
+            job=job,
+            total_files=batch_size,
+            remaining_paths=[],
+            expanded_total=batch_size,
+            timing=timing,
+            started=started,
+            batch_size=batch_size,
+        )
 
     pending_derivative_ids = [
         photo.id
@@ -492,26 +532,179 @@ def import_photos_endpoint(
     else:
         job = complete_import_job(session, job, registered_count, skipped)
 
-    response = {
-        "imported": imported,
-        "skipped": skipped,
-        "job": job,
-        "total_files": batch_size,
-        "accepted_files": len(imported),
-        "skipped_files": len(skipped),
-        "failed_files": len(skipped),
-    }
-    if timing is not None:
-        total_seconds = round(time.perf_counter() - started, 6)
-        timing.record("import_endpoint_total", total_seconds)
-        response["timing"] = {
-            "total_files": batch_size,
-            "imported_files": len(imported),
-            "skipped_files": len(skipped),
-            "total_seconds": total_seconds,
-            "stages": timing.summary(),
-        }
-    return response
+    return _import_result_payload(
+        imported=imported,
+        skipped=skipped,
+        job=job,
+        total_files=batch_size,
+        remaining_paths=[],
+        expanded_total=batch_size,
+        timing=timing,
+        started=started,
+        batch_size=batch_size,
+    )
+
+
+@router.post(
+    "/projects/{project_id}/imports/from-paths",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def import_photos_from_paths_endpoint(
+    project_id: str,
+    payload: PathImportRequest,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    project = _get_project(session, project_id)
+    try:
+        expanded = expand_import_paths(payload.paths, Path(project.root_path))
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    files = expanded.files
+    consume = files[:IMPORT_MAX_FILES_PER_REQUEST]
+    remaining_paths = [str(path) for path in files[IMPORT_MAX_FILES_PER_REQUEST:]]
+    expanded_total = len(files)
+    planned_total = payload.expected_total if payload.expected_total is not None else expanded_total
+    skipped: list[dict[str, str]] = list(expanded.skipped)
+
+    job = _acquire_import_job(session, project, project_id, payload.job_id, planned_total, len(consume))
+    batch_size = len(consume)
+    imported: list[Photo] = []
+    newly_imported_ids: list[str] = []
+    new_import_count = 0
+    failed_count = job.failed_items + len(skipped)
+    registered_before = 0 if job.current_step.startswith("derivative_generation") else max(0, job.processed_items)
+
+    for index, source in enumerate(consume, start=1):
+        filename = source.name
+        absolute_index = registered_before + index
+
+        def update_stage(
+            stage: str,
+            current_index: int = absolute_index,
+            current_failed_count: int = failed_count,
+        ) -> None:
+            update_import_job(
+                session,
+                job,
+                f"{stage} {current_index} of {job.total_items or batch_size}",
+                registered_before,
+                current_failed_count,
+            )
+
+        try:
+            before_total = project.total_images
+            with source.open("rb") as handle:
+                registration = register_import_file(
+                    session,
+                    project,
+                    filename,
+                    handle,
+                    progress_callback=update_stage,
+                )
+            photo = registration.photo
+            imported.append(photo)
+            if registration.is_new and project.total_images > before_total:
+                new_import_count += 1
+                newly_imported_ids.append(photo.id)
+            update_import_job(
+                session,
+                job,
+                f"file_copy_or_register {absolute_index} of {job.total_items or batch_size}",
+                registered_before + len(imported),
+                failed_count,
+                force=True,
+            )
+        except ValueError as error:
+            skipped.append({"filename": filename, "reason": str(error)})
+            failed_count += 1
+            update_import_job(
+                session,
+                job,
+                f"file_skipped {absolute_index} of {job.total_items or batch_size}",
+                registered_before + len(imported),
+                failed_count,
+                force=True,
+            )
+
+    registered_count = registered_before + len(imported)
+    update_import_job(
+        session,
+        job,
+        f"receive_files {registered_count} of {job.total_items or registered_count}",
+        registered_count,
+        failed_count,
+        force=True,
+    )
+
+    if not imported and skipped and payload.finalize and registered_before == 0:
+        complete_import_job(session, job, 0, skipped)
+        details = "; ".join(f"{item['filename']}: {item['reason']}" for item in skipped)
+        raise HTTPException(status_code=422, detail=details)
+
+    if new_import_count:
+        update_import_job(
+            session,
+            job,
+            "processing_invalidation",
+            registered_count,
+            failed_count,
+            force=True,
+        )
+        invalidate_project_processing(session, project, touched_photo_ids=newly_imported_ids)
+        session.commit()
+        if not payload.finalize:
+            update_import_job(
+                session,
+                job,
+                f"receive_files {registered_count} of {job.total_items or registered_count}",
+                registered_count,
+                failed_count,
+                force=True,
+            )
+
+    if payload.finalize and len(payload.paths) == 1 and not project.source_root_path:
+        single_input = Path(payload.paths[0])
+        if single_input.is_dir():
+            project.source_root_path = str(single_input.resolve())
+            session.add(project)
+            session.commit()
+
+    if not payload.finalize:
+        return _import_result_payload(
+            imported=imported,
+            skipped=skipped,
+            job=job,
+            total_files=batch_size,
+            remaining_paths=remaining_paths,
+            expanded_total=planned_total,
+        )
+
+    pending_derivative_ids = [
+        photo.id
+        for photo in session.exec(
+            select(Photo)
+            .where(Photo.project_id == project_id)
+            .where(Photo.processing_state == "processing")
+            .order_by(Photo.created_at, Photo.id)
+        ).all()
+    ]
+    if pending_derivative_ids:
+        update_import_job(session, job, "derivative_generation", 0, failed_count, force=True)
+        background_tasks.add_task(run_import_derivative_job, job.id, pending_derivative_ids, skipped)
+    else:
+        job = complete_import_job(session, job, registered_count, skipped)
+
+    return _import_result_payload(
+        imported=imported,
+        skipped=skipped,
+        job=job,
+        total_files=batch_size,
+        remaining_paths=remaining_paths,
+        expanded_total=planned_total,
+    )
 
 
 @router.post("/projects/{project_id}/process", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)

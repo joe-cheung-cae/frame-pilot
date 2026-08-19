@@ -178,7 +178,7 @@ def run_performance_smoke(config: PerformanceSmokeConfig) -> dict:
     previous_data_dir = os.environ.get("FRAMEPILOT_DATA_DIR")
     os.environ["FRAMEPILOT_DATA_DIR"] = str(data_dir)
     try:
-        client = TestClient(create_app())
+        client = TestClient(create_app(), base_url="http://127.0.0.1")
         timings: dict[str, float] = {}
 
         started = time.monotonic()

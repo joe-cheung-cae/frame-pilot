@@ -125,6 +125,13 @@ class ImportTimingRead(BaseModel):
     stages: dict[str, ImportTimingStageRead]
 
 
+class PathImportRequest(BaseModel):
+    paths: list[str]
+    job_id: str | None = None
+    expected_total: int | None = None
+    finalize: bool = True
+
+
 class ImportResult(BaseModel):
     imported: list[PhotoRead]
     skipped: list[ImportSkippedFile]
@@ -133,6 +140,8 @@ class ImportResult(BaseModel):
     accepted_files: int
     skipped_files: int
     failed_files: int
+    remaining_paths: list[str] = Field(default_factory=list)
+    expanded_total: int | None = None
     timing: ImportTimingRead | None = None
 
 

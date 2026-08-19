@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-if ! command -v rg >/dev/null 2>&1; then
+if ! command -v rg > /dev/null 2>&1; then
   rg() {
     grep -E "$@"
   }
@@ -53,10 +53,10 @@ expect_failure() {
 }
 
 validation_notes="$tmpdir/validation-notes.md"
-printf '# Test Validation Notes\n' >"$validation_notes"
+printf '# Test Validation Notes\n' > "$validation_notes"
 
 validation_decision="$tmpdir/validation-decision.md"
-cat >"$validation_decision" <<EOF
+cat > "$validation_decision" << EOF
 # Test Validation Decision
 
 Status: **accepted**.
@@ -77,7 +77,7 @@ expect_success \
   bash scripts/check-validation-decision.sh "$validation_decision"
 
 waiver_decision="$tmpdir/waiver-decision.md"
-cat >"$waiver_decision" <<'EOF'
+cat > "$waiver_decision" << 'EOF'
 # Test Validation Decision
 
 Status: **accepted**.
@@ -104,7 +104,7 @@ expect_success \
   bash scripts/check-validation-decision.sh "$waiver_decision"
 
 waiver_not_applicable_decision="$tmpdir/waiver-not-applicable-decision.md"
-cat >"$waiver_not_applicable_decision" <<'EOF'
+cat > "$waiver_not_applicable_decision" << 'EOF'
 # Test Validation Decision
 
 Status: waived.
@@ -131,7 +131,7 @@ expect_success \
   bash scripts/check-validation-decision.sh "$waiver_not_applicable_decision"
 
 pending_decision="$tmpdir/pending-decision.md"
-cat >"$pending_decision" <<'EOF'
+cat > "$pending_decision" << 'EOF'
 # Test Validation Decision
 
 Status: **pending**.
@@ -153,7 +153,7 @@ expect_failure \
   bash scripts/check-validation-decision.sh "$pending_decision"
 
 missing_notes_decision="$tmpdir/missing-notes-decision.md"
-cat >"$missing_notes_decision" <<EOF
+cat > "$missing_notes_decision" << EOF
 # Test Validation Decision
 
 Status: **accepted**.
@@ -175,7 +175,7 @@ expect_failure \
   bash scripts/check-validation-decision.sh "$missing_notes_decision"
 
 incomplete_waiver_decision="$tmpdir/incomplete-waiver-decision.md"
-cat >"$incomplete_waiver_decision" <<'EOF'
+cat > "$incomplete_waiver_decision" << 'EOF'
 # Test Validation Decision
 
 Status: **accepted**.
@@ -213,10 +213,10 @@ tier_a_notes="$tmpdir/tier-a-notes.md"
 expect_success \
   "tier a validation runner writes sanitized notes" \
   python3 scripts/run_tier_a_validation.py \
-    --photo-dir "$photo_dir" \
-    --output "$tier_a_notes" \
-    --tier A \
-    --max-photos 50
+  --photo-dir "$photo_dir" \
+  --output "$tier_a_notes" \
+  --tier A \
+  --max-photos 50
 
 expect_success \
   "tier a validation notes include anonymized ids" \
@@ -238,18 +238,18 @@ expect_failure \
 
 link_root="$tmpdir/markdown-links"
 mkdir -p "$link_root/docs"
-printf '# Root\n\nSee [API](docs/api.md).\n' >"$link_root/README.md"
-printf '# Plan\n' >"$link_root/develop_plan.md"
-printf '# Goals\n' >"$link_root/implement_goals.md"
+printf '# Root\n\nSee [API](docs/api.md).\n' > "$link_root/README.md"
+printf '# Plan\n' > "$link_root/develop_plan.md"
+printf '# Goals\n' > "$link_root/implement_goals.md"
 printf '# API\n\nSee [Scoring](scoring.md) and [remote](https://example.com/missing.md).\n' \
-  >"$link_root/docs/api.md"
-printf '# Scoring\n' >"$link_root/docs/scoring.md"
+  > "$link_root/docs/api.md"
+printf '# Scoring\n' > "$link_root/docs/scoring.md"
 
 expect_success \
   "markdown link check accepts existing relative targets" \
   bash scripts/check-markdown-links.sh "$link_root"
 
-printf '\nSee [Missing](docs/does-not-exist.md).\n' >>"$link_root/README.md"
+printf '\nSee [Missing](docs/does-not-exist.md).\n' >> "$link_root/README.md"
 
 expect_failure \
   "markdown link check rejects missing relative targets" \
@@ -259,5 +259,21 @@ expect_failure \
 expect_success \
   "repository markdown links resolve" \
   bash scripts/check-markdown-links.sh
+
+artifact_repo="$tmpdir/artifact-repo"
+mkdir -p "$artifact_repo/apps/desktop/src-tauri/icons"
+git -C "$artifact_repo" init -q
+printf 'png' > "$artifact_repo/apps/desktop/src-tauri/icons/128x128.png"
+git -C "$artifact_repo" add apps/desktop/src-tauri/icons/128x128.png
+expect_success \
+  "tracked tauri icons are allowed by the artifact check" \
+  bash -c "cd '$artifact_repo' && bash '$repo_root/scripts/check-release-artifacts.sh'"
+
+printf 'png' > "$artifact_repo/apps/desktop/other.png"
+git -C "$artifact_repo" add apps/desktop/other.png
+expect_failure \
+  "tracked png outside tauri icons still fails the artifact check" \
+  "apps/desktop/other.png" \
+  bash -c "cd '$artifact_repo' && bash '$repo_root/scripts/check-release-artifacts.sh'"
 
 echo "Release check script tests passed."

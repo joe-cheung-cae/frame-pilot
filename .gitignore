@@ -5,6 +5,8 @@
 .local-validation/
 .local-validation-notes/
 .venv/
+target/
+.framepilot-desktop-dev/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
