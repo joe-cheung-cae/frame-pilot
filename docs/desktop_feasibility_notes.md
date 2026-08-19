@@ -132,3 +132,5 @@ Windows sidecar shutdown (source; not executed on this macOS host): spawn uses `
 D1.06 `cargo check` in `apps/desktop/src-tauri` succeeded on 2026-08-19 (`tauri-plugin-window-state` 2.4.1, `tauri-plugin-single-instance` 2.4.3). No `tauri dev` / WebView window was opened; GUI remains `[~]`.
 
 D1.08 HTTP sidecar smoke (`npm run test:desktop:smoke`) passed on 2026-08-19: ready line `host=127.0.0.1` with non-zero port, `GET /health` has `status`/`version`/`service`, `GET /api/projects` is a JSON array, attacker `Host` returns visible HTTP 403 JSON (`Host not allowed for local FramePilot API`), desktop Origin `:1420` CORS preflight allows, SIGTERM exits. WebView project-list render was skipped with an explicit smoke message (`desktop-smoke: skipping WebView project-list render`); D1.08 WebView remains `[~]`.
+
+D1.09 quit dialog is injected HTML in the Tauri window. No `tauri dev` WebView was opened on this host, so the on-screen confirm remains `[~]`. Rust unit tests cover Kill-after-5s and cancel-vs-quit-anyway decisions; pytest covers cancel/retry and killed-worker startup sweep.

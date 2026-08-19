@@ -5,22 +5,24 @@ mod sidecar;
 
 use std::process::Child;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
 use data_dir::resolve_runtime_data_dir;
 use sidecar::{
-    allocate_loopback_port, api_pythonpath, blocking_error_script, default_python,
-    initialization_script, probe_health, recovery_action, repo_root, sidecar_spawn_spec,
+    allocate_loopback_port, api_pythonpath, blocking_error_script, close_decision, close_job_kind,
+    default_python, find_active_job, initialization_script, parse_quit_choice, probe_health,
+    quit_dialog_script, recovery_action, repo_root, request_cancel_then_wait, sidecar_spawn_spec,
     sidecar_stderr_log, spawn_sidecar, terminate_sidecar, wait_for_health, wait_for_ready_line,
-    RecoveryAction, STARTUP_TIMEOUT,
+    CloseChoice, CloseDecision, CloseJobKind, RecoveryAction, CANCEL_WAIT, STARTUP_TIMEOUT,
 };
-use tauri::{Manager, RunEvent, WindowEvent};
+use tauri::{Listener, Manager, RunEvent, WindowEvent};
 
 struct SidecarState {
     child: Mutex<Option<Child>>,
     shutdown: AtomicBool,
+    close_in_progress: AtomicBool,
 }
 
 impl SidecarState {
@@ -28,6 +30,7 @@ impl SidecarState {
         Arc::new(Self {
             child: Mutex::new(None),
             shutdown: AtomicBool::new(false),
+            close_in_progress: AtomicBool::new(false),
         })
     }
 
@@ -88,6 +91,70 @@ fn start_sidecar_with_retry(
                 Err(second) => Err(format!("{first}; retry failed: {second}")),
             }
         }
+    }
+}
+
+fn finish_quit(window: &tauri::Window, state: &SidecarState) {
+    state.request_shutdown();
+    let _ = window.destroy();
+}
+
+fn handle_close_requested(window: tauri::Window, state: Arc<SidecarState>, port: u16) {
+    if state
+        .close_in_progress
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return;
+    }
+
+    let job = find_active_job(port);
+    let kind = close_job_kind(job.as_ref());
+    if kind == CloseJobKind::None {
+        finish_quit(&window, &state);
+        return;
+    }
+
+    let Some(webview) = window.get_webview_window(window.label()) else {
+        finish_quit(&window, &state);
+        return;
+    };
+    let (tx, rx) = mpsc::channel();
+    let event_id = webview.listen("framepilot-quit-choice", move |event| {
+        let _ = tx.send(event.payload().to_string());
+    });
+    if webview.eval(&quit_dialog_script(kind)).is_err() {
+        finish_quit(&window, &state);
+        return;
+    }
+    let first = rx.recv_timeout(Duration::from_secs(2)).ok();
+    let dialog_shown = first
+        .as_deref()
+        .map(|payload| payload.trim().trim_matches('"') == "dialog_shown")
+        .unwrap_or(false);
+    let payload = if first.as_deref().and_then(parse_quit_choice).is_some() {
+        first
+    } else if dialog_shown {
+        rx.recv_timeout(Duration::from_secs(3600)).ok()
+    } else {
+        None
+    };
+    webview.unlisten(event_id);
+    let choice = payload
+        .as_deref()
+        .and_then(parse_quit_choice)
+        .unwrap_or(CloseChoice::CancelAndQuit);
+    match close_decision(kind, choice) {
+        CloseDecision::Stay => {
+            state.close_in_progress.store(false, Ordering::SeqCst);
+        }
+        CloseDecision::CancelThenTerminate => {
+            if let Some(job) = job {
+                let _ = request_cancel_then_wait(port, &job, CANCEL_WAIT);
+            }
+            finish_quit(&window, &state);
+        }
+        CloseDecision::Terminate => finish_quit(&window, &state),
     }
 }
 
@@ -246,14 +313,22 @@ pub fn run() {
             }
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if matches!(
-                event,
-                WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed
-            ) {
-                if let Some(state) = window.try_state::<Arc<SidecarState>>() {
-                    state.request_shutdown();
+        .on_window_event(move |window, event| {
+            match event {
+                WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    if let Some(state) = window.try_state::<Arc<SidecarState>>() {
+                        let window = window.clone();
+                        let state = Arc::clone(&state);
+                        thread::spawn(move || handle_close_requested(window, state, port));
+                    }
                 }
+                WindowEvent::Destroyed => {
+                    if let Some(state) = window.try_state::<Arc<SidecarState>>() {
+                        state.request_shutdown();
+                    }
+                }
+                _ => {}
             }
         })
         .build(tauri::generate_context!())

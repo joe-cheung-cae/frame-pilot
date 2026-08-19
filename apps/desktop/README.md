@@ -25,3 +25,9 @@ Override with absolute `FRAMEPILOT_DATA_DIR`. Sidecar stderr is appended to `{da
 ## Verify
 
 `npm run verify` typechecks the desktop Vite app (`typecheck:desktop`) and **must not** invoke `rustc`, `cargo`, or Tauri. `install:all` already installs `apps/desktop`.
+
+## Quit while a job is running
+
+Closing the window with an active import shows Keep working / Quit and cancel import / Quit anyway. Cancel reuses `POST /api/projects/{id}/jobs/{job_id}/cancel`, waits up to 10s, then SIGTERM. Processing jobs cannot be cancelled; that dialog omits Quit and cancel. Quit anyway SIGTERMs the sidecar and kills it after 5s. The next launch runs the existing startup sweep.
+
+HTTP smoke: `npm run test:desktop:smoke` from the repo root. WebView render of the dialog is not part of that smoke.

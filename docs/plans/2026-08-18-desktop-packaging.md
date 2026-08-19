@@ -230,7 +230,7 @@ Phase 1
 - [x] D1.06 Window basics and single instance
 - [x] D1.07 Dev scripts and verify wiring
 - [x] D1.08 Desktop smoke: health + project list (HTTP `[x]`; WebView `[~]`)
-- [ ] D1.09 Graceful quit with a running job
+- [x] D1.09 Graceful quit with a running job
 
 Phase 2
 

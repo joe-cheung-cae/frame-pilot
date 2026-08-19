@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 pub const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
+pub const CANCEL_WAIT: Duration = Duration::from_secs(10);
 
 const READY_PREFIX: &str = "FRAMEPILOT_API ready ";
 const LOOPBACK_HOST: &str = "127.0.0.1";
@@ -56,6 +57,137 @@ pub struct SidecarSpawnSpec {
 pub enum RecoveryAction {
     Restart,
     BlockError,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShutdownAction {
+    SendTerm,
+    Wait,
+    Kill,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloseJobKind {
+    None,
+    Import,
+    Processing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloseChoice {
+    Stay,
+    CancelAndQuit,
+    QuitAnyway,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloseDecision {
+    Stay,
+    CancelThenTerminate,
+    Terminate,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActiveJobRef {
+    pub project_id: String,
+    pub job_id: String,
+    pub job_type: String,
+    pub status: String,
+}
+
+pub fn shutdown_action(term_sent: bool, elapsed: Duration, grace: Duration) -> ShutdownAction {
+    if !term_sent {
+        ShutdownAction::SendTerm
+    } else if elapsed >= grace {
+        ShutdownAction::Kill
+    } else {
+        ShutdownAction::Wait
+    }
+}
+
+pub fn close_job_kind(job: Option<&ActiveJobRef>) -> CloseJobKind {
+    match job.map(|job| job.job_type.as_str()) {
+        Some("import") => CloseJobKind::Import,
+        Some("processing") => CloseJobKind::Processing,
+        Some(_) => CloseJobKind::Processing,
+        None => CloseJobKind::None,
+    }
+}
+
+pub fn close_decision(kind: CloseJobKind, choice: CloseChoice) -> CloseDecision {
+    match choice {
+        CloseChoice::Stay => CloseDecision::Stay,
+        CloseChoice::QuitAnyway => CloseDecision::Terminate,
+        CloseChoice::CancelAndQuit => match kind {
+            CloseJobKind::Import => CloseDecision::CancelThenTerminate,
+            CloseJobKind::None | CloseJobKind::Processing => CloseDecision::Terminate,
+        },
+    }
+}
+
+pub fn parse_quit_choice(payload: &str) -> Option<CloseChoice> {
+    let trimmed = payload.trim().trim_matches('"');
+    match trimmed {
+        "stay" => Some(CloseChoice::Stay),
+        "cancel_and_quit" => Some(CloseChoice::CancelAndQuit),
+        "quit_anyway" => Some(CloseChoice::QuitAnyway),
+        _ => None,
+    }
+}
+
+pub fn job_status_is_terminal(status: &str) -> bool {
+    matches!(
+        status,
+        "complete" | "complete_with_errors" | "failed" | "cancelled"
+    )
+}
+
+pub fn quit_dialog_script(kind: CloseJobKind) -> String {
+    let (title, body, extra_button) = match kind {
+        CloseJobKind::Import => (
+            "Import is still running",
+            "You can keep working, quit and cancel the import, or quit anyway. Cancelled imports stay retryable and original photos are not modified.",
+            "<button type=\"button\" data-choice=\"cancel_and_quit\">Quit and cancel import</button>",
+        ),
+        CloseJobKind::Processing => (
+            "Grouping and ranking is still running",
+            "This job cannot be cancelled. You can keep working or quit anyway. The next launch marks the job failed and keeps original photos unchanged.",
+            "",
+        ),
+        CloseJobKind::None => return String::new(),
+    };
+    format!(
+        r#"(function() {{
+  var existing = document.getElementById("framepilot-quit-dialog");
+  if (existing) existing.remove();
+  var overlay = document.createElement("div");
+  overlay.id = "framepilot-quit-dialog";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.style.cssText = "position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:rgba(15,17,21,0.55);";
+  overlay.innerHTML = "<div style=\"max-width:28rem;margin:1.5rem;padding:1.25rem;border-radius:0.5rem;background:#fff;color:#1f2933;font-family:system-ui,sans-serif;line-height:1.45\"><h2 style=\"margin:0 0 0.5rem;font-size:1.1rem\">{title}</h2><p style=\"margin:0 0 1rem\">{body}</p><div style=\"display:flex;flex-wrap:wrap;gap:0.5rem\">{extra_button}<button type=\"button\" data-choice=\"quit_anyway\">Quit anyway</button><button type=\"button\" data-choice=\"stay\">Keep working</button></div></div>";
+  function emitChoice(choice) {{
+    var emit = window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.emit;
+    if (emit) {{
+      emit("framepilot-quit-choice", choice);
+      return;
+    }}
+    var internals = window.__TAURI_INTERNALS__;
+    if (internals && internals.invoke) {{
+      internals.invoke("plugin:event|emit", {{ event: "framepilot-quit-choice", payload: choice }});
+    }}
+  }}
+  function choose(choice) {{
+    overlay.remove();
+    emitChoice(choice);
+  }}
+  overlay.querySelectorAll("[data-choice]").forEach(function(button) {{
+    button.addEventListener("click", function() {{ choose(button.getAttribute("data-choice")); }});
+  }});
+  document.body.appendChild(overlay);
+  emitChoice("dialog_shown");
+}})();"#
+    )
 }
 
 pub fn allocate_loopback_port() -> io::Result<u16> {
@@ -288,16 +420,149 @@ pub fn terminate_sidecar(child: &mut Child) {
     if let Ok(Some(_)) = child.try_wait() {
         return;
     }
-    send_term_signal(child);
-    let deadline = Instant::now() + SHUTDOWN_GRACE;
-    while Instant::now() < deadline {
+    let started = Instant::now();
+    let mut term_sent = false;
+    loop {
         if let Ok(Some(_)) = child.try_wait() {
             return;
         }
-        thread::sleep(Duration::from_millis(50));
+        match shutdown_action(term_sent, started.elapsed(), SHUTDOWN_GRACE) {
+            ShutdownAction::SendTerm => {
+                send_term_signal(child);
+                term_sent = true;
+            }
+            ShutdownAction::Wait => thread::sleep(Duration::from_millis(50)),
+            ShutdownAction::Kill => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return;
+            }
+        }
     }
-    let _ = child.kill();
-    let _ = child.wait();
+}
+
+fn http_exchange(
+    port: u16,
+    method: &str,
+    path: &str,
+    timeout: Duration,
+) -> io::Result<(u16, String)> {
+    let addr = format!("{LOOPBACK_HOST}:{port}")
+        .parse()
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+    let mut stream = TcpStream::connect_timeout(&addr, timeout)?;
+    let _ = stream.set_read_timeout(Some(timeout));
+    let _ = stream.set_write_timeout(Some(timeout));
+    let request = format!(
+        "{method} {path} HTTP/1.1\r\nHost: {LOOPBACK_HOST}:{port}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+    );
+    stream.write_all(request.as_bytes())?;
+    let mut raw = Vec::new();
+    let _ = stream.read_to_end(&mut raw);
+    parse_http_response(&String::from_utf8_lossy(&raw))
+}
+
+pub fn parse_http_response(text: &str) -> io::Result<(u16, String)> {
+    let normalized = text.replace("\r\n", "\n");
+    let (header, body) = normalized
+        .split_once("\n\n")
+        .unwrap_or((normalized.as_str(), ""));
+    let status_line = header.lines().next().unwrap_or("");
+    let status = status_line
+        .split_whitespace()
+        .nth(1)
+        .and_then(|code| code.parse().ok())
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing HTTP status"))?;
+    Ok((status, body.to_string()))
+}
+
+fn job_is_active(status: &str) -> bool {
+    status == "queued" || status == "running"
+}
+
+pub fn first_active_job_from_projects_json(body: &str) -> Option<ActiveJobRef> {
+    let value: serde_json::Value = serde_json::from_str(body).ok()?;
+    for project in value.as_array()? {
+        let project_id = project.get("id")?.as_str()?.to_string();
+        let job = project.get("active_import_job")?;
+        if job.is_null() {
+            continue;
+        }
+        let status = job.get("status")?.as_str().unwrap_or("");
+        if !job_is_active(status) {
+            continue;
+        }
+        return Some(ActiveJobRef {
+            project_id,
+            job_id: job.get("id")?.as_str()?.to_string(),
+            job_type: job
+                .get("job_type")
+                .and_then(|value| value.as_str())
+                .unwrap_or("import")
+                .to_string(),
+            status: status.to_string(),
+        });
+    }
+    None
+}
+
+pub fn first_active_job_from_jobs_json(project_id: &str, body: &str) -> Option<ActiveJobRef> {
+    let value: serde_json::Value = serde_json::from_str(body).ok()?;
+    for job in value.as_array()? {
+        let status = job.get("status")?.as_str().unwrap_or("");
+        if !job_is_active(status) {
+            continue;
+        }
+        return Some(ActiveJobRef {
+            project_id: job
+                .get("project_id")
+                .and_then(|value| value.as_str())
+                .unwrap_or(project_id)
+                .to_string(),
+            job_id: job.get("id")?.as_str()?.to_string(),
+            job_type: job.get("job_type")?.as_str()?.to_string(),
+            status: status.to_string(),
+        });
+    }
+    None
+}
+
+pub fn find_active_job(port: u16) -> Option<ActiveJobRef> {
+    let timeout = Duration::from_millis(800);
+    let (_, projects_body) = http_exchange(port, "GET", "/api/projects", timeout).ok()?;
+    if let Some(job) = first_active_job_from_projects_json(&projects_body) {
+        return Some(job);
+    }
+    let projects: serde_json::Value = serde_json::from_str(&projects_body).ok()?;
+    for project in projects.as_array()? {
+        let project_id = project.get("id")?.as_str()?;
+        let path = format!("/api/projects/{project_id}/jobs?limit=50");
+        if let Ok((200, body)) = http_exchange(port, "GET", &path, timeout) {
+            if let Some(job) = first_active_job_from_jobs_json(project_id, &body) {
+                return Some(job);
+            }
+        }
+    }
+    None
+}
+
+pub fn request_cancel_then_wait(port: u16, job: &ActiveJobRef, timeout: Duration) -> bool {
+    let cancel_path = format!("/api/projects/{}/jobs/{}/cancel", job.project_id, job.job_id);
+    let _ = http_exchange(port, "POST", &cancel_path, Duration::from_secs(2));
+    let get_path = format!("/api/projects/{}/jobs/{}", job.project_id, job.job_id);
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if let Ok((200, body)) = http_exchange(port, "GET", &get_path, Duration::from_millis(400)) {
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&body) {
+                if job_status_is_terminal(value.get("status").and_then(|status| status.as_str()).unwrap_or(""))
+                {
+                    return true;
+                }
+            }
+        }
+        thread::sleep(Duration::from_millis(200));
+    }
+    false
 }
 
 fn send_term_signal(child: &Child) {
@@ -474,5 +739,94 @@ mod tests {
         assert_eq!(recovery_action(true, 1), RecoveryAction::BlockError);
         assert_eq!(recovery_action(false, 2), RecoveryAction::BlockError);
         assert_eq!(recovery_action(true, 2), RecoveryAction::BlockError);
+    }
+
+    #[test]
+    fn shutdown_action_returns_kill_after_grace_window() {
+        assert_eq!(
+            shutdown_action(false, Duration::ZERO, SHUTDOWN_GRACE),
+            ShutdownAction::SendTerm
+        );
+        assert_eq!(
+            shutdown_action(true, Duration::from_millis(4_999), SHUTDOWN_GRACE),
+            ShutdownAction::Wait
+        );
+        assert_eq!(
+            shutdown_action(true, SHUTDOWN_GRACE, SHUTDOWN_GRACE),
+            ShutdownAction::Kill
+        );
+        assert_eq!(
+            shutdown_action(true, Duration::from_secs(6), SHUTDOWN_GRACE),
+            ShutdownAction::Kill
+        );
+    }
+
+    #[test]
+    fn close_decision_cancels_import_only_and_maps_processing_to_terminate() {
+        assert_eq!(
+            close_decision(CloseJobKind::Import, CloseChoice::CancelAndQuit),
+            CloseDecision::CancelThenTerminate
+        );
+        assert_eq!(
+            close_decision(CloseJobKind::Processing, CloseChoice::CancelAndQuit),
+            CloseDecision::Terminate
+        );
+        assert_eq!(
+            close_decision(CloseJobKind::Processing, CloseChoice::QuitAnyway),
+            CloseDecision::Terminate
+        );
+        assert_eq!(
+            close_decision(CloseJobKind::Import, CloseChoice::Stay),
+            CloseDecision::Stay
+        );
+        assert_eq!(
+            close_job_kind(Some(&ActiveJobRef {
+                project_id: "p".into(),
+                job_id: "j".into(),
+                job_type: "import".into(),
+                status: "running".into(),
+            })),
+            CloseJobKind::Import
+        );
+        assert_eq!(
+            close_job_kind(Some(&ActiveJobRef {
+                project_id: "p".into(),
+                job_id: "j".into(),
+                job_type: "processing".into(),
+                status: "queued".into(),
+            })),
+            CloseJobKind::Processing
+        );
+        assert_eq!(parse_quit_choice("\"cancel_and_quit\""), Some(CloseChoice::CancelAndQuit));
+        assert_eq!(parse_quit_choice("stay"), Some(CloseChoice::Stay));
+        assert!(job_status_is_terminal("cancelled"));
+        assert!(job_status_is_terminal("failed"));
+        assert!(!job_status_is_terminal("running"));
+    }
+
+    #[test]
+    fn quit_dialog_script_hides_cancel_for_processing_jobs() {
+        let import_script = quit_dialog_script(CloseJobKind::Import);
+        assert!(import_script.contains("Quit and cancel import"));
+        assert!(import_script.contains("Keep working"));
+        assert!(import_script.contains("Quit anyway"));
+        let processing_script = quit_dialog_script(CloseJobKind::Processing);
+        assert!(!processing_script.contains("Quit and cancel"));
+        assert!(processing_script.contains("cannot be cancelled"));
+        assert!(processing_script.contains("Quit anyway"));
+    }
+
+    #[test]
+    fn first_active_job_parsers_read_import_and_processing_jobs() {
+        let projects = r#"[{"id":"proj-1","active_import_job":{"id":"job-1","job_type":"import","status":"running"}}]"#;
+        let import_job = first_active_job_from_projects_json(projects).expect("import job");
+        assert_eq!(import_job.job_id, "job-1");
+        assert_eq!(import_job.job_type, "import");
+        let idle = r#"[{"id":"proj-1","active_import_job":null}]"#;
+        assert_eq!(first_active_job_from_projects_json(idle), None);
+        let jobs = r#"[{"id":"job-2","project_id":"proj-1","job_type":"processing","status":"queued"}]"#;
+        let processing = first_active_job_from_jobs_json("proj-1", jobs).expect("processing job");
+        assert_eq!(processing.job_id, "job-2");
+        assert_eq!(processing.job_type, "processing");
     }
 }
