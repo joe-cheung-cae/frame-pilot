@@ -1,20 +1,23 @@
 # Desktop Phase 1 Handoff Status
 
 - current_stage: 开发
-- status: in_progress
+- status: complete
 - files changed:
-  - D1.01–D1.03b previous 开发 commits
-  - D1.04 sidecar lifecycle (`2b07470`); §5.1 D1.04 `[x]` (`cargo test` 9 passed)
-  - D1.05 OS app-support data dir (`5acb4c6`); §5.1 D1.05 `[x]`
-  - D1.06 window state + single-instance (`3d3dd1e`); §5.1 D1.06 `[x]` (`cargo check`). GUI/WebView still `[~]`
-  - D1.07 `dev:desktop` → `scripts/dev-desktop.sh` (`tauri dev` + Vite + sidecar when cargo exists); `verify` stays rust-free
-  - §5.1 D1.07 `[x]`
-- tests_run: `cargo test --lib` 15 passed (twice for D1.05); `cargo check` exit 0 (D1.06); `npm run verify` exit 0 with fail-if-invoked `rustc`/`cargo`/`tauri` wrappers on PATH (D1.07)
-- next_stage: 开发 (D1.08 / D1.09 remain)
-- blockers: none (D0.07 WebView still [~]; rustc present via user-space rustup)
+  - D1.01–D1.07 previous 开发 commits (navigation adapter, runtime API base, shell flag, Vite SPA, desktop router, sidecar lifecycle, OS data dir, window/single-instance, `dev:desktop`)
+  - D1.08 `tests/desktop/smoke.sh` + `npm run test:desktop:smoke` (`32d2e15`)
+  - D1.09 quit/cancel/drain: reuse POST `/jobs/{id}/cancel`; startup sweep resets interrupted import photos; Rust Kill after 5s grace; close overlay cancel-or-drains if it cannot emit
+- tests_run:
+  - `npm run test:desktop:smoke` exit 0 (ready line `host=127.0.0.1` port ≠ 0; `/health` has `status`/`version`/`service`; `/api/projects` JSON array; attacker Host visible 403; desktop Origin `:1420` CORS preflight; SIGTERM exits; WebView skipped with explicit message)
+  - `.venv/bin/pytest apps/api/tests/test_job_reliability.py` 8 passed
+  - `test_cancelled_import_job_stops_safely_and_retry_preserves_review_state` green (unchanged cooperative cancel+retry)
+  - `apps/api/tests/test_ranking_export.py` 17 passed
+  - `cargo test --lib` in `apps/desktop/src-tauri` 19 passed (includes Kill-after-grace)
+  - `npm run verify` exit 0 (214 API tests; rust-free)
+- next_stage: 测试
+- blockers: WebView/tauri window [~] (no `tauri dev` window on this host). HTTP smoke, pytest, and Rust unit tests are not blocked.
 - branch: feature/desktop-packaging
-- timestamp: 2026-08-19
+- timestamp: 2026-08-19T18:49:16+08:00
 
-开发 in progress. D1.04–D1.07 are landed. `npm run verify` does not invoke rustc, cargo, or Tauri. Do not start D1.08/D1.09 in this handoff. Do not start Phase 2–5.
+开发 complete for desktop Phase 1 (D1.01–D1.09). Adapters, Vite SPA, desktop HTTP smoke, and job cancel/retry tests exist. `npm run verify` must stay rust-free. Do not start Phase 2–5. Do not bump `APP_VERSION`. Do not start the 测试 stage from this handoff.
 
-Phase 0 remains closed GO on `origin/main` (`1d6ffa7`). D0.07 GUI/WebView remains `[~]` (no `tauri dev` window on this host).
+Phase 0 remains closed GO on `origin/main` (`1d6ffa7`). WebView/GUI remains `[~]`.
