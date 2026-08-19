@@ -190,6 +190,14 @@ pub fn run() {
     let setup_pythonpath = pythonpath.clone();
 
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(Arc::clone(&state))
         .setup(move |app| {
             let (startup_error, restart_used) =
@@ -209,6 +217,7 @@ pub fn run() {
             )
             .title("FramePilot")
             .inner_size(1200.0, 800.0)
+            .min_inner_size(1100.0, 720.0)
             .initialization_script(&initialization_script(port))
             .build()?;
 

@@ -16,6 +16,8 @@
         "title": "FramePilot",
         "width": 1200,
         "height": 800,
+        "minWidth": 1100,
+        "minHeight": 720,
         "create": false
       }
     ],

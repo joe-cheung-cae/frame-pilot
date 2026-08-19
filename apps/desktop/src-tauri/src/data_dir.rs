@@ -102,10 +102,6 @@ pub fn resolve_runtime_data_dir(packaged: bool) -> io::Result<PathBuf> {
     Ok(path)
 }
 
-pub fn current_data_dir() -> io::Result<PathBuf> {
-    resolve_runtime_data_dir(!cfg!(debug_assertions))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
