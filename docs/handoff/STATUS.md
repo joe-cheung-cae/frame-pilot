@@ -14,6 +14,6 @@
 - branch: feature/desktop-packaging
 - timestamp: 2026-08-19
 
-开发 in progress. D1.01+D1.02+D1.02a landed. Next still 开发 until stage wrap-up. §5.1 Phase 1 boxes stay `[ ]` until `上线`. Do not start D1.03.
+开发 in progress. D1.01 navigation adapter is landed (`a5bffba`) and §5.1 D1.01 is `[x]`. D1.02+D1.02a also landed. Remaining Phase 1 boxes stay `[ ]` until their commits or `上线`. Do not start D1.03 from this D1.01 handoff.
 
 Phase 0 remains closed GO on `origin/main` (`1d6ffa7`). D0.07 `[~]` rustc/cargo/rustup missing as of 2026-08-19T08:26:40Z (`command not found`, exit 127).

@@ -220,7 +220,7 @@ Phase 0 — closed `上线` 2026-08-19 on `refactor` (GO; Phase 1 not started)
 
 Phase 1
 
-- [ ] D1.01 Navigation adapter
+- [x] D1.01 Navigation adapter
 - [ ] D1.02 Runtime API base
 - [ ] D1.02a Desktop shell flag
 - [ ] D1.03a Vite build, aliases, Tailwind
