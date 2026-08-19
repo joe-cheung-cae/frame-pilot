@@ -224,7 +224,7 @@ Phase 1
 - [x] D1.02 Runtime API base
 - [x] D1.02a Desktop shell flag
 - [x] D1.03a Vite build, aliases, Tailwind
-- [ ] D1.03b Desktop router
+- [x] D1.03b Desktop router
 - [ ] D1.04 Sidecar lifecycle in Rust
 - [ ] D1.05 App-support data directory
 - [ ] D1.06 Window basics and single instance
