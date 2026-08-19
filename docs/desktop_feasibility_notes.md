@@ -1,8 +1,8 @@
 # Desktop Feasibility Notes
 
-**Status: FINAL** — Phase 1 `上线`, 2026-08-19T18:56:00+08:00, branch `feature/desktop-packaging`.
+**Status: FINAL** — Phase 1 `上线`, 2026-08-19T19:00:41+08:00, branch `feature/desktop-packaging`.
 
-Phase 0 measurements remain below. Phase 1 close-out is in **Phase 1 notes** and **Phase 1 go/no-go**. `测试` re-ran web/desktop/verify/jobs/sidecar/cargo; `上线` owns §5.1 Phase 1 ticks.
+Phase 0 measurements remain below. Phase 1 close-out is in **Phase 1 notes** and **Phase 1 go/no-go**. `测试` re-ran web/desktop/verify/jobs/sidecar/cargo; `上线` owns §5.1 Phase 1 ticks and recorded a live `npm run dev:desktop` window plus browser `:3000`/`:8000`.
 
 This host is **macOS**, not WSL2.
 
@@ -125,24 +125,29 @@ Phase 0 acceptance (see §5.1 / D0.09): sidecar/health/SIGTERM `[x]`; origin+Hos
 
 ## Phase 1 notes — 2026-08-19
 
-User-space rustup (`curl https://sh.rustup.rs -sSf | sh -s -- -y`) installed `rustc 1.97.1` / `cargo 1.97.1` into `$HOME/.cargo`. No brew/apt. `cargo test` in `apps/desktop/src-tauri` passed D1.04 unit tests (allocate/drop port, ready-line parse including spaced `data_dir`, reject port 0 / mismatch). WebView/`tauri dev` was not opened; D0.07 GUI remains `[~]`.
+User-space rustup (`curl https://sh.rustup.rs -sSf | sh -s -- -y`) installed `rustc 1.97.1` / `cargo 1.97.1` into `$HOME/.cargo`. No brew/apt. `cargo test` in `apps/desktop/src-tauri` passed D1.04 unit tests (allocate/drop port, ready-line parse including spaced `data_dir`, reject port 0 / mismatch). D0.07 stays `[~]` as the Phase 0 close-out (dated `cargo`/`rustc` command not found, exit 127).
 
 Windows sidecar shutdown (source; not executed on this macOS host): spawn uses `CREATE_NEW_PROCESS_GROUP`, shutdown sends `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT)`, waits 5s, then `Child::kill()` (`TerminateProcess`). Unix uses SIGTERM, wait 5s, then kill.
 
-D1.06 `cargo check` in `apps/desktop/src-tauri` succeeded on 2026-08-19 (`tauri-plugin-window-state` 2.4.1, `tauri-plugin-single-instance` 2.4.3). No `tauri dev` / WebView window was opened; GUI remains `[~]`.
+D1.06 `cargo check` in `apps/desktop/src-tauri` succeeded on 2026-08-19 (`tauri-plugin-window-state` 2.4.1, `tauri-plugin-single-instance` 2.4.3).
 
-D1.08 HTTP sidecar smoke (`npm run test:desktop:smoke`) passed on 2026-08-19: ready line `host=127.0.0.1` with non-zero port, `GET /health` has `status`/`version`/`service`, `GET /api/projects` is a JSON array, attacker `Host` returns visible HTTP 403 JSON (`Host not allowed for local FramePilot API`), desktop Origin `:1420` CORS preflight allows, SIGTERM exits. WebView project-list render was skipped with an explicit smoke message (`desktop-smoke: skipping WebView project-list render`); D1.08 WebView remains `[~]`.
+D1.08 HTTP sidecar smoke (`npm run test:desktop:smoke`) passed on 2026-08-19: ready line `host=127.0.0.1` with non-zero port, `GET /health` has `status`/`version`/`service`, `GET /api/projects` is a JSON array, attacker `Host` returns visible HTTP 403 JSON (`Host not allowed for local FramePilot API`), desktop Origin `:1420` CORS preflight allows, SIGTERM exits. The HTTP smoke script still prints `desktop-smoke: skipping WebView project-list render` by design.
 
-D1.09 quit dialog is injected HTML in the Tauri window. No `tauri dev` WebView was opened on this host, so the on-screen confirm remains `[~]`. Rust unit tests cover Kill-after-5s and cancel-vs-quit-anyway decisions; pytest covers cancel/retry and killed-worker startup sweep.
+`上线` 2026-08-19T18:54:32+08:00 ran `npm run dev:desktop` (`npx tauri dev`). It compiled and ran `target/debug/framepilot-desktop`. osascript recorded process `framepilot-desktop` with window title `FramePilot` (1200×800). Sidecar spawned as `--host 127.0.0.1 --port 54451 --data-dir <repo>/.framepilot-desktop-dev`. `GET /health` → `{"status":"ok","version":"2.0.0-rc2","service":"framepilot-api"}`. `GET /api/projects` → `[]`. `sidecar.log` shows WebView `OPTIONS` then `GET /api/projects` 200. Vite answered `http://[::1]:1420/` with the FramePilot HTML shell. D1.08 WebView is `[x]`.
+
+D1.09 quit dialog is injected HTML. Rust unit tests cover Kill-after-5s and cancel-vs-quit-anyway decisions; pytest covers cancel/retry and killed-worker startup sweep. This close-out did not click the on-screen confirm.
+
+`上线` 2026-08-19T18:59:32+08:00 also ran browser `npm run dev`: `GET http://127.0.0.1:8000/health` 200 same health JSON; `GET http://127.0.0.1:8000/api/projects` `[]`; `GET http://127.0.0.1:3000/` 200 with `<title>FramePilot</title>`.
 
 ## Phase 1 go/no-go (final)
 
-`上线` wording, 2026-08-19T18:56:00+08:00, `feature/desktop-packaging`:
+`上线` wording, 2026-08-19T19:00:41+08:00, `feature/desktop-packaging`:
 
 1. **GO — close desktop Phase 1** on this feature branch. Do not publish installers. Do not open a PR. Do not merge to `main`. Do not start Phase 2.
-2. **Shell stays Tauri 2 + Python sidecar.** User-space rustup now provides `rustc 1.97.1` / `cargo 1.97.1`. `cargo test --lib` **19 passed** twice. Sidecar HTTP smoke passed twice. No WebView window was opened; D0.07 / D1.08 WebView remain dated `[~]`. That is **not** the Electron trigger.
-3. **Frontend: Vite SPA in `apps/desktop`.** Shared navigation/API/shell adapters landed. `apps/web` stays Next.js. `npm run test:web` rebuilt Next (`7/7` static pages; project routes stay dynamic `ƒ`).
-4. **`npm run verify` stays rust-free.** Fail-if-invoked `rustc`/`cargo`/`rustup`/`tauri` wrappers were never called (2026-08-19T18:54:00+08:00 capture `verify.log`).
+2. **Shell stays Tauri 2 + Python sidecar.** User-space rustup provides `rustc 1.97.1` / `cargo 1.97.1`. `cargo test --lib` **19 passed**. Sidecar HTTP smoke passed. `npm run dev:desktop` opened a `FramePilot` window whose WebView called `GET /api/projects`. D0.07 stays dated `[~]` as the Phase 0 record. Missing Phase 0 GUI was **not** the Electron trigger.
+3. **Frontend: Vite SPA in `apps/desktop`.** Shared navigation/API/shell adapters landed. `apps/web` stays Next.js. Live `npm run dev` still serves `:3000` / `:8000`.
+4. **`npm run verify` stays rust-free.** Fail-if-invoked `rustc`/`cargo`/`tauri` wrappers were not called by verify (`verify.log`).
 5. **Jobs:** cancel-then-retry leaves no photo in `processing` after retry; killed import is `failed`+retryable via startup sweep; processing jobs have no cancel route. See `docs/v2_known_limitations.md`.
+6. **`APP_VERSION` remains `2.0.0-rc2`.** Do not bump to `2.1.0-desktop`.
 
-Phase 1 acceptance (see §5.1 / D1.09): HTTP project list `[x]`; sidecar health `[x]`; `verify` without Tauri `[x]`; browser :3000/:8000 workflow `[x]`; WebView `[~]`.
+Phase 1 acceptance (see §5.1): HTTP/home project list `[x]`; sidecar health `[x]`; `verify` without Tauri `[x]`; browser `:3000`/`:8000` `[x]`.
