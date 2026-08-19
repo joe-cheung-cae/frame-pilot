@@ -2,13 +2,16 @@
 
 Review date: 2026-06-05.
 
+This file is a 2026-06-05 rc2 engineering review snapshot. It is not the current release verdict.
+The completed 2026-08-17 real-world algorithm-confidence gate is recorded in `docs/v2_rc2_validation_decision.md`.
+
 ## 1. Release Verdict
 
-Ready for manual product-owner validation only.
+Snapshot (2026-06-05): ready for manual product-owner validation only.
 
-The automated release gate is green for the current local MVP-plus scope after rc2 hardening: `npm run verify`, targeted E2E for the final local tooling cleanup, the default real browser-backend smoke, the 500-photo large-image real browser-backend smoke, and full Playwright E2E have passed on this branch. The repository clearly documents the local-first model, JPEG/PNG/WebP support, deferred RAW/HEIC work, in-process job limitations, cooperative cancellation, retry behavior, synthetic benchmark caveats, and heuristic face/eye-open signals.
+The automated release gate was green for the local MVP-plus scope after rc2 hardening: `npm run verify`, targeted E2E for the final local tooling cleanup, the default real browser-backend smoke, the 500-photo large-image real browser-backend smoke, and full Playwright E2E passed on this branch. The repository documented the local-first model, JPEG/PNG/WebP support, deferred RAW/HEIC work, in-process job limitations, cooperative cancellation, retry behavior, synthetic benchmark caveats, and heuristic face/eye-open signals.
 
-Do not tag an unqualified `v2.0.0-rc2` until the release owner either records manual validation notes from a non-private real-world photo set or explicitly waives that evidence for rc2 in `docs/v2_rc2_validation_decision.md`. This is an algorithm-confidence gate, not a request for new product features.
+At review time, an unqualified `v2.0.0-rc2` tag was blocked until the release owner recorded manual validation notes from a non-private real-world photo set or explicitly waived that evidence in `docs/v2_rc2_validation_decision.md`. That algorithm-confidence gate was later completed on 2026-08-17; see `docs/v2_rc2_validation_decision.md`.
 
 ## 2. Current Branch and Git State
 
@@ -117,8 +120,8 @@ Synthetic benchmark caveat: generated JPEGs are useful for repeatability and reg
 - Grouping uses deterministic candidate windows, metadata compatibility, perceptual hash distance, lightweight embedding fallback, union-find, and time-span splitting.
 - Ranking is conservative inside groups and stores group `score_summary` JSON with best score, score gap, confidence, recommendation counts, and explanation text.
 - Face and eye-open signals are heuristic and experimental. They are not professional face detection, landmark detection, eye-state detection, identity recognition, or biometric analysis.
-- Manual real-world validation remains incomplete for this release review. No threshold, scoring, grouping, ranking, or explanation changes are currently recommended from this evidence.
-- `docs/v2_rc2_validation_decision.md` is present as the pending release-owner record for validation notes or an explicit waiver.
+- Manual real-world validation was incomplete at this 2026-06-05 review. No threshold, scoring, grouping, ranking, or explanation changes were recommended from this review's evidence.
+- `docs/v2_rc2_validation_decision.md` later recorded the completed 2026-08-17 validation evidence that closed this gate.
 
 ## 9. Known Limitations
 
@@ -127,7 +130,7 @@ Synthetic benchmark caveat: generated JPEGs are useful for repeatability and reg
 - Desktop packaging is deferred.
 - XMP sidecar export is deferred.
 - 2,000 real browser-backend import/process/review is unverified.
-- Real camera JPEG diversity is not yet validated with recorded non-private manual notes.
+- Real camera JPEG diversity was not yet validated with recorded non-private manual notes at this review. Notes were later recorded in `docs/v2_real_world_validation_notes.md` on 2026-08-17.
 - Full browser process RSS, decoded image memory, GPU memory, and OS memory pressure are unverified.
 - Import and processing jobs are in-process and not durable across API process exits.
 - Generated and synthetic benchmarks do not replace real-world/manual algorithm validation.
@@ -141,8 +144,8 @@ Critical:
 
 High:
 
-- Manual non-private real-world algorithm validation notes are not recorded yet. This blocks an unqualified RC tag unless the release owner explicitly waives it.
-- `docs/v2_rc2_validation_decision.md` currently records this gate as pending and not waived.
+- At review time, manual non-private real-world algorithm validation notes were not recorded yet and blocked an unqualified RC tag unless waived.
+- That gate is no longer pending: `docs/v2_rc2_validation_decision.md` records the completed 2026-08-17 validation evidence.
 
 Medium:
 
@@ -170,9 +173,9 @@ Low:
 
 Recommended tag name after acceptance: `v2.0.0-rc2`.
 
-Recommendation: do not tag immediately from automation alone. Tag after manual product-owner validation is completed or explicitly waived in release notes.
+Recommendation at review time: do not tag immediately from automation alone. Tag after manual product-owner validation is completed or explicitly waived in release notes. The 2026-08-17 validation decision later closed that gate.
 
-The release notes should link `docs/v2_rc2_validation_decision.md`, plus the completed validation notes file if validation is performed.
+The release notes should link `docs/v2_rc2_validation_decision.md` and the completed validation notes file.
 
 Exact pre-tag commands:
 
@@ -186,7 +189,7 @@ npm run test:e2e:real-browser:large
 npm run test:e2e
 ```
 
-`npm run check:pretag` includes `npm run verify`, the tracked artifact check, and the validation-decision check. It must fail while `docs/v2_rc2_validation_decision.md` is still pending and not waived.
+`npm run check:pretag` includes `npm run verify`, the tracked artifact check, and the validation-decision check. The 2026-06-05 review expected it to fail while `docs/v2_rc2_validation_decision.md` was still pending and not waived. The 2026-08-17 decision closed that gate.
 
 Optional manual benchmark, not a default release gate:
 

@@ -28,6 +28,7 @@
     "install:all": "python3 -m venv .venv && .venv/bin/python -m pip install -e 'apps/api[dev]' && npm install && npm --prefix apps/web install",
     "build": "npm --prefix apps/web run build",
     "check:artifacts": "bash scripts/check-release-artifacts.sh",
+    "check:markdown-links": "bash scripts/check-markdown-links.sh",
     "check:validation-decision": "bash scripts/check-validation-decision.sh",
     "check:pretag": "npm run verify && npm run check:validation-decision"
   },

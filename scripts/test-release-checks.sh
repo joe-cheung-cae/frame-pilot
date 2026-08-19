@@ -4,6 +4,12 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+if ! command -v rg >/dev/null 2>&1; then
+  rg() {
+    grep -E "$@"
+  }
+fi
+
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -229,5 +235,29 @@ expect_failure \
   "tier a validation notes omit original filenames" \
   "" \
   rg "private-family-name|sensitive-place" "$tier_a_notes"
+
+link_root="$tmpdir/markdown-links"
+mkdir -p "$link_root/docs"
+printf '# Root\n\nSee [API](docs/api.md).\n' >"$link_root/README.md"
+printf '# Plan\n' >"$link_root/develop_plan.md"
+printf '# Goals\n' >"$link_root/implement_goals.md"
+printf '# API\n\nSee [Scoring](scoring.md) and [remote](https://example.com/missing.md).\n' \
+  >"$link_root/docs/api.md"
+printf '# Scoring\n' >"$link_root/docs/scoring.md"
+
+expect_success \
+  "markdown link check accepts existing relative targets" \
+  bash scripts/check-markdown-links.sh "$link_root"
+
+printf '\nSee [Missing](docs/does-not-exist.md).\n' >>"$link_root/README.md"
+
+expect_failure \
+  "markdown link check rejects missing relative targets" \
+  "does-not-exist.md" \
+  bash scripts/check-markdown-links.sh "$link_root"
+
+expect_success \
+  "repository markdown links resolve" \
+  bash scripts/check-markdown-links.sh
 
 echo "Release check script tests passed."
