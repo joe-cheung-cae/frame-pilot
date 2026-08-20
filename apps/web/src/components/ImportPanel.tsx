@@ -18,6 +18,11 @@ import {
   importTerminalStatusMessage,
   loadAvailableImportedPhotosForJob,
 } from "@/lib/importWorkflow";
+import {
+  collectDroppedPaths,
+  importDropOverlayPointerEvents,
+  type NativeDragDropEvent,
+} from "@/lib/droppedPaths";
 import { getNativeFs } from "@/lib/nativeFs";
 import { Link } from "@/lib/navigation";
 import { isDesktopShell } from "@/lib/shell";
@@ -54,6 +59,10 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   const [completedImportJobId, setCompletedImportJobId] = useState<string | null>(null);
   const [lastImportPhotoIds, setLastImportPhotoIds] = useState<string[]>([]);
   const [importMode, setImportMode] = useState<"upload" | "paths">("upload");
+  const [dragActive, setDragActive] = useState(false);
+  const dragDepthRef = useRef(0);
+  const dropHandledRef = useRef(false);
+  const importDroppedPathsRef = useRef<(paths: readonly string[]) => void>(() => {});
   const queryClient = useQueryClient();
 
   function selectCurrentImportJob(jobId: string | null) {
@@ -252,6 +261,128 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     isRetrying: retryMutation.isPending,
   });
   const importSelectionDisabled = Boolean(importSelectionBlock);
+  importDroppedPathsRef.current = (paths) => {
+    if (!paths.length || importSelectionDisabled || dropHandledRef.current) {
+      return;
+    }
+    // HTML5 and Tauri can fire for the same drop; keep the first path list.
+    dropHandledRef.current = true;
+    window.setTimeout(() => {
+      dropHandledRef.current = false;
+    }, 400);
+    mutation.mutate({ paths: [...paths] });
+  };
+
+  useEffect(() => {
+    function isFileDrag(event: DragEvent): boolean {
+      const transfer = event.dataTransfer;
+      if (!transfer) {
+        return false;
+      }
+      const types = transfer.types ? Array.from(transfer.types as ArrayLike<string>) : [];
+      if (types.includes("Files") || types.includes("text/uri-list") || types.includes("application/x-moz-file")) {
+        return true;
+      }
+      return (transfer.files?.length ?? 0) > 0;
+    }
+
+    function clearDrag() {
+      dragDepthRef.current = 0;
+      setDragActive(false);
+    }
+
+    function onDragEnter(event: DragEvent) {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      event.preventDefault();
+      dragDepthRef.current += 1;
+      setDragActive(true);
+    }
+
+    function onDragOver(event: DragEvent) {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+      setDragActive(true);
+    }
+
+    function onDragLeave(event: DragEvent) {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      if (event.relatedTarget == null) {
+        clearDrag();
+        return;
+      }
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+      if (dragDepthRef.current === 0) {
+        setDragActive(false);
+      }
+    }
+
+    function onDrop(event: DragEvent) {
+      const paths = collectDroppedPaths(event);
+      if (!isFileDrag(event) && paths.length === 0) {
+        clearDrag();
+        return;
+      }
+      event.preventDefault();
+      clearDrag();
+      importDroppedPathsRef.current(paths);
+    }
+
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!nativeFs?.subscribeDragDrop) {
+      return;
+    }
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+    void nativeFs
+      .subscribeDragDrop((event: NativeDragDropEvent) => {
+        if (cancelled) {
+          return;
+        }
+        if (event.type === "enter" || event.type === "over") {
+          setDragActive(true);
+          return;
+        }
+        dragDepthRef.current = 0;
+        setDragActive(false);
+        if (event.type === "drop") {
+          importDroppedPathsRef.current(event.paths);
+        }
+      })
+      .then((stop) => {
+        if (cancelled) {
+          stop();
+          return;
+        }
+        unlisten = stop;
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [nativeFs]);
+
   const canCancelImport =
     Boolean(importJob) &&
     importJob?.job_type === "import" &&
@@ -268,7 +399,17 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     importStatusError instanceof Error ? importStatusError.message : "Import status is unavailable.";
 
   return (
-    <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
+    <section className="relative mx-auto grid max-w-4xl gap-6 px-5 py-8">
+      <div
+        aria-hidden={!dragActive}
+        className={`absolute inset-0 z-10 grid place-items-center rounded text-center ${
+          dragActive ? "border-2 border-dashed border-leaf bg-white/80" : ""
+        }`}
+        data-testid="import-drop-overlay"
+        style={{ pointerEvents: importDropOverlayPointerEvents(dragActive) }}
+      >
+        {dragActive ? <p className="font-medium">Drop files or folders to import</p> : null}
+      </div>
       <div>
         <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
         <h1 className="mt-1 text-3xl font-semibold">Import Images</h1>

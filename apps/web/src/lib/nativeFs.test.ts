@@ -72,7 +72,7 @@ test("getNativeFs is null in the browser", () => {
 });
 
 test("apps/web source does not import Tauri plugins", () => {
-  const importPattern = /(?:from|import)\s+["']@tauri-apps\/plugin-[^"']+["']|require\(["']@tauri-apps\/plugin-/;
+  const importPattern = /(?:from|import)\s+["']@tauri-apps\/[^"']+["']|require\(["']@tauri-apps\//;
   const offenders = listSourceFiles(webSrc).filter((filePath) => importPattern.test(fs.readFileSync(filePath, "utf8")));
   assert.deepEqual(offenders, []);
 });

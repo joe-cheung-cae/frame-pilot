@@ -238,7 +238,7 @@ Phase 2
 - [x] D2.01 Native file dialog adapters
 - [x] D2.02 Project create with native picker
 - [x] D2.03 Import panel path import
-- [ ] D2.04 Drag and drop
+- [x] D2.04 Drag and drop
 - [ ] D2.05 Reveal project and export folders
 - [ ] D2.06 Recent projects
 - [ ] D2.07 Cross-platform path hardening
