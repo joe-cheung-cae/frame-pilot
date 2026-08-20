@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { api } from "./api.ts";
 import {
+  importPathProgress,
+  importPathProgressMessage,
   importPreviewCompletionMessage,
   importLoadRecoveryMessage,
   importProcessBlockMessage,
@@ -170,6 +173,244 @@ test("omits terminal import guidance for non-terminal statuses", () => {
   assert.equal(importTerminalStatusMessage({ retryable: true, status: "running" }), "");
   assert.equal(importTerminalStatusMessage({ retryable: false, status: "complete" }), "");
   assert.equal(importTerminalStatusMessage({ retryable: false, status: null }), "");
+});
+
+function remainingFilePaths(start: number, count: number): string[] {
+  return Array.from(
+    { length: count },
+    (_, index) => `/abs/burst/frame-${String(start + index).padStart(3, "0")}.jpg`,
+  );
+}
+
+function pathImportJob(id: string, totalItems: number) {
+  return {
+    id,
+    project_id: "project-1",
+    job_type: "import",
+    status: "running",
+    current_step: "receive_files",
+    total_items: totalItems,
+    processed_items: 0,
+    failed_items: 0,
+    progress_percent: 0,
+    error_message: null,
+    cancellation_requested: false,
+    cancelled_at: null,
+    started_at: null,
+    completed_at: null,
+    retryable: false,
+  };
+}
+
+function pathImportSliceResult(options: {
+  importedCount: number;
+  startIndex: number;
+  remainingPaths: string[];
+  expandedTotal: number;
+  jobId?: string;
+}) {
+  return {
+    imported: Array.from({ length: options.importedCount }, (_, index) => ({
+      id: `photo-${options.startIndex + index}`,
+      filename: `frame-${String(options.startIndex + index).padStart(3, "0")}.jpg`,
+    })),
+    skipped: [],
+    job: pathImportJob(options.jobId ?? "job-1", options.expandedTotal),
+    total_files: options.importedCount,
+    accepted_files: options.importedCount,
+    skipped_files: 0,
+    failed_files: 0,
+    remaining_paths: options.remainingPaths,
+    expanded_total: options.expandedTotal,
+    timing: null,
+  };
+}
+
+async function withMockedFetch<T>(
+  handler: (url: string, init?: RequestInit) => Promise<Response> | Response,
+  run: () => Promise<T>,
+): Promise<T> {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    return handler(url, init);
+  }) as typeof fetch;
+  try {
+    return await run();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+test("path import progress uses expanded_total rather than the current slice size", () => {
+  const remaining150 = remainingFilePaths(100, 150);
+  assert.deepEqual(importPathProgress({ expanded_total: 250, remaining_paths: remaining150 }), {
+    completed: 100,
+    remaining: 150,
+    total: 250,
+  });
+  assert.equal(
+    importPathProgressMessage({ expanded_total: 250, remaining_paths: remaining150 }),
+    "Registered 100 of 250 files from local paths.",
+  );
+  assert.equal(
+    importPathProgressMessage({ expanded_total: 1, remaining_paths: [] }),
+    "Registered 1 of 1 file from local paths.",
+  );
+  assert.equal(importPathProgressMessage({ expanded_total: null, remaining_paths: [] }), "Registering files from local paths...");
+});
+
+test("importPhotosFromPaths loops remaining_paths with the same job_id and finalizes the last slice only", async () => {
+  const folder = "/abs/burst";
+  const remaining150 = remainingFilePaths(100, 150);
+  const remaining50 = remainingFilePaths(200, 50);
+  const calls: { url: string; body: Record<string, unknown> }[] = [];
+  const progressTotals: number[] = [];
+
+  const result = await withMockedFetch(
+    async (url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      calls.push({ url, body });
+      if (calls.length === 1) {
+        return new Response(
+          JSON.stringify(
+            pathImportSliceResult({
+              importedCount: 100,
+              startIndex: 0,
+              remainingPaths: remaining150,
+              expandedTotal: 250,
+            }),
+          ),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (calls.length === 2) {
+        return new Response(
+          JSON.stringify(
+            pathImportSliceResult({
+              importedCount: 100,
+              startIndex: 100,
+              remainingPaths: remaining50,
+              expandedTotal: 250,
+            }),
+          ),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(
+        JSON.stringify(
+          pathImportSliceResult({
+            importedCount: 50,
+            startIndex: 200,
+            remainingPaths: [],
+            expandedTotal: 250,
+          }),
+        ),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    },
+    () =>
+      api.importPhotosFromPaths("project-1", [folder], {
+        onSliceComplete: (_slice, _index, expandedTotal) => {
+          progressTotals.push(expandedTotal);
+        },
+      }),
+  );
+
+  assert.equal(calls.length, 3);
+  assert.equal(calls.every((call) => call.url.endsWith("/api/projects/project-1/imports/from-paths")), true);
+  assert.deepEqual(calls[0]?.body, {
+    paths: [folder],
+    job_id: null,
+    expected_total: null,
+    finalize: false,
+  });
+  assert.deepEqual(calls[1]?.body, {
+    paths: remaining150,
+    job_id: "job-1",
+    expected_total: 250,
+    finalize: false,
+  });
+  assert.deepEqual(calls[2]?.body, {
+    paths: remaining50,
+    job_id: "job-1",
+    expected_total: 250,
+    finalize: true,
+  });
+  assert.equal(result.imported.length, 250);
+  assert.equal(result.expanded_total, 250);
+  assert.deepEqual(result.remaining_paths, []);
+  assert.equal(result.job?.id, "job-1");
+  assert.deepEqual(progressTotals, [250, 250, 250]);
+});
+
+test("importPhotosFromPaths finalizes a small folder after remaining_paths is empty", async () => {
+  const folder = "/abs/card";
+  const calls: Record<string, unknown>[] = [];
+
+  await withMockedFetch(
+    async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      calls.push(body);
+      return new Response(
+        JSON.stringify(
+          pathImportSliceResult({
+            importedCount: 2,
+            startIndex: 0,
+            remainingPaths: [],
+            expandedTotal: 2,
+          }),
+        ),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    },
+    () => api.importPhotosFromPaths("project-1", [folder]),
+  );
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0]?.finalize, false);
+  assert.equal(calls[0]?.job_id, null);
+  assert.deepEqual(calls[0]?.paths, [folder]);
+  assert.equal(calls[1]?.finalize, true);
+  assert.equal(calls[1]?.job_id, "job-1");
+  assert.equal(calls[1]?.expected_total, 2);
+  assert.deepEqual(calls[1]?.paths, [folder]);
+});
+
+test("importPhotosFromPaths finalizes a small image-file selection on the first slice", async () => {
+  const files = ["/abs/a.jpg", "/abs/b.png"];
+  const calls: Record<string, unknown>[] = [];
+
+  await withMockedFetch(
+    async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      calls.push(body);
+      return new Response(
+        JSON.stringify(
+          pathImportSliceResult({
+            importedCount: 2,
+            startIndex: 0,
+            remainingPaths: [],
+            expandedTotal: 2,
+          }),
+        ),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    },
+    () => api.importPhotosFromPaths("project-1", files),
+  );
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], {
+    paths: files,
+    job_id: null,
+    expected_total: null,
+    finalize: true,
+  });
+});
+
+test("importPhotosFromPaths rejects an empty path list", async () => {
+  await assert.rejects(() => api.importPhotosFromPaths("project-1", []), /At least one path is required/);
 });
 
 test("explains how to recover from import data load and action failures", () => {

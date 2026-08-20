@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/navigation", () => ({
   Link: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
@@ -28,10 +28,28 @@ vi.mock("@tanstack/react-query", () => ({
 import { ExportPanel } from "./ExportPanel";
 import { ImportPanel } from "./ImportPanel";
 
+afterEach(() => {
+  cleanup();
+});
+
 describe("ImportPanel", () => {
   it("shows project load errors", () => {
     render(<ImportPanel projectId="project-1" />);
     expect(screen.getAllByText("API offline").length).toBeGreaterThan(0);
+  });
+
+  it("keeps both browser file inputs including webkitdirectory", () => {
+    const { container } = render(<ImportPanel projectId="project-1" />);
+    const inputs = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]?.multiple).toBe(true);
+    expect(inputs[1]?.multiple).toBe(true);
+    expect(inputs[0]?.disabled).toBe(false);
+    expect(inputs[1]?.disabled).toBe(false);
+    expect(inputs[1]?.hasAttribute("webkitdirectory")).toBe(true);
+    expect(inputs[0]?.closest("label")?.textContent).toContain("Choose image files");
+    expect(inputs[1]?.closest("label")?.textContent).toContain("Choose a folder");
+    expect(container.querySelectorAll("label input[type='file']")).toHaveLength(2);
   });
 });
 

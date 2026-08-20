@@ -74,6 +74,8 @@ export type ImportResult = {
   accepted_files: number;
   skipped_files: number;
   failed_files: number;
+  remaining_paths?: string[];
+  expanded_total?: number | null;
   timing?: {
     total_files: number;
     imported_files: number;
@@ -150,6 +152,30 @@ export type ImportPhotosOptions = {
   batchSize?: number;
   onBatchComplete?: (result: ImportResult, batchIndex: number, batchCount: number) => void;
 };
+
+export type ImportPhotosFromPathsOptions = {
+  onSliceComplete?: (result: ImportResult, sliceIndex: number, expandedTotal: number) => void;
+};
+
+const IMAGE_PATH_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+
+function pathLooksLikeImageFile(filePath: string): boolean {
+  const base = filePath.replace(/\\/g, "/").split("/").pop() ?? filePath;
+  const dot = base.lastIndexOf(".");
+  if (dot <= 0 || dot === base.length - 1) {
+    return false;
+  }
+  return IMAGE_PATH_EXTENSIONS.has(base.slice(dot).toLowerCase());
+}
+
+function isLastPathImportSlice(paths: readonly string[], hasJob: boolean): boolean {
+  if (paths.length === 0 || paths.length > IMPORT_UPLOAD_BATCH_SIZE) {
+    return false;
+  }
+  // Leftover remaining_paths from the API are already expanded files.
+  // A first request of picked image files is last when it fits in one slice.
+  return hasJob || paths.every(pathLooksLikeImageFile);
+}
 
 export function listPageQuery(options: ListPageOptions = {}): string {
   const params = new URLSearchParams();
@@ -340,6 +366,101 @@ export const api = {
       imported,
       skipped,
       total_files: files.length,
+      accepted_files: imported.length,
+      skipped_files: skipped.length,
+      failed_files: skipped.length,
+    } satisfies ImportResult;
+  },
+  importPhotosFromPathsBatch: (
+    projectId: string,
+    paths: readonly string[],
+    options: {
+      jobId?: string | null;
+      expectedTotal?: number | null;
+      finalize?: boolean;
+    } = {},
+  ) =>
+    request<ImportResult>(`/api/projects/${projectId}/imports/from-paths`, {
+      method: "POST",
+      body: JSON.stringify({
+        paths: [...paths],
+        job_id: options.jobId ?? null,
+        expected_total: options.expectedTotal ?? null,
+        finalize: options.finalize ?? true,
+      }),
+    }),
+  importPhotosFromPaths: async (
+    projectId: string,
+    paths: readonly string[],
+    options: ImportPhotosFromPathsOptions = {},
+  ) => {
+    if (!paths.length) {
+      throw new Error("At least one path is required.");
+    }
+
+    let currentPaths = [...paths];
+    let jobId: string | undefined;
+    let expectedTotal: number | undefined;
+    const imported: ImportResult["imported"] = [];
+    const skipped: ImportResult["skipped"] = [];
+    let lastResult: ImportResult | null = null;
+    let sliceIndex = 0;
+
+    while (currentPaths.length > 0) {
+      const isLastSlice = isLastPathImportSlice(currentPaths, jobId !== undefined);
+      const result = await api.importPhotosFromPathsBatch(projectId, currentPaths, {
+        jobId,
+        expectedTotal,
+        finalize: isLastSlice,
+      });
+      jobId = result.job?.id ?? jobId;
+      expectedTotal = result.expanded_total ?? expectedTotal;
+      imported.push(...result.imported);
+      skipped.push(...result.skipped);
+      lastResult = result;
+      const progressTotal = expectedTotal ?? result.imported.length;
+      options.onSliceComplete?.(result, sliceIndex, progressTotal);
+      sliceIndex += 1;
+
+      const remainingPaths = result.remaining_paths ?? [];
+      if (remainingPaths.length === 0) {
+        if (!isLastSlice) {
+          const finalized = await api.importPhotosFromPathsBatch(projectId, currentPaths, {
+            jobId,
+            expectedTotal,
+            finalize: true,
+          });
+          jobId = finalized.job?.id ?? jobId;
+          expectedTotal = finalized.expanded_total ?? expectedTotal;
+          lastResult = finalized;
+          options.onSliceComplete?.(
+            {
+              ...finalized,
+              imported,
+              skipped,
+              remaining_paths: [],
+              expanded_total: expectedTotal ?? finalized.expanded_total,
+            },
+            sliceIndex,
+            expectedTotal ?? progressTotal,
+          );
+        }
+        break;
+      }
+      currentPaths = remainingPaths;
+    }
+
+    if (!lastResult) {
+      throw new Error("Import did not return a result.");
+    }
+
+    return {
+      ...lastResult,
+      imported,
+      skipped,
+      remaining_paths: [],
+      expanded_total: expectedTotal ?? lastResult.expanded_total ?? null,
+      total_files: expectedTotal ?? imported.length,
       accepted_files: imported.length,
       skipped_files: skipped.length,
       failed_files: skipped.length,

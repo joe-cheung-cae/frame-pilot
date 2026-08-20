@@ -237,7 +237,7 @@ Phase 2
 - [x] D2.00 Registered project roots
 - [x] D2.01 Native file dialog adapters
 - [x] D2.02 Project create with native picker
-- [ ] D2.03 Import panel path import
+- [x] D2.03 Import panel path import
 - [ ] D2.04 Drag and drop
 - [ ] D2.05 Reveal project and export folders
 - [ ] D2.06 Recent projects

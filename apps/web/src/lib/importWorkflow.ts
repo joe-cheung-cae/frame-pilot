@@ -58,6 +58,27 @@ export function importRegistrationTone({
   return skippedCount > 0 ? "neutral" : "success";
 }
 
+export function importPathProgress(result: {
+  expanded_total?: number | null;
+  remaining_paths?: readonly string[] | null;
+}): { completed: number; remaining: number; total: number } {
+  const total = typeof result.expanded_total === "number" && result.expanded_total > 0 ? result.expanded_total : 0;
+  const remaining = result.remaining_paths?.length ?? 0;
+  const completed = total > 0 ? Math.max(0, total - remaining) : 0;
+  return { completed, remaining, total };
+}
+
+export function importPathProgressMessage(result: {
+  expanded_total?: number | null;
+  remaining_paths?: readonly string[] | null;
+}): string {
+  const { completed, total } = importPathProgress(result);
+  if (total <= 0) {
+    return "Registering files from local paths...";
+  }
+  return `Registered ${completed} of ${total} ${pluralize(total, "file")} from local paths.`;
+}
+
 export function importPreviewCompletionMessage(importedCount: number): string {
   if (importedCount <= 0) {
     return "";

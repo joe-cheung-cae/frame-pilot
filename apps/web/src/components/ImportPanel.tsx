@@ -6,10 +6,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { FileImage, Loader2, Play, RotateCcw, StopCircle } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
-import { Link } from "@/lib/navigation";
 import {
   type ImportFeedbackTone,
   importLoadRecoveryMessage,
+  importPathProgressMessage,
   importPreviewCompletionMessage,
   importProcessBlockMessage,
   importRegistrationMessage,
@@ -18,6 +18,9 @@ import {
   importTerminalStatusMessage,
   loadAvailableImportedPhotosForJob,
 } from "@/lib/importWorkflow";
+import { getNativeFs } from "@/lib/nativeFs";
+import { Link } from "@/lib/navigation";
+import { isDesktopShell } from "@/lib/shell";
 import {
   activeJobOfType,
   processingProgressPercent,
@@ -36,7 +39,11 @@ const IMPORT_MESSAGE_CLASS: Record<ImportFeedbackTone, string> = {
   warning: "text-coral",
 };
 
+type ImportRequest = { files: readonly File[] } | { paths: readonly string[] };
+
 export function ImportPanel({ projectId }: { projectId: string }) {
+  const desktopShell = isDesktopShell();
+  const nativeFs = getNativeFs();
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<ImportFeedbackTone>("neutral");
   const [skipped, setSkipped] = useState<{ filename: string; reason: string }[]>([]);
@@ -46,6 +53,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
   const currentImportJobIdRef = useRef<string | null>(null);
   const [completedImportJobId, setCompletedImportJobId] = useState<string | null>(null);
   const [lastImportPhotoIds, setLastImportPhotoIds] = useState<string[]>([]);
+  const [importMode, setImportMode] = useState<"upload" | "paths">("upload");
   const queryClient = useQueryClient();
 
   function selectCurrentImportJob(jobId: string | null) {
@@ -59,8 +67,19 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     retry: false,
   });
   const mutation = useMutation({
-    mutationFn: (files: readonly File[]) =>
-      api.importPhotos(projectId, files, {
+    mutationFn: (request: ImportRequest) => {
+      if ("paths" in request) {
+        return api.importPhotosFromPaths(projectId, request.paths, {
+          onSliceComplete: (result) => {
+            if (result.job?.id) {
+              selectCurrentImportJob(result.job.id);
+            }
+            setMessage(importPathProgressMessage(result));
+            setMessageTone("neutral");
+          },
+        });
+      }
+      return api.importPhotos(projectId, request.files, {
         onBatchComplete: (result, batchIndex, batchCount) => {
           if (result.job?.id) {
             selectCurrentImportJob(result.job.id);
@@ -70,8 +89,10 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           );
           setMessageTone("neutral");
         },
-      }),
-    onMutate: () => {
+      });
+    },
+    onMutate: (request) => {
+      setImportMode("paths" in request ? "paths" : "upload");
       setMessage("");
       setMessageTone("neutral");
       setSkipped([]);
@@ -178,7 +199,37 @@ export function ImportPanel({ projectId }: { projectId: string }) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (files.length) {
-      mutation.mutate(files);
+      mutation.mutate({ files });
+    }
+  }
+
+  async function onPickImageFiles() {
+    if (!nativeFs) {
+      return;
+    }
+    try {
+      const picked = await nativeFs.pickImageFiles();
+      if (picked?.length) {
+        mutation.mutate({ paths: picked });
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+      setMessageTone("warning");
+    }
+  }
+
+  async function onPickFolder() {
+    if (!nativeFs) {
+      return;
+    }
+    try {
+      const picked = await nativeFs.pickDirectory();
+      if (picked) {
+        mutation.mutate({ paths: [picked] });
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+      setMessageTone("warning");
     }
   }
 
@@ -225,53 +276,91 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           <p className="mt-2 break-all text-sm text-neutral-600">Project data: {project.data.root_path}</p>
         ) : null}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label
-          className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
-            importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-          }`}
-        >
-          <input
-            className="sr-only"
-            type="file"
-            multiple
-            accept="image/jpeg,image/png,image/webp"
+      {desktopShell ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button
+            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+              importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+            }`}
             disabled={importSelectionDisabled}
-            onChange={onFiles}
-          />
-          <span className="grid gap-3">
-            <FileImage className="mx-auto text-leaf" size={34} />
-            <span className="font-medium">Choose image files</span>
-            <span className="text-sm text-neutral-600">JPEG, PNG, and WebP are supported.</span>
-          </span>
-        </label>
-        <label
-          className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
-            importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-          }`}
-        >
-          <input
-            className="sr-only"
-            type="file"
-            multiple
-            accept="image/jpeg,image/png,image/webp"
+            onClick={() => {
+              void onPickImageFiles();
+            }}
+            type="button"
+          >
+            <span className="grid gap-3">
+              <FileImage className="mx-auto text-leaf" size={34} />
+              <span className="font-medium">Choose image files</span>
+              <span className="text-sm text-neutral-600">JPEG, PNG, and WebP are supported.</span>
+            </span>
+          </button>
+          <button
+            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+              importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+            }`}
             disabled={importSelectionDisabled}
-            onChange={onFiles}
-            {...{ webkitdirectory: "", directory: "" }}
-          />
-          <span className="grid gap-3">
-            <FileImage className="mx-auto text-leaf" size={34} />
-            <span className="font-medium">Choose a folder</span>
-            <span className="text-sm text-neutral-600">Original files are copied into the local project folder.</span>
-            <span className="text-sm text-neutral-600">Source folders are not tracked for rescan yet.</span>
-          </span>
-        </label>
-      </div>
+            onClick={() => {
+              void onPickFolder();
+            }}
+            type="button"
+          >
+            <span className="grid gap-3">
+              <FileImage className="mx-auto text-leaf" size={34} />
+              <span className="font-medium">Choose a folder</span>
+              <span className="text-sm text-neutral-600">Original files are copied into the local project folder.</span>
+              <span className="text-sm text-neutral-600">Source folders are not tracked for rescan yet.</span>
+            </span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label
+            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+              importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+            }`}
+          >
+            <input
+              className="sr-only"
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp"
+              disabled={importSelectionDisabled}
+              onChange={onFiles}
+            />
+            <span className="grid gap-3">
+              <FileImage className="mx-auto text-leaf" size={34} />
+              <span className="font-medium">Choose image files</span>
+              <span className="text-sm text-neutral-600">JPEG, PNG, and WebP are supported.</span>
+            </span>
+          </label>
+          <label
+            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+              importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+            }`}
+          >
+            <input
+              className="sr-only"
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp"
+              disabled={importSelectionDisabled}
+              onChange={onFiles}
+              {...{ webkitdirectory: "", directory: "" }}
+            />
+            <span className="grid gap-3">
+              <FileImage className="mx-auto text-leaf" size={34} />
+              <span className="font-medium">Choose a folder</span>
+              <span className="text-sm text-neutral-600">Original files are copied into the local project folder.</span>
+              <span className="text-sm text-neutral-600">Source folders are not tracked for rescan yet.</span>
+            </span>
+          </label>
+        </div>
+      )}
       {importSelectionBlock ? <p className="text-sm text-neutral-600">{importSelectionBlock}</p> : null}
       {mutation.isPending ? (
         <p className="inline-flex items-center gap-2 text-sm">
           <Loader2 className="animate-spin" size={16} />
-          Uploading and registering files...
+          {importMode === "paths" ? "Registering local files..." : "Uploading and registering files..."}
         </p>
       ) : null}
       {importJob ? (
