@@ -14,8 +14,9 @@ use sidecar::{
     allocate_loopback_port, api_pythonpath, blocking_error_script, close_decision, close_job_kind,
     default_python, find_active_job, initialization_script, parse_quit_choice, probe_health,
     quit_dialog_script, recovery_action, repo_root, request_cancel_then_wait, sidecar_spawn_spec,
-    sidecar_stderr_log, spawn_sidecar, terminate_sidecar, wait_for_health, wait_for_ready_line,
-    CloseChoice, CloseDecision, CloseJobKind, RecoveryAction, CANCEL_WAIT, STARTUP_TIMEOUT,
+    sidecar_stderr_log, spawn_sidecar, store_sidecar_child, terminate_sidecar, wait_for_health,
+    CloseChoice, CloseDecision, CloseJobKind, RecoveryAction, SpawnedSidecar, CANCEL_WAIT,
+    STARTUP_TIMEOUT,
 };
 use tauri::{Listener, Manager, RunEvent, WindowEvent};
 
@@ -35,9 +36,11 @@ impl SidecarState {
     }
 
     fn store_child(&self, child: Child) {
-        if let Ok(mut guard) = self.child.lock() {
-            *guard = Some(child);
-        }
+        store_sidecar_child(
+            &self.child,
+            self.shutdown.load(Ordering::SeqCst),
+            child,
+        );
     }
 
     fn request_shutdown(&self) {
@@ -63,13 +66,10 @@ fn start_sidecar_process(
         pythonpath.to_path_buf(),
     )
     .map_err(|err| err.to_string())?;
-    let mut child =
-        spawn_sidecar(&spec, &sidecar_stderr_log(data_dir)).map_err(|err| err.to_string())?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| "sidecar stdout missing".to_string())?;
-    wait_for_ready_line(stdout, port, STARTUP_TIMEOUT).map_err(|err| err.to_string())?;
+    let spawned = SpawnedSidecar::new(
+        spawn_sidecar(&spec, &sidecar_stderr_log(data_dir)).map_err(|err| err.to_string())?,
+    );
+    let mut child = spawned.wait_ready(port, STARTUP_TIMEOUT)?;
     if !wait_for_health(port, STARTUP_TIMEOUT) {
         terminate_sidecar(&mut child);
         return Err("sidecar /health did not become ready".into());

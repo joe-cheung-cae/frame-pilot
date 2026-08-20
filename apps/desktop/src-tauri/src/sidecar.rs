@@ -5,7 +5,7 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
+use std::sync::{mpsc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -351,6 +351,55 @@ pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<C
     command.spawn()
 }
 
+/// Just-spawned sidecar. Drop terminates and waits while armed.
+pub struct SpawnedSidecar {
+    child: Option<Child>,
+    armed: bool,
+}
+
+impl SpawnedSidecar {
+    pub fn new(child: Child) -> Self {
+        Self {
+            child: Some(child),
+            armed: true,
+        }
+    }
+
+    pub fn child_mut(&mut self) -> &mut Child {
+        self.child
+            .as_mut()
+            .expect("spawned sidecar child already taken")
+    }
+
+    pub fn into_child(mut self) -> Child {
+        self.armed = false;
+        self.child
+            .take()
+            .expect("spawned sidecar child already taken")
+    }
+
+    pub fn wait_ready(mut self, allocated_port: u16, timeout: Duration) -> Result<Child, String> {
+        let stdout = self
+            .child_mut()
+            .stdout
+            .take()
+            .ok_or_else(|| "sidecar stdout missing".to_string())?;
+        wait_for_ready_line(stdout, allocated_port, timeout).map_err(|err| err.to_string())?;
+        Ok(self.into_child())
+    }
+}
+
+impl Drop for SpawnedSidecar {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        if let Some(ref mut child) = self.child {
+            terminate_sidecar(child);
+        }
+    }
+}
+
 pub fn wait_for_ready_line(
     stdout: impl Read + Send + 'static,
     allocated_port: u16,
@@ -437,6 +486,25 @@ pub fn terminate_sidecar(child: &mut Child) {
                 let _ = child.wait();
                 return;
             }
+        }
+    }
+}
+
+/// Store `child` unless shutdown is already set. Shutdown terminates instead of
+/// dropping the process without a wait.
+pub fn store_sidecar_child(slot: &Mutex<Option<Child>>, shutdown: bool, child: Child) {
+    if shutdown {
+        let mut child = child;
+        terminate_sidecar(&mut child);
+        return;
+    }
+    match slot.lock() {
+        Ok(mut guard) => {
+            *guard = Some(child);
+        }
+        Err(_) => {
+            let mut child = child;
+            terminate_sidecar(&mut child);
         }
     }
 }
@@ -603,7 +671,10 @@ fn html_escape(value: &str) -> String {
 mod tests {
     use super::*;
     use std::io::Cursor;
-    use std::net::{IpAddr, Ipv4Addr, TcpListener};
+    use std::net::{IpAddr, Ipv4Addr, TcpListener, TcpStream};
+    use std::process::{Command, Stdio};
+    use std::sync::Mutex;
+    use std::time::Instant;
 
     fn port_flag_value(args: &[String]) -> Option<&str> {
         args.windows(2)
@@ -828,5 +899,139 @@ mod tests {
         let processing = first_active_job_from_jobs_json("proj-1", jobs).expect("processing job");
         assert_eq!(processing.job_id, "job-2");
         assert_eq!(processing.job_type, "processing");
+    }
+
+    fn wait_until_listening(port: u16, timeout: Duration) {
+        let deadline = Instant::now() + timeout;
+        let addr = format!("{LOOPBACK_HOST}:{port}")
+            .parse()
+            .expect("loopback addr");
+        while Instant::now() < deadline {
+            if TcpStream::connect_timeout(&addr, Duration::from_millis(50)).is_ok() {
+                return;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+        panic!("loopback holder did not listen on {port}");
+    }
+
+    fn spawn_loopback_holder(port: u16, stdout: Stdio, ready_line: Option<&str>) -> Child {
+        let script = r#"
+import socket, sys, time
+port = int(sys.argv[1])
+line = sys.argv[2]
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+sock.bind(("127.0.0.1", port))
+sock.listen(1)
+if line:
+    sys.stdout.write(line + "\n")
+    sys.stdout.flush()
+while True:
+    time.sleep(60)
+"#;
+        let child = Command::new("python3")
+            .args(["-c", script, &port.to_string(), ready_line.unwrap_or("")])
+            .stdout(stdout)
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn python3 loopback holder");
+        let spawned = SpawnedSidecar::new(child);
+        wait_until_listening(port, Duration::from_secs(2));
+        spawned.into_child()
+    }
+
+    fn process_is_alive(pid: u32) -> bool {
+        #[cfg(unix)]
+        {
+            extern "C" {
+                fn kill(pid: i32, sig: i32) -> i32;
+            }
+            unsafe { kill(pid as i32, 0) == 0 }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = pid;
+            false
+        }
+    }
+
+    fn assert_port_free(port: u16) {
+        let rebound = TcpListener::bind((LOOPBACK_HOST, port))
+            .expect("allocated loopback port must be free after terminate-and-wait");
+        let addr = rebound.local_addr().expect("local addr");
+        assert_eq!(addr.ip(), IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(addr.port(), port);
+    }
+
+    #[test]
+    fn ready_line_timeout_terminates_listener_and_retry_can_bind_same_port() {
+        let port = allocate_loopback_port().expect("allocate loopback port");
+        let child = spawn_loopback_holder(port, Stdio::piped(), None);
+        let err = SpawnedSidecar::new(child)
+            .wait_ready(port, Duration::from_millis(300))
+            .expect_err("ready line must time out");
+        assert!(err.contains("timed out"), "{err}");
+        assert_port_free(port);
+
+        let retry = spawn_loopback_holder(port, Stdio::piped(), None);
+        let retry_err = SpawnedSidecar::new(retry)
+            .wait_ready(port, Duration::from_millis(300))
+            .expect_err("retry ready line must time out");
+        assert!(retry_err.contains("timed out"), "{retry_err}");
+        assert_port_free(port);
+    }
+
+    #[test]
+    fn ready_line_parse_failure_terminates_listener_and_frees_port() {
+        let port = allocate_loopback_port().expect("allocate loopback port");
+        let child = spawn_loopback_holder(port, Stdio::piped(), Some("not a ready line"));
+        let err = SpawnedSidecar::new(child)
+            .wait_ready(port, Duration::from_secs(2))
+            .expect_err("ready line must fail to parse");
+        assert!(
+            err.contains("invalid") || err.contains("ready line"),
+            "{err}"
+        );
+        assert_port_free(port);
+    }
+
+    #[test]
+    fn missing_stdout_terminates_child_before_return() {
+        let port = allocate_loopback_port().expect("allocate loopback port");
+        let child = spawn_loopback_holder(port, Stdio::null(), None);
+        let pid = child.id();
+        let err = SpawnedSidecar::new(child)
+            .wait_ready(port, Duration::from_secs(1))
+            .expect_err("missing stdout must fail");
+        assert_eq!(err, "sidecar stdout missing");
+        assert!(!process_is_alive(pid), "child {pid} must be terminated");
+        assert_port_free(port);
+    }
+
+    #[test]
+    fn store_child_terminates_when_shutdown_is_set() {
+        let port = allocate_loopback_port().expect("allocate loopback port");
+        let child = spawn_loopback_holder(port, Stdio::null(), None);
+        let pid = child.id();
+        let slot = Mutex::new(None);
+        store_sidecar_child(&slot, true, child);
+        assert!(slot.lock().expect("slot").is_none());
+        assert!(!process_is_alive(pid), "child {pid} must be terminated");
+        assert_port_free(port);
+    }
+
+    #[test]
+    fn store_child_keeps_child_when_shutdown_is_clear() {
+        let port = allocate_loopback_port().expect("allocate loopback port");
+        let child = spawn_loopback_holder(port, Stdio::null(), None);
+        let slot: Mutex<Option<Child>> = Mutex::new(None);
+        store_sidecar_child(&slot, false, child);
+        assert!(slot.lock().expect("slot").is_some());
+        TcpListener::bind((LOOPBACK_HOST, port))
+            .expect_err("stored child must still own the allocated port");
+        let stored = slot.lock().expect("slot").take().expect("stored child");
+        drop(SpawnedSidecar::new(stored));
+        assert_port_free(port);
     }
 }
