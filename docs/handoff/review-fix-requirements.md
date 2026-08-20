@@ -208,77 +208,89 @@ Keep existing path-import immutability and allowlist tests green. Never set `FRA
 
 ## 7. Acceptance boxes
 
-Copied from the GitHub issue bodies. Unticked here. `上线` ticks them only after measured evidence. Do not close the issues.
+Copied from the GitHub issue bodies. Ticked at `上线` 2026-08-20T11:13:12+08:00 after measured `测试` evidence (`cargo test` 35 passed twice on rustc/cargo 1.97.1; `npm run test:web`; `npm run verify` rust-free; `npm run test:desktop:smoke`). Do not close the issues. Do not open a PR. Do not merge to `main`.
 
 ### F001 — [joe-cheung-cae/frame-pilot#33](https://github.com/joe-cheung-cae/frame-pilot/issues/33) `[high]` Ready-line failure drops the sidecar without terminating it
 
 Copied from `#33` Acceptance criteria:
 
-- [ ] After a ready-line timeout or parse failure, no process remains listening on the allocated loopback port
-- [ ] Retry can bind the same port and start a new sidecar
-- [ ] Missing stdout also terminates the child before return
-- [ ] A unit or harness test covers ready-line failure then retry (no leftover listener)
+- [x] After a ready-line timeout or parse failure, no process remains listening on the allocated loopback port
+- [x] Retry can bind the same port and start a new sidecar
+- [x] Missing stdout also terminates the child before return
+- [x] A unit or harness test covers ready-line failure then retry (no leftover listener)
+
+Evidence: slice A `7a8bdba74bfe656a64fd4ae172cbbfd494707fb7`. Tests `ready_line_timeout_terminates_listener_and_retry_can_bind_same_port`, `ready_line_parse_failure_terminates_listener_and_frees_port`, `missing_stdout_terminates_child_before_return` (real loopback listener, not `sleep`).
 
 ### F002 — [joe-cheung-cae/frame-pilot#35](https://github.com/joe-cheung-cae/frame-pilot/issues/35) `[high]` Supervisor can respawn the sidecar after shutdown
 
 Copied from `#35` Acceptance criteria:
 
-- [ ] Close or quit during the 400ms health probe leaves no sidecar process after the app exits
-- [ ] `start_sidecar_process` / `store_child` are no-ops when `shutdown` is already set
-- [ ] Any child spawned after shutdown is terminated before return
+- [x] Close or quit during the 400ms health probe leaves no sidecar process after the app exits
+- [x] `start_sidecar_process` / `store_child` are no-ops when `shutdown` is already set
+- [x] Any child spawned after shutdown is terminated before return
+
+Evidence: slice B `c7cda3c20c93725aa5efe74e914e3d6e06e4cca6` plus slice A shutdown-aware `store_child`. Tests `close_during_health_probe_leaves_no_sidecar`, `start_sidecar_process_does_not_spawn_when_shutdown_is_set`, `start_sidecar_process_and_store_child_do_not_keep_live_child_when_shutdown_is_set`, `start_sidecar_process_terminates_child_spawned_after_shutdown`, `supervisor_rechecks_shutdown_after_health_probe`. Note (I2): the issue’s “no-ops” wording is implemented as **terminate, do not drop** — a silent return that drops `Child` would leak.
 
 ### F003 — [joe-cheung-cae/frame-pilot#36](https://github.com/joe-cheung-cae/frame-pilot/issues/36) `[high]` Import quit dialog script is invalid JavaScript
 
 Copied from `#36` Acceptance criteria:
 
-- [ ] `quit_dialog_script(CloseJobKind::Import)` is syntactically valid JavaScript
-- [ ] The import script still contains `data-choice=cancel_and_quit`
-- [ ] Closing during an import mounts Keep working / Quit and cancel import / Quit anyway
-- [ ] A unit test fails if the import script does not parse as JS (substring checks alone are not enough)
+- [x] `quit_dialog_script(CloseJobKind::Import)` is syntactically valid JavaScript
+- [x] The import script still contains `data-choice=cancel_and_quit`
+- [x] Closing during an import mounts Keep working / Quit and cancel import / Quit anyway
+- [x] A unit test fails if the import script does not parse as JS (substring checks alone are not enough)
 
 F003 is **import-only**. Processing `extra_button` is empty and still parses. Do not treat a green processing-dialog substring test as coverage for import.
+
+Evidence: slice C `2ae116392b169aac2c8b70551624dcfb64582654` (landed with F004). Tests `quit_dialog_script_import_is_valid_javascript_with_cancel_button` (`node --check` / parser, not substring-only) and `quit_dialog_script_processing_is_valid_javascript_without_cancel`. The emitted import script includes Keep working, Quit and cancel import, and Quit anyway. Live GUI WebView click was not required by the `测试` plan.
 
 ### F004 — [joe-cheung-cae/frame-pilot#34](https://github.com/joe-cheung-cae/frame-pilot/issues/34) `[medium]` Failed quit-dialog handshake defaults to cancel-and-quit
 
 Copied from `#34` Acceptance criteria:
 
-- [ ] Handshake timeout or invalid first payload leaves the window open (Stay) and resets `close_in_progress`
-- [ ] Cancel is POSTed only when the user clicks Quit and cancel import
-- [ ] Quit anyway still terminates without POST cancel
+- [x] Handshake timeout or invalid first payload leaves the window open (Stay) and resets `close_in_progress`
+- [x] Cancel is POSTed only when the user clicks Quit and cancel import
+- [x] Quit anyway still terminates without POST cancel
 
 F003 + F004 **must land together**. Today F003 makes F004 the live import-close path (2s timeout then `CancelAndQuit`).
+
+Evidence: same slice C commit as F003. Test `close_choice_from_handshake_unresolved_stays`. `eval` `Err` is `None` → Stay. Stay resets `close_in_progress`. `CancelThenTerminate` only from an explicit `cancel_and_quit` payload on an import job.
 
 ### F005 — [joe-cheung-cae/frame-pilot#31](https://github.com/joe-cheung-cae/frame-pilot/issues/31) `[medium]` App quit SIGTERMs the sidecar without the close dialog
 
 Copied from `#31` Acceptance criteria:
 
-- [ ] Cmd+Q / app quit during an active import or processing job shows the same close dialog as the window close button
-- [ ] Stay keeps the app running and the sidecar alive
-- [ ] Quit and cancel import POSTs cancel and waits up to `CANCEL_WAIT` before SIGTERM
-- [ ] Quit anyway still SIGTERMs without pretending the job is `cancelled`
+- [x] Cmd+Q / app quit during an active import or processing job shows the same close dialog as the window close button
+- [x] Stay keeps the app running and the sidecar alive
+- [x] Quit and cancel import POSTs cancel and waits up to `CANCEL_WAIT` before SIGTERM
+- [x] Quit anyway still SIGTERMs without pretending the job is `cancelled`
 
 `ExitRequested` needs `prevent_exit`.
+
+Evidence: slice D `2bd21f6922c47ab379929b0ff6f9dc3f830eac87`. Test `app_quit_action_prevents_exit_requested_and_shares_close_decision_with_window_close`. `prevent_exit` runs first; Stay does not `request_shutdown`; `RunEvent::Exit` may still drain. Quit-anyway / SIGTERM remains `failed` + retryable via `fail_active_jobs_on_startup`, not `cancelled`. Live Cmd+Q in a GUI session was not required by the `测试` plan.
 
 ### F006 — [joe-cheung-cae/frame-pilot#32](https://github.com/joe-cheung-cae/frame-pilot/issues/32) `[medium]` Sidecar process leaked when ready-line wait fails
 
 Copied from `#32` Acceptance criteria:
 
-- [ ] Same as F001: no leftover listener after ready-line failure
-- [ ] After a restart spawn, if `shutdown` is already set, the new child is terminated instead of stored
-- [ ] Closed together with F001
+- [x] Same as F001: no leftover listener after ready-line failure
+- [x] After a restart spawn, if `shutdown` is already set, the new child is terminated instead of stored
+- [x] Closed together with F001
 
 F001 == F006 **one change**. Do not write a second patch for F006.
+
+Evidence: same slice A commit as F001. Test `store_child_terminates_when_shutdown_is_set`. Slice B is supervisor re-check + `SidecarState` Drop, not a second F006 patch.
 
 ### Parent `#30` retest (not extra product scope; evidence for `测试` / `上线`)
 
 From [joe-cheung-cae/frame-pilot#30](https://github.com/joe-cheung-cae/frame-pilot/issues/30):
 
-- Ready-line timeout then retry (no leftover listener on the allocated port)
-- Close/quit during the 400ms probe (no child after exit)
-- Close during a running import (Keep working stays, cancel POSTs only on the cancel button)
-- Cmd+Q during import (same dialog, not an immediate SIGTERM)
+- [x] Ready-line timeout then retry (no leftover listener on the allocated port)
+- [x] Close/quit during the 400ms probe (no child after exit)
+- [x] Close during a running import (Keep working stays, cancel POSTs only on the cancel button)
+- [x] Cmd+Q during import (same dialog, not an immediate SIGTERM)
 
-`npm run verify` must not compile this crate.
+`npm run verify` must not compile this crate. `测试` ran `npm run verify` with fail-if-invoked wrappers first on `PATH`; `rustc` / `cargo` / `tauri` were never called. Parent retest is helper/harness-level as specified (GUI WebView of the overlay was not required). Issues stay open.
 
 ---
 

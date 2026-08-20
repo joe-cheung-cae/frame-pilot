@@ -260,18 +260,18 @@ Keep existing path-import immutability and allowlist tests green. Never set `FRA
 
 ---
 
-## Acceptance boxes (still unticked)
+## Acceptance boxes (ticked at `上线`)
 
-Copied from the issues. `上线` ticks them only after measured evidence. Do not close [joe-cheung-cae/frame-pilot#30](https://github.com/joe-cheung-cae/frame-pilot/issues/30) or the sub-issues.
+Copied from the issues. Ticked 2026-08-20T11:13:12+08:00 after measured `测试` evidence (`cargo test` 35 passed twice, rustc/cargo 1.97.1; `npm run test:web`; `npm run verify` rust-free; `npm run test:desktop:smoke`). Do not close [joe-cheung-cae/frame-pilot#30](https://github.com/joe-cheung-cae/frame-pilot/issues/30) or the sub-issues. Do not open a PR. Do not merge to `main`.
 
-- F001 `#33`: no leftover listener after ready-line failure; retry binds the same port; missing stdout terminates; harness covers failure then retry.
-- F002 `#35`: close/quit during the 400ms probe leaves no sidecar; `start_sidecar_process` / `store_child` do not keep a live child when `shutdown` is set (terminate, do not drop); post-shutdown spawn is terminated before return.
-- F003 `#36`: import script parses as JS; still contains `data-choice=cancel_and_quit`; overlay mounts three buttons; parser test (not substring-only).
-- F004 `#34`: unresolved handshake → Stay + reset `close_in_progress`; cancel POSTed only on the cancel button; quit anyway SIGTERMs without POST cancel. Lands with F003.
-- F005 `#31`: Cmd+Q shows the same dialog; Stay keeps sidecar alive; cancel waits up to `CANCEL_WAIT` then SIGTERM; quit anyway is `failed` + retryable, not `cancelled`. `prevent_exit` first.
-- F006 `#32`: same as F001 plus shutdown-aware store; closed with F001, not a second patch.
+- [x] F001 `#33`: no leftover listener after ready-line failure; retry binds the same port; missing stdout terminates; harness covers failure then retry. SHA `7a8bdba74bfe656a64fd4ae172cbbfd494707fb7`.
+- [x] F002 `#35`: close/quit during the 400ms probe leaves no sidecar; `start_sidecar_process` / `store_child` do not keep a live child when `shutdown` is set (terminate, do not drop); post-shutdown spawn is terminated before return. SHA `c7cda3c20c93725aa5efe74e914e3d6e06e4cca6`.
+- [x] F003 `#36`: import script parses as JS; still contains `data-choice=cancel_and_quit`; overlay mounts three buttons; parser test (not substring-only). SHA `2ae116392b169aac2c8b70551624dcfb64582654` (with F004).
+- [x] F004 `#34`: unresolved handshake → Stay + reset `close_in_progress`; cancel POSTed only on the cancel button; quit anyway SIGTERMs without POST cancel. Lands with F003. Same SHA as F003.
+- [x] F005 `#31`: Cmd+Q shows the same dialog; Stay keeps sidecar alive; cancel waits up to `CANCEL_WAIT` then SIGTERM; quit anyway is `failed` + retryable, not `cancelled`. `prevent_exit` first. SHA `2bd21f6922c47ab379929b0ff6f9dc3f830eac87`.
+- [x] F006 `#32`: same as F001 plus shutdown-aware store; closed with F001, not a second patch. Same SHA as F001.
 
-Parent `#30` retest: ready-line timeout then retry; close during 400ms probe; close during import (Keep working stays); Cmd+Q during import (dialog, not immediate SIGTERM). `npm run verify` must not compile this crate.
+Parent `#30` retest (helper/harness-level; GUI WebView overlay click not required): ready-line timeout then retry; close during 400ms probe; close during import (Keep working stays); Cmd+Q during import (dialog, not immediate SIGTERM). `npm run verify` must not compile this crate (verified with fail-if-invoked wrappers).
 
 ---
 
