@@ -4,14 +4,22 @@
   "version": "2.0.0-rc2",
   "identifier": "local.framepilot.desktop",
   "build": {
-    "frontendDist": ".."
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
+        "label": "main",
         "title": "FramePilot",
         "width": 1200,
-        "height": 800
+        "height": 800,
+        "minWidth": 1100,
+        "minHeight": 720,
+        "create": false
       }
     ],
     "security": {

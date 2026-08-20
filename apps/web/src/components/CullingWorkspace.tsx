@@ -4,8 +4,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -24,6 +22,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
+import { Link, useNavigator, useQueryParams } from "@/lib/navigation";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
 import {
   groupConfidenceLabel,
@@ -63,9 +62,9 @@ const GROUP_ITEM_HEIGHT = 64;
 
 export function CullingWorkspace({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const requestedFilter = searchParams.get("filter");
+  const navigator = useNavigator();
+  const queryParams = useQueryParams();
+  const requestedFilter = queryParams.get("filter");
   const filterButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const filmstripButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const groupButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -487,7 +486,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       if (command.type === "cycle_group") cycleGroup();
       if (command.type === "focus_filters") focusFilterControls();
       if (command.type === "export") {
-        router.push(`/projects/${projectId}/export`);
+        navigator.push(`/projects/${projectId}/export`);
       }
     }
     window.addEventListener("keydown", onKeyDown);

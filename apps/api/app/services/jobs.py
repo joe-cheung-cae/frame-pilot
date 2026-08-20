@@ -70,7 +70,10 @@ def fail_stale_job(session: Session, job: ProcessingJob) -> ProcessingJob:
         return mark_job_failed(session, job, reason, current_step="failed - stale")
 
     if job.job_type == "import":
+        from app.services.importing import reset_import_photos_after_interrupt
+
         reason = "Import job was interrupted before completion"
+        reset_import_photos_after_interrupt(session, job.project_id, reason)
         return mark_job_failed(session, job, reason, current_step="failed - stale")
 
     reason = f"{job.job_type.title()} job was interrupted before completion"
@@ -101,7 +104,10 @@ def fail_active_jobs_on_startup(session: Session) -> int:
             reset_project_after_processing_failure(session, job.project_id, reason)
             mark_job_failed(session, job, reason, current_step="failed - restart")
         elif job.job_type == "import":
+            from app.services.importing import reset_import_photos_after_interrupt
+
             reason = "API process restarted while this import job was still active"
+            reset_import_photos_after_interrupt(session, job.project_id, reason)
             mark_job_failed(session, job, reason, current_step="failed - restart")
         else:
             reason = f"API process restarted while this {job.job_type} job was still active"

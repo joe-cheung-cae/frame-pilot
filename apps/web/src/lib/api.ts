@@ -1,4 +1,6 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+import { resolveApiBase } from "./apiBase.ts";
+
+export const API_BASE = resolveApiBase();
 
 export type Project = {
   id: string;
@@ -215,7 +217,7 @@ function errorMessageFromBody(body: string, fallback: string): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${resolveApiBase()}${path}`, {
     ...init,
     headers: init?.body instanceof FormData ? init.headers : { "Content-Type": "application/json", ...init?.headers },
   });
@@ -373,7 +375,7 @@ export const api = {
 };
 
 export function exportDownloadUrl(projectId: string, exportId: string): string {
-  return `${API_BASE}/api/projects/${projectId}/exports/${exportId}/download`;
+  return `${resolveApiBase()}/api/projects/${projectId}/exports/${exportId}/download`;
 }
 
 export function assetUrl(projectId: string, path: string | null): string | null {
@@ -387,5 +389,5 @@ export function assetUrl(projectId: string, path: string | null): string | null 
   if (!filename || !kind) {
     return null;
   }
-  return `${API_BASE}/api/assets/${projectId}/${encodeURIComponent(kind)}/${encodeURIComponent(filename)}`;
+  return `${resolveApiBase()}/api/assets/${projectId}/${encodeURIComponent(kind)}/${encodeURIComponent(filename)}`;
 }

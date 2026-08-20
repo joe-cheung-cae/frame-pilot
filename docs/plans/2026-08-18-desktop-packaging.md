@@ -214,23 +214,23 @@ Phase 0 — closed `上线` 2026-08-19 on `refactor` (GO; Phase 1 not started)
 - [x] D0.05 PyInstaller spec and sidecar smoke
 - [x] D0.06 Next static export spike (docs)
 - [x] D0.07a Tauri artifact/gitignore hygiene
-- [~] D0.07 Minimal Tauri shell with sidecar health — 2026-08-19 `cargo --version` / `rustc --version`: `zsh:1: command not found: cargo` / `zsh:1: command not found: rustc` (exit 127). See `docs/desktop_feasibility_notes.md`. Compile-blocked is not the Electron trigger; sidecar was spawned.
+- [~] D0.07 Minimal Tauri shell with sidecar health — Phase 0 (2026-08-19T08:26:40Z) `cargo --version` / `rustc --version`: `zsh:1: command not found: cargo` / `zsh:1: command not found: rustc` (exit 127). Box stays `[~]` as the Phase 0 close-out. Phase 1 later installed user-space rustup and opened a FramePilot window (see D1.08). Compile-blocked was not the Electron trigger; sidecar was spawned. See `docs/desktop_feasibility_notes.md`.
 - [x] D0.08 Baselines
 - [x] D0.09 Go / no-go
 
-Phase 1
+Phase 1 — closed `上线` 2026-08-19 on `feature/desktop-packaging` (GO; Phase 2 not started)
 
-- [ ] D1.01 Navigation adapter
-- [ ] D1.02 Runtime API base
-- [ ] D1.02a Desktop shell flag
-- [ ] D1.03a Vite build, aliases, Tailwind
-- [ ] D1.03b Desktop router
-- [ ] D1.04 Sidecar lifecycle in Rust
-- [ ] D1.05 App-support data directory
-- [ ] D1.06 Window basics and single instance
-- [ ] D1.07 Dev scripts and verify wiring
-- [ ] D1.08 Desktop smoke: health + project list
-- [ ] D1.09 Graceful quit with a running job
+- [x] D1.01 Navigation adapter
+- [x] D1.02 Runtime API base
+- [x] D1.02a Desktop shell flag
+- [x] D1.03a Vite build, aliases, Tailwind
+- [x] D1.03b Desktop router
+- [x] D1.04 Sidecar lifecycle in Rust
+- [x] D1.05 App-support data directory
+- [x] D1.06 Window basics and single instance
+- [x] D1.07 Dev scripts and verify wiring
+- [x] D1.08 Desktop smoke: health + project list — HTTP `[x]` (`npm run test:desktop:smoke` twice, 2026-08-19T18:54:03+08:00 / 18:54:04+08:00). WebView `[x]` 2026-08-19T18:54:32+08:00 `npm run dev:desktop` opened window title `FramePilot`; sidecar `127.0.0.1:54451` `GET /health` and WebView `OPTIONS`+`GET /api/projects` 200 (empty list OK).
+- [x] D1.09 Graceful quit with a running job
 
 Phase 2
 
@@ -719,11 +719,11 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 
 **Commit:** `desktop: cancel or drain jobs before quitting`
 
-**Phase 1 acceptance:**
-- [ ] Home UI or HTTP smoke lists projects
-- [ ] Sidecar health OK
-- [ ] `npm run verify` green without Tauri
-- [ ] Browser `npm run dev` still works on :3000/:8000
+**Phase 1 acceptance** (ticked `上线` 2026-08-19; Phase 2 not started):
+- [x] Home UI or HTTP smoke lists projects — `GET /api/projects` `[]` from `test:desktop:smoke`, live sidecar, desktop sidecar `:54451`, and browser API `:8000`
+- [x] Sidecar health OK — `GET /health` `{"status":"ok","version":"2.0.0-rc2","service":"framepilot-api"}`
+- [x] `npm run verify` green without Tauri — exit 0; fail-if-invoked `rustc`/`cargo`/`tauri` wrappers were not called by verify
+- [x] Browser `npm run dev` still works on :3000/:8000 — 2026-08-19T18:59:32+08:00 `npm run dev`: `:8000/health` 200, `:8000/api/projects` `[]`, `:3000/` 200 title `FramePilot`
 
 ---
 

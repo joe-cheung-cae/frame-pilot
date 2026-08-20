@@ -3,13 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
 
-vi.mock("next/link", () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
-}));
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push }),
-  useSearchParams: () => new URLSearchParams(),
+vi.mock("@/lib/navigation", () => ({
+  Link: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  useNavigator: () => ({ push }),
+  useQueryParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@tanstack/react-query", () => ({

@@ -6,6 +6,7 @@
 .local-validation-notes/
 .venv/
 target/
+apps/desktop/src-tauri/gen/
 .framepilot-desktop-dev/
 __pycache__/
 .pytest_cache/

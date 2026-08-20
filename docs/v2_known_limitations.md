@@ -32,6 +32,8 @@ If a processing job becomes stale after committing partial groups, cleanup clear
 
 Import cancellation is cooperative. A cancel request persists a flag and the background worker checks it at safe checkpoints. Cancellation is not a hard process kill, may not stop immediately, keeps completed derivatives, leaves unprocessed photos retryable, and never modifies or deletes source originals.
 
+Desktop close with an active import can POST that same cancel route, wait up to 10 seconds, then SIGTERM the sidecar. Close with an active processing job cannot cancel it (`POST .../cancel` returns 422); quit-anyway SIGTERMs the sidecar and the next launch marks the job `failed` via the startup sweep. A hard kill is not labelled `cancelled`. Processing jobs still have no cancel route.
+
 ## Retry Semantics
 
 Import retry is for failed, `complete_with_errors`, stale-failed, and cancelled import jobs. Retry creates a new import job, preserves existing Photo IDs, `user_status`, and `star_rating`, reuses valid derivatives, and regenerates missing derivatives from the local copied original when possible. Retry does not make jobs durable across API restarts and does not re-register a new external source folder.

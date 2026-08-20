@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useNavigator } from "@/lib/navigation";
 import {
   normalizeProjectCreateDraft,
   projectCreateActionBlockMessage,
@@ -15,14 +15,14 @@ import {
 export function ProjectCreator() {
   const [name, setName] = useState("");
   const [rootPath, setRootPath] = useState("");
-  const router = useRouter();
+  const navigator = useNavigator();
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: ({ projectName, projectRootPath }: { projectName: string; projectRootPath?: string }) =>
       api.createProject(projectName, projectRootPath),
     onSuccess: async (project) => {
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
-      router.push(`/projects/${project.id}/import`);
+      navigator.push(`/projects/${project.id}/import`);
     },
   });
   const createBlockMessage = projectCreateActionBlockMessage({ isCreating: mutation.isPending, name });

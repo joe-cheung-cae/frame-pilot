@@ -1,10 +1,10 @@
 # Desktop Feasibility Notes
 
-**Status: FINAL** — Phase 0 `上线`, 2026-08-19, branch `refactor`.
+**Status: FINAL** — Phase 1 `上线`, 2026-08-19T19:00:41+08:00, branch `feature/desktop-packaging`.
 
-Phase 0 measurements and written go/no-go for FramePilot desktop packaging. Drafted during `开发` on 2026-08-19; `测试` re-ran live sidecar/health/verify; `上线` re-checked `cargo`/`rustc` and owns this wording plus `docs/plans/2026-08-18-desktop-packaging.md` §5.1 ticks.
+Phase 0 measurements remain below. Phase 1 close-out is in **Phase 1 notes** and **Phase 1 go/no-go**. `测试` re-ran web/desktop/verify/jobs/sidecar/cargo; `上线` owns §5.1 Phase 1 ticks and recorded a live `npm run dev:desktop` window plus browser `:3000`/`:8000`.
 
-This host is **macOS**, not WSL2. Phase 1 is not started.
+This host is **macOS**, not WSL2.
 
 ## Verdict
 
@@ -122,3 +122,32 @@ Unpacked sidecar **>250 MB** was **not** observed because PyInstaller `dist/` wa
 5. **Do not start Phase 1 from this close-out.** Do not publish installers, push, or open a PR.
 
 Phase 0 acceptance (see §5.1 / D0.09): sidecar/health/SIGTERM `[x]`; origin+Host `[x]`; path import + immutability `[x]`; feasibility notes `[x]`; `test:api` + `verify` `[x]`; browser web app `[x]`; GUI shell `[~]` with the dated `cargo`/`rustc` error above.
+
+## Phase 1 notes — 2026-08-19
+
+User-space rustup (`curl https://sh.rustup.rs -sSf | sh -s -- -y`) installed `rustc 1.97.1` / `cargo 1.97.1` into `$HOME/.cargo`. No brew/apt. `cargo test` in `apps/desktop/src-tauri` passed D1.04 unit tests (allocate/drop port, ready-line parse including spaced `data_dir`, reject port 0 / mismatch). D0.07 stays `[~]` as the Phase 0 close-out (dated `cargo`/`rustc` command not found, exit 127).
+
+Windows sidecar shutdown (source; not executed on this macOS host): spawn uses `CREATE_NEW_PROCESS_GROUP`, shutdown sends `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT)`, waits 5s, then `Child::kill()` (`TerminateProcess`). Unix uses SIGTERM, wait 5s, then kill.
+
+D1.06 `cargo check` in `apps/desktop/src-tauri` succeeded on 2026-08-19 (`tauri-plugin-window-state` 2.4.1, `tauri-plugin-single-instance` 2.4.3).
+
+D1.08 HTTP sidecar smoke (`npm run test:desktop:smoke`) passed on 2026-08-19: ready line `host=127.0.0.1` with non-zero port, `GET /health` has `status`/`version`/`service`, `GET /api/projects` is a JSON array, attacker `Host` returns visible HTTP 403 JSON (`Host not allowed for local FramePilot API`), desktop Origin `:1420` CORS preflight allows, SIGTERM exits. The HTTP smoke script still prints `desktop-smoke: skipping WebView project-list render` by design.
+
+`上线` 2026-08-19T18:54:32+08:00 ran `npm run dev:desktop` (`npx tauri dev`). It compiled and ran `target/debug/framepilot-desktop`. osascript recorded process `framepilot-desktop` with window title `FramePilot` (1200×800). Sidecar spawned as `--host 127.0.0.1 --port 54451 --data-dir <repo>/.framepilot-desktop-dev`. `GET /health` → `{"status":"ok","version":"2.0.0-rc2","service":"framepilot-api"}`. `GET /api/projects` → `[]`. `sidecar.log` shows WebView `OPTIONS` then `GET /api/projects` 200. Vite answered `http://[::1]:1420/` with the FramePilot HTML shell. D1.08 WebView is `[x]`.
+
+D1.09 quit dialog is injected HTML. Rust unit tests cover Kill-after-5s and cancel-vs-quit-anyway decisions; pytest covers cancel/retry and killed-worker startup sweep. This close-out did not click the on-screen confirm.
+
+`上线` 2026-08-19T18:59:32+08:00 also ran browser `npm run dev`: `GET http://127.0.0.1:8000/health` 200 same health JSON; `GET http://127.0.0.1:8000/api/projects` `[]`; `GET http://127.0.0.1:3000/` 200 with `<title>FramePilot</title>`.
+
+## Phase 1 go/no-go (final)
+
+`上线` wording, 2026-08-19T19:00:41+08:00, `feature/desktop-packaging`:
+
+1. **GO — close desktop Phase 1** on this feature branch. Do not publish installers. Do not open a PR. Do not merge to `main`. Do not start Phase 2.
+2. **Shell stays Tauri 2 + Python sidecar.** User-space rustup provides `rustc 1.97.1` / `cargo 1.97.1`. `cargo test --lib` **19 passed**. Sidecar HTTP smoke passed. `npm run dev:desktop` opened a `FramePilot` window whose WebView called `GET /api/projects`. D0.07 stays dated `[~]` as the Phase 0 record. Missing Phase 0 GUI was **not** the Electron trigger.
+3. **Frontend: Vite SPA in `apps/desktop`.** Shared navigation/API/shell adapters landed. `apps/web` stays Next.js. Live `npm run dev` still serves `:3000` / `:8000`.
+4. **`npm run verify` stays rust-free.** Fail-if-invoked `rustc`/`cargo`/`tauri` wrappers were not called by verify (`verify.log`).
+5. **Jobs:** cancel-then-retry leaves no photo in `processing` after retry; killed import is `failed`+retryable via startup sweep; processing jobs have no cancel route. See `docs/v2_known_limitations.md`.
+6. **`APP_VERSION` remains `2.0.0-rc2`.** Do not bump to `2.1.0-desktop`.
+
+Phase 1 acceptance (see §5.1): HTTP/home project list `[x]`; sidecar health `[x]`; `verify` without Tauri `[x]`; browser `:3000`/`:8000` `[x]`.

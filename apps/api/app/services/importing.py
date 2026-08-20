@@ -907,6 +907,13 @@ def _reset_import_photos_after_crash(session: Session, photo_ids: list[str], rea
         photo = session.get(Photo, photo_id)
         if photo is None:
             continue
+        if photo.processing_state == "processing" and _photo_derivatives_exist(photo):
+            photo.processing_state = "imported"
+            photo.processing_error = None
+            photo.recommendation_explanation = "Import derivatives are available."
+            photo.updated_at = utc_now()
+            session.add(photo)
+            continue
         if photo.processing_state in {"processing", "imported"} and not _photo_derivatives_exist(photo):
             photo.processing_state = "failed"
             photo.processing_error = reason
@@ -916,6 +923,11 @@ def _reset_import_photos_after_crash(session: Session, photo_ids: list[str], rea
             photo.updated_at = utc_now()
             session.add(photo)
     session.commit()
+
+
+def reset_import_photos_after_interrupt(session: Session, project_id: str, reason: str) -> None:
+    photo_ids = [photo.id for photo in session.exec(select(Photo).where(Photo.project_id == project_id)).all()]
+    _reset_import_photos_after_crash(session, photo_ids, reason)
 
 
 def run_import_derivative_job(

@@ -1,34 +1,33 @@
-# Desktop Phase 0 Handoff Status
+# Desktop review-fix loop — handoff status
 
-- current_stage: 上线
+- current_stage: Close-out
 - status: complete
-- next_stage: none (Phase 1 not started)
-- blockers: D0.07 [~] rustc/cargo missing (dated 2026-08-19; `zsh:1: command not found: cargo` / `zsh:1: command not found: rustc`, exit 127). Sidecar **was** spawned; missing rustc is **not** the Electron trigger. No other Phase 0 blockers.
-- tests_run: cited from `测试` (not re-run here): Phase 0 pytest 57 passed; live sidecar twice + `/health` (and `/api/health` once) payload `status`/`version`/`service`; sidecar-smoke ok; `npm run test:api` 211 passed; `npm run verify` exit 0 without invoking rustc/cargo. `上线` re-ran `cargo --version` and `rustc --version` (both command not found).
-- branch: refactor
+- files changed this stage: `docs/handoff/STATUS.md`, `docs/handoff/loop-closeout.md`
+- tests_run: none this round (docs-only; no production code). Prior product `测试` remains `68b8c60` (cargo test twice, 35 passed; test:web; rust-free verify; desktop smoke).
+- next_stage: none
+- round: 1
+- P0: 0
+- P1: 0
+- P2: 0 confirmed product
+- P3: 0 confirmed product
+- verdict: pass
+- blockers: none
+- branch: feature/desktop-packaging
+- live_HEAD: `ba2820f4c1bdf6a8db91998224ff544de84a6074` (close-out commit will be the tip)
+- base: origin/main `1d6ffa70858e6663f2539fb25d1358fecf519cd4`
+- parent_issue: joe-cheung-cae/frame-pilot#30
+- in_scope_sub_issues:
+  - joe-cheung-cae/frame-pilot#33 (F001; re-checked **fixed**)
+  - joe-cheung-cae/frame-pilot#35 (F002; re-checked **fixed**)
+  - joe-cheung-cae/frame-pilot#36 (F003; re-checked **fixed**)
+  - joe-cheung-cae/frame-pilot#34 (F004; re-checked **fixed**)
+  - joe-cheung-cae/frame-pilot#31 (F005; re-checked **fixed**)
+  - joe-cheung-cae/frame-pilot#32 (F006; re-checked **fixed**; same as F001)
+- timestamp: 2026-08-20T14:57:29+08:00
 
-Capture directory: `/var/folders/b6/8k06h5td1cx92vtlp6x1_z380000gn/T/grok-goal-a63c25686341/implementer`
+Workflow: `.grok/workflows/desktop-review-fix-loop.rhai`  
+Write-allowlist this stage: `docs/handoff/STATUS.md` ; `docs/handoff/loop-closeout.md`
 
-## Tests run and results
+Round 1: **P0=0 and P1=0**. F001–F006 checked against **current** code. No product patches. GitHub comments posted (parent at least). Issues stay **open**. No PR. No merge to `main`. Do not start Phases 2–5.
 
-`上线` is documentation and go/no-go. Behavioral evidence is the `测试` captures; toolchain evidence is a fresh 2026-08-19 re-run.
-
-1. `.venv/bin/pytest` on `test_sidecar_cli.py`, `test_projects_api.py`, `test_desktop_origins.py`, `test_import_path_expansion.py`, `test_import_from_paths.py`, `test_import_from_paths_immutability.py` — **57 passed**. Capture: `pytest-phase0.txt`.
-2. Real sidecar entry twice: ready line `host=127.0.0.1` and bound port ≠ 0; `GET /health` both runs; `GET /api/health` on run 1; JSON `{"status":"ok","version":"2.0.0-rc2","service":"framepilot-api"}`; SIGTERM; processes exited. Captures: `sidecar-run-1.txt`, `sidecar-run-2.txt`.
-3. `bash scripts/sidecar-smoke.sh` — **ok** (`sidecar-smoke ok port=55271`). Capture: `sidecar-smoke.txt`.
-4. `npm run test:api` — **211 passed**. Capture: `test-api.log`.
-5. `npm run verify` — **exit 0** (lint, typecheck, test:api 211 passed, test:web 3 files / 4 tests plus Next build, test:scripts, check:artifacts). Fail-if-invoked rustc/cargo/rustup wrappers were never called. Capture: `verify.log`.
-6. `上线` re-ran `cargo --version` and `rustc --version` — both **command not found**, exit 127. Capture: `tauri-gui.txt`.
-7. `git log --oneline main..refactor` — five prior stage commits plus this close-out. Capture: `git-stage-commits.txt` (written before this commit).
-
-## Files changed
-
-- `docs/desktop_feasibility_notes.md` — FINAL baselines and written go/no-go
-- `docs/plans/2026-08-18-desktop-packaging.md` — §5.1 Phase 0 ids ticked; D0.09 acceptance boxes ticked
-- `docs/handoff/STATUS.md` — this 上线 handoff
-
-## Notes
-
-**GO — close desktop Phase 0.** Shell stays Tauri 2 (sidecar was spawned; Tauri compile blocked is not Electron). Frontend stays Vite SPA follow-up; Next `output: 'export'` is not viable. Keep imagehash/scipy (unpacked sidecar not measured / not built). Do not publish installers, push, or open a PR. Do not start Phase 1.
-
-§5.1 Phase 0: D0.00–D0.06, D0.07a, D0.08, D0.09 `[x]`; D0.07 `[~]`. D0.09 acceptance: six `[x]`, GUI box `[~]`.
+Parent comment: https://github.com/joe-cheung-cae/frame-pilot/issues/30#issuecomment-5352493341

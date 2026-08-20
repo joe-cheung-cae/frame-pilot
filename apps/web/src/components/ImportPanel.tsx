@@ -3,10 +3,10 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { FileImage, Loader2, Play, RotateCcw, StopCircle } from "lucide-react";
 import { api, assetUrl, Photo } from "@/lib/api";
+import { Link } from "@/lib/navigation";
 import {
   type ImportFeedbackTone,
   importLoadRecoveryMessage,
