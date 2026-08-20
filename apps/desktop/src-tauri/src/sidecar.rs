@@ -139,6 +139,44 @@ pub fn close_decision(kind: CloseJobKind, choice: CloseChoice) -> CloseDecision 
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppQuitEvent {
+    WindowCloseRequested,
+    ExitRequested,
+    Exit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppQuitAction {
+    /// Call prevent_close / prevent_exit first, then the shared close_decision dialog.
+    PreventThenCloseDecision,
+    /// Drain the sidecar without a dialog (`RunEvent::Exit`, or a confirmed quit).
+    RequestShutdown,
+}
+
+/// Route window-close and Cmd+Q through the same dialog. `already_shutting_down`
+/// is true after Stay was declined so a later ExitRequested can drain.
+pub fn app_quit_action(event: AppQuitEvent, already_shutting_down: bool) -> AppQuitAction {
+    match event {
+        AppQuitEvent::Exit => AppQuitAction::RequestShutdown,
+        AppQuitEvent::ExitRequested | AppQuitEvent::WindowCloseRequested
+            if already_shutting_down =>
+        {
+            AppQuitAction::RequestShutdown
+        }
+        AppQuitEvent::ExitRequested | AppQuitEvent::WindowCloseRequested => {
+            AppQuitAction::PreventThenCloseDecision
+        }
+    }
+}
+
+pub fn close_decision_requests_shutdown(decision: CloseDecision) -> bool {
+    matches!(
+        decision,
+        CloseDecision::CancelThenTerminate | CloseDecision::Terminate
+    )
+}
+
 pub fn parse_quit_choice(payload: &str) -> Option<CloseChoice> {
     let trimmed = payload.trim().trim_matches('"');
     match trimmed {
@@ -1124,6 +1162,53 @@ mod tests {
             ),
             CloseDecision::Terminate
         );
+    }
+
+    #[test]
+    fn app_quit_action_prevents_exit_requested_and_shares_close_decision_with_window_close() {
+        let exit_requested = app_quit_action(AppQuitEvent::ExitRequested, false);
+        let window_close = app_quit_action(AppQuitEvent::WindowCloseRequested, false);
+        assert_eq!(exit_requested, AppQuitAction::PreventThenCloseDecision);
+        assert_eq!(window_close, AppQuitAction::PreventThenCloseDecision);
+        assert_eq!(exit_requested, window_close);
+        assert_eq!(
+            app_quit_action(AppQuitEvent::Exit, false),
+            AppQuitAction::RequestShutdown
+        );
+        assert_eq!(
+            app_quit_action(AppQuitEvent::Exit, true),
+            AppQuitAction::RequestShutdown
+        );
+        assert_eq!(
+            app_quit_action(AppQuitEvent::ExitRequested, true),
+            AppQuitAction::RequestShutdown
+        );
+        assert_eq!(
+            app_quit_action(AppQuitEvent::WindowCloseRequested, true),
+            AppQuitAction::RequestShutdown
+        );
+
+        for kind in [CloseJobKind::Import, CloseJobKind::Processing] {
+            let stay = close_decision(kind, CloseChoice::Stay);
+            assert_eq!(stay, CloseDecision::Stay);
+            assert!(!close_decision_requests_shutdown(stay));
+            assert_eq!(
+                close_decision(kind, CloseChoice::QuitAnyway),
+                CloseDecision::Terminate
+            );
+            assert!(close_decision_requests_shutdown(close_decision(
+                kind,
+                CloseChoice::QuitAnyway
+            )));
+        }
+        assert!(close_decision_requests_shutdown(close_decision(
+            CloseJobKind::Import,
+            CloseChoice::CancelAndQuit
+        )));
+        assert!(close_decision_requests_shutdown(close_decision(
+            CloseJobKind::Processing,
+            CloseChoice::CancelAndQuit
+        )));
     }
 
     #[test]

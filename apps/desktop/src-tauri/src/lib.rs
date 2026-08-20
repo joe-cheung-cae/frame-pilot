@@ -11,12 +11,13 @@ use std::time::Duration;
 
 use data_dir::resolve_runtime_data_dir;
 use sidecar::{
-    allocate_loopback_port, api_pythonpath, blocking_error_script, close_choice_from_handshake,
-    close_decision, close_job_kind, default_python, find_active_job, initialization_script,
-    parse_quit_choice, probe_health, quit_dialog_script, repo_root, request_cancel_then_wait,
-    sidecar_spawn_spec, sidecar_stderr_log, spawn_sidecar, start_sidecar_unless_shutdown,
-    supervisor_tick_after_probe, terminate_sidecar, wait_for_health, CloseDecision, CloseJobKind,
-    SidecarStart, SidecarState, SpawnedSidecar, SupervisorTick, CANCEL_WAIT, STARTUP_TIMEOUT,
+    allocate_loopback_port, api_pythonpath, app_quit_action, blocking_error_script,
+    close_choice_from_handshake, close_decision, close_decision_requests_shutdown, close_job_kind,
+    default_python, find_active_job, initialization_script, parse_quit_choice, probe_health,
+    quit_dialog_script, repo_root, request_cancel_then_wait, sidecar_spawn_spec, sidecar_stderr_log,
+    spawn_sidecar, start_sidecar_unless_shutdown, supervisor_tick_after_probe, terminate_sidecar,
+    wait_for_health, AppQuitAction, AppQuitEvent, CloseDecision, CloseJobKind, SidecarStart,
+    SidecarState, SpawnedSidecar, SupervisorTick, CANCEL_WAIT, STARTUP_TIMEOUT,
 };
 use tauri::{Listener, Manager, RunEvent, WindowEvent};
 
@@ -123,18 +124,17 @@ fn handle_close_requested(window: tauri::Window, state: Arc<SidecarState>, port:
     };
     webview.unlisten(event_id);
     let choice = close_choice_from_handshake(payload.as_deref());
-    match close_decision(kind, choice) {
-        CloseDecision::Stay => {
-            state.close_in_progress.store(false, Ordering::SeqCst);
-        }
-        CloseDecision::CancelThenTerminate => {
-            if let Some(job) = job {
-                let _ = request_cancel_then_wait(port, &job, CANCEL_WAIT);
-            }
-            finish_quit(&window, &state);
-        }
-        CloseDecision::Terminate => finish_quit(&window, &state),
+    let decision = close_decision(kind, choice);
+    if !close_decision_requests_shutdown(decision) {
+        state.close_in_progress.store(false, Ordering::SeqCst);
+        return;
     }
+    if decision == CloseDecision::CancelThenTerminate {
+        if let Some(job) = job {
+            let _ = request_cancel_then_wait(port, &job, CANCEL_WAIT);
+        }
+    }
+    finish_quit(&window, &state);
 }
 
 fn show_blocking_error(app: &tauri::AppHandle, message: &str) {
@@ -305,11 +305,23 @@ pub fn run() {
         .on_window_event(move |window, event| {
             match event {
                 WindowEvent::CloseRequested { api, .. } => {
-                    api.prevent_close();
-                    if let Some(state) = window.try_state::<Arc<SidecarState>>() {
-                        let window = window.clone();
-                        let state = Arc::clone(&state);
-                        thread::spawn(move || handle_close_requested(window, state, port));
+                    let shutting_down = window
+                        .try_state::<Arc<SidecarState>>()
+                        .is_some_and(|state| state.is_shutdown());
+                    match app_quit_action(AppQuitEvent::WindowCloseRequested, shutting_down) {
+                        AppQuitAction::PreventThenCloseDecision => {
+                            api.prevent_close();
+                            if let Some(state) = window.try_state::<Arc<SidecarState>>() {
+                                let window = window.clone();
+                                let state = Arc::clone(&state);
+                                thread::spawn(move || handle_close_requested(window, state, port));
+                            }
+                        }
+                        AppQuitAction::RequestShutdown => {
+                            if let Some(state) = window.try_state::<Arc<SidecarState>>() {
+                                state.request_shutdown();
+                            }
+                        }
                     }
                 }
                 WindowEvent::Destroyed => {
@@ -323,9 +335,29 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building FramePilot desktop");
 
-    app.run(move |_app_handle, event| {
-        if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
-            state.request_shutdown();
+    app.run(move |app_handle, event| {
+        match event {
+            RunEvent::ExitRequested { api, .. } => {
+                match app_quit_action(AppQuitEvent::ExitRequested, state.is_shutdown()) {
+                    AppQuitAction::PreventThenCloseDecision => {
+                        api.prevent_exit();
+                        if let Some(webview) = app_handle.get_webview_window("main") {
+                            let window = webview.as_ref().window();
+                            let sidecar = Arc::clone(&state);
+                            thread::spawn(move || handle_close_requested(window, sidecar, port));
+                        }
+                    }
+                    AppQuitAction::RequestShutdown => state.request_shutdown(),
+                }
+            }
+            RunEvent::Exit => {
+                if app_quit_action(AppQuitEvent::Exit, state.is_shutdown())
+                    == AppQuitAction::RequestShutdown
+                {
+                    state.request_shutdown();
+                }
+            }
+            _ => {}
         }
     });
 }
