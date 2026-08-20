@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, FolderOpen, Images, LayoutDashboard, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Link } from "@/lib/navigation";
 import {
@@ -12,6 +13,7 @@ import {
   projectProgressSummary,
   projectsHaveActiveImport,
 } from "@/lib/projectRouting";
+import { loadLastOpenedProjectId, orderProjectsByLastOpened, saveLastOpenedProjectId } from "@/lib/recentProjects";
 
 export function ProjectList() {
   const { data, isLoading, error } = useQuery({
@@ -20,6 +22,15 @@ export function ProjectList() {
     retry: false,
     refetchInterval: (query) => (projectsHaveActiveImport(query.state.data ?? []) ? 1000 : false),
   });
+  const [lastOpenedId, setLastOpenedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLastOpenedId(loadLastOpenedProjectId());
+  }, []);
+
+  function rememberOpened(projectId: string) {
+    setLastOpenedId(saveLastOpenedProjectId(projectId));
+  }
 
   if (isLoading) {
     return <Loader2 className="animate-spin text-leaf" />;
@@ -50,20 +61,32 @@ export function ProjectList() {
     );
   }
 
+  const projects = orderProjectsByLastOpened(data, lastOpenedId);
+
   return (
     <div className="grid gap-3">
-      {data.map((project) => {
+      {projects.map((project) => {
         const nextHref = projectNextHref(project);
         const activeImport = projectHasActiveImport(project);
+        const lastOpened = project.id === lastOpenedId;
         return (
           <article className="grid gap-3 rounded border border-line bg-white p-4" key={project.id}>
             <span className="flex items-center justify-between gap-4">
-              <Link className="focus-ring font-medium text-ink hover:text-leaf" href={nextHref}>
+              <Link
+                className="focus-ring font-medium text-ink hover:text-leaf"
+                href={nextHref}
+                onClick={() => rememberOpened(project.id)}
+              >
                 {project.name}
               </Link>
               <Images size={18} className="text-leaf" />
             </span>
             <span className="text-sm text-neutral-600">{projectProgressSummary(project)}</span>
+            {lastOpened ? (
+              <span className="inline-flex w-fit rounded bg-mist px-2 py-1 text-xs font-medium text-leaf">
+                Last opened
+              </span>
+            ) : null}
             {activeImport ? (
               <span className="inline-flex w-fit rounded bg-mist px-2 py-1 text-xs font-medium text-leaf">
                 Import updating
@@ -72,6 +95,7 @@ export function ProjectList() {
             <Link
               className="focus-ring inline-flex w-fit items-center gap-1 text-sm font-medium text-leaf"
               href={nextHref}
+              onClick={() => rememberOpened(project.id)}
             >
               Next: {projectNextActionLabel(project)}
               <ArrowRight size={14} />
@@ -83,6 +107,7 @@ export function ProjectList() {
             <Link
               className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line px-3 py-2 text-sm font-medium text-ink"
               href={`/projects/${project.id}`}
+              onClick={() => rememberOpened(project.id)}
             >
               <LayoutDashboard size={16} />
               Dashboard
