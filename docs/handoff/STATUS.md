@@ -1,8 +1,12 @@
 # Desktop Review-Fix Handoff Status
 
-- current_stage: 开发
+- current_stage: 测试
 - status: complete
-- next_stage: 测试
+- files changed this stage: none (verification only; this STATUS handoff)
+- tests_run: see below
+- next_stage: 上线
+- verdict: pass
+- blockers: none
 - branch: feature/desktop-packaging
 - parent_issue: joe-cheung-cae/frame-pilot#30
 - in_scope_sub_issues:
@@ -10,12 +14,9 @@
   - joe-cheung-cae/frame-pilot#35 (F002 high; slice B)
   - joe-cheung-cae/frame-pilot#36 (F003 high; slice C)
   - joe-cheung-cae/frame-pilot#34 (F004 medium; slice C)
-  - joe-cheung-cae/frame-pilot#31 (F005 medium; this slice)
+  - joe-cheung-cae/frame-pilot#31 (F005 medium; slice D)
   - joe-cheung-cae/frame-pilot#32 (F006 medium; same implementation as F001; not a second patch)
-- tests_run: cargo test in apps/desktop/src-tauri (crate framepilot-desktop) — 35 passed, 0 failed
-- timestamp: 2026-08-20T10:58:08+08:00
-- verdict: pass
-- blockers: none
+- timestamp: 2026-08-20T11:04:47+08:00
 
 Capture directory: `/var/folders/b6/8k06h5td1cx92vtlp6x1_z380000gn/T/grok-501/desktop-review-fix`
 
@@ -30,24 +31,22 @@ Evidence copy: `/var/folders/b6/8k06h5td1cx92vtlp6x1_z380000gn/T/grok-goal-7cc65
 
 ## Tests run and results
 
-`tests_run=cargo test` in `apps/desktop/src-tauri`. Capture: `cargo-test-D.txt`. 35 passed, 0 failed, 0 ignored. New F005 test:
+`测试` re-ran the review-fix verification plan against the shipped tree at `350c607` (开发 close-out on `feature/desktop-packaging`). rustc/cargo **1.97.1** via user-space rustup (`~/.cargo/bin`). GUI WebView of the overlay was not required: unit tests prove the import script parses and Stay is the unconfirmed fallback.
 
-- `app_quit_action_prevents_exit_requested_and_shares_close_decision_with_window_close` — `ExitRequested` (and window close) map to `PreventThenCloseDecision`; Stay does not `request_shutdown`; `RunEvent::Exit` and a confirmed quit drain via `RequestShutdown`
-
-Did not run `npm run test:web`, `npm run verify`, or pytest.
-
-## Files changed (this slice)
-
-- `apps/desktop/src-tauri/src/sidecar.rs` — `app_quit_action` / `close_decision_requests_shutdown` routing helpers next to `close_decision`
-- `apps/desktop/src-tauri/src/lib.rs` — `ExitRequested` calls `prevent_exit` first, then the same `handle_close_requested` / `close_decision` flow as window close; `RunEvent::Exit` still drains
-- `docs/handoff/STATUS.md` — this 开发 close-out
+1. `cargo test` in `apps/desktop/src-tauri` (crate `framepilot-desktop`) **twice** — **35 passed**, 0 failed, 0 ignored each run. Captures: `cargo-test-1.txt`, `cargo-test-2.txt`. New A–D tests included and green:
+   - A/F001+F006: `ready_line_timeout_terminates_listener_and_retry_can_bind_same_port`, `ready_line_parse_failure_terminates_listener_and_frees_port`, `missing_stdout_terminates_child_before_return`, `store_child_terminates_when_shutdown_is_set`
+   - B/F002: `start_sidecar_process_does_not_spawn_when_shutdown_is_set`, `start_sidecar_process_terminates_child_spawned_after_shutdown`, `start_sidecar_process_and_store_child_do_not_keep_live_child_when_shutdown_is_set`, `close_during_health_probe_leaves_no_sidecar`, `supervisor_rechecks_shutdown_after_health_probe`
+   - C/F003+F004: `quit_dialog_script_import_is_valid_javascript_with_cancel_button`, `quit_dialog_script_processing_is_valid_javascript_without_cancel`, `close_choice_from_handshake_unresolved_stays`
+   - D/F005: `app_quit_action_prevents_exit_requested_and_shares_close_decision_with_window_close`
+2. `npm run test:web` — **exit 0**. Capture: `test-web.log`. Node lib tests **181 passed**; Vitest **8 passed** (4 files). Next.js 15.5.19 generated 7/7 pages; dynamic `projects/[projectId]` routes remain `ƒ`. No `output: export`.
+3. `npm run verify` — **exit 0**. Fail-if-invoked wrappers for `rustc` / `cargo` / `rustup` / `tauri` were first on `PATH` (probe exits 99) and **were never called** during verify. Capture: `verify.log`. Included `lint` (ruff + eslint), `typecheck`, `typecheck:desktop`, pytest **214 passed**, `test:web`, `test:scripts`, `check:artifacts`. Did not invoke rustc, cargo, or Tauri.
+4. Job pytest was not run as a separate command (API was not touched). Verify’s `test:api` still collected `test_job_reliability.py` (8 passed inside the 214).
+5. `npm run test:desktop:smoke` — **exit 0**. Capture: `desktop-smoke.txt`. Health JSON `status`/`version`/`service`; `/api/projects` JSON array `[]`; desktop Origin OPTIONS HTTP 200; attacker Host HTTP 403 with visible detail. WebView half skipped with explicit message. `desktop-smoke ok port=55487`.
 
 ## Notes
 
-开发 A–D is complete on `feature/desktop-packaging`. F006 is not a second patch.
+Do not start Phase 2. Do not bump `APP_VERSION`. Do not redo D1.01–D1.09 product work. Do not open a PR, merge to `main`, or close GitHub issues. F006 is not a second patch. Acceptance boxes stay unticked until `上线`.
 
-Cmd+Q / `ExitRequested` now `prevent_exit`s first and shares `close_decision` with window close. Stay keeps the sidecar alive and resets `close_in_progress`. Quit and cancel import POSTs cancel and waits up to `CANCEL_WAIT` before SIGTERM. Quit anyway SIGTERMs without labelling the job `cancelled`. After Stay is declined, a later `ExitRequested` drains instead of blocking exit. `RunEvent::Exit` may still `request_shutdown`.
+Sidecar still binds `127.0.0.1` only. Absolute `--data-dir`. Shipped spawn never `--port 0`. Import cancel stays cooperative. Quit-anyway / SIGTERM is failed + retryable, not cancelled. Processing jobs have no cancel route.
 
-Sidecar still binds `127.0.0.1` only. Absolute `--data-dir`. Shipped spawn never `--port 0`. `APP_VERSION` unchanged. `apps/web` unchanged. Phase 2 not started. No processing cancel route.
-
-Next stage: `测试`. Do not open a PR, merge to `main`, or close GitHub issues.
+Next stage: `上线`.
