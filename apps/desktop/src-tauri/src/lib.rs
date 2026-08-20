@@ -4,8 +4,8 @@ mod data_dir;
 mod sidecar;
 
 use std::process::Child;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::atomic::Ordering;
+use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Duration;
 
@@ -13,47 +13,14 @@ use data_dir::resolve_runtime_data_dir;
 use sidecar::{
     allocate_loopback_port, api_pythonpath, blocking_error_script, close_decision, close_job_kind,
     default_python, find_active_job, initialization_script, parse_quit_choice, probe_health,
-    quit_dialog_script, recovery_action, repo_root, request_cancel_then_wait, sidecar_spawn_spec,
-    sidecar_stderr_log, spawn_sidecar, store_sidecar_child, terminate_sidecar, wait_for_health,
-    CloseChoice, CloseDecision, CloseJobKind, RecoveryAction, SpawnedSidecar, CANCEL_WAIT,
-    STARTUP_TIMEOUT,
+    quit_dialog_script, repo_root, request_cancel_then_wait, sidecar_spawn_spec, sidecar_stderr_log,
+    spawn_sidecar, start_sidecar_unless_shutdown, supervisor_tick_after_probe, terminate_sidecar,
+    wait_for_health, CloseChoice, CloseDecision, CloseJobKind, SidecarStart, SidecarState,
+    SpawnedSidecar, SupervisorTick, CANCEL_WAIT, STARTUP_TIMEOUT,
 };
 use tauri::{Listener, Manager, RunEvent, WindowEvent};
 
-struct SidecarState {
-    child: Mutex<Option<Child>>,
-    shutdown: AtomicBool,
-    close_in_progress: AtomicBool,
-}
-
-impl SidecarState {
-    fn new() -> Arc<Self> {
-        Arc::new(Self {
-            child: Mutex::new(None),
-            shutdown: AtomicBool::new(false),
-            close_in_progress: AtomicBool::new(false),
-        })
-    }
-
-    fn store_child(&self, child: Child) {
-        store_sidecar_child(
-            &self.child,
-            self.shutdown.load(Ordering::SeqCst),
-            child,
-        );
-    }
-
-    fn request_shutdown(&self) {
-        self.shutdown.store(true, Ordering::SeqCst);
-        if let Ok(mut guard) = self.child.lock() {
-            if let Some(mut child) = guard.take() {
-                terminate_sidecar(&mut child);
-            }
-        }
-    }
-}
-
-fn start_sidecar_process(
+fn spawn_ready_sidecar(
     port: u16,
     data_dir: &std::path::Path,
     python: &std::path::Path,
@@ -77,20 +44,35 @@ fn start_sidecar_process(
     Ok(child)
 }
 
+fn start_sidecar_process(
+    port: u16,
+    data_dir: &std::path::Path,
+    python: &std::path::Path,
+    pythonpath: &std::path::Path,
+    is_shutdown: impl Fn() -> bool,
+) -> Result<SidecarStart, String> {
+    start_sidecar_unless_shutdown(is_shutdown, || {
+        spawn_ready_sidecar(port, data_dir, python, pythonpath)
+    })
+}
+
 fn start_sidecar_with_retry(
     port: u16,
     data_dir: &std::path::Path,
     python: &std::path::Path,
     pythonpath: &std::path::Path,
+    is_shutdown: impl Fn() -> bool,
 ) -> Result<(Child, bool), String> {
-    match start_sidecar_process(port, data_dir, python, pythonpath) {
-        Ok(child) => Ok((child, false)),
-        Err(first) => {
-            match start_sidecar_process(port, data_dir, python, pythonpath) {
-                Ok(child) => Ok((child, true)),
-                Err(second) => Err(format!("{first}; retry failed: {second}")),
+    match start_sidecar_process(port, data_dir, python, pythonpath, &is_shutdown) {
+        Ok(SidecarStart::Started(child)) => Ok((child, false)),
+        Ok(SidecarStart::Abandoned) => Err("sidecar start abandoned during shutdown".into()),
+        Err(first) => match start_sidecar_process(port, data_dir, python, pythonpath, &is_shutdown) {
+            Ok(SidecarStart::Started(child)) => Ok((child, true)),
+            Ok(SidecarStart::Abandoned) => {
+                Err(format!("{first}; retry abandoned during shutdown"))
             }
-        }
+            Err(second) => Err(format!("{first}; retry failed: {second}")),
+        },
     }
 }
 
@@ -175,43 +157,45 @@ fn supervise_sidecar(
 ) {
     let mut health_failures: u8 = 0;
     loop {
-        if state.shutdown.load(Ordering::SeqCst) {
+        if state.is_shutdown() {
             return;
         }
         thread::sleep(Duration::from_millis(500));
-        if state.shutdown.load(Ordering::SeqCst) {
+        if state.is_shutdown() {
             return;
         }
 
-        let exited = match state.child.lock() {
-            Ok(mut guard) => match guard.as_mut() {
-                Some(child) => matches!(child.try_wait(), Ok(Some(_))),
-                None => false,
-            },
-            Err(_) => return,
+        let exited = match state.child_has_exited() {
+            Some(exited) => exited,
+            None => return,
         };
         let healthy = probe_health(port, Duration::from_millis(400));
-        if !exited && healthy {
-            health_failures = 0;
-            continue;
-        }
-        if !healthy {
-            health_failures = health_failures.saturating_add(1);
-        }
-
-        match recovery_action(restart_used, health_failures) {
-            RecoveryAction::Restart => {
+        match supervisor_tick_after_probe(
+            state.is_shutdown(),
+            exited,
+            healthy,
+            restart_used,
+            health_failures,
+        ) {
+            SupervisorTick::Shutdown => return,
+            SupervisorTick::Continue => {
+                health_failures = 0;
+                continue;
+            }
+            SupervisorTick::Restart => {
                 restart_used = true;
-                if let Ok(mut guard) = state.child.lock() {
-                    if let Some(mut child) = guard.take() {
-                        terminate_sidecar(&mut child);
-                    }
+                state.terminate_stored_child();
+                if state.is_shutdown() {
+                    return;
                 }
-                match start_sidecar_process(port, &data_dir, &python, &pythonpath) {
-                    Ok(child) => {
+                match start_sidecar_process(port, &data_dir, &python, &pythonpath, || {
+                    state.is_shutdown()
+                }) {
+                    Ok(SidecarStart::Started(child)) => {
                         health_failures = 0;
                         state.store_child(child);
                     }
+                    Ok(SidecarStart::Abandoned) => return,
                     Err(err) => {
                         show_blocking_error(
                             &app,
@@ -221,7 +205,7 @@ fn supervise_sidecar(
                     }
                 }
             }
-            RecoveryAction::BlockError => {
+            SupervisorTick::BlockError => {
                 show_blocking_error(
                     &app,
                     "The local FramePilot API stopped responding. Close the window and start FramePilot again.",
@@ -267,15 +251,23 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(Arc::clone(&state))
         .setup(move |app| {
-            let (startup_error, restart_used) =
-                match start_sidecar_with_retry(port, &setup_data_dir, &setup_python, &setup_pythonpath)
-                {
+            let (startup_error, restart_used) = {
+                let startup_state = Arc::clone(&setup_state);
+                match start_sidecar_with_retry(
+                    port,
+                    &setup_data_dir,
+                    &setup_python,
+                    &setup_pythonpath,
+                    move || startup_state.is_shutdown(),
+                ) {
                     Ok((child, restart_used)) => {
                         setup_state.store_child(child);
                         (None, restart_used)
                     }
+                    Err(_) if setup_state.is_shutdown() => (None, true),
                     Err(err) => (Some(err), true),
-                };
+                }
+            };
 
             tauri::WebviewWindowBuilder::new(
                 app,

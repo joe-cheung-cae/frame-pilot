@@ -5,7 +5,8 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{mpsc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -57,6 +58,19 @@ pub struct SidecarSpawnSpec {
 pub enum RecoveryAction {
     Restart,
     BlockError,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SupervisorTick {
+    Continue,
+    Shutdown,
+    Restart,
+    BlockError,
+}
+
+pub enum SidecarStart {
+    Started(Child),
+    Abandoned,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -465,6 +479,61 @@ pub fn recovery_action(restart_already_used: bool, health_failures: u8) -> Recov
     }
 }
 
+/// Re-check shutdown after `probe_health` so a close during the probe cannot Restart.
+pub fn supervisor_tick_after_probe(
+    shutdown: bool,
+    exited: bool,
+    healthy: bool,
+    restart_used: bool,
+    health_failures: u8,
+) -> SupervisorTick {
+    if shutdown {
+        return SupervisorTick::Shutdown;
+    }
+    if !exited && healthy {
+        return SupervisorTick::Continue;
+    }
+    let failures = if !healthy {
+        health_failures.saturating_add(1)
+    } else {
+        health_failures
+    };
+    match recovery_action(restart_used, failures) {
+        RecoveryAction::Restart => SupervisorTick::Restart,
+        RecoveryAction::BlockError => SupervisorTick::BlockError,
+    }
+}
+
+/// Spawn only if shutdown is clear. Re-check after spawn and terminate instead of
+/// returning a live child when shutdown was set during startup.
+pub fn start_sidecar_unless_shutdown<F>(
+    is_shutdown: impl Fn() -> bool,
+    spawn: F,
+) -> Result<SidecarStart, String>
+where
+    F: FnOnce() -> Result<Child, String>,
+{
+    if is_shutdown() {
+        return Ok(SidecarStart::Abandoned);
+    }
+    match spawn() {
+        Ok(mut child) => {
+            if is_shutdown() {
+                terminate_sidecar(&mut child);
+                return Ok(SidecarStart::Abandoned);
+            }
+            Ok(SidecarStart::Started(child))
+        }
+        Err(err) => {
+            if is_shutdown() {
+                Ok(SidecarStart::Abandoned)
+            } else {
+                Err(err)
+            }
+        }
+    }
+}
+
 pub fn terminate_sidecar(child: &mut Child) {
     if let Ok(Some(_)) = child.try_wait() {
         return;
@@ -506,6 +575,64 @@ pub fn store_sidecar_child(slot: &Mutex<Option<Child>>, shutdown: bool, child: C
             let mut child = child;
             terminate_sidecar(&mut child);
         }
+    }
+}
+
+pub struct SidecarState {
+    child: Mutex<Option<Child>>,
+    shutdown: AtomicBool,
+    pub close_in_progress: AtomicBool,
+}
+
+impl SidecarState {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            child: Mutex::new(None),
+            shutdown: AtomicBool::new(false),
+            close_in_progress: AtomicBool::new(false),
+        })
+    }
+
+    pub fn is_shutdown(&self) -> bool {
+        self.shutdown.load(Ordering::SeqCst)
+    }
+
+    pub fn store_child(&self, child: Child) {
+        store_sidecar_child(
+            &self.child,
+            self.shutdown.load(Ordering::SeqCst),
+            child,
+        );
+    }
+
+    pub fn child_has_exited(&self) -> Option<bool> {
+        let mut guard = self.child.lock().ok()?;
+        Some(match guard.as_mut() {
+            Some(child) => matches!(child.try_wait(), Ok(Some(_))),
+            None => false,
+        })
+    }
+
+    pub fn terminate_stored_child(&self) {
+        let taken = match self.child.lock() {
+            Ok(mut guard) => guard.take(),
+            Err(poisoned) => poisoned.into_inner().take(),
+        };
+        if let Some(mut child) = taken {
+            terminate_sidecar(&mut child);
+        }
+    }
+
+    pub fn request_shutdown(&self) {
+        self.shutdown.store(true, Ordering::SeqCst);
+        self.terminate_stored_child();
+    }
+}
+
+impl Drop for SidecarState {
+    fn drop(&mut self) {
+        self.shutdown.store(true, Ordering::SeqCst);
+        self.terminate_stored_child();
     }
 }
 
@@ -673,7 +800,8 @@ mod tests {
     use std::io::Cursor;
     use std::net::{IpAddr, Ipv4Addr, TcpListener, TcpStream};
     use std::process::{Command, Stdio};
-    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
     use std::time::Instant;
 
     fn port_flag_value(args: &[String]) -> Option<&str> {
@@ -1032,6 +1160,129 @@ while True:
             .expect_err("stored child must still own the allocated port");
         let stored = slot.lock().expect("slot").take().expect("stored child");
         drop(SpawnedSidecar::new(stored));
+        assert_port_free(port);
+    }
+
+    #[test]
+    fn supervisor_rechecks_shutdown_after_health_probe() {
+        assert_eq!(recovery_action(false, 1), RecoveryAction::Restart);
+        assert_eq!(
+            supervisor_tick_after_probe(true, false, false, false, 0),
+            SupervisorTick::Shutdown
+        );
+        assert_eq!(
+            supervisor_tick_after_probe(true, true, false, false, 1),
+            SupervisorTick::Shutdown
+        );
+        assert_eq!(
+            supervisor_tick_after_probe(true, false, true, false, 0),
+            SupervisorTick::Shutdown
+        );
+        assert_eq!(
+            supervisor_tick_after_probe(false, false, true, false, 0),
+            SupervisorTick::Continue
+        );
+        assert_eq!(
+            supervisor_tick_after_probe(false, false, false, false, 0),
+            SupervisorTick::Restart
+        );
+        assert_eq!(
+            supervisor_tick_after_probe(false, false, false, true, 1),
+            SupervisorTick::BlockError
+        );
+    }
+
+    #[test]
+    fn start_sidecar_process_does_not_spawn_when_shutdown_is_set() {
+        let spawn_called = AtomicBool::new(false);
+        let result = start_sidecar_unless_shutdown(
+            || true,
+            || {
+                spawn_called.store(true, Ordering::SeqCst);
+                Err("spawn must not run after shutdown".into())
+            },
+        )
+        .expect("shutdown start is not an error");
+        assert!(!spawn_called.load(Ordering::SeqCst));
+        assert!(matches!(result, SidecarStart::Abandoned));
+    }
+
+    #[test]
+    fn start_sidecar_process_terminates_child_spawned_after_shutdown() {
+        let port = allocate_loopback_port().expect("allocate loopback port");
+        let shutdown = AtomicBool::new(false);
+        let result = start_sidecar_unless_shutdown(
+            || shutdown.swap(true, Ordering::SeqCst),
+            || Ok(spawn_loopback_holder(port, Stdio::null(), None)),
+        )
+        .expect("post-spawn shutdown is not an error");
+        assert!(matches!(result, SidecarStart::Abandoned));
+        assert_port_free(port);
+    }
+
+    #[test]
+    fn start_sidecar_process_and_store_child_do_not_keep_live_child_when_shutdown_is_set() {
+        let port = allocate_loopback_port().expect("allocate loopback port");
+        let child = spawn_loopback_holder(port, Stdio::null(), None);
+        let pid = child.id();
+        let state = SidecarState::new();
+        state.request_shutdown();
+        state.store_child(child);
+        assert!(!process_is_alive(pid), "store_child must terminate");
+        assert_port_free(port);
+
+        let port = allocate_loopback_port().expect("allocate loopback port");
+        let started = start_sidecar_unless_shutdown(
+            || state.is_shutdown(),
+            || Ok(spawn_loopback_holder(port, Stdio::null(), None)),
+        )
+        .expect("start after shutdown");
+        assert!(matches!(started, SidecarStart::Abandoned));
+        assert_port_free(port);
+    }
+
+    #[test]
+    fn start_sidecar_process_abandons_spawn_error_when_shutdown_is_set() {
+        let shutdown = AtomicBool::new(false);
+        let result = start_sidecar_unless_shutdown(
+            || shutdown.swap(true, Ordering::SeqCst),
+            || Err("sidecar /health did not become ready".into()),
+        )
+        .expect("shutdown during failed start is not an error");
+        assert!(matches!(result, SidecarStart::Abandoned));
+    }
+
+    #[test]
+    fn close_during_health_probe_leaves_no_sidecar() {
+        let port = allocate_loopback_port().expect("allocate loopback port");
+        let child = spawn_loopback_holder(port, Stdio::null(), None);
+        let pid = child.id();
+        let state = SidecarState::new();
+        state.store_child(child);
+        let shutdown_state = Arc::clone(&state);
+        let shutdown_thread = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(50));
+            shutdown_state.request_shutdown();
+        });
+        let _healthy = probe_health(port, Duration::from_millis(400));
+        assert_eq!(
+            supervisor_tick_after_probe(state.is_shutdown(), false, false, false, 0),
+            SupervisorTick::Shutdown
+        );
+        shutdown_thread.join().expect("shutdown thread");
+        assert!(!process_is_alive(pid), "child {pid} must be terminated");
+        assert_port_free(port);
+    }
+
+    #[test]
+    fn sidecar_state_drop_terminates_stored_child() {
+        let port = allocate_loopback_port().expect("allocate loopback port");
+        let child = spawn_loopback_holder(port, Stdio::null(), None);
+        let pid = child.id();
+        let state = SidecarState::new();
+        state.store_child(child);
+        drop(state);
+        assert!(!process_is_alive(pid), "Drop must terminate child {pid}");
         assert_port_free(port);
     }
 }
