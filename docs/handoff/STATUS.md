@@ -26,7 +26,7 @@ Evidence copy: `/var/folders/b6/8k06h5td1cx92vtlp6x1_z380000gn/T/grok-goal-7cc65
 - A `7a8bdba74bfe656a64fd4ae172cbbfd494707fb7` — `desktop: terminate sidecar on ready-line failure` (F001 [joe-cheung-cae/frame-pilot#33](https://github.com/joe-cheung-cae/frame-pilot/issues/33) + F006 [joe-cheung-cae/frame-pilot#32](https://github.com/joe-cheung-cae/frame-pilot/issues/32); one implementation)
 - B `c7cda3c20c93725aa5efe74e914e3d6e06e4cca6` — `desktop: avoid sidecar respawn after shutdown` (F002 [joe-cheung-cae/frame-pilot#35](https://github.com/joe-cheung-cae/frame-pilot/issues/35))
 - C `2ae116392b169aac2c8b70551624dcfb64582654` — `desktop: fix import quit dialog script and stay fallback` (F003 [joe-cheung-cae/frame-pilot#36](https://github.com/joe-cheung-cae/frame-pilot/issues/36) + F004 [joe-cheung-cae/frame-pilot#34](https://github.com/joe-cheung-cae/frame-pilot/issues/34))
-- D this commit — `desktop: route app quit through the close dialog` (F005 [joe-cheung-cae/frame-pilot#31](https://github.com/joe-cheung-cae/frame-pilot/issues/31))
+- D `2bd21f6922c47ab379929b0ff6f9dc3f830eac87` — `desktop: route app quit through the close dialog` (F005 [joe-cheung-cae/frame-pilot#31](https://github.com/joe-cheung-cae/frame-pilot/issues/31))
 
 ## Tests run and results
 
