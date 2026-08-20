@@ -3,6 +3,7 @@ let meta = #{
     description: "Serial Phase 2 desktop pipeline: 需求拆解, 评审, 归档, 开发 D2.00-D2.09 with a GitHub push after every task, 测试, 上线",
     when_to_use: "Land FramePilot desktop Phase 2 (D2.00-D2.09) on feature/desktop-phase2 and submit each task to GitHub",
     phases: [
+        #{ title: "Inspect", detail: "Skip stages already committed and pushed" },
         #{ title: "需求拆解", detail: "Verify Phase 2 implementation contract" },
         #{ title: "评审", detail: "Review the breakdown against the live tree" },
         #{ title: "归档", detail: "Archive the accepted Phase 2 backlog" },
@@ -26,6 +27,31 @@ fn stage_schema() {
     }
 }
 
+fn progress_schema() {
+    #{
+        "type": "object",
+        "required": ["notes"],
+        "properties": #{
+            "run_breakdown": #{ "type": "boolean" },
+            "run_review": #{ "type": "boolean" },
+            "run_archive": #{ "type": "boolean" },
+            "run_d200": #{ "type": "boolean" },
+            "run_d201": #{ "type": "boolean" },
+            "run_d202": #{ "type": "boolean" },
+            "run_d203": #{ "type": "boolean" },
+            "run_d204": #{ "type": "boolean" },
+            "run_d205": #{ "type": "boolean" },
+            "run_d206": #{ "type": "boolean" },
+            "run_d207": #{ "type": "boolean" },
+            "run_d208": #{ "type": "boolean" },
+            "run_d209": #{ "type": "boolean" },
+            "run_test": #{ "type": "boolean" },
+            "run_launch": #{ "type": "boolean" },
+            "notes": #{ "type": "string" },
+        },
+    }
+}
+
 fn shared_rules() {
     let s = "";
     s += "Resolve the repo with: git rev-parse --show-toplevel. Do not use /Users/chao/workspace/repo/frame-pilot.\n";
@@ -34,7 +60,7 @@ fn shared_rules() {
     s += "GITHUB RULE: after EVERY finished stage and EVERY D2.00-D2.09 task commit, run git push -u origin HEAD.\n";
     s += "After the first successful push, if no open PR exists for head feature/desktop-phase2, create ONE draft PR against main:\n";
     s += "gh pr create --repo joe-cheung-cae/frame-pilot --base main --head feature/desktop-phase2 --draft --title \"desktop: Phase 2 native filesystem and core workflow\" --body \"Phase 2 D2.00-D2.09. APP_VERSION stays 2.0.0-rc2. Do not merge from this body.\"\n";
-    s += "Fallback: GitHub MCP create_pull_request with draft true. Never open a second PR. Subsequent tasks only push; the PR updates.\n";
+    s += "Fallback: GitHub MCP create_pull_request with draft true. Never open a second PR. Subsequent tasks only push; the PR updates. Existing draft PR is https://github.com/joe-cheung-cae/frame-pilot/pull/38\n";
     s += "Append SHA, subject, push result, and PR URL to $HOME/.cache/framepilot-desktop-phase2/git-github.txt after every push.\n";
     s += "If push fails, capture the exact error, retry once, then continue product work and report the blocker in docs/handoff/STATUS.md.\n";
     s += "isolation_worktree is false. Edit the shared workspace. Do not create a second worktree.\n";
@@ -47,65 +73,41 @@ fn shared_rules() {
     s += "Do not weaken test_create_project_rejects_root_outside_allowlist.\n";
     s += "npm run verify must not install or require rustc, cargo, or Tauri.\n";
     s += "Do not add Co-authored-by Cursor or similar trailers.\n";
+    s += "Do not run git config --global or git config user.name. If commit fails with empty ident, set GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL for that command only to match git log -1 --format='%an <%ae>'.\n";
     s += "Handoff contract lives in docs/handoff/STATUS.md plus the stage file named in the prompt.\n";
     s += "After the stage work, git add only relevant files, commit on feature/desktop-phase2, push, then git status and git log -1.\n";
     s += "If nothing is staged, do not make an empty commit; write the handoff first so there is a real change.\n";
+    s += "IDEMPOTENT: if git log origin/main..HEAD already contains this stage's exact commit subject, do not redo the work. Return ok=true with that existing SHA.\n";
     s
 }
 
 fn github_tail() {
     let s = "";
     s += "Then git push -u origin HEAD.\n";
-    s += "Ensure the single draft PR exists (create if missing, never a second PR).\n";
+    s += "Ensure the single draft PR exists (create if missing, never a second PR). PR 38 if already open.\n";
     s += "Append SHA/subject/push/PR to $HOME/.cache/framepilot-desktop-phase2/git-github.txt.\n";
     s
 }
 
-fn medium_plan_opts(label) {
+fn agent_opts(label) {
     #{
         label: label,
         capability_mode: "all",
         model: "grok-4.6",
-        reasoning_effort: "medium",
         agent_type: "general-purpose",
         isolation_worktree: false,
         output_schema: stage_schema(),
     }
 }
 
-fn archive_opts(label) {
+fn inspect_opts(label) {
     #{
         label: label,
         capability_mode: "all",
         model: "grok-4.6",
-        reasoning_effort: "low",
         agent_type: "general-purpose",
         isolation_worktree: false,
-        output_schema: stage_schema(),
-    }
-}
-
-fn high_opts(label) {
-    #{
-        label: label,
-        capability_mode: "all",
-        model: "grok-4.6",
-        reasoning_effort: "high",
-        agent_type: "general-purpose",
-        isolation_worktree: false,
-        output_schema: stage_schema(),
-    }
-}
-
-fn launch_opts(label) {
-    #{
-        label: label,
-        capability_mode: "all",
-        model: "grok-4.6",
-        reasoning_effort: "medium",
-        agent_type: "general-purpose",
-        isolation_worktree: false,
-        output_schema: stage_schema(),
+        output_schema: progress_schema(),
     }
 }
 
@@ -113,9 +115,47 @@ fn stage_ok(r) {
     r != () && r.success
 }
 
+fn run_stage(prompt, opts, fail_msg) {
+    let first = agent(prompt, opts);
+    if stage_ok(first) {
+        return first;
+    }
+    log("Retrying once: " + fail_msg);
+    let second = agent(prompt, opts);
+    if stage_ok(second) {
+        return second;
+    }
+    await_user("verification", fail_msg + " Resume to retry this stage. Do not skip ahead.");
+    let third = agent(prompt, opts);
+    if stage_ok(third) {
+        return third;
+    }
+    await_user("no_progress", fail_msg + " Still failing. Resume to retry once more.");
+    agent(prompt, opts)
+}
+
+fn progress_prompt() {
+    let s = "";
+    s += "Inspect FramePilot desktop Phase 2 progress. Use tools. Do not implement product code. Do not commit.\n";
+    s += "Read: git rev-parse --abbrev-ref HEAD; git log origin/main..HEAD --oneline; docs/handoff/STATUS.md; ";
+    s += "docs/plans/2026-08-18-desktop-packaging.md section 5.1 Phase 2 boxes; ";
+    s += "whether these files exist: docs/handoff/phase2-requirements.md, phase2-review.md, phase2-backlog.md.\n";
+    s += "Set each run_* boolean to false when that stage is already committed on feature/desktop-phase2, true when the agent must still do the work.\n";
+    s += "run_breakdown false if commit subject 'docs: break down desktop Phase 2 requirements' exists.\n";
+    s += "run_review false if 'docs: review desktop Phase 2 requirements' exists.\n";
+    s += "run_archive false if 'docs: archive accepted desktop Phase 2 backlog' exists.\n";
+    s += "run_d200 false only if §5.1 D2.00 is [x] AND commit 'api: register desktop project roots before use' exists.\n";
+    s += "Same pattern for D2.01-D2.09 using their commit-hint subjects and §5.1 boxes.\n";
+    s += "run_test false if 'test: verify desktop Phase 2 behavior' exists.\n";
+    s += "run_launch false if 'docs: record Phase 2 close-out and tick desktop tracker' exists.\n";
+    s += "If STATUS next_stage is 开发 and D2 boxes are [ ], run_d200 is true and docs run_* are false.\n";
+    s += "notes: short summary of branch, PR, and next id.\n";
+    s
+}
+
 fn breakdown_prompt() {
     let s = "";
-    s += "You are grok-4.6 (medium effort, plan-oriented) for stage 需求拆解.\n";
+    s += "You are grok-4.6 general-purpose for stage 需求拆解.\n";
     s += shared_rules();
     s += "This stage is documentation only. Do not implement production D2.00-D2.09 code.\n";
     s += "Create feature/desktop-phase2 from origin/main if it does not exist, then checkout it.\n";
@@ -137,7 +177,7 @@ fn breakdown_prompt() {
 
 fn review_prompt() {
     let s = "";
-    s += "You are grok-4.6 (medium effort, plan-oriented) for stage 评审.\n";
+    s += "You are grok-4.6 general-purpose for stage 评审.\n";
     s += shared_rules();
     s += "Read docs/handoff/phase2-requirements.md, docs/handoff/STATUS.md, ";
     s += "docs/plans/2026-08-18-desktop-packaging.md D2.00-D2.09, AGENTS.md, and the live files named in the breakdown.\n";
@@ -155,7 +195,7 @@ fn review_prompt() {
 
 fn archive_prompt() {
     let s = "";
-    s += "You are grok-4.6 (low effort, general-purpose) for stage 归档.\n";
+    s += "You are grok-4.6 general-purpose for stage 归档.\n";
     s += shared_rules();
     s += "Read docs/handoff/phase2-requirements.md and docs/handoff/phase2-review.md.\n";
     s += "Write docs/handoff/phase2-backlog.md as the accepted implementation contract for D2.00-D2.09. ";
@@ -170,7 +210,7 @@ fn archive_prompt() {
 
 fn d2_common() {
     let s = "";
-    s += "You are grok-4.6 high-effort (grok-46-high) for one Phase 2 develop task.\n";
+    s += "You are grok-4.6 general-purpose for one Phase 2 develop task.\n";
     s += shared_rules();
     s += "Implement ONLY the named id. Tests first. Watch the new test fail for the right reason, then implement.\n";
     s += "Read docs/plans/2026-08-18-desktop-packaging.md for that id, docs/handoff/phase2-backlog.md, and docs/handoff/phase2-requirements.md.\n";
@@ -186,8 +226,9 @@ fn develop_d200_prompt() {
     s += "Create apps/api/app/core/project_roots.py. Persist {data_dir}/desktop_project_roots.json, cap 50.\n";
     s += "register_root: absolute, exists, directory, resolved. Reject BLOCKED_ROOT_NAMES, anchors, data dir and its parents.\n";
     s += "create_project allowed roots = [projects_root, *allowlist, *registered_roots()]. Do not change error message strings.\n";
-    s += "POST and GET /api/desktop/project-roots only when FRAMEPILOT_DESKTOP=1, else 404. Registry is NOT inside Settings.\n";
+    s += "POST and GET /api/desktop/project-roots only when FRAMEPILOT_DESKTOP=1, else 404. Registry is NOT inside Settings. Reuse desktop_mode_enabled().\n";
     s += "Tests apps/api/tests/test_desktop_project_roots.py plus unchanged test_create_project_rejects_root_outside_allowlist.\n";
+    s += "If apps/api/tests/test_desktop_project_roots.py already exists untracked, finish it tests-first; do not discard a valid failing test.\n";
     s += "clear_registered_roots() in fixtures. Update docs/api.md.\n";
     s += "Run the named pytest until green.\n";
     s += github_tail();
@@ -203,7 +244,7 @@ fn develop_d201_prompt() {
     s += "Create apps/desktop/src/lib/nativeFs.ts: pickDirectory, pickImageFiles, revealInFileManager via Tauri dialog + opener plugins.\n";
     s += "Vite alias the RESOLVED path of apps/web/src/lib/nativeFs.ts to apps/desktop/src/lib/nativeFs.ts (copy navigation.next plugin style).\n";
     s += "Add plugins to Cargo.toml, capabilities (dialog + opener only; NO fs: and NO shell:), and lib.rs init.\n";
-    s += "Shared UI must import @/lib/nativeFs only. Next must not import @tauri-apps/plugin-*.\n";
+    s += "Shared UI must import @/lib/nativeFs only. Next must not import @tauri-apps/plugin-*. Desktop wrapper tests must not live under apps/web/src/lib/*.test.ts.\n";
     s += "Run npm run test:web and npm run typecheck:desktop.\n";
     s += github_tail();
     s += "Return ok=true, stage=开发-D2.01, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
@@ -308,7 +349,7 @@ fn develop_d209_prompt() {
 
 fn test_prompt() {
     let s = "";
-    s += "You are grok-4.6 high-effort (grok-46-high) for stage 测试.\n";
+    s += "You are grok-4.6 general-purpose for stage 测试.\n";
     s += shared_rules();
     s += "Fix until green. Drive the shipped code. No test theater.\n";
     s += "1) npm run test:api -> $HOME/.cache/framepilot-desktop-phase2/test-api.log (exit 0)\n";
@@ -327,7 +368,7 @@ fn test_prompt() {
 
 fn launch_prompt() {
     let s = "";
-    s += "You are grok-4.6 (medium effort, general-purpose) for stage 上线.\n";
+    s += "You are grok-4.6 general-purpose for stage 上线.\n";
     s += shared_rules();
     s += "上线 means close Phase 2 on feature/desktop-phase2. Do not publish installers. Do not merge to main. Do not start Phase 3.\n";
     s += "Tick every Phase 2 id in section 5.1 to [x] or dated [~]. Any [~] must cite a dated command and error (live picker clicks only).\n";
@@ -340,95 +381,146 @@ fn launch_prompt() {
     s
 }
 
+fn take_flag(output, value) {
+    if output == () {
+        true
+    } else if value == () {
+        true
+    } else {
+        value
+    }
+}
+
+phase("Inspect");
+log("Inspecting already-finished Phase 2 stages so this run can resume safely");
+let progress = agent(progress_prompt(), inspect_opts("phase2-inspect"));
+let out = ();
+if progress != () && progress.success && progress.output != () {
+    out = progress.output;
+}
+if out != () && out.notes != () {
+    log(out.notes);
+}
+let run_breakdown = take_flag(out, if out == () { () } else { out.run_breakdown });
+let run_review = take_flag(out, if out == () { () } else { out.run_review });
+let run_archive = take_flag(out, if out == () { () } else { out.run_archive });
+let run_d200 = take_flag(out, if out == () { () } else { out.run_d200 });
+let run_d201 = take_flag(out, if out == () { () } else { out.run_d201 });
+let run_d202 = take_flag(out, if out == () { () } else { out.run_d202 });
+let run_d203 = take_flag(out, if out == () { () } else { out.run_d203 });
+let run_d204 = take_flag(out, if out == () { () } else { out.run_d204 });
+let run_d205 = take_flag(out, if out == () { () } else { out.run_d205 });
+let run_d206 = take_flag(out, if out == () { () } else { out.run_d206 });
+let run_d207 = take_flag(out, if out == () { () } else { out.run_d207 });
+let run_d208 = take_flag(out, if out == () { () } else { out.run_d208 });
+let run_d209 = take_flag(out, if out == () { () } else { out.run_d209 });
+let run_test = take_flag(out, if out == () { () } else { out.run_test });
+let run_launch = take_flag(out, if out == () { () } else { out.run_launch });
+
 phase("需求拆解");
-log("Starting 需求拆解 with medium-effort grok-4.6 plan agent");
-let r1 = agent(breakdown_prompt(), medium_plan_opts("phase2-breakdown"));
-if !stage_ok(r1) {
-    pause("no_progress", "需求拆解 failed; inspect the agent before 评审.");
+if run_breakdown {
+    log("Starting 需求拆解");
+    run_stage(breakdown_prompt(), agent_opts("phase2-breakdown"), "需求拆解 failed; inspect before 评审.");
+} else {
+    log("Skipping 需求拆解 (already committed)");
 }
 
 phase("评审");
-log("Starting 评审 with medium-effort grok-4.6 plan agent");
-let r2 = agent(review_prompt(), medium_plan_opts("phase2-review"));
-if !stage_ok(r2) {
-    pause("no_progress", "评审 failed; inspect the agent before 归档.");
+if run_review {
+    log("Starting 评审");
+    run_stage(review_prompt(), agent_opts("phase2-review"), "评审 failed; inspect before 归档.");
+} else {
+    log("Skipping 评审 (already committed)");
 }
 
 phase("归档");
-log("Starting 归档 with low-effort grok-4.6 general-purpose agent");
-let r3 = agent(archive_prompt(), archive_opts("phase2-archive"));
-if !stage_ok(r3) {
-    pause("no_progress", "归档 failed; inspect the agent before 开发.");
+if run_archive {
+    log("Starting 归档");
+    run_stage(archive_prompt(), agent_opts("phase2-archive"), "归档 failed; inspect before 开发.");
+} else {
+    log("Skipping 归档 (already committed)");
 }
 
 phase("开发");
-log("Starting D2.00 registered project roots");
-let d00 = agent(develop_d200_prompt(), high_opts("phase2-d2-00"));
-if !stage_ok(d00) {
-    pause("no_progress", "D2.00 failed; inspect before D2.01. Do not skip the GitHub push for a finished id.");
+if run_d200 {
+    log("Starting D2.00 registered project roots");
+    run_stage(develop_d200_prompt(), agent_opts("phase2-d2-00"), "D2.00 failed; inspect before D2.01. Do not skip the GitHub push for a finished id.");
+} else {
+    log("Skipping D2.00 (already committed)");
 }
-log("Starting D2.01 native file dialog adapters");
-let d01 = agent(develop_d201_prompt(), high_opts("phase2-d2-01"));
-if !stage_ok(d01) {
-    pause("no_progress", "D2.01 failed; inspect before D2.02.");
+if run_d201 {
+    log("Starting D2.01 native file dialog adapters");
+    run_stage(develop_d201_prompt(), agent_opts("phase2-d2-01"), "D2.01 failed; inspect before D2.02.");
+} else {
+    log("Skipping D2.01 (already committed)");
 }
-log("Starting D2.02 native project create");
-let d02 = agent(develop_d202_prompt(), high_opts("phase2-d2-02"));
-if !stage_ok(d02) {
-    pause("no_progress", "D2.02 failed; inspect before D2.03.");
+if run_d202 {
+    log("Starting D2.02 native project create");
+    run_stage(develop_d202_prompt(), agent_opts("phase2-d2-02"), "D2.02 failed; inspect before D2.03.");
+} else {
+    log("Skipping D2.02 (already committed)");
 }
-log("Starting D2.03 path import UI");
-let d03 = agent(develop_d203_prompt(), high_opts("phase2-d2-03"));
-if !stage_ok(d03) {
-    pause("no_progress", "D2.03 failed; inspect before D2.04.");
+if run_d203 {
+    log("Starting D2.03 path import UI");
+    run_stage(develop_d203_prompt(), agent_opts("phase2-d2-03"), "D2.03 failed; inspect before D2.04.");
+} else {
+    log("Skipping D2.03 (already committed)");
 }
-log("Starting D2.04 drag and drop");
-let d04 = agent(develop_d204_prompt(), high_opts("phase2-d2-04"));
-if !stage_ok(d04) {
-    pause("no_progress", "D2.04 failed; inspect before D2.05.");
+if run_d204 {
+    log("Starting D2.04 drag and drop");
+    run_stage(develop_d204_prompt(), agent_opts("phase2-d2-04"), "D2.04 failed; inspect before D2.05.");
+} else {
+    log("Skipping D2.04 (already committed)");
 }
-log("Starting D2.05 reveal folders");
-let d05 = agent(develop_d205_prompt(), high_opts("phase2-d2-05"));
-if !stage_ok(d05) {
-    pause("no_progress", "D2.05 failed; inspect before D2.06.");
+if run_d205 {
+    log("Starting D2.05 reveal folders");
+    run_stage(develop_d205_prompt(), agent_opts("phase2-d2-05"), "D2.05 failed; inspect before D2.06.");
+} else {
+    log("Skipping D2.05 (already committed)");
 }
-log("Starting D2.06 recent projects");
-let d06 = agent(develop_d206_prompt(), high_opts("phase2-d2-06"));
-if !stage_ok(d06) {
-    pause("no_progress", "D2.06 failed; inspect before D2.07.");
+if run_d206 {
+    log("Starting D2.06 recent projects");
+    run_stage(develop_d206_prompt(), agent_opts("phase2-d2-06"), "D2.06 failed; inspect before D2.07.");
+} else {
+    log("Skipping D2.06 (already committed)");
 }
-log("Starting D2.07 path hardening");
-let d07 = agent(develop_d207_prompt(), high_opts("phase2-d2-07"));
-if !stage_ok(d07) {
-    pause("no_progress", "D2.07 failed; inspect before D2.08.");
+if run_d207 {
+    log("Starting D2.07 path hardening");
+    run_stage(develop_d207_prompt(), agent_opts("phase2-d2-07"), "D2.07 failed; inspect before D2.08.");
+} else {
+    log("Skipping D2.07 (already committed)");
 }
-log("Starting D2.08 workflow verification");
-let d08 = agent(develop_d208_prompt(), high_opts("phase2-d2-08"));
-if !stage_ok(d08) {
-    pause("no_progress", "D2.08 failed; inspect before D2.09.");
+if run_d208 {
+    log("Starting D2.08 workflow verification");
+    run_stage(develop_d208_prompt(), agent_opts("phase2-d2-08"), "D2.08 failed; inspect before D2.09.");
+} else {
+    log("Skipping D2.08 (already committed)");
 }
-log("Starting D2.09 reveal exports");
-let d09 = agent(develop_d209_prompt(), high_opts("phase2-d2-09"));
-if !stage_ok(d09) {
-    pause("no_progress", "D2.09 failed; inspect before 测试.");
+if run_d209 {
+    log("Starting D2.09 reveal exports");
+    run_stage(develop_d209_prompt(), agent_opts("phase2-d2-09"), "D2.09 failed; inspect before 测试.");
+} else {
+    log("Skipping D2.09 (already committed)");
 }
 
 phase("测试");
-log("Starting 测试 with high-effort grok-4.6");
-let r5 = agent(test_prompt(), high_opts("phase2-test"));
-if !stage_ok(r5) {
-    pause("no_progress", "测试 failed; inspect the agent before 上线.");
+if run_test {
+    log("Starting 测试");
+    run_stage(test_prompt(), agent_opts("phase2-test"), "测试 failed; inspect before 上线.");
+} else {
+    log("Skipping 测试 (already committed)");
 }
 
 phase("上线");
-log("Starting 上线 with medium-effort grok-4.6 general-purpose agent");
-let r6 = agent(launch_prompt(), launch_opts("phase2-launch"));
-if !stage_ok(r6) {
-    pause("no_progress", "上线 failed; inspect the agent.");
+if run_launch {
+    log("Starting 上线");
+    run_stage(launch_prompt(), agent_opts("phase2-launch"), "上线 failed; inspect the agent.");
+} else {
+    log("Skipping 上线 (already committed)");
 }
 
 complete(#{
     summary: "Phase 2 serial pipeline finished on feature/desktop-phase2 with per-task GitHub pushes",
-    stages: ["需求拆解", "评审", "归档", "开发", "测试", "上线"],
+    stages: ["Inspect", "需求拆解", "评审", "归档", "开发", "测试", "上线"],
     handoff: "docs/handoff/STATUS.md",
 });
