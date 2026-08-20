@@ -246,6 +246,8 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(Arc::clone(&state))
         .setup(move |app| {
             let (startup_error, restart_used) = {

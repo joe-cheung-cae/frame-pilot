@@ -9,6 +9,9 @@ const webSrc = path.resolve(webRoot, "src");
 const navigationNext = path.resolve(webSrc, "lib/navigation.next.tsx");
 const navigationNextBare = navigationNext.replace(/\.tsx$/, "");
 const navigationRouter = path.resolve(desktopRoot, "src/navigation.router.tsx");
+const webNativeFs = path.resolve(webSrc, "lib/nativeFs.ts");
+const webNativeFsBare = webNativeFs.replace(/\.ts$/, "");
+const desktopNativeFs = path.resolve(desktopRoot, "src/lib/nativeFs.ts");
 const reactPkg = path.resolve(desktopRoot, "node_modules/react");
 const reactDomPkg = path.resolve(desktopRoot, "node_modules/react-dom");
 
@@ -50,8 +53,42 @@ function aliasNavigationNext(): Plugin {
   };
 }
 
+function isWebNativeFs(id: string): boolean {
+  const normalized = id.replace(/\\/g, "/");
+  const nativePath = webNativeFs.replace(/\\/g, "/");
+  const nativeBare = webNativeFsBare.replace(/\\/g, "/");
+  return (
+    normalized === nativePath ||
+    normalized === nativeBare ||
+    normalized.endsWith("/web/src/lib/nativeFs") ||
+    normalized.endsWith("/web/src/lib/nativeFs.ts")
+  );
+}
+
+function aliasNativeFs(): Plugin {
+  return {
+    name: "alias-native-fs",
+    enforce: "pre",
+    resolveId(source, importer) {
+      if (isWebNativeFs(source)) {
+        return desktopNativeFs;
+      }
+      if (!importer) {
+        return null;
+      }
+      if (source === "./nativeFs" || source === "./nativeFs.ts") {
+        const resolved = path.resolve(path.dirname(importer), source);
+        if (isWebNativeFs(resolved)) {
+          return desktopNativeFs;
+        }
+      }
+      return null;
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), aliasNavigationNext()],
+  plugins: [react(), aliasNavigationNext(), aliasNativeFs()],
   clearScreen: false,
   resolve: {
     alias: [
@@ -60,6 +97,11 @@ export default defineConfig({
         replacement: navigationRouter,
       },
       { find: navigationNext, replacement: navigationRouter },
+      {
+        find: new RegExp(`^${escapeRegExp(webNativeFsBare)}(?:\\.ts)?$`),
+        replacement: desktopNativeFs,
+      },
+      { find: webNativeFs, replacement: desktopNativeFs },
       { find: "@", replacement: webSrc },
       { find: /^react$/, replacement: reactPkg },
       { find: /^react-dom$/, replacement: reactDomPkg },
