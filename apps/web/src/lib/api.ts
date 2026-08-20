@@ -266,14 +266,22 @@ function listAllExports(projectId: string, pageLimit?: number) {
 
 export const api = {
   listProjects: () => request<Project[]>("/api/projects"),
-  createProject: (name: string, rootPath?: string) => {
+  createProject: (name: string, rootPath?: string, options?: { acknowledgeNonempty?: boolean }) => {
     const trimmedRootPath = rootPath?.trim();
-    const payload: { name: string; root_path?: string } = { name };
+    const payload: { name: string; root_path?: string; acknowledge_nonempty?: boolean } = { name };
     if (trimmedRootPath) {
       payload.root_path = trimmedRootPath;
     }
+    if (options?.acknowledgeNonempty) {
+      payload.acknowledge_nonempty = true;
+    }
     return request<Project>("/api/projects", { method: "POST", body: JSON.stringify(payload) });
   },
+  registerDesktopProjectRoot: (path: string) =>
+    request<{ path: string }>("/api/desktop/project-roots", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    }),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   getPhoto: (projectId: string, photoId: string) => request<Photo>(`/api/projects/${projectId}/photos/${photoId}`),
   importPhotosBatch: (

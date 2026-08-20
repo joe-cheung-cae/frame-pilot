@@ -44,3 +44,46 @@ export function projectCreationRecoveryHint(rootPath: string): string {
     ? "Check that the local project data folder exists and is writable, or leave it blank to use FramePilot's managed local data folder."
     : "Confirm the local FramePilot API is running, then try creating the project again.";
 }
+
+export const NONEMPTY_PROJECT_ROOT_CONFIRM =
+  "This folder already contains files. FramePilot will create its project folders inside it and will not modify existing files. Continue?";
+
+export const NONEMPTY_PROJECT_ROOT_API_DETAIL =
+  "Project root path is not empty; pass acknowledge_nonempty=true to use it anyway";
+
+export function isNonemptyProjectRootError(error: unknown): boolean {
+  return error instanceof Error && error.message === NONEMPTY_PROJECT_ROOT_API_DETAIL;
+}
+
+export async function createProjectWithNonemptyConfirm<T>(
+  draft: NormalizedProjectCreateDraft,
+  options: {
+    createProject: (name: string, rootPath?: string, createOptions?: { acknowledgeNonempty?: boolean }) => Promise<T>;
+    confirmNonempty: (message: string) => boolean | Promise<boolean>;
+  },
+): Promise<T> {
+  try {
+    return await options.createProject(draft.projectName, draft.projectRootPath);
+  } catch (error) {
+    if (!isNonemptyProjectRootError(error)) {
+      throw error;
+    }
+    const confirmed = await options.confirmNonempty(NONEMPTY_PROJECT_ROOT_CONFIRM);
+    if (!confirmed) {
+      throw error;
+    }
+    return options.createProject(draft.projectName, draft.projectRootPath, { acknowledgeNonempty: true });
+  }
+}
+
+export async function registerPickedProjectRoot(options: {
+  pickDirectory: () => Promise<string | null>;
+  registerRoot: (path: string) => Promise<{ path: string }>;
+}): Promise<string | null> {
+  const picked = await options.pickDirectory();
+  if (!picked) {
+    return null;
+  }
+  const registered = await options.registerRoot(picked);
+  return registered.path;
+}
