@@ -1,8 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Download, Images, Loader2, Play, UploadCloud } from "lucide-react";
+import { Download, FolderOpen, Images, Loader2, Play, UploadCloud } from "lucide-react";
 import { api } from "@/lib/api";
+import { getNativeFs } from "@/lib/nativeFs";
 import { Link } from "@/lib/navigation";
 import {
   projectHasActiveImport,
@@ -13,6 +14,7 @@ import {
   projectWorkflowStepHint,
   projectWorkflowStepHref,
 } from "@/lib/projectRouting";
+import { revealFolder } from "@/lib/revealFolder";
 
 const workflowLinks = [
   { label: "Import", icon: UploadCloud, suffix: "import" },
@@ -22,6 +24,7 @@ const workflowLinks = [
 ] as const;
 
 export function ProjectDashboard({ projectId }: { projectId: string }) {
+  const nativeFs = getNativeFs();
   const project = useQuery({
     queryKey: ["project", projectId],
     queryFn: () => api.getProject(projectId),
@@ -60,6 +63,18 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
         <p className="text-sm text-neutral-600">Project dashboard</p>
         <h1 className="text-3xl font-semibold">{project.data.name}</h1>
         <p className="break-all text-sm text-neutral-600">Project data: {project.data.root_path}</p>
+        {nativeFs ? (
+          <button
+            className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line bg-white px-3 py-2 text-sm font-medium"
+            onClick={() => {
+              void revealFolder("project", { rootPath: project.data.root_path }, nativeFs.revealInFileManager);
+            }}
+            type="button"
+          >
+            <FolderOpen size={16} />
+            Open project folder
+          </button>
+        ) : null}
       </div>
 
       <div className="grid gap-3 rounded border border-line bg-white p-4 text-sm">
