@@ -9,10 +9,13 @@ from fastapi.responses import FileResponse
 from sqlalchemy import case, func
 from sqlmodel import Session, select
 
+from app.core.origins import desktop_mode_enabled
+from app.core.project_roots import register_root, registered_roots
 from app.core.version import health_payload
 from app.db.session import get_session
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.schemas.api import (
+    DesktopProjectRootCreate,
     ExportCreate,
     ExportRead,
     GroupRead,
@@ -272,6 +275,27 @@ def _import_result_payload(
             "stages": timing.summary(),
         }
     return response
+
+
+def _require_desktop_mode() -> None:
+    if not desktop_mode_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+
+
+@router.get("/desktop/project-roots")
+def list_desktop_project_roots() -> dict[str, list[str]]:
+    _require_desktop_mode()
+    return {"roots": [str(path) for path in registered_roots()]}
+
+
+@router.post("/desktop/project-roots", status_code=status.HTTP_201_CREATED)
+def register_desktop_project_root(payload: DesktopProjectRootCreate) -> dict[str, str]:
+    _require_desktop_mode()
+    try:
+        root = register_root(payload.path)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return {"path": str(root)}
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)

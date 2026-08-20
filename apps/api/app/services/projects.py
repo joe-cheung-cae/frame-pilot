@@ -3,9 +3,8 @@ from pathlib import Path
 from sqlmodel import Session, select
 
 from app.core.config import get_settings
+from app.core.project_roots import BLOCKED_ROOT_NAMES, registered_roots
 from app.models.entities import Project, utc_now
-
-BLOCKED_ROOT_NAMES = {"/", "/etc", "/usr", "/bin", "/sbin", "/var", "/System", "/Windows"}
 
 
 def _is_under(path: Path, root: Path) -> bool:
@@ -27,9 +26,8 @@ def create_project(
     project = Project(name=name, root_path=root_path or "")
     if root_path:
         project_root = Path(root_path).expanduser().resolve()
-        allowed_roots = [projects_root]
         allowlist = settings.project_root_allowlist
-        allowed_roots.extend(allowlist)
+        allowed_roots = [projects_root, *allowlist, *registered_roots()]
         if not any(_is_under(project_root, allowed) for allowed in allowed_roots):
             raise ValueError(
                 f"Project root path must stay under the FramePilot data directory ({projects_root}) "
