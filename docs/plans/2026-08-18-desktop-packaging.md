@@ -241,7 +241,7 @@ Phase 2
 - [x] D2.04 Drag and drop
 - [x] D2.05 Reveal project and export folders
 - [x] D2.06 Recent projects
-- [ ] D2.07 Cross-platform path hardening
+- [x] D2.07 Cross-platform path hardening
 - [ ] D2.08 Full workflow verification
 - [ ] D2.09 Reveal exports instead of downloading
 

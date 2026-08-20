@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from app.core.config import get_settings
+from app.core.local_paths import normalize_user_path
 
 BLOCKED_ROOT_NAMES = {"/", "/etc", "/usr", "/bin", "/sbin", "/var", "/System", "/Windows"}
 
@@ -105,9 +106,10 @@ def registered_roots() -> list[Path]:
 
 
 def register_root(path: str) -> Path:
-    if _is_blocked_input(path):
+    cleaned = normalize_user_path(path)
+    if _is_blocked_input(cleaned):
         raise ValueError("Project root path cannot target a system directory")
-    candidate = Path(path)
+    candidate = Path(cleaned)
     if not candidate.is_absolute():
         raise ValueError("Project root path must be an absolute local directory")
     try:

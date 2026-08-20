@@ -3,6 +3,7 @@ from pathlib import Path
 from sqlmodel import Session, select
 
 from app.core.config import get_settings
+from app.core.local_paths import normalize_user_path
 from app.core.project_roots import BLOCKED_ROOT_NAMES, registered_roots
 from app.models.entities import Project, utc_now
 
@@ -25,7 +26,7 @@ def create_project(
     projects_root = (settings.data_dir / "projects").resolve()
     project = Project(name=name, root_path=root_path or "")
     if root_path:
-        project_root = Path(root_path).expanduser().resolve()
+        project_root = Path(normalize_user_path(root_path)).expanduser().resolve()
         allowlist = settings.project_root_allowlist
         allowed_roots = [projects_root, *allowlist, *registered_roots()]
         if not any(_is_under(project_root, allowed) for allowed in allowed_roots):
