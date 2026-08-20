@@ -244,7 +244,121 @@ Update docs/desktop_feasibility_notes.md and, if needed, docs/v2_known_limitatio
 If tests are safe to run, run npm run test:api and record results. Do not implement features.
 ```
 
-## 5. Phase 0 Only Prompt
+## 5. Phase 2 Only Prompt (Goal + Workflow)
+
+Use this after Phase 0 and Phase 1 are on `main`. Copy everything inside the following fence into Grok Build Goal Mode. Do **not** start D2 implementation in a chat that is only authoring this prompt.
+
+The executable workflow is `.grok/workflows/desktop-phase2.rhai`. The requirements contract is `docs/handoff/phase2-requirements.md`. Tracker remains `docs/plans/2026-08-18-desktop-packaging.md` §5.1.
+
+```text
+You are working in the FramePilot repository.
+
+This is a long-running Grok Build Goal Mode task for FramePilot DESKTOP Phase 2 only.
+
+Mission: land native filesystem + core culling workflow (D2.00–D2.09) on branch feature/desktop-phase2, using Goal + Workflow orchestration, and SUBMIT EVERY D2 TASK TO GITHUB.
+
+Read first, in this order, with tools (do not answer from memory):
+1. AGENTS.md
+2. develop_plan.md
+3. docs/desktop_development_plan.md Phase 2
+4. docs/plans/2026-08-18-desktop-packaging.md (D2.00–D2.09 and §5.1 Task Tracker)
+5. docs/handoff/phase2-requirements.md
+6. docs/desktop_goal_mode.md §5
+7. .grok/workflows/desktop-phase2.rhai
+8. docs/api.md, apps/api/app/services/projects.py, apps/web/src/lib/api.ts, ProjectCreator.tsx, ImportPanel.tsx, ExportPanel.tsx, apps/desktop/vite.config.ts, capabilities/default.json
+
+ORCHESTRATION (mandatory):
+Run the serial pipeline in .grok/workflows/desktop-phase2.rhai:
+需求拆解 → 评审 → 归档 → 开发 (one agent per D2.00, D2.01, … D2.09) → 测试 → 上线
+Prefer the workflow tool: name "desktop-phase2" or script_path .grok/workflows/desktop-phase2.rhai, agent_budget at least 32.
+If the workflow file is missing, recreate it from this prompt and docs/handoff/phase2-requirements.md, smoke-check validate_only, then run it.
+If you cannot launch the workflow tool, execute the same stages yourself as serial subagents with the same fences. Never parallelize D2.00–D2.09. Never implement two D2 ids in one agent.
+
+BRANCH:
+Create and stay on feature/desktop-phase2 from current origin/main.
+Do not reuse the merged feature/desktop-packaging branch.
+Do not commit Phase 2 work on main.
+Do not merge. Do not squash. Do not force-push.
+
+GITHUB SUBMISSION (mandatory after every D2.00–D2.09 task AND after every docs stage):
+1. Commit only that id (code + tests + §5.1 tick of that one box + related docs).
+2. git push -u origin HEAD.
+3. After the first successful push, if no open PR exists for this head, create ONE draft PR:
+   repo joe-cheung-cae/frame-pilot
+   base main
+   head feature/desktop-phase2
+   title: desktop: Phase 2 native filesystem and core workflow
+   Prefer: gh pr create --draft ...
+   Fallback: GitHub MCP create_pull_request with draft true.
+4. Never open a second PR. Later tasks only push; the PR updates.
+5. Append SHA, subject, push result, PR URL to $HOME/.cache/framepilot-desktop-phase2/git-github.txt (mkdir -p, chmod 700; never /tmp).
+6. If push fails: capture the exact error, retry once, continue product work, report in docs/handoff/STATUS.md. Do not claim the task was submitted.
+
+TASK COMPLETION PROTOCOL:
+Authoritative list: docs/plans/2026-08-18-desktop-packaging.md §5.1.
+Statuses: [ ] not started, [x] done, [~] blocked on GUI/signing, [-] cancelled.
+- Do not redo [x] Phase 0/1 ids.
+- One D2 id per product commit. Tick that box in the same commit.
+- Tests first. Watch the new test fail for the right reason, then implement.
+- Never tick a box whose tests you did not run and see pass in this session.
+- Drive shipped code. Do not mock the unit under test.
+
+PHASE 2 IDS (serial; GitHub after each):
+D2.00 api: register desktop project roots before use
+D2.01 desktop: add native file dialog adapters
+D2.02 web: use native directory picker when desktop APIs exist
+D2.03 web: import from local paths in desktop mode
+D2.04 desktop: add import drag-and-drop
+D2.05 desktop: reveal project and export paths in the OS file manager
+D2.06 desktop: remember last opened project
+D2.07 api: harden desktop import paths
+D2.08 test: cover path-import process export workflow
+D2.09 desktop: reveal export artifacts instead of downloading them
+
+LOCKED DECISIONS (do not re-litigate):
+- Tauri 2 + Python sidecar. Dual shell. apps/web stays Next.js. No output: export.
+- HTTP to 127.0.0.1 for photos. Tauri IPC only for dialogs, paths, reveal.
+- nativeFs: apps/web/src/lib/nativeFs.ts getNativeFs() returns null; desktop implementation aliased by RESOLVED path like navigation.next. Next must not import @tauri-apps/plugin-*.
+- Capabilities: dialog + opener only. No fs:. No shell:.
+- Never set FRAMEPILOT_PROJECT_ROOT_ALLOWLIST to $HOME, /, or a drive root. D2.00 registry in {data_dir}/desktop_project_roots.json, cap 50, not inside Settings. Endpoints 404 unless FRAMEPILOT_DESKTOP=1.
+- Do not change test_create_project_rejects_root_outside_allowlist assertions or allowlist error strings.
+- Path import client loops remaining_paths; max 100 expanded files per request; finalize true only on last slice.
+- When isDesktopShell() is false, both ImportPanel file inputs (including webkitdirectory) keep current DOM position, labels, and disabled semantics.
+- Desktop reveals export output_path; browser keeps <a href=exportDownloadUrl>.
+- APP_VERSION stays 2.0.0-rc2. npm run verify stays rust-free.
+- No cloud, login, payment, original-file mutation, HEIC/RAW/XMP, bundled models.
+- Do not start Phase 3–5.
+
+SCOPE FENCES:
+- Do not restart the product.
+- Do not migrate apps/web off Next.js.
+- Do not replace scoring/grouping with Rust.
+- Do not widen scripts/check-release-artifacts.sh.
+- Resolve repo with git rev-parse --show-toplevel. Do not hardcode /Users/chao/workspace/repo/frame-pilot.
+
+需求拆解: verify/update docs/handoff/phase2-requirements.md against the live tree; write STATUS.md; commit; push; open the draft PR. Do not implement production D2 code in that stage.
+评审: write docs/handoff/phase2-review.md; push.
+归档: write docs/handoff/phase2-backlog.md with depends-on/files/implement/tests-first/commit-hint/github-submit/done-when; push.
+开发: one id, tests first, tick, commit, push, PR exists.
+测试: npm run test:api, test:web, typecheck:desktop, verify (rust-free), test:e2e; commit; push.
+上线: tick §5.1 Phase 2 boxes; close-out docs; push; do not merge. Ready-for-review is allowed; merge is not.
+
+Stop and summarize if a D2 id cannot be made green, a GitHub push/PR is blocked after retry, or Phase 2 acceptance is complete.
+
+Final response:
+1. Branch name and PR URL
+2. Commits created (hash + subject), in order, including which were pushed
+3. Task ids completed vs remaining
+4. Tests/checks run and results
+5. Known risks / [~] items
+6. Recommended next Goal prompt (Phase 3 only if Phase 2 is closed)
+
+Most important instructions:
+Never start the next D2 id until the current id is implemented, tested, passing, reviewed, committed, AND pushed to GitHub.
+Never merge to main.
+```
+
+## 6. Phase 0 Only Prompt
 
 Use this when you want a bounded first spike rather than the full 6–10 week track.
 
@@ -260,12 +374,12 @@ Hard constraints from AGENTS.md apply. Keep the Next.js web app working. Do not 
 Stop after D0.09 is committed and summarize.
 ```
 
-## 6. Notes
+## 7. Notes
 
-- The long prompt is the main autonomous desktop prompt.
-- The detailed file paths, tests, and acceptance boxes live in `docs/plans/2026-08-18-desktop-packaging.md`. Do not duplicate that backlog here.
+- The long prompt is the main autonomous desktop prompt for the full track.
+- For Phase 2 after Phase 1 is on `main`, use §5 (Goal + Workflow) instead of the long prompt.
+- The detailed file paths, tests, and acceptance boxes live in `docs/plans/2026-08-18-desktop-packaging.md`. Do not duplicate that backlog here except the Phase 2 contract in `docs/handoff/phase2-requirements.md`.
 - Keep `implement_goals.md` for the older v2 web Goal Mode. Do not mix v2 algorithm work into a desktop Goal Mode session unless the desktop plan’s current task requires a tiny shared-code fix.
 - First desktop product version: `2.1.0-desktop`. `3.0.0` is not on the table.
-- Execution order starts at D0.00 (CI verify), not D0.01.
+- Execution order starts at D0.00 (CI verify), not D0.01. Phase 2 starts at D2.00 on `feature/desktop-phase2`.
 - The only source of truth for task status is §5.1 of the implementation plan.
-- Keep `implement_goals.md` for the older v2 web Goal Mode. Do not mix v2 algorithm work into a desktop Goal Mode session unless the desktop plan’s current task requires a tiny shared-code fix.

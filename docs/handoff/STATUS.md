@@ -1,33 +1,40 @@
-# Desktop review-fix loop — handoff status
+# Desktop Phase 2 — handoff status
 
-- current_stage: Close-out
+- current_stage: 需求拆解
 - status: complete
-- files changed this stage: `docs/handoff/STATUS.md`, `docs/handoff/loop-closeout.md`
-- tests_run: none this round (docs-only; no production code). Prior product `测试` remains `68b8c60` (cargo test twice, 35 passed; test:web; rust-free verify; desktop smoke).
-- next_stage: none
-- round: 1
-- P0: 0
-- P1: 0
-- P2: 0 confirmed product
-- P3: 0 confirmed product
-- verdict: pass
+- next_stage: 评审
+- branch: feature/desktop-phase2
+- base: origin/main `69f41bcfb35948c9921e10a41ffd0f505ba49dad`
+- tests_run: none (docs-only; no production D2 code)
 - blockers: none
-- branch: feature/desktop-packaging
-- live_HEAD: `ba2820f4c1bdf6a8db91998224ff544de84a6074` (close-out commit will be the tip)
-- base: origin/main `1d6ffa70858e6663f2539fb25d1358fecf519cd4`
-- parent_issue: joe-cheung-cae/frame-pilot#30
-- in_scope_sub_issues:
-  - joe-cheung-cae/frame-pilot#33 (F001; re-checked **fixed**)
-  - joe-cheung-cae/frame-pilot#35 (F002; re-checked **fixed**)
-  - joe-cheung-cae/frame-pilot#36 (F003; re-checked **fixed**)
-  - joe-cheung-cae/frame-pilot#34 (F004; re-checked **fixed**)
-  - joe-cheung-cae/frame-pilot#31 (F005; re-checked **fixed**)
-  - joe-cheung-cae/frame-pilot#32 (F006; re-checked **fixed**; same as F001)
-- timestamp: 2026-08-20T14:57:29+08:00
+- live_HEAD: this 需求拆解 commit (SHA recorded in `$HOME/.cache/framepilot-desktop-phase2/git-github.txt` after push)
+- draft_PR: created after first successful push of this commit; URL in git-github.txt
+- timestamp: 2026-08-20T20:59:44+08:00
 
-Workflow: `.grok/workflows/desktop-review-fix-loop.rhai`  
-Write-allowlist this stage: `docs/handoff/STATUS.md` ; `docs/handoff/loop-closeout.md`
+## This stage
 
-Round 1: **P0=0 and P1=0**. F001–F006 checked against **current** code. No product patches. GitHub comments posted (parent at least). Issues stay **open**. No PR. No merge to `main`. Do not start Phases 2–5.
+Verified `docs/handoff/phase2-requirements.md` against the live tree on `feature/desktop-phase2` (created from `origin/main` `69f41bc`). Architecture is unchanged. Line-level baseline updates only (ExportPanel download anchors at 241 and 308; ImportPanel inputs at 234–241 and 253–261; sidecar already sets `FRAMEPILOT_DESKTOP=1`; no `nativeFs` files yet).
 
-Parent comment: https://github.com/joe-cheung-cae/frame-pilot/issues/30#issuecomment-5352493341
+Files in this commit:
+
+- `docs/handoff/phase2-requirements.md`
+- `docs/handoff/STATUS.md`
+- `docs/desktop_goal_mode.md` (§5 Phase 2 Goal + Workflow prompt)
+- `.grok/workflows/desktop-phase2.rhai`
+
+§5.1 Phase 2 boxes stay `[ ]`. Do not implement D2.00–D2.09 in this stage.
+
+## Orchestration note
+
+Named workflow run `desktop-phase2` (`wf_01a01f3ecca97e02a47d8a4551daa413`) paused at 需求拆解: agent `phase2-breakdown` failed with 0 tokens. Do **not** resume it (`pause()` re-fires). Remaining stages run as serial parent/subagents with the same fences (one D2 id at a time, push after each).
+
+## GitHub
+
+After this commit: `git push -u origin HEAD`, then one draft PR:
+
+- repo: `joe-cheung-cae/frame-pilot`
+- base: `main`
+- head: `feature/desktop-phase2`
+- title: `desktop: Phase 2 native filesystem and core workflow`
+
+Do not merge. Do not squash. Do not force-push. Do not open a second PR.
