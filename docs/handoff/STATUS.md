@@ -1,35 +1,51 @@
-# Desktop Phase 1 Handoff Status
+# Desktop Review-Fix Handoff Status
 
-- current_stage: 上线
-- status: complete
-- next_stage: none (Phase 2 not started)
-- blockers: D0.07 stays `[~]` as the Phase 0 close-out (2026-08-19T08:26:40Z `cargo`/`rustc` command not found, exit 127). Phase 1 GUI is not blocked: `npm run dev:desktop` opened a `FramePilot` window. Missing Phase 0 GUI is **not** the Electron trigger.
-- tests_run:
-  - `测试` captures: `npm run test:web` exit 0; desktop Vite CSS 14.20 kB; `npm run verify` exit 0 rust-free; job pytest 8 passed; dual sidecar `/health`+`/api/projects`; dual `npm run test:desktop:smoke`; dual `cargo test` 19 passed
-  - `上线` 2026-08-19T18:54:32+08:00 `npm run dev:desktop`: window title `FramePilot`; sidecar `127.0.0.1:54451` `GET /health` `{"status":"ok","version":"2.0.0-rc2","service":"framepilot-api"}`; WebView `OPTIONS`+`GET /api/projects` 200 `[]`
-  - `上线` 2026-08-19T18:59:32+08:00 `npm run dev`: `:8000/health` 200 same JSON; `:8000/api/projects` `[]`; `:3000/` 200 title `FramePilot`
+- current_stage: 归档
+- status: in_progress
+- next_stage: 开发
 - branch: feature/desktop-packaging
-- timestamp: 2026-08-19T19:00:41+08:00
+- parent_issue: joe-cheung-cae/frame-pilot#30
+- in_scope_sub_issues:
+  - joe-cheung-cae/frame-pilot#33 (F001 high)
+  - joe-cheung-cae/frame-pilot#35 (F002 high)
+  - joe-cheung-cae/frame-pilot#36 (F003 high)
+  - joe-cheung-cae/frame-pilot#34 (F004 medium)
+  - joe-cheung-cae/frame-pilot#31 (F005 medium)
+  - joe-cheung-cae/frame-pilot#32 (F006 medium; same implementation as F001)
+- tests_run: none (docs)
+- timestamp: 2026-08-20T10:40:00+08:00
+- verdict: accept-with-notes
+- blockers: none for this documentation stage. Production Rust/TS/Python was not changed.
 
-Capture directory: `/var/folders/b6/8k06h5td1cx92vtlp6x1_z380000gn/T/grok-goal-c2f1e0e66478/implementer`
+Capture directory: `/var/folders/b6/8k06h5td1cx92vtlp6x1_z380000gn/T/grok-501/desktop-review-fix`
+
+Evidence copy: `/var/folders/b6/8k06h5td1cx92vtlp6x1_z380000gn/T/grok-goal-7cc6541d0495/implementer`
 
 ## Tests run and results
 
-`上线` owns tracker ticks and the Phase 1 go/no-go. Behavioral evidence is `测试` plus the live desktop/browser probes above.
-
-1. HTTP project list and sidecar health — `测试` dual smoke/sidecar plus live desktop `:54451` and browser `:8000`.
-2. `npm run verify` rust-free — cited from `测试` (`verify.log`; fail-if-invoked wrappers not called by verify).
-3. Browser `:3000`/`:8000` — live `npm run dev` 2026-08-19T18:59:32+08:00.
-4. WebView home list — live `npm run dev:desktop` window `FramePilot` called `GET /api/projects` (empty OK).
+`tests_run=none (docs)`. This stage is documentation only. No `cargo test`, `npm run test:web`, `npm run verify`, pytest, or desktop smoke was run. `docs/handoff/review-fix-review.md` already accepted the breakdown against live `lib.rs` / `sidecar.rs` / `package.json`.
 
 ## Files changed
 
-- `docs/plans/2026-08-18-desktop-packaging.md` — §5.1 Phase 1 ids `[x]`; D1.08 WebView `[x]`; Phase 1 acceptance boxes `[x]`; D0.07 remains dated `[~]`
-- `docs/desktop_feasibility_notes.md` — Phase 1 go/no-go
-- `docs/handoff/STATUS.md` — this 上线 handoff
+- `docs/handoff/review-fix-backlog.md` — accepted A–D contract (F001+F006, F002, F003+F004, F005)
+- `docs/handoff/STATUS.md` — this 归档 handoff
+- `docs/handoff/review-fix-requirements.md` — 需求拆解 contract (include if still uncommitted)
+- `docs/handoff/review-fix-review.md` — 评审 accept-with-notes (include if still uncommitted)
+- `.grok/workflows/desktop-review-fix.rhai` — already-authored pipeline; include if untracked. Do not add `desktop-packaging-review.rhai`
 
 ## Notes
 
-**GO — close desktop Phase 1** on `feature/desktop-packaging`. Shell stays Tauri 2 + Python sidecar. Frontend stays Vite SPA + Next.js browser app. `APP_VERSION` stays `2.0.0-rc2`. Do not publish installers. Do not open a PR. Do not merge to `main`. Do not start Phase 2.
+Branch confirmed `feature/desktop-packaging` at repo `/Users/chao/workspace/repo/frame-pilot`, parent review HEAD `7e545f80ad9205cc3a7ab67bf1683ab583743f24`.
 
-§5.1 Phase 1: D1.01–D1.09 `[x]`. Phase 1 acceptance: four `[x]`. Phase 0 remains closed GO on `origin/main` (`1d6ffa7`).
+评审 verdict **accept-with-notes** is folded into `docs/handoff/review-fix-backlog.md`. F006 is not a second feature.
+
+`开发` slices (serial; extra per-slice commits allowed; must finish with these four required subjects; STATUS may be updated in D):
+
+- A. F001+F006 — `desktop: terminate sidecar on ready-line failure`
+- B. F002 — `desktop: avoid sidecar respawn after shutdown` (do not start before A is committed)
+- C. F003+F004 — `desktop: fix import quit dialog script and stay fallback` (do not start before B is committed)
+- D. F005 — `desktop: route app quit through the close dialog` (do not start before C is committed)
+
+§5.1 Phase 1 boxes stay `[x]`. Do not start Phases 2–5. Do not bump `APP_VERSION`. Do not open a PR, merge to `main`, or close GitHub issues. `npm run verify` stays rust-free.
+
+Next stage: `开发` slice A.
