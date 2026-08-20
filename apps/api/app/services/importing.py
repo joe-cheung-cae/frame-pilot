@@ -16,6 +16,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.ai.embeddings import image_embedding, perceptual_hash
+from app.core.local_paths import normalize_user_path
 from app.db.session import get_engine
 from app.image.scoring import compute_quality_scores_for_image
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
@@ -129,7 +130,7 @@ def expand_import_paths(paths: list[str], project_root: Path) -> ExpandedImportP
             raise ValueError(f"Expansion exceeded {PATH_IMPORT_MAX_EXPANDED_FILES} files")
 
     for raw in paths:
-        candidate = Path(raw)
+        candidate = Path(normalize_user_path(raw))
         if not candidate.is_absolute():
             raise ValueError(f"Path must be absolute: {raw}")
         if not candidate.exists():
