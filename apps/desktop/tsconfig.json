@@ -17,6 +17,7 @@
     "baseUrl": ".",
     "paths": {
       "@/lib/navigation": ["./src/navigation.router.tsx"],
+      "@/lib/nativeFs": ["./src/lib/nativeFs.ts"],
       "@/*": ["../web/src/*"]
     }
   },
@@ -40,6 +41,8 @@
     "../web/src/components/**/*.test.ts",
     "../web/src/components/**/*.test.tsx",
     "../web/src/lib/navigation.ts",
-    "../web/src/lib/navigation.next.tsx"
+    "../web/src/lib/navigation.next.tsx",
+    "../web/src/lib/nativeFs.ts",
+    "src/**/*.test.ts"
   ]
 }

@@ -9,11 +9,14 @@
     "tauri": "tauri",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "NODE_OPTIONS=--disable-warning=MODULE_TYPELESS_PACKAGE_JSON node --experimental-strip-types --experimental-test-module-mocks --test src/lib/*.test.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.0",
     "@tanstack/react-virtual": "^3.14.9",
+    "@tauri-apps/plugin-dialog": "^2.5.0",
+    "@tauri-apps/plugin-opener": "^2.5.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

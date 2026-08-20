@@ -235,7 +235,7 @@ Phase 1 — closed `上线` 2026-08-19 on `feature/desktop-packaging` (GO; Phase
 Phase 2
 
 - [x] D2.00 Registered project roots
-- [ ] D2.01 Native file dialog adapters
+- [x] D2.01 Native file dialog adapters
 - [ ] D2.02 Project create with native picker
 - [ ] D2.03 Import panel path import
 - [ ] D2.04 Drag and drop

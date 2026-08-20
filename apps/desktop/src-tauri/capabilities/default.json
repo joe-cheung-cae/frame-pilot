@@ -6,6 +6,8 @@
     "core:window:allow-show",
     "core:window:allow-unminimize",
     "core:window:allow-set-focus",
-    "window-state:default"
+    "window-state:default",
+    "dialog:default",
+    "opener:default"
   ]
 }
