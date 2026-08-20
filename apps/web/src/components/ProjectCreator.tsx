@@ -4,32 +4,61 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { getNativeFs } from "@/lib/nativeFs";
 import { useNavigator } from "@/lib/navigation";
 import {
+  createProjectWithNonemptyConfirm,
   normalizeProjectCreateDraft,
+  type NormalizedProjectCreateDraft,
   projectCreateActionBlockMessage,
   projectCreationRecoveryHint,
   projectDataFolderHint,
+  registerPickedProjectRoot,
 } from "@/lib/projectCreation";
 
 export function ProjectCreator() {
+  const nativeFs = getNativeFs();
   const [name, setName] = useState("");
   const [rootPath, setRootPath] = useState("");
+  const [browseError, setBrowseError] = useState("");
   const navigator = useNavigator();
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: ({ projectName, projectRootPath }: { projectName: string; projectRootPath?: string }) =>
-      api.createProject(projectName, projectRootPath),
+    mutationFn: (draft: NormalizedProjectCreateDraft) =>
+      createProjectWithNonemptyConfirm(draft, {
+        createProject: api.createProject,
+        confirmNonempty: (message) => window.confirm(message),
+      }),
     onSuccess: async (project) => {
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       navigator.push(`/projects/${project.id}/import`);
     },
   });
   const createBlockMessage = projectCreateActionBlockMessage({ isCreating: mutation.isPending, name });
+  const errorMessage = browseError || (mutation.isError ? mutation.error.message : "");
+
+  async function onBrowse() {
+    if (!nativeFs) {
+      return;
+    }
+    setBrowseError("");
+    try {
+      const registeredPath = await registerPickedProjectRoot({
+        pickDirectory: () => nativeFs.pickDirectory(),
+        registerRoot: (path) => api.registerDesktopProjectRoot(path),
+      });
+      if (registeredPath) {
+        setRootPath(registeredPath);
+      }
+    } catch (error) {
+      setBrowseError(error instanceof Error ? error.message : String(error));
+    }
+  }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!createBlockMessage) {
+      setBrowseError("");
       mutation.mutate(normalizeProjectCreateDraft({ name, rootPath }));
     }
   }
@@ -47,12 +76,32 @@ export function ProjectCreator() {
       </label>
       <label className="grid gap-2 text-sm font-medium text-ink">
         Project data folder
-        <input
-          className="focus-ring rounded border border-line bg-white px-3 py-3 text-base"
-          value={rootPath}
-          onChange={(event) => setRootPath(event.target.value)}
-          placeholder="/Users/name/Pictures/FramePilot project"
-        />
+        {nativeFs ? (
+          <div className="flex gap-2">
+            <input
+              className="focus-ring min-w-0 flex-1 rounded border border-line bg-white px-3 py-3 text-base"
+              value={rootPath}
+              onChange={(event) => setRootPath(event.target.value)}
+              placeholder="/Users/name/Pictures/FramePilot project"
+            />
+            <button
+              type="button"
+              className="focus-ring inline-flex min-h-11 shrink-0 items-center justify-center rounded border border-line bg-white px-4 font-medium text-ink"
+              onClick={() => {
+                void onBrowse();
+              }}
+            >
+              Browse
+            </button>
+          </div>
+        ) : (
+          <input
+            className="focus-ring rounded border border-line bg-white px-3 py-3 text-base"
+            value={rootPath}
+            onChange={(event) => setRootPath(event.target.value)}
+            placeholder="/Users/name/Pictures/FramePilot project"
+          />
+        )}
       </label>
       <p className="-mt-2 text-sm text-neutral-600">{projectDataFolderHint(rootPath)}</p>
       <button
@@ -63,9 +112,9 @@ export function ProjectCreator() {
         Create and Import
       </button>
       {createBlockMessage ? <p className="text-sm text-neutral-600">{createBlockMessage}</p> : null}
-      {mutation.isError ? (
+      {errorMessage ? (
         <div className="grid gap-1 text-sm">
-          <p className="text-coral">{mutation.error.message}</p>
+          <p className="text-coral">{errorMessage}</p>
           <p className="text-neutral-600">{projectCreationRecoveryHint(rootPath)}</p>
         </div>
       ) : null}

@@ -101,6 +101,39 @@ def test_registered_roots_survive_create_app_restart(data_dir, monkeypatch):
     assert created.status_code == 201
 
 
+def test_registered_nonempty_root_requires_acknowledge_and_keeps_existing_files(data_dir, monkeypatch):
+    client = _desktop_client(monkeypatch)
+    outside = _outside_dir(data_dir, "nonempty-root")
+    existing = outside / "keep-me.txt"
+    existing.write_text("do not touch", encoding="utf-8")
+    before = existing.stat()
+
+    registered = client.post("/api/desktop/project-roots", json={"path": str(outside)})
+    assert registered.status_code == 201
+
+    without_flag = client.post("/api/projects", json={"name": "Nonempty", "root_path": str(outside)})
+    assert without_flag.status_code == 422
+    assert without_flag.json()["detail"] == (
+        "Project root path is not empty; pass acknowledge_nonempty=true to use it anyway"
+    )
+    assert existing.read_text(encoding="utf-8") == "do not touch"
+    assert existing.stat().st_size == before.st_size
+    assert existing.stat().st_mtime_ns == before.st_mtime_ns
+    assert client.get("/api/projects").json() == []
+
+    with_flag = client.post(
+        "/api/projects",
+        json={"name": "Nonempty", "root_path": str(outside), "acknowledge_nonempty": True},
+    )
+    assert with_flag.status_code == 201
+    assert Path(with_flag.json()["root_path"]) == outside
+    assert existing.exists()
+    assert existing.read_text(encoding="utf-8") == "do not touch"
+    assert existing.stat().st_size == before.st_size
+    assert existing.stat().st_mtime_ns == before.st_mtime_ns
+    assert (outside / "originals").is_dir()
+
+
 def test_register_root_caps_at_fifty(data_dir, monkeypatch):
     client = _desktop_client(monkeypatch)
     bucket = _outside_dir(data_dir, "root-bucket")

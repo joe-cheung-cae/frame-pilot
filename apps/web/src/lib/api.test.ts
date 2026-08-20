@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   API_BASE,
+  api,
   assetUrl,
   chunkItems,
   collectPagedList,
@@ -129,6 +130,81 @@ test("assetUrl and exportDownloadUrl use the injected host at call time", () => 
     assert.equal(posix?.includes(" "), false);
     assert.equal(exportDownloadUrl("proj", "exp-1"), `${injected}/api/projects/proj/exports/exp-1/download`);
   });
+});
+
+async function withMockedFetch<T>(
+  handler: (url: string, init?: RequestInit) => Promise<Response> | Response,
+  run: () => Promise<T>,
+): Promise<T> {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    return handler(url, init);
+  }) as typeof fetch;
+  try {
+    return await run();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+test("createProject omits acknowledge_nonempty unless the nonempty flag is set", async () => {
+  const bodies: unknown[] = [];
+  await withMockedFetch(
+    async (_url, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ id: "project-1", name: "Portrait session" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    async () => {
+      await api.createProject("Portrait session", "/picked/folder");
+      await api.createProject("Portrait session", "/picked/folder", { acknowledgeNonempty: true });
+    },
+  );
+
+  assert.deepEqual(bodies[0], { name: "Portrait session", root_path: "/picked/folder" });
+  assert.deepEqual(bodies[1], {
+    name: "Portrait session",
+    root_path: "/picked/folder",
+    acknowledge_nonempty: true,
+  });
+});
+
+test("createProject surfaces 422 detail verbatim", async () => {
+  const detail = "Project root path is not empty; pass acknowledge_nonempty=true to use it anyway";
+  await withMockedFetch(
+    async () =>
+      new Response(JSON.stringify({ detail }), {
+        status: 422,
+        headers: { "Content-Type": "application/json" },
+      }),
+    async () => {
+      await assert.rejects(() => api.createProject("Portrait session", "/picked/folder"), { message: detail });
+    },
+  );
+});
+
+test("registerDesktopProjectRoot posts the picked path", async () => {
+  const calls: { url: string; body: unknown }[] = [];
+  await withMockedFetch(
+    async (url, init) => {
+      calls.push({ url, body: JSON.parse(String(init?.body)) });
+      return new Response(JSON.stringify({ path: "/picked/folder" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    async () => {
+      const registered = await api.registerDesktopProjectRoot("/picked/folder");
+      assert.deepEqual(registered, { path: "/picked/folder" });
+    },
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.url.endsWith("/api/desktop/project-roots"), true);
+  assert.deepEqual(calls[0]?.body, { path: "/picked/folder" });
 });
 
 test("assetUrl and exportDownloadUrl reread the API base on each call", () => {
