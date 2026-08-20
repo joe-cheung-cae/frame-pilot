@@ -11,12 +11,12 @@ use std::time::Duration;
 
 use data_dir::resolve_runtime_data_dir;
 use sidecar::{
-    allocate_loopback_port, api_pythonpath, blocking_error_script, close_decision, close_job_kind,
-    default_python, find_active_job, initialization_script, parse_quit_choice, probe_health,
-    quit_dialog_script, repo_root, request_cancel_then_wait, sidecar_spawn_spec, sidecar_stderr_log,
-    spawn_sidecar, start_sidecar_unless_shutdown, supervisor_tick_after_probe, terminate_sidecar,
-    wait_for_health, CloseChoice, CloseDecision, CloseJobKind, SidecarStart, SidecarState,
-    SpawnedSidecar, SupervisorTick, CANCEL_WAIT, STARTUP_TIMEOUT,
+    allocate_loopback_port, api_pythonpath, blocking_error_script, close_choice_from_handshake,
+    close_decision, close_job_kind, default_python, find_active_job, initialization_script,
+    parse_quit_choice, probe_health, quit_dialog_script, repo_root, request_cancel_then_wait,
+    sidecar_spawn_spec, sidecar_stderr_log, spawn_sidecar, start_sidecar_unless_shutdown,
+    supervisor_tick_after_probe, terminate_sidecar, wait_for_health, CloseDecision, CloseJobKind,
+    SidecarStart, SidecarState, SpawnedSidecar, SupervisorTick, CANCEL_WAIT, STARTUP_TIMEOUT,
 };
 use tauri::{Listener, Manager, RunEvent, WindowEvent};
 
@@ -105,27 +105,24 @@ fn handle_close_requested(window: tauri::Window, state: Arc<SidecarState>, port:
     let event_id = webview.listen("framepilot-quit-choice", move |event| {
         let _ = tx.send(event.payload().to_string());
     });
-    if webview.eval(&quit_dialog_script(kind)).is_err() {
-        finish_quit(&window, &state);
-        return;
-    }
-    let first = rx.recv_timeout(Duration::from_secs(2)).ok();
-    let dialog_shown = first
-        .as_deref()
-        .map(|payload| payload.trim().trim_matches('"') == "dialog_shown")
-        .unwrap_or(false);
-    let payload = if first.as_deref().and_then(parse_quit_choice).is_some() {
-        first
-    } else if dialog_shown {
-        rx.recv_timeout(Duration::from_secs(3600)).ok()
-    } else {
+    let payload = if webview.eval(&quit_dialog_script(kind)).is_err() {
         None
+    } else {
+        let first = rx.recv_timeout(Duration::from_secs(2)).ok();
+        let dialog_shown = first
+            .as_deref()
+            .map(|payload| payload.trim().trim_matches('"') == "dialog_shown")
+            .unwrap_or(false);
+        if first.as_deref().and_then(parse_quit_choice).is_some() {
+            first
+        } else if dialog_shown {
+            rx.recv_timeout(Duration::from_secs(3600)).ok()
+        } else {
+            None
+        }
     };
     webview.unlisten(event_id);
-    let choice = payload
-        .as_deref()
-        .and_then(parse_quit_choice)
-        .unwrap_or(CloseChoice::CancelAndQuit);
+    let choice = close_choice_from_handshake(payload.as_deref());
     match close_decision(kind, choice) {
         CloseDecision::Stay => {
             state.close_in_progress.store(false, Ordering::SeqCst);

@@ -149,6 +149,11 @@ pub fn parse_quit_choice(payload: &str) -> Option<CloseChoice> {
     }
 }
 
+/// Unresolved handshake (`None`, including eval failure) stays. CancelAndQuit only from an explicit payload.
+pub fn close_choice_from_handshake(payload: Option<&str>) -> CloseChoice {
+    payload.and_then(parse_quit_choice).unwrap_or(CloseChoice::Stay)
+}
+
 pub fn job_status_is_terminal(status: &str) -> bool {
     matches!(
         status,
@@ -161,7 +166,7 @@ pub fn quit_dialog_script(kind: CloseJobKind) -> String {
         CloseJobKind::Import => (
             "Import is still running",
             "You can keep working, quit and cancel the import, or quit anyway. Cancelled imports stay retryable and original photos are not modified.",
-            "<button type=\"button\" data-choice=\"cancel_and_quit\">Quit and cancel import</button>",
+            r#"<button type=\"button\" data-choice=cancel_and_quit>Quit and cancel import</button>"#,
         ),
         CloseJobKind::Processing => (
             "Grouping and ranking is still running",
@@ -1013,6 +1018,112 @@ mod tests {
         assert!(!processing_script.contains("Quit and cancel"));
         assert!(processing_script.contains("cannot be cancelled"));
         assert!(processing_script.contains("Quit anyway"));
+    }
+
+    fn assert_javascript_parses(script: &str) {
+        let path = std::env::temp_dir().join(format!(
+            "framepilot-quit-dialog-{}-{}.js",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        std::fs::write(&path, script).expect("write quit dialog script");
+        let output = Command::new("node")
+            .arg("--check")
+            .arg(&path)
+            .output()
+            .expect("node --check");
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            output.status.success(),
+            "quit dialog script failed node --check: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn quit_dialog_script_import_is_valid_javascript_with_cancel_button() {
+        let import_script = quit_dialog_script(CloseJobKind::Import);
+        assert!(
+            import_script.contains("data-choice=cancel_and_quit"),
+            "import overlay must keep data-choice=cancel_and_quit: {import_script}"
+        );
+        assert!(import_script.contains("Quit and cancel import"));
+        assert_javascript_parses(&import_script);
+    }
+
+    #[test]
+    fn quit_dialog_script_processing_is_valid_javascript_without_cancel() {
+        let processing_script = quit_dialog_script(CloseJobKind::Processing);
+        assert!(!processing_script.contains("Quit and cancel"));
+        assert!(!processing_script.contains("cancel_and_quit"));
+        assert!(processing_script.contains("Quit anyway"));
+        assert_javascript_parses(&processing_script);
+    }
+
+    #[test]
+    fn close_choice_from_handshake_unresolved_stays() {
+        assert_eq!(close_choice_from_handshake(None), CloseChoice::Stay);
+        assert_eq!(
+            close_choice_from_handshake(Some("dialog_shown")),
+            CloseChoice::Stay
+        );
+        assert_eq!(
+            close_choice_from_handshake(Some("\"dialog_shown\"")),
+            CloseChoice::Stay
+        );
+        assert_eq!(
+            close_choice_from_handshake(Some("not-a-choice")),
+            CloseChoice::Stay
+        );
+        assert_eq!(close_choice_from_handshake(Some("")), CloseChoice::Stay);
+        assert_eq!(close_choice_from_handshake(Some("stay")), CloseChoice::Stay);
+        assert_eq!(
+            close_choice_from_handshake(Some("\"cancel_and_quit\"")),
+            CloseChoice::CancelAndQuit
+        );
+        assert_eq!(
+            close_choice_from_handshake(Some("cancel_and_quit")),
+            CloseChoice::CancelAndQuit
+        );
+        assert_eq!(
+            close_choice_from_handshake(Some("quit_anyway")),
+            CloseChoice::QuitAnyway
+        );
+        assert_eq!(
+            close_decision(CloseJobKind::Import, close_choice_from_handshake(None)),
+            CloseDecision::Stay
+        );
+        assert_eq!(
+            close_decision(
+                CloseJobKind::Import,
+                close_choice_from_handshake(Some("dialog_shown"))
+            ),
+            CloseDecision::Stay
+        );
+        assert_eq!(
+            close_decision(
+                CloseJobKind::Import,
+                close_choice_from_handshake(Some("cancel_and_quit"))
+            ),
+            CloseDecision::CancelThenTerminate
+        );
+        assert_eq!(
+            close_decision(
+                CloseJobKind::Import,
+                close_choice_from_handshake(Some("quit_anyway"))
+            ),
+            CloseDecision::Terminate
+        );
+        assert_eq!(
+            close_decision(
+                CloseJobKind::Processing,
+                close_choice_from_handshake(Some("cancel_and_quit"))
+            ),
+            CloseDecision::Terminate
+        );
     }
 
     #[test]
