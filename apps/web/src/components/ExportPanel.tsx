@@ -1,7 +1,16 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ClipboardCopy, Download, FileArchive, FileSpreadsheet, FolderOutput, Loader2 } from "lucide-react";
+import {
+  Check,
+  ClipboardCopy,
+  Download,
+  FileArchive,
+  FileSpreadsheet,
+  FolderOpen,
+  FolderOutput,
+  Loader2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, exportDownloadUrl } from "@/lib/api";
 import {
@@ -19,7 +28,9 @@ import {
   selectedPhotoCount,
   type ExportStatus,
 } from "@/lib/exportSelection";
+import { getNativeFs } from "@/lib/nativeFs";
 import { invalidateProjectExportQueries } from "@/lib/queryInvalidation";
+import { projectExportRoot, revealFolder } from "@/lib/revealFolder";
 import {
   DEFAULT_EXPORT_STATUS_PREFERENCE,
   exportPreferenceMessageTone,
@@ -36,15 +47,12 @@ const PREFERENCE_MESSAGE_CLASS = {
   warning: "text-coral",
 } as const;
 
-function projectExportRoot(rootPath: string) {
-  return `${rootPath.replace(/[\\/]+$/, "")}/exports`;
-}
-
 function photoCountLabel(count: number) {
   return `${count} ${count === 1 ? "photo" : "photos"}`;
 }
 
 export function ExportPanel({ projectId }: { projectId: string }) {
+  const nativeFs = getNativeFs();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
   const [statuses, setStatuses] = useState<ExportStatus[]>(DEFAULT_EXPORT_STATUS_PREFERENCE);
@@ -135,6 +143,36 @@ export function ExportPanel({ projectId }: { projectId: string }) {
     );
   }
 
+  const exportOutputPath =
+    mutation.data?.output_path ?? exportsQuery.data?.find((record) => record.output_path)?.output_path;
+
+  function openExportFolder(outputPath?: string) {
+    if (!nativeFs) {
+      return;
+    }
+    void revealFolder(
+      "export",
+      { outputPath: outputPath ?? exportOutputPath, rootPath: projectQuery.data?.root_path },
+      nativeFs.revealInFileManager,
+    );
+  }
+
+  function openExportFolderButton(outputPath?: string) {
+    if (!nativeFs) {
+      return null;
+    }
+    return (
+      <button
+        className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line px-3 py-2 font-medium"
+        onClick={() => openExportFolder(outputPath)}
+        type="button"
+      >
+        <FolderOpen size={16} />
+        Open export folder
+      </button>
+    );
+  }
+
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
       <div>
@@ -146,6 +184,9 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           <p className="mt-2 break-all text-sm text-neutral-600">
             Exports folder: {projectExportRoot(projectQuery.data.root_path)}
           </p>
+        ) : null}
+        {nativeFs ? (
+          <div className="mt-2">{openExportFolderButton()}</div>
         ) : null}
       </div>
       <div className="grid gap-2 rounded border border-line bg-white p-4">
@@ -235,6 +276,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           </p>
           <p className="text-neutral-600">Statuses: {formatExportStatusSummary(mutation.data.statuses)}</p>
           {copyPathButton(mutation.data.output_path)}
+          {mutation.data.mode === "folder" ? openExportFolderButton(mutation.data.output_path) : null}
           {isExportDownloadable(mutation.data) ? (
             <a
               className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-4 py-2 font-medium text-white"
@@ -302,6 +344,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {copyPathButton(record.output_path)}
+                    {record.mode === "folder" ? openExportFolderButton(record.output_path) : null}
                     {isExportDownloadable(record) ? (
                       <a
                         className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-3 py-2 font-medium text-white"
