@@ -28,6 +28,32 @@ mock.module("@tauri-apps/plugin-opener", {
   },
 });
 
+type DragDropPayload =
+  | { type: "enter"; paths: string[] }
+  | { type: "over" }
+  | { type: "drop"; paths: string[] }
+  | { type: "leave" };
+
+const dragDropHandlers: Array<(event: { payload: DragDropPayload }) => void> = [];
+
+mock.module("@tauri-apps/api/webview", {
+  namedExports: {
+    getCurrentWebview() {
+      return {
+        async onDragDropEvent(handler: (event: { payload: DragDropPayload }) => void) {
+          dragDropHandlers.push(handler);
+          return () => {
+            const index = dragDropHandlers.indexOf(handler);
+            if (index >= 0) {
+              dragDropHandlers.splice(index, 1);
+            }
+          };
+        },
+      };
+    },
+  },
+});
+
 const { getNativeFs } = await import("./nativeFs.ts");
 
 test("getNativeFs returns desktop dialog wrappers", () => {
@@ -36,6 +62,7 @@ test("getNativeFs returns desktop dialog wrappers", () => {
   assert.equal(typeof nativeFs?.pickDirectory, "function");
   assert.equal(typeof nativeFs?.pickImageFiles, "function");
   assert.equal(typeof nativeFs?.revealInFileManager, "function");
+  assert.equal(typeof nativeFs?.subscribeDragDrop, "function");
 });
 
 test("pickDirectory opens a single directory dialog", async () => {
@@ -89,4 +116,27 @@ test("revealInFileManager reveals the given path", async () => {
   revealCalls.length = 0;
   await nativeFs.revealInFileManager("/projects/export.csv");
   assert.deepEqual(revealCalls, ["/projects/export.csv"]);
+});
+
+test("subscribeDragDrop forwards Tauri drop paths", async () => {
+  const nativeFs = getNativeFs();
+  assert.ok(nativeFs);
+  dragDropHandlers.length = 0;
+  const received: unknown[] = [];
+  const unlisten = await nativeFs.subscribeDragDrop((event) => {
+    received.push(event);
+  });
+  assert.equal(dragDropHandlers.length, 1);
+  dragDropHandlers[0]?.({ payload: { type: "enter", paths: ["/abs/tauri.jpg"] } });
+  dragDropHandlers[0]?.({ payload: { type: "over" } });
+  dragDropHandlers[0]?.({ payload: { type: "drop", paths: ["/abs/tauri.jpg"] } });
+  dragDropHandlers[0]?.({ payload: { type: "leave" } });
+  assert.deepEqual(received, [
+    { type: "enter", paths: ["/abs/tauri.jpg"] },
+    { type: "over" },
+    { type: "drop", paths: ["/abs/tauri.jpg"] },
+    { type: "leave" },
+  ]);
+  unlisten();
+  assert.equal(dragDropHandlers.length, 0);
 });
