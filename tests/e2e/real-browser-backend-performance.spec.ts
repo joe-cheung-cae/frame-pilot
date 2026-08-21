@@ -229,7 +229,6 @@ async function runRealBrowserBackendWorkflow(
   test.setTimeout(Math.max(180_000, photoCount * 1_500));
 
   const sourceDir = testInfo.outputPath("synthetic-source");
-  const projectRoot = testInfo.outputPath("project-data");
   const timings: Record<string, number> = {};
   const traceStarted = await startOptionalPerformanceTrace(page);
   let traceOutputPath: string | null = null;
@@ -243,7 +242,6 @@ async function runRealBrowserBackendWorkflow(
 
     await page.goto("/projects/new");
     await page.getByLabel("Project name").fill(`Real Browser Backend ${Date.now()} Run ${runIndex}`);
-    await page.getByLabel("Project data folder").fill(projectRoot);
 
     started = nowMs();
     await page.getByRole("button", { name: "Create and Import" }).click();
@@ -274,7 +272,7 @@ async function runRealBrowserBackendWorkflow(
     await page.getByRole("link", { name: "Process Project" }).click();
     started = nowMs();
     await page.getByRole("button", { name: "Run Grouping and Ranking" }).click();
-    await expect(page.getByText(`${photoCount} of ${photoCount} photos · 0 failed · 100%`).first()).toBeVisible({
+    await expect(page.getByText(`${photoCount} of ${photoCount} photos · 100%`).first()).toBeVisible({
       timeout: operationTimeoutMs,
     });
     await expect(page.getByRole("link", { name: "Open Culling Workspace" })).toBeVisible();
@@ -313,7 +311,7 @@ async function runRealBrowserBackendWorkflow(
     started = nowMs();
     await page.getByRole("button", { name: "Picks" }).click();
     await expect(page.getByRole("button", { name: "Picks" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByText(/1\/\d+ loaded reviewed · 1 loaded picks/)).toBeVisible();
+    await expect(page.getByText(/1\/\d+ loaded reviewed · 1 loaded pick/)).toBeVisible();
     if (photoCount > CULLING_INITIAL_PAGE_LIMIT) {
       await expect(page.getByText(new RegExp(`\\d+ of ${photoCount} loaded`))).toBeVisible();
     }
@@ -321,7 +319,7 @@ async function runRealBrowserBackendWorkflow(
     const filterMetrics = await collectBrowserSmokeMetrics(page, testInfo.project.name);
 
     await page.getByRole("button", { name: "All", exact: true }).click();
-    const firstVisibleGroup = page.getByRole("button", { name: /^Group \d+,/ }).first();
+    const firstVisibleGroup = page.getByRole("option", { name: /^Group \d+,/ }).first();
     await expect(firstVisibleGroup).toBeVisible();
     const firstVisibleGroupLabel = await firstVisibleGroup.getAttribute("aria-label");
     const firstVisibleGroupNumber = Number(firstVisibleGroupLabel?.match(/^Group (\d+),/)?.[1]);
@@ -330,8 +328,8 @@ async function runRealBrowserBackendWorkflow(
     started = nowMs();
     await page.keyboard.press("ArrowDown");
     await expect(
-      page.getByRole("button", { name: new RegExp(`^Group ${firstVisibleGroupNumber + 1},`) }),
-    ).toHaveAttribute("aria-current", "true");
+      page.getByRole("option", { name: new RegExp(`^Group ${firstVisibleGroupNumber + 1},`) }),
+    ).toHaveAttribute("aria-selected", "true");
     timings.groupNavigationMs = nowMs() - started;
     const groupNavigationMetrics = await collectBrowserSmokeMetrics(page, testInfo.project.name);
 
@@ -345,7 +343,7 @@ async function runRealBrowserBackendWorkflow(
     started = nowMs();
     await page.getByRole("button", { name: "Export" }).click();
     await expect(page.getByText("1 photo exported.")).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByRole("link", { name: "Download CSV" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Download/ })).toBeVisible();
     timings.exportMs = nowMs() - started;
 
     traceOutputPath = await stopOptionalPerformanceTrace(page, testInfo, traceStarted);

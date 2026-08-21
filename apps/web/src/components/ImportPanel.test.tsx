@@ -1,10 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-type NativeDragDropHandler = (event: {
-  type: "enter" | "over" | "drop" | "leave";
-  paths?: string[];
-}) => void;
+type NativeDragDropHandler = (event: { type: "enter" | "over" | "drop" | "leave"; paths?: string[] }) => void;
 
 const { desktopShell, importPhotos, importPhotosFromPaths, nativeFsState } = vi.hoisted(() => ({
   desktopShell: { current: false },
@@ -39,8 +36,8 @@ vi.mock("@/lib/navigation", () => ({
 
 vi.mock("@/lib/api", () => ({
   api: {
-    importPhotos: (...args: unknown[]) => importPhotos(...args),
-    importPhotosFromPaths: (...args: unknown[]) => importPhotosFromPaths(...args),
+    importPhotos,
+    importPhotosFromPaths,
   },
   assetUrl: () => null,
 }));
