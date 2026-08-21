@@ -425,7 +425,7 @@ export const api = {
       const remainingPaths = result.remaining_paths ?? [];
       if (remainingPaths.length === 0) {
         if (!isLastSlice) {
-          const finalized = await api.importPhotosFromPathsBatch(projectId, currentPaths, {
+          const finalized = await api.importPhotosFromPathsBatch(projectId, [], {
             jobId,
             expectedTotal,
             finalize: true,

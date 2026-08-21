@@ -374,7 +374,7 @@ test("importPhotosFromPaths finalizes a small folder after remaining_paths is em
   assert.equal(calls[1]?.finalize, true);
   assert.equal(calls[1]?.job_id, "job-1");
   assert.equal(calls[1]?.expected_total, 2);
-  assert.deepEqual(calls[1]?.paths, [folder]);
+  assert.deepEqual(calls[1]?.paths, []);
 });
 
 test("importPhotosFromPaths finalizes a small image-file selection on the first slice", async () => {
