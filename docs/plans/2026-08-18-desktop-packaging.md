@@ -19,13 +19,13 @@
 
 ## 0. Document Hierarchy
 
-| Question | Source of truth |
-|----------|-----------------|
-| Why we ship desktop, scope, phases, UI intent, effort estimates | `docs/desktop_development_plan.md` (product) |
-| Every technical decision, task id, file path, test, command, acceptance box | this file (implementation) |
-| What an agent may and may not do in a session | `docs/desktop_goal_mode.md` + `AGENTS.md` |
-| Measured results, blockers, go/no-go records | `docs/desktop_feasibility_notes.md` |
-| Repo-wide constraints (local-first, original-file safety, English, tests) | `AGENTS.md`, then `develop_plan.md` |
+| Question                                                                    | Source of truth                              |
+| --------------------------------------------------------------------------- | -------------------------------------------- |
+| Why we ship desktop, scope, phases, UI intent, effort estimates             | `docs/desktop_development_plan.md` (product) |
+| Every technical decision, task id, file path, test, command, acceptance box | this file (implementation)                   |
+| What an agent may and may not do in a session                               | `docs/desktop_goal_mode.md` + `AGENTS.md`    |
+| Measured results, blockers, go/no-go records                                | `docs/desktop_feasibility_notes.md`          |
+| Repo-wide constraints (local-first, original-file safety, English, tests)   | `AGENTS.md`, then `develop_plan.md`          |
 
 Conflict rule: on any technical conflict this implementation plan wins, and the product plan must be edited in the same commit that resolves the conflict. The product plan never introduces a new task id.
 
@@ -57,23 +57,23 @@ Session budget: at most **5 task ids or one phase** per session, then stop and s
 
 Verified against the live tree. Desktop packaging has **not** started.
 
-| Area | Current state | Desktop implication |
-|------|---------------|---------------------|
-| Version | `2.0.0-rc2` in root/`apps/web`/`apps/api` plus `FastAPI(version=...)` | Single source `apps/api/app/core/version.py` in D0.02; bump only in D5.04 |
-| Frontend | Next.js 15 App Router, React 19, client-side fetch | No Server Actions, middleware, or `next/image` |
-| API base | `NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000"` in `apps/web/src/lib/api.ts:1` | Module-level constant cannot see a port injected after load |
-| Import | Multipart `UploadFile` only (`apps/api/app/api/routes.py:281-299`); max 100 files (`importing.py:43`) | Path import must chunk expansion; never copy 2000 files in one HTTP call |
-| Project path | Typed text field; API rejects roots outside `{data_dir}/projects` or allowlist (`projects.py:33-37`); nonempty dirs need `acknowledge_nonempty` (`projects.py:40-43`) | Native picker needs D2.00 registration + confirm UI |
-| Drag-drop | Not implemented | New desktop work |
-| CORS/origin | Mutating requests must come from `localhost:3000` or `:3100` (`apps/api/app/main.py:14-65`); GET has no Host check | Tauri origins 403; DNS rebinding on GET assets |
-| Data dir | `FRAMEPILOT_DATA_DIR` or CWD-relative `.framepilot-data`; `create_app()` runs at import (`main.py:76`) | Frozen CWD is unusable; `--data-dir` required; set env **before** importing `app.main` |
-| Jobs | In-process FastAPI `BackgroundTasks` | Quit during import looks like data loss without D1.09 |
-| Health | `GET /health` and `GET /api/health` → `{"status": "ok"}`; test exact-equality at `test_projects_api.py:19` | Keep `status`; add version from one source |
-| CI | No `.github/workflows` | D0.00 first |
-| Artifact check | `scripts/check-release-artifacts.sh` blocks all tracked `*.png` | Tauri icons need D0.07a **before** any icon commit |
-| Tauri/Electron | Docs only | Greenfield `apps/desktop` + `packaging/` |
-| E2E | Playwright against Next `:3100` + API `:8000`; `ImportPanel.tsx` file inputs at 234–261 | Desktop must not remove browser file inputs |
-| Test runners | `src/lib/*.test.ts` = node `--test`; vitest collects `src/**/*.test.tsx` only | React adapter tests must be `.test.tsx` |
+| Area           | Current state                                                                                                                                                         | Desktop implication                                                                    |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Version        | `2.0.0-rc2` in root/`apps/web`/`apps/api` plus `FastAPI(version=...)`                                                                                                 | Single source `apps/api/app/core/version.py` in D0.02; bump only in D5.04              |
+| Frontend       | Next.js 15 App Router, React 19, client-side fetch                                                                                                                    | No Server Actions, middleware, or `next/image`                                         |
+| API base       | `NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000"` in `apps/web/src/lib/api.ts:1`                                                                                  | Module-level constant cannot see a port injected after load                            |
+| Import         | Multipart `UploadFile` only (`apps/api/app/api/routes.py:281-299`); max 100 files (`importing.py:43`)                                                                 | Path import must chunk expansion; never copy 2000 files in one HTTP call               |
+| Project path   | Typed text field; API rejects roots outside `{data_dir}/projects` or allowlist (`projects.py:33-37`); nonempty dirs need `acknowledge_nonempty` (`projects.py:40-43`) | Native picker needs D2.00 registration + confirm UI                                    |
+| Drag-drop      | Not implemented                                                                                                                                                       | New desktop work                                                                       |
+| CORS/origin    | Mutating requests must come from `localhost:3000` or `:3100` (`apps/api/app/main.py:14-65`); GET has no Host check                                                    | Tauri origins 403; DNS rebinding on GET assets                                         |
+| Data dir       | `FRAMEPILOT_DATA_DIR` or CWD-relative `.framepilot-data`; `create_app()` runs at import (`main.py:76`)                                                                | Frozen CWD is unusable; `--data-dir` required; set env **before** importing `app.main` |
+| Jobs           | In-process FastAPI `BackgroundTasks`                                                                                                                                  | Quit during import looks like data loss without D1.09                                  |
+| Health         | `GET /health` and `GET /api/health` → `{"status": "ok"}`; test exact-equality at `test_projects_api.py:19`                                                            | Keep `status`; add version from one source                                             |
+| CI             | No `.github/workflows`                                                                                                                                                | D0.00 first                                                                            |
+| Artifact check | `scripts/check-release-artifacts.sh` blocks all tracked `*.png`                                                                                                       | Tauri icons need D0.07a **before** any icon commit                                     |
+| Tauri/Electron | Docs only                                                                                                                                                             | Greenfield `apps/desktop` + `packaging/`                                               |
+| E2E            | Playwright against Next `:3100` + API `:8000`; `ImportPanel.tsx` file inputs at 234–261                                                                               | Desktop must not remove browser file inputs                                            |
+| Test runners   | `src/lib/*.test.ts` = node `--test`; vitest collects `src/**/*.test.tsx` only                                                                                         | React adapter tests must be `.test.tsx`                                                |
 
 ### Frontend export spike expectation
 
@@ -104,7 +104,7 @@ These are not re-litigated during Goal Mode unless Phase 0 produces a written go
    - macOS: `~/Library/Application Support/FramePilot`
    - Windows: `%APPDATA%\FramePilot`
    - Linux (dev only): `~/.local/share/FramePilot`
-   Sidecar `--data-dir` is **required**. Never fall back to CWD-relative `.framepilot-data`.
+     Sidecar `--data-dir` is **required**. Never fall back to CWD-relative `.framepilot-data`.
 9. **Safety:** Copy-mode storage unchanged. Originals are copied into the project; sources are never modified or deleted. Asset/export path containment tests must stay green.
 10. **Web app must keep working.** `npm run dev`, `npm run verify`, and Playwright must remain green after every desktop commit that touches shared code.
 11. **Project roots on desktop:** `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` stays a deployment-level control and must NEVER be set to `$HOME`, `/`, a drive root, or any broad parent by the Tauri shell. A user-chosen project root becomes legal only after D2.00 registration persisted in `{data_dir}/desktop_project_roots.json`. `test_create_project_rejects_root_outside_allowlist` must stay green unchanged.
@@ -181,9 +181,9 @@ Run these unless a task lists a narrower command:
 ```bash
 npm run lint:api
 npm run test:api
-npm run typecheck          # if web/desktop TS changed
-npm run test:web           # if apps/web changed
-npm run verify             # before finishing a phase; must not require Rust
+npm run typecheck # if web/desktop TS changed
+npm run test:web  # if apps/web changed
+npm run verify    # before finishing a phase; must not require Rust
 ```
 
 Desktop-only extras, added over the phases:
@@ -284,9 +284,11 @@ Phase 5
 
 **Depends on:** none — implement this first  
 **Files:**
+
 - Create: `.github/workflows/verify.yml`
 
 **Implement:**
+
 - Triggers: `pull_request`, and `push` to `main` and `feature/desktop-packaging`.
 - Single job on `ubuntu-latest`: checkout, Python 3.11, Node 22.
 - Steps: `npm run install:all`, then `npm run verify`.
@@ -301,12 +303,14 @@ Phase 5
 
 **Depends on:** none  
 **Files:**
+
 - Create: `apps/api/app/sidecar_main.py`
 - Create: `docs/desktop_feasibility_notes.md` (stub: Blockers + Baselines)
 - Modify: `apps/api/pyproject.toml` (`[project.scripts] framepilot-api = "app.sidecar_main:main"`)
 - Test: `apps/api/tests/test_sidecar_cli.py`
 
 **Implement:**
+
 - argparse: `--host` (default `127.0.0.1`), `--port` (default `8000`, `0` = ephemeral), `--data-dir` (**required**), `--log-level` (default `info`).
 - Exit code 2 if `--host` is not `127.0.0.1` or `localhost`.
 - Exit code 2 if `--data-dir` is missing or not absolute. Never fall back to CWD-relative `.framepilot-data`.
@@ -317,6 +321,7 @@ Phase 5
 - All logs go to stderr. Never print anything else to stdout.
 
 **Tests (write first):**
+
 - `parse_args` rejects `--host 0.0.0.0` and `--host 192.168.1.5` (exit 2).
 - `parse_args` rejects a missing or relative `--data-dir`.
 - `bind_listen_socket("127.0.0.1", 0)` returns a socket whose port is non-zero and address is `127.0.0.1`; close it in the test.
@@ -331,6 +336,7 @@ Phase 5
 
 **Depends on:** D0.01  
 **Files:**
+
 - Create: `apps/api/app/core/version.py` (`APP_VERSION = "2.0.0-rc2"`)
 - Modify: `apps/api/app/main.py` (`FastAPI(version=APP_VERSION)`, `/health`)
 - Modify: `apps/api/app/api/routes.py` (`/api/health`)
@@ -340,12 +346,13 @@ Phase 5
 **Implement:** both `/health` and `/api/health` return:
 
 ```json
-{"status": "ok", "version": "2.0.0-rc2", "service": "framepilot-api"}
+{ "status": "ok", "version": "2.0.0-rc2", "service": "framepilot-api" }
 ```
 
 `version` is `APP_VERSION`. No extra version literals in `main.py`, `routes.py`, or tests. Keep `status` as `"ok"` (`playwright.config.ts:23`).
 
 **Tests:**
+
 - `test_api_health_returns_ok` asserts `status`, `service`, and `version == APP_VERSION`.
 - Same for unprefixed `/health`.
 - `create_app().version == APP_VERSION`.
@@ -356,17 +363,20 @@ Phase 5
 
 **Depends on:** none (can parallel D0.01)  
 **Files:**
+
 - Create: `apps/api/app/core/origins.py`
 - Modify: `apps/api/app/main.py` (allowlist, CORS, mutation guard)
 - Test: `apps/api/tests/test_desktop_origins.py`
 
 **Implement:**
+
 - `allowed_origins()`: always the current four web origins (3000 and 3100). When `FRAMEPILOT_DESKTOP=1`, also `http://localhost:1420`, `http://127.0.0.1:1420`, `http://tauri.localhost`, `https://tauri.localhost`, `tauri://localhost`.
 - Compute the set **inside `create_app()`**. Feed both `CORSMiddleware` and the mutating-origin guard. `allow_credentials=True` stays; wildcard is forbidden.
 - Host check on **all** methods: 403 unless hostname is `127.0.0.1`, `localhost`, `::1`, or `tauri.localhost`. Missing Host is rejected. This closes DNS rebinding against GET `/api/projects`, `/api/assets/...`, and export download.
 - Do not disable the origin guard globally.
 
 **Tests:**
+
 - POST `/api/projects` Origin `http://localhost:3000` → 201.
 - POST Origin `https://evil.example` → 403 with the existing detail.
 - POST Origin `tauri://localhost` → 403 unless `FRAMEPILOT_DESKTOP=1`.
@@ -380,6 +390,7 @@ Phase 5
 
 **Depends on:** none  
 **Files:**
+
 - Modify: `apps/api/app/services/importing.py`
 - Test: `apps/api/tests/test_import_path_expansion.py`
 
@@ -393,6 +404,7 @@ PATH_IMPORT_MAX_EXPANDED_FILES = 20000
 `expand_import_paths(paths, project_root) -> ExpandedImportPaths` with `files` and `skipped`.
 
 Rules:
+
 - `ValueError` for empty list, too many input entries, any non-absolute path, missing path, or expansion over the cap.
 - Directories: `os.walk(followlinks=False)`; drop entries whose `resolve()` is not under the walked root.
 - Regular files only (`stat.S_ISREG`). Skip FIFOs/devices (`mkfifo photo.jpg` would block `_copy_file_to_path` forever).
@@ -408,6 +420,7 @@ Rules:
 
 **Depends on:** D0.04a  
 **Files:**
+
 - Modify: `apps/api/app/schemas/api.py`, `apps/api/app/api/routes.py`
 - Test: `apps/api/tests/test_import_from_paths.py`
 - Docs: `docs/api.md`
@@ -435,6 +448,7 @@ POST /api/projects/{project_id}/imports/from-paths
 
 **Depends on:** D0.04b  
 **Files:**
+
 - Test: `apps/api/tests/test_import_from_paths_immutability.py`
 
 **Implement:** no production change expected. If a test fails, fix the service, not the test.
@@ -447,11 +461,13 @@ POST /api/projects/{project_id}/imports/from-paths
 
 **Depends on:** D0.01, D0.02  
 **Files:**
+
 - Create: `packaging/pyinstaller/framepilot-api.spec`, `packaging/pyinstaller/build.sh`, `packaging/pyinstaller/hooks/hook-app.py` if needed
 - Create: `scripts/sidecar-smoke.sh` (not a pytest file under repo-root `tests/desktop/` — `npm run test:api` only collects `apps/api/tests`)
 - Modify: root `package.json` (`packaging:sidecar`, `test:sidecar`)
 
 **Implement:**
+
 - one-dir build named `framepilot-api`.
 - Hiddenimports: `app.main`, `app.sidecar_main`, `uvicorn.loops.auto`, `uvicorn.protocols.http.auto`, `uvicorn.protocols.websockets.auto`, `uvicorn.lifespan.on`, `uvicorn.lifespan.off`, `httptools`, `sqlalchemy.dialects.sqlite`, `PIL.JpegImagePlugin`, `PIL.PngImagePlugin`, `PIL.WebPImagePlugin`, `imagehash`, `numpy`, scipy submodules pulled by imagehash.
 - Pass the FastAPI object, not `"app.main:app"`.
@@ -478,10 +494,12 @@ POST /api/projects/{project_id}/imports/from-paths
 
 **Depends on:** D0.00  
 **Files:**
+
 - Modify: `scripts/check-release-artifacts.sh`, `.gitignore`
 - Test: `scripts/test-release-checks.sh`
 
 **Implement:**
+
 - Add exactly one exception after the blocked-pattern match:
 
 ```bash
@@ -499,10 +517,12 @@ allowed_pattern='^apps/desktop/src-tauri/icons/[^/]+\.(png|ico|icns)$'
 
 **Depends on:** D0.01, D0.03, D0.05, D0.07a  
 **Files:**
+
 - Create: `apps/desktop/**` skeleton plus `apps/desktop/src-tauri/icons/` (32x32.png, 128x128.png, 128x128@2x.png, icon.icns, icon.ico)
 - Modify: root `package.json` (`dev:desktop`)
 
 **Implement:**
+
 - Tauri 2 blank window.
 - Spawn sidecar (dev: venv uvicorn via sidecar CLI; prod later) with `--host 127.0.0.1 --port <free> --data-dir <app-support>`.
 - Set `FRAMEPILOT_DESKTOP=1`.
@@ -546,6 +566,7 @@ Write: Shell Tauri 2 (or Electron only if Tauri cannot spawn sidecar / WebView c
 **Tests:** none (documentation). Run: `npm run test:api`
 
 **Phase 0 acceptance** (ticked `上线` 2026-08-19; GUI remains `[~]`):
+
 - [x] Sidecar starts, answers `/health`, exits on SIGTERM
 - [x] Origin + Host policy rejects random sites and attacker Host headers
 - [x] Path-based import exists, chunks at 100, does not mutate sources
@@ -564,12 +585,14 @@ Write: Shell Tauri 2 (or Electron only if Tauri cannot spawn sidecar / WebView c
 
 **Depends on:** Phase 0 exit  
 **Files:**
+
 - Create: `apps/web/src/lib/navigation.ts`, `apps/web/src/lib/navigation.next.tsx`
 - Modify (grep-verified): `Shell.tsx`, `ProjectList.tsx`, `ProjectDashboard.tsx`, `ProcessingPanel.tsx`, `ImportPanel.tsx`, `ProjectCreator.tsx`, `CullingWorkspace.tsx`
 - Modify mocks: `CullingWorkspace.test.tsx`, `ProcessingPanel.test.tsx`, `ImportExportPanels.test.tsx`
 - Test: `apps/web/src/lib/navigation.test.tsx` (not `.test.ts` — node `--test` has no JSX; vitest only collects `*.test.tsx`)
 
 **Implement:**
+
 - Types + re-export point only. `Link`, `useNavigator`, `useQueryParams` come from `./navigation.next` in the web build.
 - Desktop Vite aliases that module to `apps/desktop/src/navigation.router.tsx` in D1.03a. A barrel that re-exports `next/link` would pull Next into Vite.
 - `useQueryParams(): URLSearchParams` hides Next vs React Router shape differences. `CullingWorkspace.tsx` must consume only the wrapper.
@@ -586,11 +609,13 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 
 **Depends on:** D1.01  
 **Files:**
+
 - Create: `apps/web/src/lib/apiBase.ts`, `apps/web/src/types/globals.d.ts`
 - Modify: `apps/web/src/lib/api.ts` (`API_BASE`, `request`, `exportDownloadUrl`, `assetUrl`)
 - Test: `apps/web/src/lib/apiBase.test.ts`, `apps/web/src/lib/api.test.ts`
 
 **Implement:**
+
 - `resolveApiBase()`: `window.__FRAMEPILOT_API_BASE__`, then `NEXT_PUBLIC_API_BASE_URL`, then `http://127.0.0.1:8000`. Safe when `window` is undefined (`next build`).
 - Keep exporting `API_BASE` but read `resolveApiBase()` **at call time** inside `request` / URL helpers. A frozen module-level constant cannot see a port injected after load.
 - Trim trailing slash. Declare Window extras in `globals.d.ts`.
@@ -603,6 +628,7 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 
 **Depends on:** D1.02  
 **Files:**
+
 - Create: `apps/web/src/lib/shell.ts`
 - Test: `apps/web/src/lib/shell.test.ts` (and `.test.tsx` if DOM is required)
 
@@ -616,10 +642,12 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 
 **Depends on:** D1.01, D1.02  
 **Files:**
+
 - Create: `apps/desktop/package.json`, `index.html`, `vite.config.ts`, `tsconfig.json`, `tailwind.config.ts`, `postcss.config.js`, `src/main.tsx`, `src/styles.css`
 - Modify: root `package.json` (`install:all`, `typecheck:desktop`, `lint:desktop`; add both to `verify` **without** Rust)
 
 **Implement:**
+
 - Dependencies mirroring web: react, react-dom, tanstack query/virtual, zustand, lucide-react, plus `react-router-dom`. Dev: vite, plugin-react, typescript, tailwindcss ^3.4, postcss, autoprefixer, `@tauri-apps/cli`.
 - Vite alias `"@"` → `../web/src` (shared files import `@/lib/...`). Alias `./navigation.next` → `./src/navigation.router.tsx` (file may be a stub until D1.03b).
 - `server.fs.allow` includes `../web`. Port **1420**, `strictPort: true`.
@@ -634,6 +662,7 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 
 **Depends on:** D1.03a, D1.02a  
 **Files:**
+
 - Create: `apps/desktop/src/router.tsx`, `navigation.router.tsx`, `App.tsx`
 - Modify: `apps/desktop/src/main.tsx`
 
@@ -649,6 +678,7 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 **Files:** `apps/desktop/src-tauri/src/` (`sidecar.rs`, `lib.rs`)
 
 **Implement:**
+
 - Allocate port in Rust (`TcpListener::bind("127.0.0.1:0")`, read addr, drop listener, pass `--port <n>`). Never pass `--port 0` in the shipped path.
 - Always pass `--data-dir`. Env `FRAMEPILOT_DESKTOP=1`.
 - Inject both globals before frontend load: `__FRAMEPILOT_API_BASE__` and `__FRAMEPILOT_DESKTOP__ = true`.
@@ -709,6 +739,7 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 
 **Depends on:** D1.04, D1.06  
 **Files:**
+
 - Modify: sidecar/window close handler; reuse existing cancel route
 - Test: `apps/api/tests/test_job_reliability.py`; Rust shutdown state machine
 - Docs: `docs/v2_known_limitations.md` if any remaining gap
@@ -720,6 +751,7 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 **Commit:** `desktop: cancel or drain jobs before quitting`
 
 **Phase 1 acceptance** (ticked `上线` 2026-08-19; Phase 2 not started):
+
 - [x] Home UI or HTTP smoke lists projects — `GET /api/projects` `[]` from `test:desktop:smoke`, live sidecar, desktop sidecar `:54451`, and browser API `:8000`
 - [x] Sidecar health OK — `GET /health` `{"status":"ok","version":"2.0.0-rc2","service":"framepilot-api"}`
 - [x] `npm run verify` green without Tauri — exit 0; fail-if-invoked `rustc`/`cargo`/`tauri` wrappers were not called by verify
@@ -735,12 +767,14 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 
 **Depends on:** D0.03  
 **Files:**
+
 - Create: `apps/api/app/core/project_roots.py`
 - Modify: `apps/api/app/services/projects.py` (allowed roots), `apps/api/app/api/routes.py`
 - Docs: `docs/api.md` (`root_path` currently omits the allowlist)
 - Test: `apps/api/tests/test_desktop_project_roots.py`
 
 **Implement:**
+
 - Problem: allowlist is read once via `lru_cache`; the user picks a folder **after** spawn. Setting `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST=$HOME` voids the control.
 - Process-level registry **not** inside `Settings` (mutating settings resets the DB engine). Persist `{data_dir}/desktop_project_roots.json`, cap 50.
 - `register_root`: absolute, exists, directory, resolved; reject `BLOCKED_ROOT_NAMES`, filesystem anchors, data dir and its parents.
@@ -780,6 +814,7 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 **Files:** `ImportPanel.tsx`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/importWorkflow.ts`
 
 **Implement:**
+
 - Desktop: pick folder/files → `importPhotosFromPaths`, loop `remaining_paths` with same `job_id`, `finalize: true` only on last slice. Progress uses `expanded_total`.
 - Browser: existing multipart.
 - **Invariant:** when `isDesktopShell()` is false, both `<input type="file">` elements (`ImportPanel.tsx` ~234 and ~253 including `webkitdirectory`) keep current DOM position, labels, and disabled semantics. `tests/e2e/local-workflow.spec.ts` depends on them.
@@ -855,10 +890,11 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 **Commit:** `desktop: reveal export artifacts instead of downloading them`
 
 **Phase 2 acceptance:**
-- [ ] Desktop (or API-equivalent) completes Import → Process → Cull → Export
-- [ ] Source files unmodified
-- [ ] Multipart browser import and E2E file inputs still work
-- [ ] `npm run verify` green
+
+- [x] Desktop (or API-equivalent) completes Import → Process → Cull → Export — API pytest `test_path_import_process_pick_and_export_leaves_originals_unchanged` plus browser e2e smoke (`npm run test:e2e`, 45 passed, 2026-08-21T08:36:30+08:00)
+- [x] Source files unmodified — D2.08 pytest asserts source `st_size` / `st_mtime_ns` / SHA-256 unchanged; `test_import_from_paths_immutability.py` green
+- [x] Multipart browser import and E2E file inputs still work — `ImportExportPanels.test.tsx` `webkitdirectory` inputs; e2e `Choose image files` smoke
+- [x] `npm run verify` green — rust-free wrappers, exit 0, 2026-08-21T08:36:30+08:00
 
 ---
 
@@ -944,6 +980,7 @@ Do not steal P/M/X. Document accelerators on Help.
 **Commit:** `desktop: reconcile shortcuts with native menus`
 
 **Phase 3 acceptance:**
+
 - [ ] Menu actions reach real routes
 - [ ] Keyboard culling still matches Help
 - [ ] Settings shows data dir
@@ -1022,6 +1059,7 @@ If unpacked sidecar + app **> 400 MB**, document scipy/imagehash cost. Do not st
 **Commit:** `docs: record desktop installer size budget`
 
 **Phase 4 acceptance:**
+
 - [ ] CI verify green on PRs (D0.00)
 - [ ] CI produces Windows installer + macOS DMG (unsigned OK)
 - [ ] Signing documented
@@ -1089,6 +1127,7 @@ List: jobs not durable across sidecar kill; HEIC/RAW skipped; auto-update deferr
 **Commit:** `docs: document desktop 2.1 known limitations`
 
 **Phase 5 / product DoD:**
+
 - [ ] Windows and macOS installers exist (CI artifacts)
 - [ ] App start manages Python sidecar without the user running uvicorn
 - [ ] Native folder picker and drag-drop import
