@@ -7,7 +7,7 @@
 - base: origin/main `69f41bcfb35948c9921e10a41ffd0f505ba49dad`
 - tests_run: `.venv/bin/pytest apps/api/tests/test_import_from_paths.py apps/api/tests/test_import_from_paths_immutability.py apps/api/tests/test_path_import_process_export_workflow.py -q`; `cd apps/web && NODE_OPTIONS=--disable-warning=MODULE_TYPELESS_PACKAGE_JSON node --experimental-strip-types --test src/lib/importWorkflow.test.ts`
 - blockers: none
-- live_HEAD: this Fix commit (SHA recorded after commit/push)
+- live_HEAD: `67505aa7ede3249d85f82e5b39920975fee17f1f` `fix: stop duplicating photos on small folder path import`
 - draft_PR: https://github.com/joe-cheung-cae/frame-pilot/pull/38 (ready-for-review allowed; **do not merge**)
 - timestamp: 2026-08-21T10:26:40+08:00
 
