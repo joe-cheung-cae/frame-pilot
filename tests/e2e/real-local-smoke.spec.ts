@@ -43,7 +43,7 @@ test("runs a real local import, process, pick, and CSV export smoke flow", async
   await page.getByRole("checkbox", { name: "Maybe" }).uncheck();
   await page.getByRole("button", { name: "Export" }).click();
 
-  const downloadLink = page.getByRole("link", { name: "Download CSV" });
+  const downloadLink = page.getByRole("link", { name: /Download/ });
   await expect(downloadLink).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
   await downloadLink.click();
@@ -56,7 +56,9 @@ test("runs a real local import, process, pick, and CSV export smoke flow", async
   }
   const csv = Buffer.concat(chunks).toString("utf8");
 
-  expect(csv).toContain("filename,photo_id,original_path,project_copy_path,source_identity,content_hash,file_size,file_mtime");
+  expect(csv).toContain(
+    "filename,photo_id,original_path,project_copy_path,source_identity,content_hash,file_size,file_mtime",
+  );
   expect(csv).toContain("Pick");
   expect(csv).toContain("real-smoke-");
 });
