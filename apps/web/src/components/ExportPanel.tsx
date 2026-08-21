@@ -12,7 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api, exportDownloadUrl } from "@/lib/api";
+import { api, exportDownloadUrl, type ExportRecord } from "@/lib/api";
 import {
   EXPORT_STATUSES,
   exportActionBlockMessage,
@@ -31,6 +31,7 @@ import {
 import { getNativeFs } from "@/lib/nativeFs";
 import { invalidateProjectExportQueries } from "@/lib/queryInvalidation";
 import { projectExportRoot, revealFolder } from "@/lib/revealFolder";
+import { isDesktopShell } from "@/lib/shell";
 import {
   DEFAULT_EXPORT_STATUS_PREFERENCE,
   exportPreferenceMessageTone,
@@ -53,6 +54,7 @@ function photoCountLabel(count: number) {
 
 export function ExportPanel({ projectId }: { projectId: string }) {
   const nativeFs = getNativeFs();
+  const desktopShell = isDesktopShell();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
   const [statuses, setStatuses] = useState<ExportStatus[]>(DEFAULT_EXPORT_STATUS_PREFERENCE);
@@ -173,6 +175,49 @@ export function ExportPanel({ projectId }: { projectId: string }) {
     );
   }
 
+  function showInFolderButton(outputPath: string) {
+    if (!nativeFs) {
+      return null;
+    }
+    return (
+      <button
+        className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line px-3 py-2 font-medium"
+        onClick={() => {
+          void revealFolder(
+            "export",
+            { outputPath, rootPath: projectQuery.data?.root_path },
+            nativeFs.revealInFileManager,
+          );
+        }}
+        type="button"
+      >
+        <FolderOpen size={16} />
+        Show in folder
+      </button>
+    );
+  }
+
+  function csvZipRevealOrDownload(
+    record: Pick<ExportRecord, "id" | "mode" | "status" | "output_path">,
+    downloadLabel: string,
+  ) {
+    if (!isExportDownloadable(record)) {
+      return null;
+    }
+    if (desktopShell) {
+      return showInFolderButton(record.output_path);
+    }
+    return (
+      <a
+        className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-4 py-2 font-medium text-white"
+        href={exportDownloadUrl(projectId, record.id)}
+      >
+        <Download size={16} />
+        {downloadLabel}
+      </a>
+    );
+  }
+
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
       <div>
@@ -185,9 +230,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
             Exports folder: {projectExportRoot(projectQuery.data.root_path)}
           </p>
         ) : null}
-        {nativeFs ? (
-          <div className="mt-2">{openExportFolderButton()}</div>
-        ) : null}
+        {nativeFs ? <div className="mt-2">{openExportFolderButton()}</div> : null}
       </div>
       <div className="grid gap-2 rounded border border-line bg-white p-4">
         <h2 className="text-sm font-semibold">Statuses</h2>
@@ -277,15 +320,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           <p className="text-neutral-600">Statuses: {formatExportStatusSummary(mutation.data.statuses)}</p>
           {copyPathButton(mutation.data.output_path)}
           {mutation.data.mode === "folder" ? openExportFolderButton(mutation.data.output_path) : null}
-          {isExportDownloadable(mutation.data) ? (
-            <a
-              className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-4 py-2 font-medium text-white"
-              href={exportDownloadUrl(projectId, mutation.data.id)}
-            >
-              <Download size={16} />
-              Download {mutation.data.mode.toUpperCase()}
-            </a>
-          ) : null}
+          {csvZipRevealOrDownload(mutation.data, `Download ${mutation.data.mode.toUpperCase()}`)}
         </div>
       ) : null}
       {copyError ? (
@@ -302,9 +337,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       ) : null}
       <div className="grid gap-3">
         <h2 className="text-sm font-semibold">Export History</h2>
-        {exportsQuery.isLoading ? (
-          <p className="text-sm text-neutral-600">Loading export history...</p>
-        ) : null}
+        {exportsQuery.isLoading ? <p className="text-sm text-neutral-600">Loading export history...</p> : null}
         {exportsQuery.isError ? (
           <div className="grid gap-1 text-sm">
             <p className="text-coral">{exportsQuery.error.message}</p>
@@ -345,15 +378,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                   <div className="flex flex-wrap gap-2">
                     {copyPathButton(record.output_path)}
                     {record.mode === "folder" ? openExportFolderButton(record.output_path) : null}
-                    {isExportDownloadable(record) ? (
-                      <a
-                        className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-3 py-2 font-medium text-white"
-                        href={exportDownloadUrl(projectId, record.id)}
-                      >
-                        <Download size={16} />
-                        Download
-                      </a>
-                    ) : null}
+                    {csvZipRevealOrDownload(record, "Download")}
                   </div>
                 </div>
               );

@@ -243,7 +243,7 @@ Phase 2
 - [x] D2.06 Recent projects
 - [x] D2.07 Cross-platform path hardening
 - [x] D2.08 Full workflow verification
-- [ ] D2.09 Reveal exports instead of downloading
+- [x] D2.09 Reveal exports instead of downloading
 
 Phase 3
 
