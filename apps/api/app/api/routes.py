@@ -581,19 +581,28 @@ def import_photos_from_paths_endpoint(
     session: Session = Depends(get_session),
 ):
     project = _get_project(session, project_id)
-    try:
-        expanded = expand_import_paths(payload.paths, Path(project.root_path))
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
+    # Empty paths are a finalize-only follow-up; they must name an in-flight job.
+    if not payload.paths:
+        if not payload.finalize or not payload.job_id:
+            raise HTTPException(status_code=422, detail="At least one path is required")
+        files: list[Path] = []
+        skipped: list[dict[str, str]] = []
+    else:
+        try:
+            expanded = expand_import_paths(payload.paths, Path(project.root_path))
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        files = expanded.files
+        skipped = list(expanded.skipped)
 
-    files = expanded.files
     consume = files[:IMPORT_MAX_FILES_PER_REQUEST]
     remaining_paths = [str(path) for path in files[IMPORT_MAX_FILES_PER_REQUEST:]]
     expanded_total = len(files)
     planned_total = payload.expected_total if payload.expected_total is not None else expanded_total
-    skipped: list[dict[str, str]] = list(expanded.skipped)
 
     job = _acquire_import_job(session, project, project_id, payload.job_id, planned_total, len(consume))
+    if not payload.paths and payload.expected_total is None:
+        planned_total = job.total_items
     batch_size = len(consume)
     imported: list[Photo] = []
     newly_imported_ids: list[str] = []
@@ -689,7 +698,7 @@ def import_photos_from_paths_endpoint(
                 force=True,
             )
 
-    if payload.finalize and len(payload.paths) == 1 and not project.source_root_path:
+    if len(payload.paths) == 1 and not project.source_root_path:
         single_input = Path(payload.paths[0])
         if single_input.is_dir():
             project.source_root_path = str(single_input.resolve())

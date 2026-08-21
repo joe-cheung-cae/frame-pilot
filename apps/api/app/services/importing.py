@@ -749,7 +749,9 @@ def register_import_file(
     with import_timing_stage(timing, "content_hash"):
         content_hash = _file_sha256(source_path)
     existing_photo = _existing_photo_for_content_hash(session, project.id, content_hash, safe_name)
-    if existing_photo is not None and _photo_derivatives_exist(existing_photo):
+    if existing_photo is not None and (
+        _photo_derivatives_exist(existing_photo) or existing_photo.processing_state == "processing"
+    ):
         _cleanup_paths(source_path)
         return ImportRegistration(photo=existing_photo, requires_derivatives=False, is_new=False)
 

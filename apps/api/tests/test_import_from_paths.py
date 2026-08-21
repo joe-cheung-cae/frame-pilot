@@ -1,3 +1,4 @@
+import hashlib
 from io import BytesIO
 from pathlib import Path
 
@@ -20,6 +21,11 @@ def _jpeg(color=(120, 150, 90)) -> bytes:
 def _write_jpeg(path: Path, color=(120, 150, 90)) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(_jpeg(color))
+
+
+def _source_fingerprint(path: Path) -> tuple[int, int, str]:
+    st = path.stat()
+    return st.st_size, st.st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _client(tmp_path, monkeypatch) -> TestClient:
@@ -120,11 +126,69 @@ def test_import_from_paths_rejects_relative_and_empty(tmp_path, monkeypatch):
         json={"paths": []},
     )
     assert empty.status_code == 422
+    empty_without_job = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={"paths": [], "finalize": True},
+    )
+    assert empty_without_job.status_code == 422
+    empty_not_finalize = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={"paths": [], "finalize": False, "job_id": "job-1"},
+    )
+    assert empty_not_finalize.status_code == 422
     relative = client.post(
         f"/api/projects/{project['id']}/imports/from-paths",
         json={"paths": ["relative.jpg"]},
     )
     assert relative.status_code == 422
+
+
+def test_import_from_paths_small_folder_finalize_only_follow_up_keeps_two_originals(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.api.routes.run_import_derivative_job", lambda *args, **kwargs: None)
+    client = _client(tmp_path, monkeypatch)
+    project = client.post("/api/projects", json={"name": "Small folder"}).json()
+    folder = tmp_path / "card"
+    hero = folder / "hero.jpg"
+    alt = folder / "alt.jpg"
+    _write_jpeg(hero, (210, 180, 40))
+    _write_jpeg(alt, (30, 40, 90))
+    before = {path: _source_fingerprint(path) for path in (hero, alt)}
+
+    first = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={"paths": [str(folder)], "finalize": False},
+    )
+    assert first.status_code == 201, first.text
+    first_payload = first.json()
+    assert first_payload["remaining_paths"] == []
+    assert {item["filename"] for item in first_payload["imported"]} == {"hero.jpg", "alt.jpg"}
+    job_id = first_payload["job"]["id"]
+
+    second = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={
+            "paths": [],
+            "job_id": job_id,
+            "expected_total": 2,
+            "finalize": True,
+        },
+    )
+    assert second.status_code == 201, second.text
+
+    loaded = client.get(f"/api/projects/{project['id']}").json()
+    assert loaded["total_images"] == 2
+    assert loaded["source_root_path"] == str(folder.resolve())
+
+    originals = Path(project["root_path"]) / "originals"
+    assert sorted(path.name for path in originals.iterdir()) == ["alt.jpg", "hero.jpg"]
+
+    with Session(get_engine()) as session:
+        photos = session.exec(select(Photo).where(Photo.project_id == project["id"])).all()
+        assert len(photos) == 2
+        assert {photo.filename for photo in photos} == {"alt.jpg", "hero.jpg"}
+
+    for path, expected in before.items():
+        assert _source_fingerprint(path) == expected
 
 
 def test_import_from_paths_concurrent_returns_409(tmp_path, monkeypatch):
