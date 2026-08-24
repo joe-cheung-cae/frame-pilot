@@ -1,5 +1,7 @@
 # FramePilot v2 Release Candidate Checklist
 
+> Language: **English** | [中文](v2_release_candidate_checklist.zh.md)
+
 This checklist is the release-candidate decision record for FramePilot v2.0. It summarizes what is implemented, what has been verified, what remains unverified, and what must be true before tagging a v2.0 release.
 
 ## Release Status Summary

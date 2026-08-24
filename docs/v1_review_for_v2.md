@@ -1,5 +1,7 @@
 # FramePilot v1 Review for v2 Planning
 
+> Language: **English** | [中文](v1_review_for_v2.zh.md)
+
 ## 1. Executive Summary
 
 - FramePilot v1 is a usable MVP, not production-ready software. It demonstrates the complete local-first culling loop, but it has not yet been validated for real photographer-scale batches, long-running processing, or professional workflow expectations.

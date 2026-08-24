@@ -1,6 +1,6 @@
-
-
 # FramePilot v2 Codex Goal Mode Prompts
+
+> Language: **English** | [中文](implement_goals.zh.md)
 
 ## 1. Purpose
 

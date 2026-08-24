@@ -1,5 +1,7 @@
 # FramePilot v2 Performance Baseline
 
+> Language: **English** | [中文](v2_performance_baseline.zh.md)
+
 This document records local synthetic smoke results for v2.5 reliability validation. These numbers are not a formal benchmark; they provide a reproducible baseline for checking that large local workflows complete without crashes, failed items, or obvious memory growth.
 
 ## Release-Readiness Conclusion

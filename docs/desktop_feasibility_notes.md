@@ -1,5 +1,7 @@
 # Desktop Feasibility Notes
 
+> Language: **English** | [中文](desktop_feasibility_notes.zh.md)
+
 **Status: FINAL** — Phase 1 `上线`, 2026-08-19T19:00:41+08:00, branch `feature/desktop-packaging`.
 
 Phase 0 measurements remain below. Phase 1 close-out is in **Phase 1 notes** and **Phase 1 go/no-go**. `测试` re-ran web/desktop/verify/jobs/sidecar/cargo; `上线` owns §5.1 Phase 1 ticks and recorded a live `npm run dev:desktop` window plus browser `:3000`/`:8000`.

@@ -1,5 +1,7 @@
 # FramePilot v2 Development Plan
 
+> Language: **English** | [中文](develop_plan.zh.md)
+
 ## 1. Project Overview
 
 FramePilot v2 is a local-first, desktop-like AI-assisted photo culling application for serious hobby photographers and semi-professional photographers. It evolves the v1 MVP from a proof-of-concept local web app into a more reliable, scalable, and workflow-oriented photo selection tool.

@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+> Language: **English** | [中文](AGENTS.zh.md)
+
 - Read `develop_plan.md` before making code, documentation, test, or asset changes.
 - Keep FramePilot local-first. Do not introduce cloud upload, login, payment, or other remote-service requirements.
 - Never modify original photo files. Write derived outputs, metadata, caches, or exports separately.

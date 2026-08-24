@@ -1,5 +1,7 @@
 # FramePilot v2 Architecture
 
+> Language: **English** | [中文](v2_architecture.zh.md)
+
 FramePilot v2 is a local web application with a Next.js frontend and FastAPI backend. The browser talks to a local API, and the backend owns project metadata, local file derivatives, processing, grouping, ranking, and exports.
 
 ## System Shape

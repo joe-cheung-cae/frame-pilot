@@ -1,5 +1,7 @@
 # FramePilot v2 Algorithm Strategy
 
+> Language: **English** | [中文](v2_algorithm_strategy.zh.md)
+
 FramePilot v2 uses deterministic, local, explainable algorithms as the baseline. Optional models can be added later only when the deterministic workflow, tests, and file-safety rules are stable.
 
 ## Baseline Signals

@@ -1,5 +1,7 @@
 # Architecture
 
+> Language: **English** | [中文](architecture.zh.md)
+
 FramePilot is a local web application split into two apps:
 
 - `apps/web`: Next.js UI for project creation, import, processing, culling, and export.

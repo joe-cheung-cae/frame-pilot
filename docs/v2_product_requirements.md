@@ -1,5 +1,7 @@
 # FramePilot v2 Product Requirements
 
+> Language: **English** | [中文](v2_product_requirements.zh.md)
+
 FramePilot v2 is a local-first photo culling workflow for photographers who want faster review without giving up manual control. It should help users reduce hundreds or thousands of local images into a reviewable shortlist while keeping original files safe.
 
 ## Product Goals

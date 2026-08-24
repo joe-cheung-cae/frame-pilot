@@ -1,5 +1,7 @@
 # FramePilot v2.0 Validation Decision
 
+> Language: **English** | [中文](v2_rc2_validation_decision.zh.md)
+
 Decision date: 2026-08-17.
 
 Release owner: Joe (joe-cheung-cae), with validation notes recorded by a Cursor cloud agent.

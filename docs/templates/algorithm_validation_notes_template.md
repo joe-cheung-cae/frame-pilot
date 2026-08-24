@@ -1,5 +1,7 @@
 # Algorithm Validation Notes Template
 
+> Language: **English** | [中文](algorithm_validation_notes_template.zh.md)
+
 Use this template for non-private FramePilot v2 real-world algorithm validation. Do not paste private filenames, private paths, sensitive metadata, or generated project artifacts into this file.
 
 ## Dataset Summary

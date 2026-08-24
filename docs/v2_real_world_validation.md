@@ -1,5 +1,7 @@
 # FramePilot v2 Real-World Algorithm Validation
 
+> Language: **English** | [中文](v2_real_world_validation.zh.md)
+
 ## 1. Purpose
 
 This document defines the release-blocking manual algorithm-confidence gate for FramePilot v2.0. Automated tests and generated-image benchmarks verify deterministic behavior, local workflow safety, and performance smoke coverage, but they do not prove that grouping, ranking, explanations, and exports behave well on real photographer-style photo sets.

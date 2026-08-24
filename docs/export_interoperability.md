@@ -1,5 +1,7 @@
 # Export Interoperability
 
+> Language: **English** | [中文](export_interoperability.zh.md)
+
 FramePilot v2.0 supports CSV, ZIP, and folder exports. XMP sidecar export is planned for a later v2.x slice after the deterministic processing, culling, and current export flows are stable.
 
 ## Current Modes

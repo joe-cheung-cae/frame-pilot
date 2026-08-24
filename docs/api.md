@@ -1,5 +1,7 @@
 # API
 
+> Language: **English** | [中文](api.zh.md)
+
 Base URL during development: `http://127.0.0.1:8000`.
 
 `GET /health` and `GET /api/health` return `status`, `version`, and `service`. `version` is the API `APP_VERSION` value. Playwright and the desktop sidecar probe the unprefixed `/health` URL as a 2xx check.

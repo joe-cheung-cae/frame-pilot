@@ -1,5 +1,7 @@
 # FramePilot v2.0 RC2 Release Review
 
+> Language: **English** | [中文](v2_release_review.zh.md)
+
 Review date: 2026-06-05.
 
 This file is a 2026-06-05 rc2 engineering review snapshot. It is not the current release verdict.
