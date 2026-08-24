@@ -77,7 +77,7 @@ Hard constraints:
 - Do not commit large model files.
 - Do not implement full RAW decoding in this long-running task unless all earlier v2 core milestones are already complete.
 - Do not implement heavy AI model integration before deterministic v2 processing, grouping, export, and tests are stable.
-- Use English for all code, comments, tests, docs, commit messages, and UI text unless existing UI text requires otherwise.
+- Use English for all code, comments, tests, commit messages, and UI text unless existing UI text requires otherwise. Living documentation is bilingual (English page plus matching Chinese `*.zh.md`).
 - Prefer small deterministic algorithms before optional AI models.
 - Keep each Git commit focused and reviewable.
 - Do not mix unrelated changes in one commit.
@@ -480,7 +480,7 @@ Hard constraints:
 - Do not modify or delete original photos.
 - Do not add cloud upload, login, payment, or large model files.
 - Do not implement RAW/HEIC or heavy AI models in this iteration.
-- Use English for code, tests, docs, and commit messages.
+- Use English for code, tests, and commit messages. Living documentation is bilingual (English page plus matching Chinese `*.zh.md`).
 
 Before committing:
 - Run relevant backend tests.

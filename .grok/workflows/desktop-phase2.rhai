@@ -9,7 +9,7 @@ let meta = #{
         #{ title: "归档", detail: "Archive the accepted Phase 2 backlog" },
         #{ title: "开发", detail: "Implement D2.00-D2.09 tests-first, push each id" },
         #{ title: "测试", detail: "Run api, web, e2e, verify" },
-        #{ title: "上线", detail: "Tick tracker, close Phase 2 handoff, push, keep PR draft" },
+        #{ title: "上线", detail: "Tick tracker, close Phase 2 against the living tracker, push, keep PR draft" },
     ],
 };
 
@@ -62,7 +62,7 @@ fn shared_rules() {
     s += "gh pr create --repo joe-cheung-cae/frame-pilot --base main --head feature/desktop-phase2 --draft --title \"desktop: Phase 2 native filesystem and core workflow\" --body \"Phase 2 D2.00-D2.09. APP_VERSION stays 2.0.0-rc2. Do not merge from this body.\"\n";
     s += "Fallback: GitHub MCP create_pull_request with draft true. Never open a second PR. Subsequent tasks only push; the PR updates. Existing draft PR is https://github.com/joe-cheung-cae/frame-pilot/pull/38\n";
     s += "Append SHA, subject, push result, and PR URL to $HOME/.cache/framepilot-desktop-phase2/git-github.txt after every push.\n";
-    s += "If push fails, capture the exact error, retry once, then continue product work and report the blocker in docs/handoff/STATUS.md.\n";
+    s += "If push fails, capture the exact error, retry once, then continue product work and report the blocker in session notes (do not write docs/handoff/STATUS.md); living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1.\n";
     s += "isolation_worktree is false. Edit the shared workspace. Do not create a second worktree.\n";
     s += "Use tools. Read the named files before writing. Do not answer from memory.\n";
     s += "English for code, comments, tests, docs, commits. Local-first. Never modify or delete original photos.\n";
@@ -74,9 +74,9 @@ fn shared_rules() {
     s += "npm run verify must not install or require rustc, cargo, or Tauri.\n";
     s += "Do not add Co-authored-by Cursor or similar trailers.\n";
     s += "Do not run git config --global or git config user.name. If commit fails with empty ident, set GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL for that command only to match git log -1 --format='%an <%ae>'.\n";
-    s += "Handoff contract lives in docs/handoff/STATUS.md plus the stage file named in the prompt.\n";
+    s += "docs/handoff is retired. Do not create, write, or restore any docs/handoff/* file (including STATUS.md). The living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Phase 0-2 are already on main; remaining work is Phase 3-5. Do not retick completed Phase 0-2 boxes. Do not write docs/handoff/STATUS.md.\n";
     s += "After the stage work, git add only relevant files, commit on feature/desktop-phase2, push, then git status and git log -1.\n";
-    s += "If nothing is staged, do not make an empty commit; write the handoff first so there is a real change.\n";
+    s += "If nothing is staged, skip an empty commit. Do not recreate docs/handoff files.\n";
     s += "IDEMPOTENT: if git log origin/main..HEAD already contains this stage's exact commit subject, do not redo the work. Return ok=true with that existing SHA.\n";
     s
 }
@@ -137,9 +137,9 @@ fn run_stage(prompt, opts, fail_msg) {
 fn progress_prompt() {
     let s = "";
     s += "Inspect FramePilot desktop Phase 2 progress. Use tools. Do not implement product code. Do not commit.\n";
-    s += "Read: git rev-parse --abbrev-ref HEAD; git log origin/main..HEAD --oneline; docs/handoff/STATUS.md; ";
+    s += "Read: git rev-parse --abbrev-ref HEAD; git log origin/main..HEAD --oneline; docs/plans/2026-08-18-desktop-packaging.md; ";
     s += "docs/plans/2026-08-18-desktop-packaging.md section 5.1 Phase 2 boxes; ";
-    s += "whether these files exist: docs/handoff/phase2-requirements.md, phase2-review.md, phase2-backlog.md.\n";
+    s += "docs/handoff is retired; do not look for phase2-requirements/review/backlog. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1.\n";
     s += "Set each run_* boolean to false when that stage is already committed on feature/desktop-phase2, true when the agent must still do the work.\n";
     s += "run_breakdown false if commit subject 'docs: break down desktop Phase 2 requirements' exists.\n";
     s += "run_review false if 'docs: review desktop Phase 2 requirements' exists.\n";
@@ -161,17 +161,17 @@ fn breakdown_prompt() {
     s += "Create feature/desktop-phase2 from origin/main if it does not exist, then checkout it.\n";
     s += "Read with tools: AGENTS.md, develop_plan.md, docs/desktop_development_plan.md Phase 2, ";
     s += "docs/plans/2026-08-18-desktop-packaging.md (D2.00-D2.09 and section 5.1), ";
-    s += "docs/plans/2026-08-18-desktop-packaging-review.md A2.3, docs/desktop_goal_mode.md, ";
-    s += "docs/handoff/phase2-requirements.md (already drafted — verify against the LIVE tree, do not invent a second architecture), ";
+    s += "docs/plans/2026-08-18-desktop-packaging.md (2026-08-18 review findings were folded into this plan; the review file was removed), docs/desktop_goal_mode.md, ";
+    s += "docs/plans/2026-08-18-desktop-packaging.md (already drafted — verify against the LIVE tree, do not invent a second architecture), ";
     s += "apps/api/app/services/projects.py, apps/web/src/lib/api.ts, apps/web/src/components/ProjectCreator.tsx, ";
     s += "ImportPanel.tsx, ExportPanel.tsx, apps/desktop/vite.config.ts, capabilities/default.json.\n";
-    s += "Update docs/handoff/phase2-requirements.md only if live-tree facts drifted. Keep GitHub protocol section 7.\n";
-    s += "Write or replace docs/handoff/STATUS.md: current_stage=需求拆解, status=complete, next_stage=评审, ";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "branch=feature/desktop-phase2, tests_run=none (docs), blockers=none.\n";
     s += "If .grok/workflows/desktop-phase2.rhai exists, include it in this commit.\n";
     s += "Commit message: docs: break down desktop Phase 2 requirements\n";
     s += github_tail();
-    s += "Return ok=true, stage=需求拆解, commit=full sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
+    s += "Return ok=true, stage=需求拆解, commit=full sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary including PR URL.\n";
     s
 }
 
@@ -179,17 +179,17 @@ fn review_prompt() {
     let s = "";
     s += "You are grok-4.6 general-purpose for stage 评审.\n";
     s += shared_rules();
-    s += "Read docs/handoff/phase2-requirements.md, docs/handoff/STATUS.md, ";
+    s += "Read docs/plans/2026-08-18-desktop-packaging.md, docs/plans/2026-08-18-desktop-packaging.md, ";
     s += "docs/plans/2026-08-18-desktop-packaging.md D2.00-D2.09, AGENTS.md, and the live files named in the breakdown.\n";
     s += "Adversarially review: D2.00 vs $HOME allowlist, Settings mutation, 404 when FRAMEPILOT_DESKTOP unset, ";
     s += "unchanged test_create_project_rejects_root_outside_allowlist, nativeFs Vite resolved-path alias, ";
     s += "no Tauri in Next, browser file-input invariant, remaining_paths loop of 100, drag overlay pointer-events, ";
     s += "reveal instead of download, no fs:/shell: capabilities, GitHub push-per-task + single draft PR.\n";
-    s += "Write docs/handoff/phase2-review.md with verdict accept-with-notes, findings, and required test list.\n";
-    s += "Update docs/handoff/STATUS.md: current_stage=评审, next_stage=归档.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
     s += "Commit message: docs: review desktop Phase 2 requirements\n";
     s += github_tail();
-    s += "Return ok=true, stage=评审, commit=full sha, handoff=docs/handoff/STATUS.md, notes=summary.\n";
+    s += "Return ok=true, stage=评审, commit=full sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary.\n";
     s
 }
 
@@ -197,14 +197,14 @@ fn archive_prompt() {
     let s = "";
     s += "You are grok-4.6 general-purpose for stage 归档.\n";
     s += shared_rules();
-    s += "Read docs/handoff/phase2-requirements.md and docs/handoff/phase2-review.md.\n";
-    s += "Write docs/handoff/phase2-backlog.md as the accepted implementation contract for D2.00-D2.09. ";
+    s += "Read docs/plans/2026-08-18-desktop-packaging.md and docs/plans/2026-08-18-desktop-packaging.md.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "Each id: depends-on, files, implement, tests-first, commit-hint, github-submit (push+draft PR), done-when.\n";
     s += "State that 开发 MUST make one product commit per id, tick that id in §5.1 in the same commit, then push.\n";
-    s += "Update docs/handoff/STATUS.md: current_stage=归档, next_stage=开发.\n";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
     s += "Commit message: docs: archive accepted desktop Phase 2 backlog\n";
     s += github_tail();
-    s += "Return ok=true, stage=归档, commit=full sha, handoff=docs/handoff/STATUS.md, notes=summary.\n";
+    s += "Return ok=true, stage=归档, commit=full sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary.\n";
     s
 }
 
@@ -213,7 +213,7 @@ fn d2_common() {
     s += "You are grok-4.6 general-purpose for one Phase 2 develop task.\n";
     s += shared_rules();
     s += "Implement ONLY the named id. Tests first. Watch the new test fail for the right reason, then implement.\n";
-    s += "Read docs/plans/2026-08-18-desktop-packaging.md for that id, docs/handoff/phase2-backlog.md, and docs/handoff/phase2-requirements.md.\n";
+    s += "Read docs/plans/2026-08-18-desktop-packaging.md for that id, docs/plans/2026-08-18-desktop-packaging.md, and docs/plans/2026-08-18-desktop-packaging.md.\n";
     s += "Tick exactly that id to [x] in docs/plans/2026-08-18-desktop-packaging.md §5.1 in the SAME commit. Do not tick other ids.\n";
     s += "Do not start the next D2 id. Drive shipped code. Do not mock the unit under test.\n";
     s
@@ -232,7 +232,7 @@ fn develop_d200_prompt() {
     s += "clear_registered_roots() in fixtures. Update docs/api.md.\n";
     s += "Run the named pytest until green.\n";
     s += github_tail();
-    s += "Return ok=true, stage=开发-D2.00, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
+    s += "Return ok=true, stage=开发-D2.00, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary including PR URL.\n";
     s
 }
 
@@ -247,7 +247,7 @@ fn develop_d201_prompt() {
     s += "Shared UI must import @/lib/nativeFs only. Next must not import @tauri-apps/plugin-*. Desktop wrapper tests must not live under apps/web/src/lib/*.test.ts.\n";
     s += "Run npm run test:web and npm run typecheck:desktop.\n";
     s += github_tail();
-    s += "Return ok=true, stage=开发-D2.01, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
+    s += "Return ok=true, stage=开发-D2.01, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary including PR URL.\n";
     s
 }
 
@@ -262,7 +262,7 @@ fn develop_d202_prompt() {
     s += "Tests: projectCreation.test.ts; API registered nonempty root fails without flag and succeeds with it; existing files remain.\n";
     s += "Run npm run test:web and the API tests.\n";
     s += github_tail();
-    s += "Return ok=true, stage=开发-D2.02, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
+    s += "Return ok=true, stage=开发-D2.02, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary including PR URL.\n";
     s
 }
 
@@ -275,7 +275,7 @@ fn develop_d203_prompt() {
     s += "INVARIANT: when isDesktopShell() is false, both file inputs (including webkitdirectory) keep current DOM position, labels, and disabled semantics.\n";
     s += "Tests: importWorkflow.test.ts remaining-paths loop. Run npm run test:web.\n";
     s += github_tail();
-    s += "Return ok=true, stage=开发-D2.03, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
+    s += "Return ok=true, stage=开发-D2.03, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary including PR URL.\n";
     s
 }
 
@@ -286,7 +286,7 @@ fn develop_d204_prompt() {
     s += "Dropped paths feed from-paths. Overlay pointer-events none unless a drag is active. Do not import on drop outside the import page.\n";
     s += "Use Tauri drag-drop if HTML5 drop has no filesystem paths. Tests: collectDroppedPaths(event). Run npm run test:web.\n";
     s += github_tail();
-    s += "Return ok=true, stage=开发-D2.04, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
+    s += "Return ok=true, stage=开发-D2.04, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary including PR URL.\n";
     s
 }
 
@@ -297,7 +297,7 @@ fn develop_d205_prompt() {
     s += "Open project folder and Open export folder via revealInFileManager. Folder export already returns output_path.\n";
     s += "Test: reveal callback invoked with output_path. Run npm run test:web.\n";
     s += github_tail();
-    s += "Return ok=true, stage=开发-D2.05, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
+    s += "Return ok=true, stage=开发-D2.05, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary including PR URL.\n";
     s
 }
 
@@ -308,7 +308,7 @@ fn develop_d206_prompt() {
     s += "Last-opened project id in localStorage. GET /api/projects remains the list. No second database.\n";
     s += "Tests recentProjects.test.ts or .test.tsx. Run npm run test:web.\n";
     s += github_tail();
-    s += "Return ok=true, stage=开发-D2.06, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
+    s += "Return ok=true, stage=开发-D2.06, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary including PR URL.\n";
     s
 }
 
@@ -319,7 +319,7 @@ fn develop_d207_prompt() {
     s += "Windows drive letters, spaces, non-ASCII, trailing separators, reject NUL. Keep os.pathsep allowlist parsing.\n";
     s += "Skip live Win32-only cases on POSIX. Run npm run test:api.\n";
     s += github_tail();
-    s += "Return ok=true, stage=开发-D2.07, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
+    s += "Return ok=true, stage=开发-D2.07, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary including PR URL.\n";
     s
 }
 
@@ -330,7 +330,7 @@ fn develop_d208_prompt() {
     s += "Create tests/desktop/workflow.md manual GUI checklist. Add pytest: create project, import synthetic JPEGs via from-paths, process, mark Pick, CSV/ZIP/folder export, originals unchanged.\n";
     s += "Run npm run test:api and npm run test:e2e if ImportPanel changed.\n";
     s += github_tail();
-    s += "Return ok=true, stage=开发-D2.08, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
+    s += "Return ok=true, stage=开发-D2.08, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary including PR URL.\n";
     s
 }
 
@@ -340,10 +340,10 @@ fn develop_d209_prompt() {
     s += "ID: D2.09 Reveal exports instead of downloading. Commit: desktop: reveal export artifacts instead of downloading them\n";
     s += "On desktop (isDesktopShell true), replace CSV/ZIP download anchors in ExportPanel with Show in folder using output_path. No <a download>. Browser keeps current href.\n";
     s += "Tests ImportExportPanels.test.tsx both branches. Run npm run test:web.\n";
-    s += "Then write/update docs/handoff/STATUS.md current_stage=开发, status=complete, next_stage=测试.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "You may add a small 开发 close-out commit docs: record Phase 2 development stage if STATUS would otherwise be uncommitted, then push that too.\n";
     s += github_tail();
-    s += "Return ok=true, stage=开发-D2.09, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary including PR URL.\n";
+    s += "Return ok=true, stage=开发-D2.09, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary including PR URL.\n";
     s
 }
 
@@ -359,10 +359,10 @@ fn test_prompt() {
     s += "5) npm run test:e2e -> e2e.log (exit 0) because ImportPanel likely changed.\n";
     s += "6) Re-run the D2.08 pytest path-import process export file.\n";
     s += "7) Confirm test_create_project_rejects_root_outside_allowlist still passes unchanged.\n";
-    s += "If anything fails, fix the shipped code and rerun. Update STATUS.md current_stage=测试, next_stage=上线.\n";
+    s += "If anything fails, fix the shipped code and rerun. Do not write STATUS.md; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1.\n";
     s += "Commit message: test: verify desktop Phase 2 behavior\n";
     s += github_tail();
-    s += "Return ok=true only if api, web, verify, and e2e exited 0. stage=测试, commit=sha, handoff=docs/handoff/STATUS.md, notes=commands and results.\n";
+    s += "Return ok=true only if api, web, verify, and e2e exited 0. stage=测试, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=commands and results.\n";
     s
 }
 
@@ -374,10 +374,10 @@ fn launch_prompt() {
     s += "Tick every Phase 2 id in section 5.1 to [x] or dated [~]. Any [~] must cite a dated command and error (live picker clicks only).\n";
     s += "Tick Phase 2 acceptance boxes including GitHub: each D2.xx is on origin/feature/desktop-phase2; one draft PR is open.\n";
     s += "Mark the draft PR ready-for-review ONLY if tests are green; still do not merge.\n";
-    s += "Update docs/handoff/STATUS.md current_stage=上线, status=complete, next_stage=none (Phase 3 not started).\n";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
     s += "Commit message: docs: record Phase 2 close-out and tick desktop tracker\n";
     s += github_tail();
-    s += "Return ok=true, stage=上线, commit=sha, handoff=docs/handoff/STATUS.md, notes=close-out summary with PR URL.\n";
+    s += "Return ok=true, stage=上线, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=close-out summary with PR URL.\n";
     s
 }
 
@@ -522,5 +522,5 @@ if run_launch {
 complete(#{
     summary: "Phase 2 serial pipeline finished on feature/desktop-phase2 with per-task GitHub pushes",
     stages: ["Inspect", "需求拆解", "评审", "归档", "开发", "测试", "上线"],
-    handoff: "docs/handoff/STATUS.md",
+    handoff: "docs/plans/2026-08-18-desktop-packaging.md",
 });

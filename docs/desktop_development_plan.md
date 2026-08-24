@@ -2,7 +2,7 @@
 
 > **文档版本**：1.2  
 > **创建日期**：2026-08-18  
-> **最近审阅**：2026-08-18 Claude Opus 5（见 `docs/plans/2026-08-18-desktop-packaging-review.md`）  
+> **最近审阅**：2026-08-18 Claude Opus 5（审阅结论已并入 `docs/plans/2026-08-18-desktop-packaging.md`；原审阅文件已作为冗余删除）  
 > **目标**：将当前本地 Web 应用（v2.0.0-rc2）重新设计并打包为可安装的 Windows 与 macOS 桌面应用  
 > **仓库**：https://github.com/joe-cheung-cae/frame-pilot  
 > **相关已有规划**：`develop_plan.md` 已将 “Local desktop packaging with Tauri or Electron” 列为 stretch goal；本文件将其正式产品化。  
@@ -418,9 +418,8 @@ frame-pilot/
 
 实施级任务拆分与 Goal Mode 提示词（基于 2026-08-18 仓库现状）：
 
-- `docs/plans/2026-08-18-desktop-packaging.md` — 按 D0.00…D5.05 逐条执行的详细开发计划（含 §5.1 任务勾选表）
+- `docs/plans/2026-08-18-desktop-packaging.md` — 按 D0.00…D5.05 逐条执行的详细开发计划（含 §5.1 任务勾选表；2026-08-18 审阅结论已并入此文件）
 - `docs/desktop_goal_mode.md` — Grok Build / Codex Goal Mode 可粘贴提示词
-- `docs/plans/2026-08-18-desktop-packaging-review.md` — Opus 5 审阅记录
 
 1. **确认技术选型**：采用 Tauri 2 + Python Sidecar（本计划默认；仅在 D0.09 书面否决后回退 Electron）。
 2. **创建分支** `feature/desktop-packaging`。
@@ -433,9 +432,8 @@ frame-pilot/
 
 - `README.md` — 当前功能与运行方式
 - `develop_plan.md` — v2 总规划（含桌面 stretch goal）
-- `docs/plans/2026-08-18-desktop-packaging.md` — 桌面化逐任务实施计划（Goal Mode backlog；技术冲突以此为准）
+- `docs/plans/2026-08-18-desktop-packaging.md` — 桌面化逐任务实施计划（Goal Mode backlog；技术冲突以此为准；2026-08-18 审阅结论已并入此文件，原审阅文件已删除）
 - `docs/desktop_goal_mode.md` — 桌面化 Goal Mode 提示词
-- `docs/plans/2026-08-18-desktop-packaging-review.md` — Opus 5 对产品计划与实施计划的审阅
 - `docs/v2_architecture.md` — 架构（desktop packaging 在 v2.0 中仍为 deferred；桌面轨道单独推进）
 - `docs/v2_product_requirements.md` — 产品边界
 - `docs/v2_known_limitations.md` — 已知限制

@@ -1,7 +1,7 @@
 let meta = #{
     name: "phase2-code-review-fix",
     description: "Fix Phase 2 folder-import duplication, then review-fix-review until ready to merge",
-    when_to_use: "Resolve docs/handoff/phase2-code-review-findings.md and loop review until feature/desktop-phase2 is marked ready to merge",
+    when_to_use: "Historical Phase 2 code-review loop (completed). Living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1; docs/handoff is retired",
     phases: [
         #{ title: "Fix", detail: "Tests-first fix for Issue 1 and Issue 2" },
         #{ title: "Test", detail: "Run shipped API and web import tests" },
@@ -105,8 +105,8 @@ fn path_in_scope(p) {
     let head5 = p.sub_string(0, 5);
     let head6 = p.sub_string(0, 6);
     let head8 = p.sub_string(0, 8);
-    let head9 = p.sub_string(0, 9);
-    head5 == "apps/" || head6 == "tests/" || head8 == "scripts/" || head9 == "docs/hand"
+    let head10 = p.sub_string(0, 10);
+    head5 == "apps/" || head6 == "tests/" || head8 == "scripts/" || head10 == "docs/plans"
 }
 
 fn append_sev(src, sev, dest, cap) {
@@ -132,6 +132,7 @@ fn count_sev(src, sev) {
 
 fn shared_rules() {
     let s = "";
+    s += "docs/handoff is retired. Do not create, write, or restore any docs/handoff/* file (including STATUS.md). The living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Phase 0-2 are already on main; remaining work is Phase 3-5. Do not retick completed Phase 0-2 boxes. Do not write docs/handoff/STATUS.md.\n";
     s += "Repo: " + repo_path() + "\n";
     s += "Resolve repo with git rev-parse --show-toplevel. Stay on branch " + branch_name() + ".\n";
     s += "Scratch: mkdir -p " + scratch_path() + " " + cache_path() + " && chmod 700 both. Never shared /tmp.\n";
@@ -211,7 +212,7 @@ fn fix_known_prompt() {
     let s = "";
     s += "You are grok-4.6 high-effort for stage Fix of documented Phase 2 code-review issues.\n";
     s += shared_rules();
-    s += "Read with tools before editing: docs/handoff/phase2-code-review-findings.md, apps/web/src/lib/api.ts (isLastPathImportSlice, importPhotosFromPaths, importPhotosFromPathsBatch), ";
+    s += "Read with tools before editing: docs/plans/2026-08-18-desktop-packaging.md, apps/web/src/lib/api.ts (isLastPathImportSlice, importPhotosFromPaths, importPhotosFromPathsBatch), ";
     s += "apps/web/src/lib/importWorkflow.test.ts (the small-folder finalize test around line 347), ";
     s += "apps/api/app/api/routes.py import_photos_from_paths_endpoint, apps/api/app/schemas/api.py PathImportRequest, ";
     s += "apps/api/app/services/importing.py expand_import_paths register_import_file _existing_photo_for_content_hash _photo_derivatives_exist, ";
@@ -233,8 +234,8 @@ fn fix_known_prompt() {
     s += "Commit message exactly: fix: stop duplicating photos on small folder path import\n";
     s += "If the workflow file .grok/workflows/phase2-code-review-fix.rhai is untracked, include it in this commit or a follow-up docs commit; product fix subject stays as above.\n";
     s += github_tail();
-    s += "Update docs/handoff/STATUS.md current_stage=Fix, next_stage=Test, note the SHA. Timestamp ISO-8601 with timezone (date '+%Y-%m-%dT%H:%M:%S%z' then format offset as +08:00).\n";
-    s += "Return ok=true, stage=Fix, commit=full sha, handoff=docs/handoff/STATUS.md, notes=what changed and test commands.\n";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
+    s += "Return ok=true, stage=Fix, commit=full sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=what changed and test commands.\n";
     s
 }
 
@@ -242,7 +243,7 @@ fn test_prompt() {
     let s = "";
     s += "You are grok-4.6 high-effort for stage Test after the folder-import fix.\n";
     s += shared_rules();
-    s += "THIS STAGE write-allowlist: docs/handoff/STATUS.md plus test files only if a test is actually broken and you must fix it (not production behavior changes unless a regression is real).\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md. Product/test files in the slice remain writable; docs/handoff is not.\n";
     s += "Fix until green. Drive shipped code. No test theater.\n";
     s += "1) .venv/bin/pytest apps/api/tests/test_import_from_paths.py apps/api/tests/test_import_from_paths_immutability.py apps/api/tests/test_path_import_process_export_workflow.py apps/api/tests/test_batched_import_api.py -q\n";
     s += "Capture " + scratch_path() + "/pytest-import.txt . Must include the new small-folder finalize-only test and it must PASS.\n";
@@ -250,9 +251,9 @@ fn test_prompt() {
     s += "3) If you touched Python/TS production files this stage, also run .venv/bin/ruff check apps/api and npm --prefix apps/web run typecheck.\n";
     s += "4) Optionally npm run verify if time allows; it must stay rust-free.\n";
     s += "Prove the bug is gone: a 2-JPEG folder client sequence ends with total_images==2 and originals named after sources. If that assertion is not in a committed test, add it and fail this stage.\n";
-    s += "Update STATUS.md tests_run, current_stage=Test, next_stage=Review. Timestamp ISO-8601 with timezone.\n";
+    s += "Do not write STATUS.md; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1.\n";
     s += "Commit message exactly: test: verify small folder path import is not duplicated\n";
-    s += "If STATUS is the only change besides logs, still commit STATUS. Do not commit scratch logs.\n";
+    s += "If the only pending change would have been STATUS.md, skip the empty commit. Living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not commit scratch logs.\n";
     s += github_tail();
     s += "Return ok=true, stage=Test, commit=sha, notes=commands and results.\n";
     s
@@ -292,14 +293,14 @@ fn handoff_prompt(round, confirmed_json, bugs, suggestions, nits) {
     let s = "";
     s += "You are grok-4.6 for stage Handoff of review round " + round.to_string() + ".\n";
     s += shared_rules();
-    s += "Write-allowlist: docs/handoff/phase2-code-review-round-" + round.to_string() + ".md ; docs/handoff/STATUS.md ; docs/handoff/phase2-code-review-findings.md\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "Do not patch production code.\n";
     s += "Confirmed findings JSON (already verified; do not add extras):\n";
     s += confirmed_json;
     s += "\nCounts: bugs=" + bugs.to_string() + " suggestions=" + suggestions.to_string() + " nits=" + nits.to_string() + ".\n";
-    s += "Write docs/handoff/phase2-code-review-round-" + round.to_string() + ".md in English with HEAD SHA, Issue 1/2 status (fixed or still open with evidence), confirmed findings, and whether gating bugs are zero.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "If bugs=0, say so explicitly and that Phase 2 is merge-gating clean for this round.\n";
-    s += "Update STATUS.md current_stage=Review, next_stage=Repair or Close-out, round, bug count, HEAD SHA, timestamp ISO-8601 with timezone.\n";
+    s += "Do not write STATUS.md; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1.\n";
     s += "Commit message exactly: docs: record Phase 2 code-review round-" + round.to_string() + "\n";
     s += github_tail();
     s += "Return ok, stage=Handoff, commit=sha, notes=summary, bugs=count.\n";
@@ -315,7 +316,7 @@ fn repair_prompt(round, confirmed_json) {
     s += "\nFix every severity=bug item. Tests first. Drive shipped functions. No test theater.\n";
     s += "Stay inside Phase 2: path import, desktop FS, originals safety, tests. Do not start Phase 3-5.\n";
     s += "Run the relevant pytest and web unit tests after the fix. Capture " + scratch_path() + "/repair-round-" + round.to_string() + ".txt\n";
-    s += "Update STATUS.md. Commit with a conventional English subject describing the fix. Push.\n";
+    s += "Do not write STATUS.md; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Commit with a conventional English subject describing the fix. Push.\n";
     s += "Return ok, stage=Repair, commit=sha, notes=what changed and tests.\n";
     s
 }
@@ -328,13 +329,13 @@ fn closeout_prompt(outcome, confirmed_json, bugs) {
     s += "bugs=" + bugs.to_string() + "\n";
     s += "Confirmed JSON:\n";
     s += confirmed_json;
-    s += "\nWrite-allowlist: docs/handoff/STATUS.md ; docs/handoff/phase2-code-review-findings.md ; docs/handoff/phase2-merge-readiness.md\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "Do not merge to main. Do not squash. You MAY comment on PR 38 with gh pr comment. If outcome is clean, you MAY run gh pr ready 38 if it is still draft (it may already be ready).\n";
-    s += "If outcome is clean AND bugs=0: write docs/handoff/phase2-merge-readiness.md with verdict ready-to-merge, HEAD SHA, tests run, Issue 1 and Issue 2 resolved, no remaining gating bugs. ";
-    s += "Update phase2-code-review-findings.md Status fields to resolved with the fix SHA. ";
-    s += "STATUS.md: current_stage=Close-out, status=ready_to_merge, next_stage=none, ready_to_merge=true, timestamp ISO-8601 with timezone. ";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
+    s += "Do not recreate phase2-code-review-findings.md. ";
+    s += "Do not write STATUS.md. Record ready-to-merge in session notes; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. ";
     s += "Comment on PR 38 that Phase 2 is ready to merge after the folder-import duplication fix; do not merge.\n";
-    s += "If outcome is not clean: STATUS status=blocked, ready_to_merge=false, list remaining bugs, next_stage=none. Do NOT claim ready to merge.\n";
+    s += "If outcome is not clean: record blocked in session notes with remaining bugs. Do NOT claim ready to merge. Do not write STATUS.md.\n";
     s += "Commit message exactly: docs: mark desktop Phase 2 ready to merge\n";
     s += "If blocked, commit message exactly: docs: record Phase 2 code-review loop blocked\n";
     s += github_tail();
@@ -555,7 +556,7 @@ complete(#{
     bugs: last_bugs,
     suggestions: last_suggestions,
     nits: last_nits,
-    handoff: "docs/handoff/STATUS.md",
+    handoff: "docs/plans/2026-08-18-desktop-packaging.md",
     branch: branch_name(),
     pr: "https://github.com/joe-cheung-cae/frame-pilot/pull/38",
 });
