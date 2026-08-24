@@ -12,7 +12,7 @@
 
 Phase 0–2 已在 `main` 上。剩余桌面工作是 Phase 3–5。不要重建 `docs/handoff/*`（包括 `STATUS.md`）。`docs/handoff` 已退役。
 
-FramePilot 当前是本地 Web 应用（`2.0.0-rc2`）：Next.js 在端口 3000，FastAPI 在端口 8000。桌面轨道把该栈包装为带 PyInstaller sidecar 的 Tauri 2 应用。必须保持本地优先，且永不修改原片。
+FramePilot 当前是本地 Web 应用（`2.0.0-rc2`）：Next.js 在 port 3000，FastAPI 在 port 8000。桌面轨道把该栈包装为带 PyInstaller sidecar 的 Tauri 2 应用。必须保持本地优先，且永不修改原片。
 
 新的长时会话使用长提示词。续跑使用短提示词。只更新说明、不改代码时使用仅文档提示词。
 

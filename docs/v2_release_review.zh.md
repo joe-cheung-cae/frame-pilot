@@ -45,7 +45,7 @@
 - 项目路由、处理 UI 和筛选 UI 会把有活动导入的项目送回导入进度，而不是显示不完整的处理或复核状态。
 - 过期处理清理会清除部分组，并把已处理或进行中的照片重置为可重试的已导入状态。
 - 协作式导入取消。
-- 对失败、`complete_with_errors`、过期失败和已取消导入任务的重试。
+- 对 failed、`complete_with_errors`、stale-failed 和 cancelled 导入任务的重试。
 - 重试保留 Photo IDs、`user_status` 和 `star_rating`，并复用有效衍生件。
 - 确定性技术评分、感知哈希、轻量 embedding、分组、排序和解释。
 - 以键盘为先的筛选工作区，含筛选器、组、对比、缩放、状态更新、评分、有界渲染和 load-all 控件。
@@ -140,22 +140,22 @@ rc2 工作树清理了更早的 Node `NO_COLOR`/`FORCE_COLOR` 警告噪声，以
 
 ## 10. 发布阻断项
 
-严重：
+Critical：
 
 - 本次评审的自动化验证中未发现。
 
-高：
+High：
 
 - 评审当时，手工非私人真实世界算法验证笔记尚未记录，除非豁免，否则阻断无限定条件的 RC 标签。
 - 该门槛不再待处理：`docs/v2_rc2_validation_decision.zh.md` 记录了已完成的 2026-08-17 验证证据。
 
-中：
+Medium：
 
 - FastAPI `BackgroundTasks` 在进程内运行，不能在 API 重启后持久存活。
 - 2,000 张真实浏览器-后端工作流仍为延后/手工。
 - 完整浏览器 RSS、已解码图像内存、GPU 内存和操作系统级压力尚未测量。
 
-低：
+Low：
 
 - 在 FastAPI/Starlette 测试客户端栈迁移到 `httpx2` 或等效受支持客户端之前，Starlette/TestClient 弃用警告仍然可见。
 
@@ -191,7 +191,7 @@ npm run test:e2e:real-browser:large
 npm run test:e2e
 ```
 
-`npm run check:pretag` 包含 `npm run verify`、已跟踪产物检查和验证决策检查。2026-06-05 评审预期它会失败，因为当时 `docs/v2_rc2_validation_decision.zh.md` 仍为待处理且未豁免。2026-08-17 的决策关闭了该门槛。
+`npm run check:pretag` 包含 `npm run verify`、已跟踪产物检查和验证决策检查。2026-06-05 评审预期它会失败，因为当时 `docs/v2_rc2_validation_decision.md` 仍为待处理且未豁免。2026-08-17 的决策关闭了该门槛。
 
 可选手工基准，不是默认发布门槛：
 

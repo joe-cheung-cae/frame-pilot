@@ -76,7 +76,7 @@ npm run check:artifacts
 | Missed group count | 0 | 复核中未发现其他明确近重复对。缺少连拍覆盖，因此这不是连拍漏组计数。 |
 | Ranking mismatch count | 0 | 在唯一的多图组内，更锐的帧为 Pick，更软的帧为 Maybe。单图 Pick 跟随高技术分数，包括非人类微距，这符合技术排序设计。 |
 | Explanation mismatch count | 2 | 两张被启发式标记的非人脸图像上出现人脸/睁眼用语。 |
-| Face-signal mismatch count | high | 3 次非人脸图像误报；真人肖像上系统性漏报，包括三人历史团体照。仅实验性。 |
+| Face-signal mismatch count | high | 3 false positives on non-face images；真人肖像上系统性漏报，包括三人历史团体照。仅实验性。 |
 | Export issue count | 0 | CSV、ZIP 和文件夹 Pick 导出完成。 |
 | UI workflow issue count | not applicable | 本次使用本地 API 加图像检查，不是计时的筛选 UI 会话。 |
 
@@ -115,7 +115,7 @@ npm run check:artifacts
 
 | Issue ID | 导出模式 | 期望 | 实际 | 严重程度 | 后续 |
 | -------- | ----------- | -------- | ------ | -------- | --------- |
-| RW-005 | CSV | Pick 行、UTF-8、分数与工作区匹配 | 6 行 Pick；CSV `score` 与显示分数匹配到 3 位小数 | none | None |
+| RW-005 | CSV | Pick 行、UTF-8、分数与工作区匹配 | 6 Pick rows; CSV `score` matched displayed scores to 3 decimals | none | None |
 | RW-006 | ZIP | 字节相同的 JPEG/WebP，stored 压缩 | 全部 6 个成员为 ZIP_STORED，且 SHA-256 与源文件相同 | none | None |
 | RW-007 | folder | 项目导出目录下字节相同的副本 | 全部 6 份副本与源文件相同 | none | None |
 
