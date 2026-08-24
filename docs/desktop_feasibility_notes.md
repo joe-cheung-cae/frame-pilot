@@ -149,7 +149,7 @@ D1.09 quit dialog is injected HTML. Rust unit tests cover Kill-after-5s and canc
 2. **Shell stays Tauri 2 + Python sidecar.** User-space rustup provides `rustc 1.97.1` / `cargo 1.97.1`. `cargo test --lib` **19 passed**. Sidecar HTTP smoke passed. `npm run dev:desktop` opened a `FramePilot` window whose WebView called `GET /api/projects`. D0.07 stays dated `[~]` as the Phase 0 record. Missing Phase 0 GUI was **not** the Electron trigger.
 3. **Frontend: Vite SPA in `apps/desktop`.** Shared navigation/API/shell adapters landed. `apps/web` stays Next.js. Live `npm run dev` still serves `:3000` / `:8000`.
 4. **`npm run verify` stays rust-free.** Fail-if-invoked `rustc`/`cargo`/`tauri` wrappers were not called by verify (`verify.log`).
-5. **Jobs:** cancel-then-retry leaves no photo in `processing` after retry; killed import is `failed`+retryable via startup sweep; processing jobs have no cancel route. See `docs/v2_known_limitations.md`.
+5. **Jobs:** cancel-then-retry leaves no photo in `processing` after retry; killed import is `failed`+retryable via startup sweep; processing jobs have no cancel route. See [`docs/v2_known_limitations.md`](v2_known_limitations.md).
 6. **`APP_VERSION` remains `2.0.0-rc2`.** Do not bump to `2.1.0-desktop`.
 
 Phase 1 acceptance (see §5.1): HTTP/home project list `[x]`; sidecar health `[x]`; `verify` without Tauri `[x]`; browser `:3000`/`:8000` `[x]`.

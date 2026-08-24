@@ -6,8 +6,8 @@
 
 This document is the Grok Build / Codex Goal Mode entry point for the desktop packaging track.
 
-The product plan is `docs/desktop_development_plan.md`.
-The executable backlog and living tracker is `docs/plans/2026-08-18-desktop-packaging.md` (start at **D0.00**; status is §5.1).
+The product plan is [`docs/desktop_development_plan.md`](desktop_development_plan.md).
+The executable backlog and living tracker is [`docs/plans/2026-08-18-desktop-packaging.md`](plans/2026-08-18-desktop-packaging.md) (start at **D0.00**; status is §5.1).
 The 2026-08-18 Opus 5 review findings were folded into that plan; the review file was removed as redundant.
 
 Phase 0–2 are already on `main`. Remaining desktop work is Phase 3–5. Do not recreate `docs/handoff/*` (including `STATUS.md`). `docs/handoff` is retired.
@@ -254,7 +254,7 @@ If tests are safe to run, run npm run test:api and record results. Do not implem
 
 Use this after Phase 0–2 are on `main`. Copy everything inside the following fence into Grok Build Goal Mode. Do **not** recreate `docs/handoff/*` (including `STATUS.md`).
 
-The living tracker is `docs/plans/2026-08-18-desktop-packaging.md` §5.1. Historical Phase 0–2 / review-fix workflows under `.grok/workflows/` may remain as completed-phase scripts; they must not write retired handoff files.
+The living tracker is [`docs/plans/2026-08-18-desktop-packaging.md`](plans/2026-08-18-desktop-packaging.md) §5.1. Historical Phase 0–2 / review-fix workflows under `.grok/workflows/` may remain as completed-phase scripts; they must not write retired handoff files.
 
 ```text
 You are working in the FramePilot repository.
@@ -368,8 +368,8 @@ Stop after D0.09 is committed and summarize.
 
 - The long prompt is the main autonomous desktop prompt for the full track. Phase 0–2 are already on `main`; remaining work is Phase 3–5.
 - For remaining Phase 3–5 work, use §5 instead of re-running completed Phase 0–2 workflows.
-- The detailed file paths, tests, and acceptance boxes live in `docs/plans/2026-08-18-desktop-packaging.md` §5.1. Do not recreate `docs/handoff/*`.
-- Keep `implement_goals.md` for the older v2 web Goal Mode. Do not mix v2 algorithm work into a desktop Goal Mode session unless the desktop plan’s current task requires a tiny shared-code fix.
+- The detailed file paths, tests, and acceptance boxes live in [`docs/plans/2026-08-18-desktop-packaging.md`](plans/2026-08-18-desktop-packaging.md) §5.1. Do not recreate `docs/handoff/*`.
+- Keep [`implement_goals.md`](../implement_goals.md) for the older v2 web Goal Mode. Do not mix v2 algorithm work into a desktop Goal Mode session unless the desktop plan’s current task requires a tiny shared-code fix.
 - First desktop product version: `2.1.0-desktop`. `3.0.0` is not on the table.
 - Execution order originally started at D0.00 (CI verify). New sessions start at the lowest incomplete §5.1 id (Phase 3–5).
 - The only source of truth for task status is §5.1 of the implementation plan.

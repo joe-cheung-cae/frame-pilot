@@ -15,44 +15,44 @@ FramePilot v2 应把现有 v1 MVP 演进为可靠的本地优先照片筛选工�
 将以下提示词复制到 Codex Goal Mode。
 
 ```text
-你正在 FramePilot 仓库中工作。
+You are working in the FramePilot repository.
 
-这是一个长时间运行的 Codex Goal Mode 任务。
+This is a long-running Codex Goal Mode task.
 
-你的任务是基于当前的 `develop_plan.md`，自动、迭代地开发 FramePilot v2。
+Your mission is to automatically and iteratively develop FramePilot v2 based on the current `develop_plan.md`.
 
-FramePilot v2 是一款本地优先、类桌面的 AI 辅助照片筛选应用。它应把现有 v1 MVP 演进为可靠的本地照片筛选工具，具备基于任务的处理、可见进度、可恢复工作流、更强的分组/排序、更好的筛选工作区、稳健的导出，以及真实的集成/E2E 覆盖。
+FramePilot v2 is a local-first, desktop-like AI-assisted photo culling application. It should evolve the existing v1 MVP into a reliable local photo culling tool with job-based processing, visible progress, resumable workflows, stronger grouping/ranking, a better culling workspace, robust export, and real integration/E2E coverage.
 
-你必须在重复的开发循环中工作。
+You must work in repeated development loops.
 
-重要循环规则：
-对每一个需求或连贯的开发单元：
-1. 检查当前仓库状态。
-2. 从 `develop_plan.md` 中恰好选择一个聚焦需求。
-3. 只实现该需求。
-4. 为该需求添加或更新测试。
-5. 运行相关测试/检查。
-6. 如果测试失败，修复代码并重新运行测试，直到通过。
-7. 审阅你自己的 diff。
-8. 将该已完成需求提交到 Git。
-9. 只有在提交创建之后，才开始下一个需求。
+IMPORTANT LOOP RULE:
+For every single requirement or coherent development unit:
+1. Inspect the current repository state.
+2. Choose exactly one focused requirement from `develop_plan.md`.
+3. Implement only that requirement.
+4. Add or update tests for that requirement.
+5. Run the relevant tests/checks.
+6. If tests fail, fix the code and rerun tests until they pass.
+7. Review your own diff.
+8. Commit the completed requirement to Git.
+9. Only after the commit is created, start the next requirement.
 
-在前一个需求具备以下条件之前，不要开始下一个需求：
-- 实现已完成
-- 相关测试已添加或更新
-- 测试通过
-- diff 已审阅
-- 已提交到 Git
+Do not start the next requirement before the previous requirement has:
+- implementation completed
+- relevant tests added or updated
+- tests passing
+- diff reviewed
+- committed to Git
 
-如果某个需求无法安全完成，不要把它部分并入无关工作。要么：
-- 缩小范围并提交一个更小的可工作切片，要么
-- 记录阻塞项，并在合适时只提交安全的文档/测试改进。
+If a requirement cannot be completed safely, do not partially merge it into unrelated work. Either:
+- reduce the scope and commit a smaller working slice, or
+- document the blocker and commit only safe documentation/test improvements if appropriate.
 
-先阅读这些文件：
+Read these files first:
 - develop_plan.md
 - AGENTS.md
 - README.md
-- docs/v1_review_for_v2.md，如果存在
+- docs/v1_review_for_v2.md, if it exists
 - docs/architecture.md
 - docs/api.md
 - docs/scoring.md
@@ -63,73 +63,73 @@ FramePilot v2 是一款本地优先、类桌面的 AI 辅助照片筛选应用�
 - tests/e2e
 - scripts
 
-硬约束：
-- 不要从零重启项目。
-- 保留现有可用的 v1 功能。
-- 保持 FramePilot 本地优先。
-- 不要添加云上传。
-- 不要添加用户账户。
-- 不要添加支付。
-- 不要添加远程照片处理。
-- 不要修改原始照片文件。
-- 不要删除原始照片文件。
-- 不要提交私人照片。
-- 不要提交大模型文件。
-- 除非更早的 v2 核心里程碑已经全部完成，否则不要在此长时间任务中实现完整 RAW 解码。
-- 在确定性的 v2 处理、分组、导出和测试稳定之前，不要实现重量级 AI 模型集成。
-- 所有代码、注释、测试、提交说明和 UI 文本使用英文，除非现有 UI 文本另有要求。活文档是双语的（英文页面加上匹配的中文 `*.zh.md`）。
-- 在可选 AI 模型之前，优先使用小型确定性算法。
-- 保持每个 Git 提交聚焦且可审阅。
-- 不要在一次提交中混合无关变更。
-- 不要在提交前跳过测试。
-- 不要提交失败的测试。
-- 不要忽略类型错误、lint 错误或失败的 E2E，除非该失败明显无关并已在提交摘要中记录。
+Hard constraints:
+- Do not restart the project from scratch.
+- Preserve the existing working v1 functionality.
+- Keep FramePilot local-first.
+- Do not add cloud upload.
+- Do not add user accounts.
+- Do not add payment.
+- Do not add remote photo processing.
+- Do not modify original photo files.
+- Do not delete original photo files.
+- Do not commit private photos.
+- Do not commit large model files.
+- Do not implement full RAW decoding in this long-running task unless all earlier v2 core milestones are already complete.
+- Do not implement heavy AI model integration before deterministic v2 processing, grouping, export, and tests are stable.
+- Use English for all code, comments, tests, commit messages, and UI text unless existing UI text requires otherwise. Living documentation is bilingual (English page plus matching Chinese `*.zh.md`).
+- Prefer small deterministic algorithms before optional AI models.
+- Keep each Git commit focused and reviewable.
+- Do not mix unrelated changes in one commit.
+- Do not skip tests before commit.
+- Do not commit failing tests.
+- Do not ignore type errors, lint errors, or failing E2E unless the failure is clearly unrelated and documented in the commit summary.
 
-推荐分支：
-创建或使用此分支：
+Recommended branch:
+Create or use this branch:
 
 feature/v2-auto-iteration
 
-如果该分支已存在，从它继续。
+If the branch already exists, continue from it.
 
-开始实现之前：
-1. 运行 `git status`。
-2. 如果有未提交的用户变更，检查它们。
-3. 不要覆盖用户变更。
-4. 如果工作树因为先前的 Codex 工作而 dirty，要么从中安全继续，要么只在测试通过后再提交。
-5. 阅读 `develop_plan.md`，并根据 v2 里程碑构建内部有序待办。
+Before starting implementation:
+1. Run `git status`.
+2. If there are uncommitted user changes, inspect them.
+3. Do not overwrite user changes.
+4. If the working tree is dirty because of previous Codex work, either continue from it safely or commit only after tests pass.
+5. Read `develop_plan.md` and build an internal ordered backlog from the v2 milestones.
 
-总体优先级顺序：
+Overall priority order:
 
-Phase 0：安全与仓库基线
-- 确认仓库可以安装依赖并运行现有测试。
-- 确认 package.json 中的现有脚本。
-- 如果缺失，添加安全的根级脚本：test、e2e、lint、typecheck、format 和 verify。
-- 除非它是一个已通过测试/检查的专门需求，否则不要做大范围格式化。
-- 只在测试/检查通过后提交基线工具变更。
+Phase 0: Safety and repository baseline
+- Confirm repository can install dependencies and run existing tests.
+- Confirm existing scripts in package.json.
+- If missing, add safe root-level scripts for test, e2e, lint, typecheck, format, and verify.
+- Do not do broad formatting unless it is a dedicated requirement with tests/checks passing.
+- Commit baseline tooling only after tests/checks pass.
 
-Phase 1：v2.0 基础
-目标：
-使仓库可维护，并为结构化的 v2 开发做好准备。
+Phase 1: v2.0 Foundation
+Goal:
+Make the repository maintainable and ready for structured v2 development.
 
-需求：
-- 确保开发者命令清晰。
-- 确保 README 记录本地 setup、run、test 和 E2E 命令。
-- 确保 AGENTS.md 与 v2 规则一致。
-- 确保引用了 v2 规划文档。
-- 确保记录了 formatting/lint/typecheck/test 命令。
-- 仅在需要处添加或改进测试。
+Requirements:
+- Ensure developer commands are clear.
+- Ensure README documents local setup, run, test, and E2E commands.
+- Ensure AGENTS.md matches v2 rules.
+- Ensure v2 planning docs are referenced.
+- Ensure formatting/lint/typecheck/test commands are documented.
+- Add or improve tests only where needed.
 
-提交规则：
-把每个连贯的文档/工具改进分开提交。
+Commit rule:
+Commit each coherent documentation/tooling improvement separately.
 
-Phase 2：v2.1 处理与进度
-目标：
-用基于任务的处理和进度轮询，替换面向用户的同步处理。
+Phase 2: v2.1 Processing and Progress
+Goal:
+Replace synchronous user-facing processing with job-based processing and progress polling.
 
-需求：
-- 在可行时让 `/process` 快速返回 job id。
-- 确保 `ProcessingJob` 记录：
+Requirements:
+- Make `/process` return a job id quickly if practical.
+- Ensure `ProcessingJob` records:
   - job_type
   - status
   - current_step
@@ -140,8 +140,8 @@ Phase 2：v2.1 处理与进度
   - error_message
   - started_at
   - completed_at
-- 添加或改进 `/jobs/{job_id}` 轮询。
-- 将处理拆成清晰阶段：
+- Add or improve `/jobs/{job_id}` polling.
+- Split processing into clear stages:
   - scan/register
   - validate
   - thumbnail generation
@@ -152,211 +152,211 @@ Phase 2：v2.1 处理与进度
   - ranking
   - explanation
   - complete
-- 在可行处加入幂等行为。
-- 在可行处跳过已处理或未变更的文件。
-- 记录失败项，且不让整个任务崩溃。
-- 更新前端处理 UI，以显示真实阶段进度。
-- 使用生成的合成图像添加后端集成测试。
-- 为失败或不支持的文件添加测试。
+- Add idempotent behavior where practical.
+- Skip already processed or unchanged files where practical.
+- Record failed items without crashing the whole job.
+- Update frontend processing UI to show real stage progress.
+- Add backend integration tests using generated synthetic images.
+- Add tests for failed or unsupported files.
 
-验收标准：
-- 处理进度在 UI 中可见。
-- 可以轮询任务状态。
-- 失败文件不会让整个任务崩溃。
-- 现有 v1 工作流仍然可用。
-- 相关后端测试通过。
-- 如果 UI 有变更，相关前端测试通过。
-- 测试通过后再提交。
+Acceptance criteria:
+- Processing progress is visible in the UI.
+- Job status can be polled.
+- Failed files do not crash the full job.
+- Existing v1 workflow still works.
+- Relevant backend tests pass.
+- Relevant frontend tests pass if UI changed.
+- Commit after tests pass.
 
-Phase 3：v2.2 筛选工作区升级
-目标：
-让复核工作区对真实筛选快速且舒适。
+Phase 3: v2.2 Culling Workspace Upgrade
+Goal:
+Make the review workspace fast and comfortable for real culling.
 
-需求：
-- 改进组导航。
-- 改进以键盘为先的工作流。
-- 添加或改进：
-  - 上一张/下一张照片
-  - 上一张/下一张组
+Requirements:
+- Improve group navigation.
+- Improve keyboard-first workflow.
+- Add or improve:
+  - previous/next photo
+  - previous/next group
   - Pick/Maybe/Reject/Unreviewed
-  - 1-5 星级
-  - 0 清除评分
-  - 缩放切换
-  - 在可行时加入对比模式
-- 对大项目在需要时添加虚拟化胶片条或网格。
-- 避免每次状态变更后重新获取全部照片。
-- 在安全处使用乐观更新。
-- 添加持久化复核进度。
-- 改进加载、空状态和错误状态。
-- 为快捷键和状态更新添加前端测试。
-- 添加或更新筛选操作的 mocked E2E 覆盖。
+  - 1-5 star rating
+  - 0 clear rating
+  - zoom toggle
+  - compare mode if feasible
+- Add virtualized filmstrip or grid if needed for large projects.
+- Avoid refetching all photos after each status change.
+- Use optimistic updates where safe.
+- Add persistent review progress.
+- Improve loading, empty, and error states.
+- Add frontend tests for shortcuts and status updates.
+- Add or update mocked E2E coverage for culling actions.
 
-验收标准：
-- 用户可以主要用键盘复核。
-- 在大照片列表下 UI 仍保持响应。
-- 状态变更可靠。
-- 测试通过。
-- 测试通过后再提交。
+Acceptance criteria:
+- User can review mostly by keyboard.
+- UI remains responsive with large photo lists.
+- Status changes are reliable.
+- Tests pass.
+- Commit after tests pass.
 
-Phase 4：v2.3 导出与互操作
-目标：
-让导出可靠，并对下游编辑工具有用。
+Phase 4: v2.3 Export and Interoperability
+Goal:
+Make export reliable and useful for downstream editing tools.
 
-需求：
-- 改进 CSV 导出。
-- 改进 ZIP 导出。
-- 改进文件夹复制导出。
-- 确保 CSV 和 ZIP 有浏览器下载端点。
-- 在 UI 中显示 selected_count、导出类型和输出路径。
-- 阻止空导出请求。
-- 在可行时添加导出历史。
-- 规划但不必实现 XMP sidecar 导出。
-- 添加测试以验证：
-  - 文件存在
-  - 文件内容正确
-  - 所选状态过滤器被遵守
-  - 原始文件未被修改
-  - 下载端点可用
+Requirements:
+- Improve CSV export.
+- Improve ZIP export.
+- Improve folder copy export.
+- Ensure CSV and ZIP have browser download endpoints.
+- Show selected_count, export type, and output path in UI.
+- Prevent empty export requests.
+- Add export history if practical.
+- Plan, but do not necessarily implement, XMP sidecar export.
+- Add tests verifying:
+  - file exists
+  - file content is correct
+  - selected status filter is respected
+  - original files are not modified
+  - download endpoint works
 
-验收标准：
-- 可以从浏览器下载 CSV 和 ZIP。
-- 文件夹导出会清楚显示本地输出路径。
-- 导出测试通过。
-- 测试通过后再提交。
+Acceptance criteria:
+- CSV and ZIP can be downloaded from browser.
+- Folder export clearly shows local output path.
+- Export tests pass.
+- Commit after tests pass.
 
-Phase 5：v2.4 算法质量升级
-目标：
-改进确定性分组、排序和解释。
+Phase 5: v2.4 Algorithm Quality Upgrade
+Goal:
+Improve deterministic grouping, ranking, and explanations.
 
-需求：
-- 添加或改进感知哈希存储。
-- 添加 union-find 分组。
-- 组合：
-  - 拍摄时间接近
-  - 文件名序列接近
-  - 感知哈希距离
-  - 尺寸
-  - 相机型号
-  - 焦距
-- 时间间隔过大时拆分组。
-- 在可行时添加组置信度。
-- 改进排序公式。
-- 改进保守的基于规则的解释。
-- 让人脸和睁眼信号明确标为实验性。
-- 添加确定性测试：
-  - 锐利图像胜过模糊的相似图像
-  - 过曝/欠曝图像被惩罚
-  - 连拍类序列正确分组
-  - 无关图像不会被过度合并
-  - 解释与排序原因匹配
+Requirements:
+- Add or improve perceptual hash storage.
+- Add union-find grouping.
+- Combine:
+  - capture time proximity
+  - filename sequence proximity
+  - perceptual hash distance
+  - dimensions
+  - camera model
+  - focal length
+- Split groups when time gaps are too large.
+- Add group confidence if practical.
+- Improve ranking formula.
+- Improve conservative rule-based explanations.
+- Make face and eye-open signals clearly experimental.
+- Add deterministic tests for:
+  - sharp image beats blurry similar image
+  - overexposed/underexposed image is penalized
+  - burst-like sequence groups correctly
+  - unrelated images are not over-merged
+  - explanations match ranking reasons
 
-验收标准：
-- 相似连拍照片分组更可靠。
-- 更清晰的图像排在模糊的相似图像之上。
-- 解释保守且可追溯。
-- 测试通过。
-- 测试通过后再提交。
+Acceptance criteria:
+- Similar burst photos group more reliably.
+- Clearer images rank above blurry similar images.
+- Explanations are conservative and traceable.
+- Tests pass.
+- Commit after tests pass.
 
-Phase 6：v2.5 性能与可靠性
-目标：
-验证大批量行为。
+Phase 6: v2.5 Performance and Reliability
+Goal:
+Validate large-batch behavior.
 
-需求：
-- 添加合成数据集生成脚本，用于：
-  - 100 张照片
-  - 500 张照片
-  - 2,000 张照片
-- 在可行处添加性能 smoke 测试。
-- 分析明显瓶颈。
-- 改进数据库查询模式。
-- 改进前端大列表渲染。
-- 为中断或重复处理添加恢复测试。
-- 确保处理可以安全重跑且不损坏数据。
+Requirements:
+- Add synthetic dataset generation scripts for:
+  - 100 photos
+  - 500 photos
+  - 2,000 photos
+- Add performance smoke tests where feasible.
+- Profile obvious bottlenecks.
+- Improve database query patterns.
+- Improve frontend large-list rendering.
+- Add recovery tests for interrupted or repeated processing.
+- Ensure processing can be rerun safely without corrupting data.
 
-验收标准：
-- 覆盖 100 张照片工作流。
-- 500 张照片工作流有文档或测试。
-- 2,000 张照片工作流在目标环境中不崩溃，或有带测量上限的文档。
-- 测试/检查通过。
-- 测试通过后再提交。
+Acceptance criteria:
+- 100-photo workflow is covered.
+- 500-photo workflow is documented or tested.
+- 2,000-photo workflow does not crash in intended environment or is documented with measured limits.
+- Tests/checks pass.
+- Commit after tests pass.
 
-Phase 7：v2.6 可选高级支持
-目标：
-仅在 v2 核心稳定后，准备可选高级支持。
+Phase 7: v2.6 Optional Advanced Support
+Goal:
+Only after the v2 core is stable, prepare optional advanced support.
 
-仅在更早阶段大体完成后才允许：
-- HEIC 预览支持。
-- RAW 内嵌预览提取。
-- 可选模型注册表。
-- 可选本地人脸检测模型。
-- 可选本地 embedding 模型。
-- 模型下载、许可证、体积和性能的文档。
+Allowed only after earlier phases are substantially complete:
+- HEIC preview support.
+- RAW embedded preview extraction.
+- Optional model registry.
+- Optional local face detection model.
+- Optional local embedding model.
+- Documentation for model download, license, size, and performance.
 
-规则：
-- 不要打包大模型文件。
-- 模型必须是可选的。
-- 仅本地推理。
-- 现有 JPEG 工作流必须保持稳定。
+Rules:
+- Do not bundle large model files.
+- Models must be optional.
+- Local inference only.
+- Existing JPEG workflow must remain stable.
 
-每次迭代的工作流细节：
+Per-iteration workflow details:
 
-每次迭代开始时：
-- 打印或记录所选需求。
-- 识别预期要改的文件。
-- 识别要运行的测试。
-- 保持范围小。
+At the start of each iteration:
+- Print or record the selected requirement.
+- Identify expected files to change.
+- Identify tests to run.
+- Keep the scope small.
 
-实现期间：
-- 优先做最小变更。
-- 在可能时保持 API 向后兼容。
-- 行为变化时更新文档。
-- 与实现一起更新测试。
-- 避免大范围无关重构。
+During implementation:
+- Prefer minimal changes.
+- Keep APIs backward compatible where possible.
+- Update docs when behavior changes.
+- Update tests alongside implementation.
+- Avoid broad unrelated refactors.
 
-每次提交前：
-运行相关检查。
+Before each commit:
+Run the relevant checks.
 
-在可用时使用这些命令：
+Use these commands when available:
 - `npm run test`
-- 当 UI 或工作流变更影响 E2E 时，使用 `npm run test:e2e`
-- 如果可用，使用 `npm run lint`
-- 如果可用，使用 `npm run typecheck`
-- 如果可用，使用 `npm run verify`
-- 如果根脚本不可用，使用 backend pytest 命令
-- 如果根脚本不可用，使用 frontend test/build 命令
+- `npm run test:e2e` when UI or workflow changes affect E2E
+- `npm run lint` if available
+- `npm run typecheck` if available
+- `npm run verify` if available
+- backend pytest command if root script is unavailable
+- frontend test/build command if root script is unavailable
 
-如果某个命令缺失：
-- 仅在它属于当前需求范围内时才添加。
-- 否则记录实际使用的精确回退命令。
+If a command is missing:
+- Add it only if doing so is within the current requirement.
+- Otherwise document the exact fallback command used.
 
-如果测试失败：
-- 不要提交。
-- 修复失败。
-- 重新运行失败的测试。
-- 重复直到变绿。
+If tests fail:
+- Do not commit.
+- Fix the failure.
+- Rerun the failed tests.
+- Repeat until green.
 
-如果测试不稳定或依赖环境：
-- 再运行一次。
-- 如果仍然失败，检查原因。
-- 如果与你的变更相关，则修复。
-- 如果无关，清楚记录它，并避免提交无关 hack。
+If a test is flaky or environment-dependent:
+- Rerun once.
+- If still failing, inspect the cause.
+- Fix if it is related to your changes.
+- If unrelated, document it clearly and avoid committing unrelated hacks.
 
-Git 提交规则：
-- 只在测试通过后提交。
-- 使用聚焦的提交说明。
-- 使用这种风格：
+Git commit rules:
+- Commit only after tests pass.
+- Use a focused commit message.
+- Use this style:
   - `v2: add job progress polling`
   - `v2: improve export download workflow`
   - `v2: add deterministic grouping tests`
   - `docs: update v2 processing architecture`
   - `test: add real local smoke workflow`
-- 不要为多个里程碑创建一次巨大提交。
-- 不要提交生成的缓存、私人照片、临时导出、node_modules、virtualenvs 或大二进制文件。
-- 每次提交前运行 `git status`。
-- 每次提交前审阅 `git diff --stat` 和相关 `git diff`。
-- 提交后再次运行 `git status`，确认工作树干净，或只包含下一迭代的有意文件。
+- Do not create one huge commit for multiple milestones.
+- Do not commit generated caches, private photos, temporary exports, node_modules, virtualenvs, or large binary files.
+- Run `git status` before every commit.
+- Review `git diff --stat` and relevant `git diff` before every commit.
+- After committing, run `git status` again and confirm the working tree is clean or only contains intentional files for the next iteration.
 
-提交前的建议命令模式：
+Suggested command pattern before commit:
 
 ```bash
 git status
@@ -369,43 +369,43 @@ git commit -m "v2: <focused summary>"
 git status
 ```
 
-如果对每次很小的纯后端变更来说 `npm run test:e2e` 太慢：
-- 在 UI/工作流变更后运行它。
-- 在完成长时间任务之前至少运行一次。
-- 记录何时跳过以及原因。
-- 仍要为当前需求运行相关的后端/前端测试。
+If `npm run test:e2e` is too slow for every small backend-only change:
+- Run it after UI/workflow changes.
+- Run it at least once before finishing the long-running task.
+- Document when it was skipped and why.
+- Still run the relevant backend/frontend tests for the current requirement.
 
-文档要求：
-行为变化时保持这些文档同步：
+Documentation requirements:
+Keep these documents synchronized when behavior changes:
 - README.md
 - develop_plan.md
 - docs/architecture.md
 - docs/api.md
 - docs/scoring.md
-- docs/v2_testing_strategy.md，如果存在
-- AGENTS.md，如果项目规则变化
+- docs/v2_testing_strategy.md if it exists
+- AGENTS.md if project rules change
 
-不要为每个微小变更过度写文档，但要保持面向用户的 setup、API 行为、处理流程和测试说明准确。
+Do not over-document every minor change, but keep user-facing setup, API behavior, processing flow, and testing instructions accurate.
 
-停止条件：
-如果出现以下情况，停止长时间迭代并做总结：
-- `develop_plan.md` 中全部 v2.0 Definition of Done 项已完成，或
-- 某个阻塞性架构决策需要产品负责人输入，或
-- 外部依赖或环境问题阻止安全推进，或
-- 在合理的聚焦调试后测试仍无法变绿。
+Stop conditions:
+Stop the long-running iteration and summarize if:
+- all v2.0 Definition of Done items in `develop_plan.md` are complete, or
+- a blocking architectural decision requires product owner input, or
+- an external dependency or environment issue prevents safe progress, or
+- tests cannot be made green after reasonable focused debugging.
 
-停止后的最终响应：
-提供简洁但完整的总结：
-1. 分支名。
-2. 已创建的提交。
-3. 已完成的需求。
-4. 已运行的测试/检查及结果。
-5. 剩余 v2 缺口。
-6. 已知风险。
-7. 推荐的下一个 Codex goal 提示词。
+Final response after stopping:
+Provide a concise but complete summary:
+1. Branch name.
+2. Commits created.
+3. Requirements completed.
+4. Tests/checks run and results.
+5. Remaining v2 gaps.
+6. Known risks.
+7. Recommended next Codex goal prompt.
 
-最重要的指示：
-在当前需求已实现、已测试、已通过、已审阅并已提交到 Git 之前，绝不进入下一个需求。
+Most important instruction:
+Never move to the next requirement until the current requirement is implemented, tested, passing, reviewed, and committed to Git.
 ```
 
 ## 3. 简短继续提示词
@@ -413,15 +413,15 @@ git status
 在 Codex 已经开始 v2 开发、你只希望它继续同一循环时，使用这个更短的提示词。
 
 ```text
-在当前分支上继续 FramePilot v2 开发。
+Continue FramePilot v2 development on the current branch.
 
-先阅读 `develop_plan.md`、`AGENTS.md` 和最新 Git 历史。
+Read `develop_plan.md`, `AGENTS.md`, and the latest Git history first.
 
-从 v2 计划中恰好挑选一个聚焦的剩余需求。实现它，添加或更新测试，运行相关检查，修复失败直到变绿，审阅 diff，将该已完成需求提交到 Git，然后才进入下一个需求。
+Pick exactly one focused remaining requirement from the v2 plan. Implement it, add or update tests, run the relevant checks, fix failures until green, review the diff, commit the completed requirement to Git, and only then proceed to the next requirement.
 
-不要跳过测试。不要提交失败的测试。不要在一次提交中混合无关变更。保持 FramePilot 本地优先。不要修改或删除原始照片。不要添加云上传、登录、支付、远程照片处理或打包的大模型文件。
+Do not skip tests. Do not commit failing tests. Do not mix unrelated changes in one commit. Keep FramePilot local-first. Do not modify or delete original photos. Do not add cloud upload, login, payment, remote photo processing, or large bundled model files.
 
-最后，总结已创建的提交、已运行的测试、已完成的需求、剩余缺口，以及下一个推荐需求。
+At the end, summarize the commits created, tests run, completed requirements, remaining gaps, and the next recommended requirement.
 ```
 
 ## 4. 仅文档审阅提示词
@@ -429,25 +429,25 @@ git status
 当你希望 Codex 审阅当前仓库并只更新规划文档时，使用此提示词。
 
 ```text
-你正在 FramePilot 仓库中工作。
+You are working in the FramePilot repository.
 
-这是一个仅文档审阅任务。
+This is a documentation-only review task.
 
-只创建或更新本提示词中明确提到的文档文件。不要修改生产源代码、测试、依赖、构建脚本，或在仓库范围内做格式化。
+Only create or update documentation files explicitly mentioned in this prompt. Do not modify production source code, tests, dependencies, build scripts, or formatting across the repository.
 
-对照 `develop_plan.md`、`AGENTS.md`、`README.md`、`docs/architecture.md`、`docs/api.md`、`docs/scoring.md`、后端源码、前端源码和测试，审阅当前项目状态。
+Review the current project state against `develop_plan.md`, `AGENTS.md`, `README.md`, `docs/architecture.md`, `docs/api.md`, `docs/scoring.md`, the backend source, frontend source, and tests.
 
-更新或创建所请求的审阅文档，包含：
-- 当前实现状态
-- 已完成的 v2 需求
-- 剩余 v2 缺口
-- 风险
-- 测试状态
-- 推荐的下一迭代
+Update or create the requested review document with:
+- current implementation status
+- completed v2 requirements
+- remaining v2 gaps
+- risks
+- test status
+- recommended next iteration
 
-如果测试可以安全运行，运行相关测试并记录结果。如果无法运行测试，记录原因。
+If tests are safe to run, run the relevant tests and record results. If tests cannot be run, document why.
 
-不要在此任务中实现功能。
+Do not implement features in this task.
 ```
 
 ## 5. 首次 v2 迭代提示词
@@ -455,46 +455,46 @@ git status
 如果你希望 Codex 只聚焦第一个 v2 实现里程碑，使用此提示词。
 
 ```text
-你正在 FramePilot 仓库中工作。
+You are working in the FramePilot repository.
 
-只聚焦第一次 v2 实现迭代：基于任务的处理进度和真实集成覆盖。
+Focus only on the first v2 implementation iteration: job-based processing progress and real integration coverage.
 
-先阅读 `develop_plan.md`、`AGENTS.md`、`README.md`、`docs/architecture.md`、`docs/api.md`、后端源码、前端源码和测试。
+Read `develop_plan.md`, `AGENTS.md`, `README.md`, `docs/architecture.md`, `docs/api.md`, backend source, frontend source, and tests first.
 
-目标：
-在不改变产品范围的前提下，实现基于任务的处理进度和真实集成覆盖。
+Objective:
+Implement job-based processing progress and real integration coverage without changing the product scope.
 
-任务：
-1. 审阅当前处理代码。
-2. 确保 `ProcessingJob` 记录所有必需阶段和进度字段。
-3. 在可行时让 `/process` 快速返回 job id。
-4. 添加或改进 `/jobs/{job_id}` 轮询。
-5. 更新前端处理 UI，以显示真实进度。
-6. 使用生成的合成图像添加后端集成测试。
-7. 为失败或不支持的文件添加测试。
-8. 记录更新后的处理流程。
+Tasks:
+1. Review current processing code.
+2. Ensure `ProcessingJob` records all required stages and progress fields.
+3. Make `/process` return a job id quickly if practical.
+4. Add or improve `/jobs/{job_id}` polling.
+5. Update frontend processing UI to show real progress.
+6. Add backend integration tests using generated synthetic images.
+7. Add tests for failed or unsupported files.
+8. Document the updated processing flow.
 
-硬约束：
-- 保留 v1 工作流。
-- 保持 FramePilot 本地优先。
-- 不要修改或删除原始照片。
-- 不要添加云上传、登录、支付或大模型文件。
-- 不要在此迭代中实现 RAW/HEIC 或重量级 AI 模型。
-- 代码、测试和提交说明使用英文。活文档是双语的（英文页面加上匹配的中文 `*.zh.md`）。
+Hard constraints:
+- Preserve v1 workflow.
+- Keep FramePilot local-first.
+- Do not modify or delete original photos.
+- Do not add cloud upload, login, payment, or large model files.
+- Do not implement RAW/HEIC or heavy AI models in this iteration.
+- Use English for code, tests, and commit messages. Living documentation is bilingual (English page plus matching Chinese `*.zh.md`).
 
-提交之前：
-- 运行相关后端测试。
-- 如果前端有变更，运行前端 tests/build。
-- 如果工作流变更需要，运行 E2E。
-- 修复失败直到变绿。
-- 审阅 diff。
+Before committing:
+- Run relevant backend tests.
+- Run frontend tests/build if frontend changed.
+- Run E2E if workflow changes require it.
+- Fix failures until green.
+- Review the diff.
 
-只在测试通过后提交。
+Commit only after tests pass.
 
-使用聚焦的提交说明，例如：
+Use a focused commit message such as:
 `v2: add job-based processing progress`
 
-提交后，总结变更文件、已运行测试、结果，以及下一个推荐的 v2 需求。
+After committing, summarize changed files, tests run, results, and the next recommended v2 requirement.
 ```
 
 ## 6. 说明
