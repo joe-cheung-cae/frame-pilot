@@ -3,6 +3,7 @@ name = "framepilot-desktop"
 version = "2.0.0-rc2"
 description = "FramePilot desktop shell"
 authors = ["FramePilot"]
+license = "MIT"
 edition = "2021"
 
 [lib]

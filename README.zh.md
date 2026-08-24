@@ -140,3 +140,7 @@ npm run perf:api -- --output /tmp/framepilot-perf-targets --counts 100 500 2000
 v2 基础不会把原片或生成的预览上传到任何远程服务。导入的图像被复制到本地项目目录，因此原片永不被修改。
 
 实验性人脸与睁眼分数用确定性的颜色和亮度启发式在本地计算。它们是本地排序提示，不是捆绑的专业人脸检测或生物特征模型。
+
+## 许可证
+
+FramePilot 以 [MIT License](LICENSE) 发布。
