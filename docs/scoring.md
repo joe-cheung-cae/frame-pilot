@@ -1,5 +1,7 @@
 # Scoring
 
+> Language: **English** | [中文](scoring.zh.md)
+
 The MVP scoring model is deterministic and explainable.
 
 ## Technical Scores

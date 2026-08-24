@@ -1,5 +1,7 @@
 # FramePilot v2 Real-World Algorithm Validation Notes
 
+> Language: **English** | [中文](v2_real_world_validation_notes.zh.md)
+
 Use this record for the non-private Openverse CC0/PDM photograph pass. Do not paste private filenames, private paths, sensitive metadata, or generated project artifacts into this file.
 
 ## Dataset Summary

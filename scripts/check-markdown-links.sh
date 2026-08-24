@@ -16,7 +16,7 @@ if not root.is_dir():
     print(f"Markdown link check failed: '{root}' is not a directory.", file=sys.stderr)
     raise SystemExit(1)
 
-NAMED_FILES = ("README.md", "develop_plan.md", "implement_goals.md")
+NAMED_STEMS = ("README", "AGENTS", "develop_plan", "implement_goals")
 FENCE_RE = re.compile(
     r"^(?P<fence>`{3,}|~{3,})[^\n]*\n(?:.*?\n)?(?P=fence)[ \t]*$",
     re.MULTILINE | re.DOTALL,
@@ -24,18 +24,34 @@ FENCE_RE = re.compile(
 INLINE_CODE_RE = re.compile(r"`[^`]*`")
 LINK_RE = re.compile(r"!?\[(?:[^\]]|\\.)*\]\(\s*([^)]+)\)")
 REMOTE_PREFIXES = ("http://", "https://", "mailto:", "ftp://", "data:")
+STALE_FILES = ("docs/plans/2026-08-18-desktop-packaging-review.md",)
 
 
 def living_markdown_files(base: Path) -> list[Path]:
     files: list[Path] = []
-    for name in NAMED_FILES:
-        path = base / name
-        if path.is_file():
-            files.append(path)
+    seen: set[Path] = set()
+    for stem in NAMED_STEMS:
+        for name in (f"{stem}.md", f"{stem}.zh.md"):
+            path = base / name
+            if path.is_file():
+                resolved = path.resolve()
+                files.append(path)
+                seen.add(resolved)
     docs = base / "docs"
     if docs.is_dir():
-        files.extend(sorted(path for path in docs.rglob("*.md") if path.is_file()))
+        for path in sorted(p for p in docs.rglob("*.md") if p.is_file()):
+            resolved = path.resolve()
+            if resolved not in seen:
+                files.append(path)
+                seen.add(resolved)
     return files
+
+
+def counterpart_path(path: Path) -> Path:
+    name = path.name
+    if name.endswith(".zh.md"):
+        return path.with_name(name[: -len(".zh.md")] + ".md")
+    return path.with_name(path.stem + ".zh.md")
 
 
 def blank_code_spans(text: str) -> str:
@@ -62,30 +78,77 @@ def link_destination(raw: str) -> str | None:
     return dest or None
 
 
+def resolved_markdown_targets(source: Path, text: str) -> list[Path]:
+    targets: list[Path] = []
+    for match in LINK_RE.finditer(blank_code_spans(text)):
+        dest = link_destination(match.group(1))
+        if dest is None:
+            continue
+        targets.append((source.parent / dest).resolve())
+    return targets
+
+
 errors: list[str] = []
+
+handoff = root / "docs" / "handoff"
+if handoff.exists():
+    errors.append("stale handoff path present: docs/handoff")
+    if handoff.is_dir():
+        for path in sorted(p for p in handoff.rglob("*") if p.is_file()):
+            errors.append(f"stale handoff path present: {path.relative_to(root).as_posix()}")
+    elif handoff.is_file():
+        errors.append("stale handoff path present: docs/handoff")
+
+for rel in STALE_FILES:
+    stale = root / rel
+    if stale.exists():
+        errors.append(f"stale plan path present: {rel}")
+
 scanned = living_markdown_files(root)
 if not scanned:
     print(
-        "Markdown link check failed: no README.md, develop_plan.md, "
+        "Markdown link check failed: no README.md, AGENTS.md, develop_plan.md, "
         "implement_goals.md, or docs/**/*.md files found.",
         file=sys.stderr,
     )
     raise SystemExit(1)
 
 for source in scanned:
-    text = blank_code_spans(source.read_text(encoding="utf-8"))
-    for match in LINK_RE.finditer(text):
-        dest = link_destination(match.group(1))
-        if dest is None:
+    rel_source = source.relative_to(root).as_posix()
+    text = source.read_text(encoding="utf-8")
+    if not text.strip():
+        errors.append(f"empty living page: {rel_source}")
+        continue
+    counterpart = counterpart_path(source)
+    if not counterpart.is_file():
+        kind = "Chinese" if source.name.endswith(".zh.md") else "English"
+        other = "English" if kind == "Chinese" else "Chinese"
+        errors.append(
+            f"missing {other} counterpart for {rel_source}: "
+            f"{counterpart.relative_to(root).as_posix()}"
+        )
+    elif not counterpart.read_text(encoding="utf-8").strip():
+        errors.append(
+            f"empty living page: {counterpart.relative_to(root).as_posix()}"
+        )
+    else:
+        targets = resolved_markdown_targets(source, text)
+        if counterpart.resolve() not in targets:
+            errors.append(
+                f"missing counterpart link: {rel_source} -> "
+                f"{counterpart.relative_to(root).as_posix()}"
+            )
+    for dest in LINK_RE.finditer(blank_code_spans(text)):
+        raw = link_destination(dest.group(1))
+        if raw is None:
             continue
-        target = (source.parent / dest).resolve()
+        target = (source.parent / raw).resolve()
         if target.exists():
             continue
-        rel_source = source.relative_to(root).as_posix()
-        errors.append(f"{rel_source} -> {dest}")
+        errors.append(f"{rel_source} -> {raw}")
 
 if errors:
-    print("Markdown link check failed: missing target file(s):", file=sys.stderr)
+    print("Markdown link check failed:", file=sys.stderr)
     for error in errors:
         print(error, file=sys.stderr)
     raise SystemExit(1)

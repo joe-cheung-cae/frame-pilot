@@ -1,5 +1,7 @@
 # FramePilot v2 Development Plan
 
+> Language: **English** | [中文](develop_plan.zh.md)
+
 ## 1. Project Overview
 
 FramePilot v2 is a local-first, desktop-like AI-assisted photo culling application for serious hobby photographers and semi-professional photographers. It evolves the v1 MVP from a proof-of-concept local web app into a more reliable, scalable, and workflow-oriented photo selection tool.
@@ -189,7 +191,7 @@ Keep the following v1 foundations:
 - Existing Project, Photo, PhotoGroup, ProcessingJob concepts.
 - Existing import, scoring, grouping, review, and export concepts.
 - Existing local-first safety rules.
-- Existing English-only code and documentation convention.
+- Existing English code, comments, tests, and commit-message convention; living documentation is bilingual (English page plus matching Chinese `*.zh.md`).
 
 ### 9.2 Refactor in v2
 
@@ -926,7 +928,7 @@ When using Codex to implement v2, follow these rules:
 4. Do not add cloud upload, user accounts, payment, or remote photo processing.
 5. Do not modify or delete original photos.
 6. Do not commit large model files.
-7. Use English for all code, comments, tests, docs, and commit messages.
+7. Use English for all code, comments, tests, and commit messages. Living documentation is bilingual (English page plus matching Chinese `*.zh.md`).
 8. Prefer small, deterministic, testable algorithms before optional AI models.
 9. Add or update tests for scoring, grouping, jobs, export, and file safety.
 10. Run relevant tests before finishing.

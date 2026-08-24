@@ -1,5 +1,7 @@
 # FramePilot v2 Milestones
 
+> Language: **English** | [中文](v2_milestones.zh.md)
+
 This document turns the v2 plan into practical development checkpoints. Each milestone should be implemented as small, reviewable commits with tests and documentation updated in the same slice.
 
 ## v2.0 Foundation

@@ -1,5 +1,7 @@
 # FramePilot
 
+> Language: **English** | [中文](README.zh.md)
+
 FramePilot is a local-first AI-assisted photo culling web app. The current v2 local MVP-plus foundation keeps originals on the user's machine, generates local previews, computes explainable technical scores, groups similar frames, recommends the strongest image in each group, and lets the user override every decision.
 
 ## Current v2 Foundation

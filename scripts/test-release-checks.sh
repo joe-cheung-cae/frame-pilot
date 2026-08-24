@@ -236,18 +236,80 @@ expect_failure \
   "" \
   rg "private-family-name|sensitive-place" "$tier_a_notes"
 
+write_pair() {
+  local path="$1"
+  local title="$2"
+  local extra="${3:-}"
+  local dir
+  dir="$(dirname "$path")"
+  local base
+  base="$(basename "$path" .md)"
+  mkdir -p "$dir"
+  printf '# %s\n\n> Language: **English** | [中文](%s.zh.md)\n\n%s' \
+    "$title" "$base" "$extra" > "$path"
+  printf '# %s\n\n> 语言：[English](%s.md) | **中文**\n\n%s' \
+    "$title" "$base" "$extra" > "${path%.md}.zh.md"
+}
+
 link_root="$tmpdir/markdown-links"
 mkdir -p "$link_root/docs"
-printf '# Root\n\nSee [API](docs/api.md).\n' > "$link_root/README.md"
-printf '# Plan\n' > "$link_root/develop_plan.md"
-printf '# Goals\n' > "$link_root/implement_goals.md"
-printf '# API\n\nSee [Scoring](scoring.md) and [remote](https://example.com/missing.md).\n' \
-  > "$link_root/docs/api.md"
-printf '# Scoring\n' > "$link_root/docs/scoring.md"
+write_pair "$link_root/README.md" "Root" "See [API](docs/api.md).\n"
+write_pair "$link_root/develop_plan.md" "Plan"
+write_pair "$link_root/implement_goals.md" "Goals"
+write_pair "$link_root/docs/api.md" "API" \
+  "See [Scoring](scoring.md) and [remote](https://example.com/missing.md).\n"
+write_pair "$link_root/docs/scoring.md" "Scoring"
 
 expect_success \
   "markdown link check accepts existing relative targets" \
   bash scripts/check-markdown-links.sh "$link_root"
+
+missing_zh="$tmpdir/missing-zh"
+cp -a "$link_root" "$missing_zh"
+rm -f "$missing_zh/README.zh.md"
+
+expect_failure \
+  "markdown link check rejects a missing Chinese counterpart" \
+  "missing Chinese counterpart" \
+  bash scripts/check-markdown-links.sh "$missing_zh"
+
+empty_zh="$tmpdir/empty-zh"
+cp -a "$link_root" "$empty_zh"
+printf '   \n' > "$empty_zh/README.zh.md"
+
+expect_failure \
+  "markdown link check rejects an empty Chinese counterpart" \
+  "empty living page" \
+  bash scripts/check-markdown-links.sh "$empty_zh"
+
+missing_link="$tmpdir/missing-link"
+cp -a "$link_root" "$missing_link"
+printf '# Root\n\nSee [API](docs/api.md).\n' > "$missing_link/README.md"
+
+expect_failure \
+  "markdown link check rejects a missing counterpart link" \
+  "missing counterpart link" \
+  bash scripts/check-markdown-links.sh "$missing_link"
+
+stale_handoff="$tmpdir/stale-handoff"
+cp -a "$link_root" "$stale_handoff"
+mkdir -p "$stale_handoff/docs/handoff"
+printf '# stale\n' > "$stale_handoff/docs/handoff/STATUS.md"
+
+expect_failure \
+  "markdown link check rejects a stale handoff path" \
+  "stale handoff path present" \
+  bash scripts/check-markdown-links.sh "$stale_handoff"
+
+stale_review="$tmpdir/stale-review"
+cp -a "$link_root" "$stale_review"
+mkdir -p "$stale_review/docs/plans"
+printf '# stale review\n' > "$stale_review/docs/plans/2026-08-18-desktop-packaging-review.md"
+
+expect_failure \
+  "markdown link check rejects a stale packaging-review path" \
+  "packaging-review" \
+  bash scripts/check-markdown-links.sh "$stale_review"
 
 printf '\nSee [Missing](docs/does-not-exist.md).\n' >> "$link_root/README.md"
 

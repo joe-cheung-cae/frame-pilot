@@ -1,24 +1,24 @@
-# FramePilot Desktop Goal Mode Prompts
+# FramePilot 桌面 Goal Mode 提示词
 
-> Language: **English** | [中文](desktop_goal_mode.zh.md)
+> 语言：[English](desktop_goal_mode.md) | **中文**
 
-## 1. Purpose
+## 1. 目的
 
-This document is the Grok Build / Codex Goal Mode entry point for the desktop packaging track.
+本文档是桌面打包轨道的 Grok Build / Codex Goal Mode 入口。
 
-The product plan is `docs/desktop_development_plan.md`.
-The executable backlog and living tracker is `docs/plans/2026-08-18-desktop-packaging.md` (start at **D0.00**; status is §5.1).
-The 2026-08-18 Opus 5 review findings were folded into that plan; the review file was removed as redundant.
+产品计划是 `docs/desktop_development_plan.md`。
+可执行待办与活跟踪器是 `docs/plans/2026-08-18-desktop-packaging.md`（从 **D0.00** 开始；状态见 §5.1）。
+2026-08-18 的 Opus 5 审阅结论已并入该计划；审阅文件因冗余已删除。
 
-Phase 0–2 are already on `main`. Remaining desktop work is Phase 3–5. Do not recreate `docs/handoff/*` (including `STATUS.md`). `docs/handoff` is retired.
+Phase 0–2 已在 `main` 上。剩余桌面工作是 Phase 3–5。不要重建 `docs/handoff/*`（包括 `STATUS.md`）。`docs/handoff` 已退役。
 
-FramePilot today is a local web app (`2.0.0-rc2`): Next.js on port 3000 and FastAPI on port 8000. The desktop track wraps that stack as a Tauri 2 app with a PyInstaller sidecar. It must stay local-first and must never modify original photos.
+FramePilot 当前是本地 Web 应用（`2.0.0-rc2`）：Next.js 在 port 3000，FastAPI 在 port 8000。桌面轨道把该栈包装为带 PyInstaller sidecar 的 Tauri 2 应用。必须保持本地优先，且永不修改原片。
 
-Use the long prompt for a fresh long-running session. Use the short prompt to continue. Use the documentation-only prompt to update notes without code.
+新的长时会话使用长提示词。续跑使用短提示词。只更新说明、不改代码时使用仅文档提示词。
 
-## 2. Long-Running Goal Mode Prompt
+## 2. 长时 Goal Mode 提示词
 
-Copy everything inside the following fence into Goal Mode.
+将下面围栏内的全部内容复制到 Goal Mode。
 
 ```text
 You are working in the FramePilot repository.
@@ -215,7 +215,7 @@ Most important instruction:
 Never move to the next task id until the current task is implemented, tested, passing, reviewed, and committed to Git.
 ```
 
-## 3. Short Continue Prompt
+## 3. 短续跑提示词
 
 ```text
 Continue FramePilot desktop packaging on the current branch.
@@ -231,7 +231,7 @@ Do not skip tests. Do not commit failing tests. Do not mix unrelated changes. Ke
 At the end, summarize commits, tests, completed task ids, remaining task ids, and the next recommended task.
 ```
 
-## 4. Documentation-Only Review Prompt
+## 4. 仅文档审阅提示词
 
 ```text
 You are working in the FramePilot repository.
@@ -250,11 +250,11 @@ Update docs/desktop_feasibility_notes.md and, if needed, docs/v2_known_limitatio
 If tests are safe to run, run npm run test:api and record results. Do not implement features.
 ```
 
-## 5. Remaining Work Prompt (Phase 3–5)
+## 5. 剩余工作提示词（Phase 3–5）
 
-Use this after Phase 0–2 are on `main`. Copy everything inside the following fence into Grok Build Goal Mode. Do **not** recreate `docs/handoff/*` (including `STATUS.md`).
+在 Phase 0–2 已在 `main` 上之后使用。将下面围栏内的全部内容复制到 Grok Build Goal Mode。**不要**重建 `docs/handoff/*`（包括 `STATUS.md`）。
 
-The living tracker is `docs/plans/2026-08-18-desktop-packaging.md` §5.1. Historical Phase 0–2 / review-fix workflows under `.grok/workflows/` may remain as completed-phase scripts; they must not write retired handoff files.
+活跟踪器是 `docs/plans/2026-08-18-desktop-packaging.md` §5.1。`.grok/workflows/` 下历史的 Phase 0–2 / review-fix 工作流可以保留为已完成阶段的脚本；它们不得写入已退役的 handoff 文件。
 
 ```text
 You are working in the FramePilot repository.
@@ -348,9 +348,9 @@ Never merge to main.
 Never write docs/handoff/STATUS.md.
 ```
 
-## 6. Phase 0 Only Prompt
+## 6. 仅 Phase 0 提示词
 
-Phase 0 is already on `main`. Keep this prompt only as a historical bounded-spike template; do not re-run it or recreate `docs/handoff/*`.
+Phase 0 已在 `main` 上。仅把本提示词保留为历史有界 spike 模板；不要重跑它，也不要重建 `docs/handoff/*`。
 
 ```text
 You are working in the FramePilot repository on branch feature/desktop-packaging.
@@ -364,12 +364,12 @@ Hard constraints from AGENTS.md apply. Keep the Next.js web app working. Do not 
 Stop after D0.09 is committed and summarize.
 ```
 
-## 7. Notes
+## 7. 说明
 
-- The long prompt is the main autonomous desktop prompt for the full track. Phase 0–2 are already on `main`; remaining work is Phase 3–5.
-- For remaining Phase 3–5 work, use §5 instead of re-running completed Phase 0–2 workflows.
-- The detailed file paths, tests, and acceptance boxes live in `docs/plans/2026-08-18-desktop-packaging.md` §5.1. Do not recreate `docs/handoff/*`.
-- Keep `implement_goals.md` for the older v2 web Goal Mode. Do not mix v2 algorithm work into a desktop Goal Mode session unless the desktop plan’s current task requires a tiny shared-code fix.
-- First desktop product version: `2.1.0-desktop`. `3.0.0` is not on the table.
-- Execution order originally started at D0.00 (CI verify). New sessions start at the lowest incomplete §5.1 id (Phase 3–5).
-- The only source of truth for task status is §5.1 of the implementation plan.
+- 长提示词是整条桌面轨道的主要自主桌面提示词。Phase 0–2 已在 `main` 上；剩余工作是 Phase 3–5。
+- 剩余 Phase 3–5 工作请使用 §5，不要重跑已完成的 Phase 0–2 工作流。
+- 详细文件路径、测试和验收框在 `docs/plans/2026-08-18-desktop-packaging.md` §5.1。不要重建 `docs/handoff/*`。
+- 把 `implement_goals.md` 留给更早的 v2 Web Goal Mode。除非桌面计划的当前任务需要极小的共享代码修复，否则不要把 v2 算法工作混进桌面 Goal Mode 会话。
+- 首个桌面产品版本：`2.1.0-desktop`。`3.0.0` 不在讨论范围内。
+- 执行顺序最初从 D0.00（CI verify）开始。新会话从最低未完成的 §5.1 id 开始（Phase 3–5）。
+- 任务状态的唯一事实来源是实施计划的 §5.1。

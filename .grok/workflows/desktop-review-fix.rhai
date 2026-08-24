@@ -40,6 +40,7 @@ fn evidence_path() {
 
 fn shared_rules() {
     let s = "";
+    s += "docs/handoff is retired. Do not create, write, or restore any docs/handoff/* file (including STATUS.md). The living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Phase 0-2 are already on main; remaining work is Phase 3-5. Do not retick completed Phase 0-2 boxes. Do not write docs/handoff/STATUS.md.\n";
     s += "Repo: " + repo_path() + "\n";
     s += "Scratch (chmod 700, never shared /tmp): " + scratch_path() + "\n";
     s += "Also copy every capture named below into " + evidence_path() + " after writing it.\n";
@@ -61,7 +62,7 @@ fn shared_rules() {
     s += "Do not add Co-authored-by Cursor or similar trailers.\n";
     s += "F001 (joe-cheung-cae/frame-pilot#33) and F006 (joe-cheung-cae/frame-pilot#32) are ONE implementation. Do not write a second patch for F006.\n";
     s += "Never leave an orphan sidecar after start failure, retry, or quit.\n";
-    s += "If nothing is staged, do not make an empty commit; write the handoff first so there is a real change.\n";
+    s += "If nothing is staged, skip an empty commit. Do not recreate docs/handoff files.\n";
     s
 }
 
@@ -138,27 +139,27 @@ fn breakdown_prompt() {
     s += "This stage is documentation only. Do not implement production Rust/TS/Python. You MAY git-add the already-authored workflow file.\n";
     s += "Read with tools: AGENTS.md, develop_plan.md, docs/desktop_goal_mode.md, ";
     s += "docs/plans/2026-08-18-desktop-packaging.md (D1.09 and section 5.1 — Phase 1 boxes are already [x]; do not retick them), ";
-    s += "docs/handoff/STATUS.md, docs/v2_known_limitations.md, docs/desktop_feasibility_notes.md, ";
+    s += "docs/plans/2026-08-18-desktop-packaging.md, docs/v2_known_limitations.md, docs/desktop_feasibility_notes.md, ";
     s += "apps/desktop/src-tauri/src/lib.rs, apps/desktop/src-tauri/src/sidecar.rs, ";
     s += "apps/desktop/src-tauri/Cargo.toml (crate name framepilot-desktop, lib framepilot_desktop_lib).\n";
     s += "Read GitHub via gh: joe-cheung-cae/frame-pilot#30 (parent, verdict block, HEAD 7e545f80), ";
     s += "#33 F001 high, #35 F002 high, #36 F003 high, #34 F004 medium, #31 F005 medium, #32 F006 medium (same as F001). ";
     s += "Do not invent issue numbers. Always write owner/repo#N.\n";
     s += "Confirm git branch is feature/desktop-packaging and repo is " + repo_path() + ".\n";
-    s += "Write docs/handoff/review-fix-requirements.md with: goal, locked decisions, in-scope issue ids ";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "(joe-cheung-cae/frame-pilot#33 #35 #36 #34 #31 #32 and parent #30), out-of-scope ";
     s += "(Phases 2-5, APP_VERSION bump, PR/merge, closing issues, D1.01-D1.09 redo, cloud/login/payment, HEIC/RAW/XMP, bundled models, ";
     s += "output: export, FRAMEPILOT_PROJECT_ROOT_ALLOWLIST=$HOME, a second F006 patch), files, tests-first list, ";
     s += "acceptance boxes COPIED from #33 #35 #36 #34 #31 #32, and risks.\n";
     s += "State explicitly: F001==F006 one change; F003 is import-only (processing extra_button is empty and still parses); ";
     s += "F003+F004 must land together; ExitRequested needs prevent_exit; npm run verify stays rust-free.\n";
-    s += "Write/replace docs/handoff/STATUS.md with: current_stage=需求拆解, next_stage=评审, branch=feature/desktop-packaging, ";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "parent issue joe-cheung-cae/frame-pilot#30, in-scope sub-issues listed, tests_run=none (docs), ";
     s += "timestamp as ISO-8601 with timezone (run date '+%Y-%m-%dT%H:%M:%S%z' and format offset as +08:00 not +0800; never date-only).\n";
     s += "If .grok/workflows/desktop-review-fix.rhai exists, include it in this commit. Do not add desktop-packaging-review.rhai.\n";
     s += "Commit message exactly: docs: break down desktop review-fix requirements\n";
     s += "Then git push -u origin HEAD. Append log+status to scratch git-stage-commits.txt.\n";
-    s += "Return stage=需求拆解, commit=full sha, handoff=docs/handoff/STATUS.md, notes=summary. Set verdict only if needed; do not set verdict=reject.\n";
+    s += "Return stage=需求拆解, commit=full sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary. Set verdict only if needed; do not set verdict=reject.\n";
     s
 }
 
@@ -166,7 +167,7 @@ fn review_prompt() {
     let s = "";
     s += "You are grok-4.6 (medium effort, plan-oriented, adversarial) for stage 评审.\n";
     s += shared_rules();
-    s += "Read docs/handoff/review-fix-requirements.md, docs/handoff/STATUS.md, live apps/desktop/src-tauri/src/lib.rs and sidecar.rs, ";
+    s += "Read docs/plans/2026-08-18-desktop-packaging.md, docs/plans/2026-08-18-desktop-packaging.md, live apps/desktop/src-tauri/src/lib.rs and sidecar.rs, ";
     s += "and the GitHub issue bodies for joe-cheung-cae/frame-pilot#33 #35 #36 #34 #31 #32.\n";
     s += "Confirm against the live code, not the docs alone:\n";
     s += "1) F001==F006: lib.rs start_sidecar_process wait_for_ready_line ? and missing stdout drop Child without terminate_sidecar; health-fail path already terminates; retry reuses port and data-dir. One terminate-on-error + wait path. Also store_child must not keep a child if shutdown is set.\n";
@@ -174,12 +175,12 @@ fn review_prompt() {
     s += "3) F003+F004 must land together: today F003 makes F004 the live import-close path (2s timeout then unwrap_or CancelAndQuit).\n";
     s += "4) ExitRequested needs prevent_exit: app.run matches Exit | ExitRequested and always request_shutdown(); matches! discards ExitRequestApi.\n";
     s += "5) npm run verify must stay rust-free (package.json verify script must not grow rustc/cargo/tauri).\n";
-    s += "Write docs/handoff/review-fix-review.md with verdict accept-with-notes OR reject, findings, required tests-first list, and notes on extracting testable helpers (terminate-on-error Drop/guard, handshake Stay fallback, ExitRequested routing).\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "Reject ONLY if the breakdown contradicts locked decisions or the live defects. Missing-but-fixable nits are accept-with-notes, not reject. If you reject, still write the review file and STATUS, commit and push, and set structured verdict=reject.\n";
-    s += "Update STATUS.md: current_stage=评审, next_stage=归档 (or next_stage=none if reject). Timestamp ISO-8601 with timezone.\n";
+    s += "Do not write STATUS.md; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not retick completed Phase 0-2 boxes.\n";
     s += "Commit message exactly: docs: review desktop review-fix requirements\n";
     s += "Then git push -u origin HEAD. Append log+status to scratch.\n";
-    s += "Return stage=评审, commit=full sha, handoff=docs/handoff/STATUS.md, notes=summary, verdict=accept-with-notes or reject.\n";
+    s += "Return stage=评审, commit=full sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary, verdict=accept-with-notes or reject.\n";
     s
 }
 
@@ -187,8 +188,8 @@ fn archive_prompt() {
     let s = "";
     s += "You are grok-4.6 (low effort, general-purpose) for stage 归档.\n";
     s += shared_rules();
-    s += "Read docs/handoff/review-fix-requirements.md and docs/handoff/review-fix-review.md. Proceed only if 评审 did not reject.\n";
-    s += "Write docs/handoff/review-fix-backlog.md as the accepted contract. Each id (F001+F006, F002, F003+F004, F005) must include: ";
+    s += "Read docs/plans/2026-08-18-desktop-packaging.md and docs/plans/2026-08-18-desktop-packaging.md. Proceed only if 评审 did not reject.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "depends-on, files, implement, tests-first, commit-hint, done-when.\n";
     s += "Slice 开发 as exactly:\n";
     s += "A. F001+F006 terminate-on-error (and missing stdout). Commit: desktop: terminate sidecar on ready-line failure\n";
@@ -196,10 +197,10 @@ fn archive_prompt() {
     s += "C. F003+F004 parseable import overlay + Stay fallback. Commit: desktop: fix import quit dialog script and stay fallback. Do not start C before B is committed.\n";
     s += "D. F005 ExitRequested prevent_exit + same close_decision. Commit: desktop: route app quit through the close dialog. Do not start D before C is committed.\n";
     s += "State that extra per-slice commits are allowed, 开发 must finish with those four required subjects (STATUS may be updated in D), and F006 is not a second feature.\n";
-    s += "Update STATUS.md: current_stage=归档, next_stage=开发. Timestamp ISO-8601 with timezone.\n";
+    s += "Do not write STATUS.md; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1.\n";
     s += "Commit message exactly: docs: archive accepted desktop review-fix backlog\n";
     s += "Then git push -u origin HEAD. Append log+status to scratch.\n";
-    s += "Return stage=归档, commit=full sha, handoff=docs/handoff/STATUS.md, notes=summary.\n";
+    s += "Return stage=归档, commit=full sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary.\n";
     s
 }
 
@@ -208,7 +209,7 @@ fn develop_a_prompt() {
     s += "You are grok-4.6 high-effort (grok-46-high) for 开发 slice A: F001+F006 (joe-cheung-cae/frame-pilot#33 and #32).\n";
     s += shared_rules();
     s += "Do not start slices B/C/D. Tests first. Drive shipped functions. Do not mock the unit under test. Do not re-implement the oracle in the test.\n";
-    s += "Read docs/handoff/review-fix-backlog.md, lib.rs start_sidecar_process (~66-76), start_sidecar_with_retry, store_child, sidecar.rs spawn/wait/terminate.\n";
+    s += "Read docs/plans/2026-08-18-desktop-packaging.md, lib.rs start_sidecar_process (~66-76), start_sidecar_with_retry, store_child, sidecar.rs spawn/wait/terminate.\n";
     s += "Problem: after spawn_sidecar, wait_for_ready_line ? and missing stdout drop Child without terminate_sidecar. std::process::Child drop does not kill. Retry reuses the same loopback port and --data-dir.\n";
     s += "Implement ONE terminate-on-error + wait path that also covers missing stdout. Prefer a Drop/guard so every post-spawn Err path terminates (including wait_for_ready_line timeout/parse failure). Health-fail already terminates; keep that. If shutdown is already set after a restart spawn, terminate the new child instead of store_child — implement that store_child check here so F006 is closed with F001; do not write a second later patch for F006.\n";
     s += "Required tests (add more if needed) in apps/desktop/src-tauri, same #[cfg(test)] style as sidecar.rs:\n";
@@ -219,7 +220,7 @@ fn develop_a_prompt() {
     s += "Run cargo test in apps/desktop/src-tauri (crate framepilot-desktop) until green. Capture " + scratch_path() + "/cargo-test-A.txt and copy to evidence.\n";
     s += "If rustc/cargo is missing (exit 127), capture exact command+error to " + scratch_path() + "/tauri-toolchain.txt, do not claim tests passed, still keep the code, and return success=false notes.\n";
     s += "Commit message exactly: desktop: terminate sidecar on ready-line failure\n";
-    s += "Push. Return stage=开发-A, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary.\n";
+    s += "Push. Return stage=开发-A, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary.\n";
     s
 }
 
@@ -234,7 +235,7 @@ fn develop_b_prompt() {
     s += "Required tests: if shutdown is set, start_sidecar_process/store_child do not keep a live child. Re-check after probe_health. cargo test in apps/desktop/src-tauri until green. Capture " + scratch_path() + "/cargo-test-B.txt.\n";
     s += "Do not change apps/web. Do not bump APP_VERSION. Do not start Phase 2.\n";
     s += "Commit message exactly: desktop: avoid sidecar respawn after shutdown\n";
-    s += "Push. Return stage=开发-B, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary.\n";
+    s += "Push. Return stage=开发-B, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary.\n";
     s
 }
 
@@ -252,7 +253,7 @@ fn develop_c_prompt() {
     s += "Run cargo test in apps/desktop/src-tauri until green. Capture " + scratch_path() + "/cargo-test-C.txt.\n";
     s += "Do not change apps/web. Do not add a processing cancel route.\n";
     s += "Commit message exactly: desktop: fix import quit dialog script and stay fallback\n";
-    s += "Push. Return stage=开发-C, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary.\n";
+    s += "Push. Return stage=开发-C, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary.\n";
     s
 }
 
@@ -265,10 +266,10 @@ fn develop_d_prompt() {
     s += "Implement: On ExitRequested, prevent_exit and run the same close_decision flow as CloseRequested (reuse handle_close_requested or a shared helper). request_shutdown only after Stay is declined, and after CancelThenTerminate has waited up to CANCEL_WAIT. RunEvent::Exit may still request_shutdown as a drain. Window close path must keep working. Extract a small testable helper if needed so ExitRequested is prevent_exit'd and routed through close_decision.\n";
     s += "Stay keeps the sidecar alive. Quit and cancel import POSTs cancel. Quit anyway SIGTERMs without labelling the job cancelled.\n";
     s += "Required tests: helper proves ExitRequested is prevent_exit'd and routed through close_decision; Stay does not request_shutdown; window close path still maps through the same decision. cargo test until green. Capture " + scratch_path() + "/cargo-test-D.txt.\n";
-    s += "Then update docs/handoff/STATUS.md: current_stage=开发, next_stage=测试, notes of A-D SHAs. Timestamp ISO-8601 with timezone. Include that STATUS update in this slice commit if possible; extra commit is allowed but keep the required subject for the product fix.\n";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
     s += "Commit message for the product fix exactly: desktop: route app quit through the close dialog\n";
-    s += "If STATUS needs a second commit, use a docs-only message that still leaves the required product subject on the F005 commit. Push after each commit.\n";
-    s += "Return stage=开发, commit=latest sha, handoff=docs/handoff/STATUS.md, notes=A-D summary.\n";
+    s += "If a docs-only tracker note needs a second commit, use a docs-only message that still leaves the required product subject on the F005 commit. Push after each commit. Do not write STATUS.md.\n";
+    s += "Return stage=开发, commit=latest sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=A-D summary.\n";
     s
 }
 
@@ -287,10 +288,10 @@ fn test_prompt() {
     s += "4) Do not run job pytest unless you touched API (you should not).\n";
     s += "5) If tests/desktop/smoke.sh or npm run test:desktop:smoke exists, run it and capture " + scratch_path() + "/desktop-smoke.txt.\n";
     s += "GUI WebView of the overlay is not required if unit tests prove the import script parses and Stay is the unconfirmed fallback.\n";
-    s += "Write results into docs/handoff/STATUS.md tests_run. current_stage=测试, next_stage=上线. Timestamp ISO-8601 with timezone.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "Commit message exactly: test: verify desktop review-fix behavior\n";
     s += "Then git push -u origin HEAD. Append log+status to scratch.\n";
-    s += "Return stage=测试, commit=sha, handoff=docs/handoff/STATUS.md, notes=commands and results including cargo test count.\n";
+    s += "Return stage=测试, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=commands and results including cargo test count.\n";
     s
 }
 
@@ -299,16 +300,16 @@ fn launch_prompt() {
     s += "You are grok-4.6 (medium effort, general-purpose) for stage 上线.\n";
     s += shared_rules();
     s += "上线 means record review-fix close-out on feature/desktop-packaging. Do not open a PR. Do not merge to main. Do not start Phase 2-5. Do not close GitHub issues.\n";
-    s += "Tick only review-fix acceptance in the handoff docs (review-fix-requirements.md / review-fix-backlog.md / STATUS.md). ";
+    s += "Do not write retired handoff docs. Record close-out against docs/plans/2026-08-18-desktop-packaging.md section 5.1 only if needed; do not retick Phase 1 boxes. ";
     s += "Do not untick or retick D1.01-D1.09 unless a test proved a Phase 1 box was wrongly [x] (it was not).\n";
     s += "Comment on joe-cheung-cae/frame-pilot#33 #35 #36 #34 #31 #32 with: commit SHAs, tests run, evidence. Use gh issue comment. Use owner/repo#N in the comment text. Do NOT close them.\n";
     s += "Comment on joe-cheung-cae/frame-pilot#30 with the index of SHAs and leftover risk. Do NOT close #30.\n";
-    s += "Update docs/handoff/STATUS.md: current_stage=上线, status=complete, next_stage=none, timestamp ISO-8601 with timezone ";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
     s += "(example 2026-08-20T16:00:00+08:00). Never date-only. Run date and format the offset with a colon.\n";
     s += "Commit message exactly: docs: record desktop review-fix close-out\n";
     s += "Then git push -u origin HEAD. Append log+status to scratch.\n";
     s += "Do not claim complete if rustc was missing and A-D were only [~]. In that case set status=blocked, next_stage=none, and still comment with what landed.\n";
-    s += "Return stage=上线, commit=sha, handoff=docs/handoff/STATUS.md, notes=close-out summary including comment URLs.\n";
+    s += "Return stage=上线, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=close-out summary including comment URLs.\n";
     s
 }
 
@@ -375,6 +376,6 @@ if !stage_ok(r6) {
 complete(#{
     summary: "Desktop review-fix serial pipeline finished on feature/desktop-packaging",
     stages: ["需求拆解", "评审", "归档", "开发", "测试", "上线"],
-    handoff: "docs/handoff/STATUS.md",
+    handoff: "docs/plans/2026-08-18-desktop-packaging.md",
     parent_issue: "joe-cheung-cae/frame-pilot#30",
 });

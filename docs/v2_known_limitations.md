@@ -1,5 +1,7 @@
 # FramePilot v2 Known Limitations
 
+> Language: **English** | [中文](v2_known_limitations.zh.md)
+
 This document lists the accepted v2.0 limitations for the local MVP-plus release candidate. These are product boundaries, validation caveats, and engineering constraints rather than hidden defects.
 
 ## Local-Only Scope

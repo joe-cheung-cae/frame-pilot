@@ -3,12 +3,12 @@ let meta = #{
     description: "Bounded review to code to re-review loop on feature/desktop-packaging until P0=0 and P1=0, with per-stage write-allowlists and GitHub comment sync",
     when_to_use: "New adversarial review of live desktop-packaging HEAD, then fix confirmed P0/P1 until a clean re-review",
     phases: [
-        #{ title: "GitHub pull", detail: "Read #30-#36 bodies and comments into handoff" },
+        #{ title: "GitHub pull", detail: "Read #30-#36 bodies and comments (docs/handoff is retired; living tracker is packaging plan section 5.1)" },
         #{ title: "Review", detail: "Six-area parallel reviewers; read-only; P0-P3" },
         #{ title: "Verify", detail: "Adversarial skeptic per finding; read-only" },
-        #{ title: "Handoff", detail: "Write this-round review markdown and STATUS" },
+        #{ title: "Handoff", detail: "Record this-round review against the living tracker; do not write STATUS.md" },
         #{ title: "Fix", detail: "Backlog then serial tests-first slices if P0/P1 remain" },
-        #{ title: "Close-out", detail: "GitHub comments; STATUS; no PR; no issue close" },
+        #{ title: "Close-out", detail: "GitHub comments; living tracker; no PR; no issue close; do not write STATUS.md" },
     ],
 };
 
@@ -144,13 +144,13 @@ fn permissions_block() {
     s += "Scratch is user-private chmod 700: " + scratch_path() + " — never shared /tmp.\n";
     s += "mkdir -p that scratch dir; chmod 700 it. Copy captures there.\n";
     s += "Review/Verify stages: capability_mode=read-only. Do not write production code. Do not commit.\n";
-    s += "GitHub-pull write-allowlist: docs/handoff/loop-github.md ; docs/handoff/STATUS.md ; .grok/workflows/desktop-review-fix-loop.rhai\n";
-    s += "Handoff write-allowlist: docs/handoff/loop-round-N-review.md ; docs/handoff/STATUS.md\n";
-    s += "Requirements write-allowlist: docs/handoff/loop-round-N-requirements.md ; docs/handoff/STATUS.md\n";
-    s += "Backlog write-allowlist: docs/handoff/loop-round-N-backlog.md ; docs/handoff/STATUS.md\n";
-    s += "Code write-allowlist: ONLY files listed in that slice (must be under apps/desktop/src-tauri, apps/web, apps/api, tests/, scripts/) plus docs/handoff/STATUS.md\n";
-    s += "Retest write-allowlist: docs/handoff/STATUS.md\n";
-    s += "GitHub-sync / Close-out write-allowlist: docs/handoff/STATUS.md ; docs/handoff/loop-closeout.md\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md. May also edit .grok/workflows/desktop-review-fix-loop.rhai.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md. Product/test files in the slice remain writable; docs/handoff is not.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "FORBIDDEN unless a slice names them: original photos, lockfiles as the only change, APP_VERSION, output export, FRAMEPILOT_PROJECT_ROOT_ALLOWLIST=$HOME.\n";
     s += "Do not close GitHub issues. Do not open a PR. Do not merge to main.\n";
     s
@@ -158,6 +158,7 @@ fn permissions_block() {
 
 fn shared_rules() {
     let s = "";
+    s += "docs/handoff is retired. Do not create, write, or restore any docs/handoff/* file (including STATUS.md). The living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Phase 0-2 are already on main; remaining work is Phase 3-5. Do not retick completed Phase 0-2 boxes. Do not write docs/handoff/STATUS.md.\n";
     s += "Repo: " + repo_path() + "\n";
     s += "Branch MUST stay " + branch_name() + ". Confirm with git rev-parse --abbrev-ref HEAD.\n";
     s += "Base: " + base_ref() + ". isolation_worktree is false. Edit the shared workspace.\n";
@@ -175,10 +176,10 @@ fn shared_rules() {
     s += "Always write owner/repo#N. Do not invent issue numbers.\n";
     s += "Do not add Co-authored-by Cursor trailers.\n";
     s += "After every finished write stage: git add only allowlisted files, commit, git push -u origin HEAD.\n";
-    s += "If push fails, write the exact error to " + scratch_path() + "/git-push.txt and still finish local handoff.\n";
+    s += "If push fails, write the exact error to " + scratch_path() + "/git-push.txt and still finish local product work.\n";
     s += "Append git log --oneline origin/main..HEAD and git status -sb to " + scratch_path() + "/git-stage-commits.txt after every push.\n";
     s += "If nothing is staged, do not make an empty commit.\n";
-    s += "Handoff is the only memory: later stages start from docs/handoff files and GitHub comments, not conversation.\n";
+    s += "The living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. docs/handoff is retired. Later stages start from the tracker and GitHub comments, not conversation.\n";
     s
 }
 
@@ -277,18 +278,18 @@ fn github_pull_prompt() {
     let s = "";
     s += "You are grok-4.6 for stage GitHub pull.\n";
     s += shared_rules();
-    s += "THIS STAGE write-allowlist: docs/handoff/loop-github.md ; docs/handoff/STATUS.md ; .grok/workflows/desktop-review-fix-loop.rhai\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md. May also edit .grok/workflows/desktop-review-fix-loop.rhai.\n";
     s += "capability_mode=all because gh plus git commit are required; do NOT patch Rust/TS/Python.\n";
     s += "Confirm branch " + branch_name() + " and record full HEAD SHA.\n";
     s += "Pull via gh (not invented URLs): joe-cheung-cae/frame-pilot#30 #31 #32 #33 #34 #35 #36 — bodies AND comments.\n";
-    s += "Write docs/handoff/loop-github.md with: HEAD SHA, each issue number as owner/repo#N, title, state (must stay open), body summary, every comment URL and a short digest, and that F001-F006 close-out comments already record fix SHAs.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "mkdir -p " + scratch_path() + " && chmod 700 " + scratch_path() + ".\n";
     s += "Copy the gh JSON dump if present at " + scratch_path() + "/github-issues-pull.json.txt ; if missing, run gh yourself and save it there.\n";
-    s += "Write/replace docs/handoff/STATUS.md with: current_stage=GitHub pull, next_stage=Review, branch=" + branch_name() + ", parent_issue=" + parent_issue() + ", round=1, live HEAD SHA, timestamp ISO-8601 with timezone (date '+%Y-%m-%dT%H:%M:%S%z' then format offset as +08:00).\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "If .grok/workflows/desktop-review-fix-loop.rhai exists, include it in this commit.\n";
     s += "Commit message exactly: docs: start desktop review-fix loop and pull GitHub comments\n";
     s += "Then git push -u origin HEAD. Append log+status to scratch git-stage-commits.txt.\n";
-    s += "Return ok, stage=GitHub pull, commit=full sha, handoff=docs/handoff/STATUS.md, notes=summary of comment URLs.\n";
+    s += "Return ok, stage=GitHub pull, commit=full sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary of comment URLs.\n";
     s
 }
 
@@ -296,18 +297,18 @@ fn handoff_prompt(round, head, confirmed_json, p0, p1, p2, p3) {
     let s = "";
     s += "You are grok-4.6 for stage Handoff of review round " + round.to_string() + ".\n";
     s += shared_rules();
-    s += "THIS STAGE write-allowlist: docs/handoff/loop-round-" + round.to_string() + "-review.md ; docs/handoff/STATUS.md\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "Do not patch Rust/TS/Python. Do not retick closed review-fix-* Phase-1 boxes as new product work.\n";
-    s += "Read docs/handoff/loop-github.md, docs/handoff/STATUS.md, live HEAD (git rev-parse HEAD, expected " + head + ").\n";
+    s += "Read docs/plans/2026-08-18-desktop-packaging.md, docs/plans/2026-08-18-desktop-packaging.md, live HEAD (git rev-parse HEAD, expected " + head + ").\n";
     s += "Confirmed findings JSON (already adversarially verified; do not add extras):\n";
     s += confirmed_json;
     s += "\nCounts from the orchestrator: P0=" + p0.to_string() + " P1=" + p1.to_string() + " P2=" + p2.to_string() + " P3=" + p3.to_string() + ".\n";
-    s += "Write docs/handoff/loop-round-" + round.to_string() + "-review.md in English with: branch " + branch_name() + ", live HEAD SHA, parent " + parent_issue() + ", that this is a NEW review of current HEAD (not the 2026-08-20 review of 7e545f8), F001-F006 checked against CURRENT code with a table (still-present or fixed), finding index (P0/P1/P2/P3), evidence, GitHub mapping (comment on existing issue if same defect; new issue only for new confirmed P0/P1), and totals.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "If P0=0 and P1=0, say so explicitly. Empty list is valid only because reviewers read the code.\n";
     s += "Copy that review file to " + scratch_path() + "/rereview.md AND " + scratch_path() + "/handoff-copy/.\n";
-    s += "Update STATUS.md: current_stage=Handoff, next_stage=Fix or Close-out, round, P0/P1 counts, HEAD SHA, timestamp ISO-8601 with timezone.\n";
+    s += "Do not write STATUS.md; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1.\n";
     s += "Commit message exactly: docs: record desktop review-fix loop round-" + round.to_string() + " review\n";
-    s += "Push. Return ok, stage=Handoff, commit=sha, handoff=docs/handoff/STATUS.md, notes=summary, p0/p1/p2/p3.\n";
+    s += "Push. Return ok, stage=Handoff, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary, p0/p1/p2/p3.\n";
     s
 }
 
@@ -315,15 +316,15 @@ fn backlog_prompt(round, confirmed_json) {
     let s = "";
     s += "You are grok-4.6 for stage Backlog of round " + round.to_string() + ".\n";
     s += shared_rules();
-    s += "THIS STAGE write-allowlist: docs/handoff/loop-round-" + round.to_string() + "-requirements.md ; docs/handoff/loop-round-" + round.to_string() + "-backlog.md ; docs/handoff/STATUS.md\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "Do not patch Rust/TS/Python.\n";
     s += "Read the round review file and confirmed JSON:\n";
     s += confirmed_json;
     s += "\nWrite requirements then backlog. Each P0/P1 slice must include: id, severity, depends-on, write-allowlist (concrete paths), implement, tests-first (drive shipped functions; no mock of unit under test; no re-implement oracle), commit-hint, done-when.\n";
     s += "P2/P3 are recorded as non-gating leftover, not slices.\n";
-    s += "Update STATUS.md: current_stage=Backlog, next_stage=Code, timestamp ISO-8601 with timezone.\n";
+    s += "Do not write STATUS.md; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1.\n";
     s += "Commit message exactly: docs: archive desktop review-fix loop round-" + round.to_string() + " backlog\n";
-    s += "Push. Return ok, stage=Backlog, commit=sha, handoff=docs/handoff/STATUS.md, notes=slice list.\n";
+    s += "Push. Return ok, stage=Backlog, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=slice list.\n";
     s
 }
 
@@ -333,13 +334,13 @@ fn code_prompt(round, slice_index, finding_json) {
     s += shared_rules();
     s += "Finding JSON:\n";
     s += finding_json;
-    s += "\nTHIS STAGE write-allowlist: the cited file plus its existing test module under apps/desktop/src-tauri (#[cfg(test)] same style), plus matching tests under apps/web or apps/api or tests/ ONLY if the finding cites those trees, plus docs/handoff/STATUS.md.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md. Product/test files in the slice remain writable; docs/handoff is not.\n";
     s += "Do not start Phases 2-5. Tests first. Drive shipped functions. Do not mock the unit under test. Do not re-implement the oracle. No hardcoded expected blobs that skip the code.\n";
     s += "Run cargo test in apps/desktop/src-tauri if you touched Rust. Capture " + scratch_path() + "/cargo-test-round-" + round.to_string() + "-slice-" + slice_index.to_string() + ".txt.\n";
     s += "If rustc/cargo missing (exit 127), capture " + scratch_path() + "/tauri-toolchain.txt and do not claim Rust tests passed.\n";
     s += "npm run test:web / npm run verify only if those trees were touched. verify must stay rust-free.\n";
     s += "Commit with a conventional English subject matching the slice commit-hint. Push.\n";
-    s += "Return ok, stage=Code, commit=sha, handoff=docs/handoff/STATUS.md, notes=what changed and tests.\n";
+    s += "Return ok, stage=Code, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=what changed and tests.\n";
     s
 }
 
@@ -347,11 +348,11 @@ fn retest_prompt(round) {
     let s = "";
     s += "You are grok-4.6 high-effort for Retest of round " + round.to_string() + ".\n";
     s += shared_rules();
-    s += "THIS STAGE write-allowlist: docs/handoff/STATUS.md\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "If production Rust changed this round: cargo test in apps/desktop/src-tauri TWICE. Both exit 0. Capture " + scratch_path() + "/cargo-test-1.txt and cargo-test-2.txt. New tests must be included.\n";
     s += "If rustc/cargo missing (exit 127), capture " + scratch_path() + "/tauri-toolchain.txt ; do not claim Rust tests passed.\n";
     s += "If web/API/scripts were touched, run those suites and capture test-web.log / verify.log. npm run verify must stay rust-free.\n";
-    s += "Update STATUS.md tests_run. current_stage=Retest, next_stage=Review, timestamp ISO-8601 with timezone.\n";
+    s += "Do not write STATUS.md; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1.\n";
     s += "Commit message exactly: test: verify desktop review-fix loop round-" + round.to_string() + "\n";
     s += "Push. Return ok, stage=Retest, commit=sha, notes=commands and results.\n";
     s
@@ -361,7 +362,7 @@ fn github_sync_prompt(round, head, confirmed_json, p0, p1, kind) {
     let s = "";
     s += "You are grok-4.6 for GitHub sync (" + kind + ") round " + round.to_string() + ".\n";
     s += shared_rules();
-    s += "THIS STAGE write-allowlist: docs/handoff/STATUS.md ; docs/handoff/loop-closeout.md\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "Do not close issues. Do not open a PR. Do not merge to main.\n";
     s += "HEAD: " + head + "\n";
     s += "Confirmed JSON:\n";
@@ -369,10 +370,10 @@ fn github_sync_prompt(round, head, confirmed_json, p0, p1, kind) {
     s += "\nP0=" + p0.to_string() + " P1=" + p1.to_string() + ".\n";
     s += "Create GitHub issues ONLY for NEW confirmed P0/P1 that are not the same defect as #31-#36. Comment on an existing issue if it is the same defect. Use gh issue comment / gh issue create. Always write owner/repo#N.\n";
     s += "After each fix round and at close-out, comment on " + parent_issue() + " with: round, HEAD SHA, tests run, evidence path, P0/P1 counts.\n";
-    s += "If gh cannot write, capture the exact error to " + scratch_path() + "/github-sync.txt and still finish local handoff — do not fabricate comment URLs.\n";
+    s += "If gh cannot write, capture the exact error to " + scratch_path() + "/github-sync.txt and still finish local product work — do not fabricate comment URLs.\n";
     s += "Otherwise capture comment URLs and bodies to " + scratch_path() + "/github-sync.txt.\n";
-    s += "If kind is close-out and P0=P1=0, write docs/handoff/loop-closeout.md and set STATUS current_stage=Close-out, status=complete, next_stage=none.\n";
-    s += "If kind is blocked, STATUS status=blocked, list remaining P0/P1, next_stage=none. That is NOT a pass.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
+    s += "If kind is blocked, record blocked in session notes with remaining P0/P1. That is NOT a pass. Do not write STATUS.md.\n";
     s += "Commit message exactly: docs: sync GitHub comments for desktop review-fix loop round-" + round.to_string() + "\n";
     s += "Push. Return ok, stage=GitHub sync, commit=sha, notes=comment URLs or exact gh error.\n";
     s
@@ -636,6 +637,6 @@ complete(#{
     p2: last_p2,
     p3: last_p3,
     parent_issue: parent_issue(),
-    handoff: "docs/handoff/STATUS.md",
+    handoff: "docs/plans/2026-08-18-desktop-packaging.md",
     branch: branch_name(),
 });

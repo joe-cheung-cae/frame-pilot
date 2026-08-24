@@ -45,9 +45,9 @@ fn shared_rules() {
     s += "No cloud, login, payment, bundled models, HEIC/RAW/XMP. Do not start Phase 1-5. Do not redo implement_goals.md Phase 0.\n";
     s += "npm run verify must not install or require Rust/Tauri.\n";
     s += "OBJECTIVE branch is refactor, not feature/desktop-packaging.\n";
-    s += "Handoff contract lives in docs/handoff/STATUS.md plus the stage file named in the prompt.\n";
+    s += "docs/handoff is retired. Do not create, write, or restore any docs/handoff/* file (including STATUS.md). The living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Phase 0-2 are already on main; remaining work is Phase 3-5. Do not retick completed Phase 0-2 boxes. Do not write docs/handoff/STATUS.md.\n";
     s += "After the stage work, git add only relevant files, commit on refactor, then git status and git log -1.\n";
-    s += "If nothing is staged, do not make an empty commit; write the handoff first so there is a real change.\n";
+    s += "If nothing is staged, skip an empty commit. Do not recreate docs/handoff files.\n";
     s
 }
 
@@ -110,19 +110,19 @@ fn breakdown_prompt() {
     s += "This stage is documentation only. Do not implement production code.\n";
     s += "Read with tools: AGENTS.md, develop_plan.md, docs/desktop_development_plan.md, ";
     s += "docs/plans/2026-08-18-desktop-packaging.md (especially D0.00-D0.09 and section 5.1), ";
-    s += "docs/plans/2026-08-18-desktop-packaging-review.md, docs/desktop_goal_mode.md, ";
+    s += "docs/plans/2026-08-18-desktop-packaging.md (2026-08-18 review findings were folded into this plan; the review file was removed), docs/desktop_goal_mode.md, ";
     s += "docs/api.md, apps/api/app/main.py, apps/api/app/api/routes.py, apps/api/app/services/importing.py, ";
     s += "apps/api/app/schemas/api.py, apps/api/tests/test_projects_api.py, package.json, ";
     s += "scripts/check-release-artifacts.sh. Confirm git branch is refactor.\n";
-    s += "Write docs/handoff/phase0-requirements.md that decomposes desktop Phase 0 only ";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "(D0.00-D0.09, not implement_goals.md Phase 0, not desktop Phases 1-5) into: ";
     s += "goal, locked decisions, in-scope ids, out-of-scope, files to create/modify, tests-first list, ";
     s += "acceptance boxes, environment notes (no rustc/cargo on this host is likely), and risks.\n";
-    s += "Write or replace docs/handoff/STATUS.md with: current_stage=需求拆解, status=complete, ";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "files changed, tests run=none (docs), next_stage=评审, blockers=none.\n";
     s += "If .grok/workflows/desktop-phase0.rhai exists, include it in this commit.\n";
     s += "Commit message: docs: break down desktop Phase 0 requirements\n";
-    s += "Return ok=true, stage=需求拆解, commit=full sha, handoff=docs/handoff/STATUS.md, notes=summary.\n";
+    s += "Return ok=true, stage=需求拆解, commit=full sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary.\n";
     s
 }
 
@@ -130,17 +130,17 @@ fn review_prompt() {
     let s = "";
     s += "You are grok-4.6 (medium effort, plan-oriented) for stage 评审.\n";
     s += shared_rules();
-    s += "Read docs/handoff/phase0-requirements.md, docs/handoff/STATUS.md, ";
+    s += "Read docs/plans/2026-08-18-desktop-packaging.md, docs/plans/2026-08-18-desktop-packaging.md, ";
     s += "docs/plans/2026-08-18-desktop-packaging.md D0.00-D0.09, the current API files named there, ";
     s += "and AGENTS.md. Adversarially review the breakdown: missing tests, host/origin gaps, ";
     s += "path-import chunk-of-100, original-file immutability, CI without Rust, PyInstaller one-dir, ";
     s += "Next export spike must be reverted if it breaks the web app, Tauri GUI may be blocked-gui.\n";
-    s += "Write docs/handoff/phase0-review.md with verdict accept-with-notes, findings, and required test list ";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "that matches the goal verification plan (sidecar args, ready-line, health version/service, ";
     s += "origin/host policy, path-import loop, source st_size/mtime/hash unchanged).\n";
-    s += "Update docs/handoff/STATUS.md: current_stage=评审, next_stage=归档.\n";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
     s += "Commit message: docs: review desktop Phase 0 requirements\n";
-    s += "Return ok=true, stage=评审, commit=full sha, handoff=docs/handoff/STATUS.md, notes=summary.\n";
+    s += "Return ok=true, stage=评审, commit=full sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary.\n";
     s
 }
 
@@ -148,13 +148,13 @@ fn archive_prompt() {
     let s = "";
     s += "You are grok-4.6 (low effort, general-purpose) for stage 归档.\n";
     s += shared_rules();
-    s += "Read docs/handoff/phase0-requirements.md and docs/handoff/phase0-review.md.\n";
-    s += "Write docs/handoff/phase0-backlog.md as the accepted implementation contract for D0.00-D0.09. ";
+    s += "Read docs/plans/2026-08-18-desktop-packaging.md and docs/plans/2026-08-18-desktop-packaging.md.\n";
+    s += "Do not write docs/handoff/*. Use docs/plans/2026-08-18-desktop-packaging.md section 5.1 as the living contract. Do not recreate STATUS.md.\n";
     s += "Each id: depends-on, files, implement, tests-first, commit-hint, done-when. ";
     s += "State that 开发 may make extra per-task commits but must finish with a 开发 stage commit.\n";
-    s += "Update docs/handoff/STATUS.md: current_stage=归档, next_stage=开发.\n";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
     s += "Commit message: docs: archive accepted desktop Phase 0 backlog\n";
-    s += "Return ok=true, stage=归档, commit=full sha, handoff=docs/handoff/STATUS.md, notes=summary.\n";
+    s += "Return ok=true, stage=归档, commit=full sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=summary.\n";
     s
 }
 
@@ -163,7 +163,7 @@ fn develop_prompt() {
     s += "You are grok-4.6 high-effort (grok-46-high) for stage 开发.\n";
     s += shared_rules();
     s += "Implement desktop Phase 0 only (D0.00-D0.09) from docs/plans/2026-08-18-desktop-packaging.md ";
-    s += "and docs/handoff/phase0-backlog.md. Tests first for sidecar, health, origins, path import.\n";
+    s += "and docs/plans/2026-08-18-desktop-packaging.md. Tests first for sidecar, health, origins, path import.\n";
     s += "If .venv is missing, run npm run install:all. Do not set HOME or package-manager homes to scratch.\n";
     s += "Write failing tests, then implementation. Extra per-task commits are allowed. ";
     s += "Do not start D1/D2/D3/D4/D5. Do not bump version to 2.1.0-desktop.\n";
@@ -218,10 +218,10 @@ fn develop_prompt() {
     s += "Do not install a system Rust toolchain unless rustup is already present and unused.\n";
     s += "D0.08/D0.09 may be drafted but 上线 owns the final go/no-go and tracker ticks.\n";
     s += "Create docs/desktop_feasibility_notes.md stub if missing (Blockers + Baselines).\n";
-    s += "Update docs/handoff/STATUS.md current_stage=开发, next_stage=测试, files changed, tests run.\n";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
     s += "Final stage commit message: desktop: complete Phase 0 development stage\n";
     s += "Return ok=true only if sidecar/health/origins/path-import exist and new pytest files are present. ";
-    s += "stage=开发, commit=final sha, handoff=docs/handoff/STATUS.md, notes=what landed and any [~].\n";
+    s += "stage=开发, commit=final sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=what landed and any [~].\n";
     s
 }
 
@@ -241,11 +241,11 @@ fn test_prompt() {
     s += "3) Run bash scripts/sidecar-smoke.sh if present; capture " + scratch_path() + "/sidecar-smoke.txt\n";
     s += "4) npm run test:api -> " + scratch_path() + "/test-api.log (must exit 0)\n";
     s += "5) npm run verify -> " + scratch_path() + "/verify.log (must exit 0, must not require Rust)\n";
-    s += "If anything fails, fix the shipped code and rerun. Then update docs/handoff/STATUS.md current_stage=测试, ";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
     s += "next_stage=上线, tests run with results.\n";
     s += "Commit message: test: verify desktop Phase 0 behavior\n";
     s += "Return ok=true only if pytest-phase0, both sidecar runs, test:api, and verify exited 0. ";
-    s += "stage=测试, commit=sha, handoff=docs/handoff/STATUS.md, notes=commands and results.\n";
+    s += "stage=测试, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=commands and results.\n";
     s
 }
 
@@ -254,17 +254,17 @@ fn launch_prompt() {
     s += "You are grok-4.6 (medium effort, general-purpose) for stage 上线.\n";
     s += shared_rules();
     s += "上线 means close Phase 0 on refactor with go/no-go. Do not publish installers, push, or open a PR. Do not start Phase 1.\n";
-    s += "Read feasibility notes, tracker in docs/plans/2026-08-18-desktop-packaging.md section 5.1, and STATUS.md.\n";
+    s += "Read feasibility notes and tracker in docs/plans/2026-08-18-desktop-packaging.md section 5.1.\n";
     s += "Write/update docs/desktop_feasibility_notes.md with measured baselines (sidecar start, health, RSS if available, ";
     s += "dist size if built, Tauri hello or blocked-gui with dated command and error) and a written go/no-go: ";
     s += "Shell stays Tauri 2 unless sidecar cannot be spawned; frontend stays Vite SPA follow-up; keep imagehash/scipy ";
     s += "unless unpacked sidecar >250 MB.\n";
     s += "Tick every Phase 0 id in section 5.1 to [x] or [~]. Any [~] must cite a dated command and error. ";
     s += "Also tick the Phase 0 acceptance boxes at the end of D0.09 if they hold.\n";
-    s += "Update docs/handoff/STATUS.md current_stage=上线, status=complete, next_stage=none (Phase 1 not started).\n";
+    s += "Do not update docs/handoff/*; living tracker is docs/plans/2026-08-18-desktop-packaging.md section 5.1. Do not write STATUS.md. Do not retick completed Phase 0-2 boxes.\n";
     s += "Run git log --oneline main..refactor and write it to " + scratch_path() + "/git-stage-commits.txt\n";
     s += "Commit message: docs: record Phase 0 go-no-go and close desktop Phase 0\n";
-    s += "Return ok=true, stage=上线, commit=sha, handoff=docs/handoff/STATUS.md, notes=go/no-go summary.\n";
+    s += "Return ok=true, stage=上线, commit=sha, handoff=docs/plans/2026-08-18-desktop-packaging.md, notes=go/no-go summary.\n";
     s
 }
 
@@ -313,5 +313,5 @@ if !stage_ok(r6) {
 complete(#{
     summary: "Phase 0 serial pipeline finished on refactor",
     stages: ["需求拆解", "评审", "归档", "开发", "测试", "上线"],
-    handoff: "docs/handoff/STATUS.md",
+    handoff: "docs/plans/2026-08-18-desktop-packaging.md",
 });

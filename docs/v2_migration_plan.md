@@ -1,5 +1,7 @@
 # FramePilot v2 Migration Plan
 
+> Language: **English** | [中文](v2_migration_plan.zh.md)
+
 FramePilot v2 should evolve existing local projects without requiring users to reimport photo libraries or risk original files. Migrations must be local, deterministic, and reversible through normal file backups of the project directory.
 
 ## Migration Principles

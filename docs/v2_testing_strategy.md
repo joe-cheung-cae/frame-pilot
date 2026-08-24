@@ -1,5 +1,7 @@
 # FramePilot v2 Testing Strategy
 
+> Language: **English** | [中文](v2_testing_strategy.zh.md)
+
 FramePilot v2 testing should prove the local photo workflow works end to end without making the default developer loop too slow. Fast deterministic tests should cover core behavior on every commit. Larger local workflows should remain explicit smoke or performance commands.
 
 ## Test Layers
