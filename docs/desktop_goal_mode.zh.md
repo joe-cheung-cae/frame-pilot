@@ -6,8 +6,8 @@
 
 本文档是桌面打包轨道的 Grok Build / Codex Goal Mode 入口。
 
-产品计划是 `docs/desktop_development_plan.md`。
-可执行待办与活跟踪器是 `docs/plans/2026-08-18-desktop-packaging.md`（从 **D0.00** 开始；状态见 §5.1）。
+产品计划是 [`docs/desktop_development_plan.md`](desktop_development_plan.zh.md)。
+可执行待办与活跟踪器是 [`docs/plans/2026-08-18-desktop-packaging.md`](plans/2026-08-18-desktop-packaging.zh.md)（从 **D0.00** 开始；状态见 §5.1）。
 2026-08-18 的 Opus 5 审阅结论已并入该计划；审阅文件因冗余已删除。
 
 Phase 0–2 已在 `main` 上。剩余桌面工作是 Phase 3–5。不要重建 `docs/handoff/*`（包括 `STATUS.md`）。`docs/handoff` 已退役。
@@ -254,7 +254,7 @@ If tests are safe to run, run npm run test:api and record results. Do not implem
 
 在 Phase 0–2 已在 `main` 上之后使用。将下面围栏内的全部内容复制到 Grok Build Goal Mode。**不要**重建 `docs/handoff/*`（包括 `STATUS.md`）。
 
-活跟踪器是 `docs/plans/2026-08-18-desktop-packaging.md` §5.1。`.grok/workflows/` 下历史的 Phase 0–2 / review-fix 工作流可以保留为已完成阶段的脚本；它们不得写入已退役的 handoff 文件。
+活跟踪器是 [`docs/plans/2026-08-18-desktop-packaging.md`](plans/2026-08-18-desktop-packaging.zh.md) §5.1。`.grok/workflows/` 下历史的 Phase 0–2 / review-fix 工作流可以保留为已完成阶段的脚本；它们不得写入已退役的 handoff 文件。
 
 ```text
 You are working in the FramePilot repository.
@@ -368,8 +368,8 @@ Stop after D0.09 is committed and summarize.
 
 - 长提示词是整条桌面轨道的主要自主桌面提示词。Phase 0–2 已在 `main` 上；剩余工作是 Phase 3–5。
 - 剩余 Phase 3–5 工作请使用 §5，不要重跑已完成的 Phase 0–2 工作流。
-- 详细文件路径、测试和验收框在 `docs/plans/2026-08-18-desktop-packaging.md` §5.1。不要重建 `docs/handoff/*`。
-- 把 `implement_goals.md` 留给更早的 v2 Web Goal Mode。除非桌面计划的当前任务需要极小的共享代码修复，否则不要把 v2 算法工作混进桌面 Goal Mode 会话。
+- 详细文件路径、测试和验收框在 [`docs/plans/2026-08-18-desktop-packaging.md`](plans/2026-08-18-desktop-packaging.zh.md) §5.1。不要重建 `docs/handoff/*`。
+- 把 [`implement_goals.md`](../implement_goals.zh.md) 留给更早的 v2 Web Goal Mode。除非桌面计划的当前任务需要极小的共享代码修复，否则不要把 v2 算法工作混进桌面 Goal Mode 会话。
 - 首个桌面产品版本：`2.1.0-desktop`。`3.0.0` 不在讨论范围内。
 - 执行顺序最初从 D0.00（CI verify）开始。新会话从最低未完成的 §5.1 id 开始（Phase 3–5）。
 - 任务状态的唯一事实来源是实施计划的 §5.1。

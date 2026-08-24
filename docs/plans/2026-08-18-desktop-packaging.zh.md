@@ -276,119 +276,119 @@ Phase 5
 
 ---
 
-## Phase 0 — Feasibility and desktop-critical API (about 3–5 days)
+## Phase 0 — 可行性与桌面关键 API（约 3–5 天）
 
-**Phase goal:** Prove sidecar can be packaged and hosted; land APIs the desktop shell cannot live without.
+**阶段目标：** 证明 sidecar 可以打包并托管；落地桌面壳离不开的 API。
 
-**Phase exit:** §5.1 Phase 0 boxes are `[x]` or `[~]` per locked decision 13. `docs/desktop_feasibility_notes.md` records baselines and go/no-go.
+**阶段退出：** 按锁定决策 13，§5.1 的 Phase 0 框为 `[x]` 或 `[~]`。`docs/desktop_feasibility_notes.md` 记录基线与 go/no-go。
 
-### D0.00 — CI verify workflow (web/api, no GUI)
+### D0.00 — CI verify 工作流（web/api，无 GUI）
 
-**Depends on:** none — implement this first  
+**Depends on:** none — 先实现本任务  
 **Files:**
 
 - Create: `.github/workflows/verify.yml`
 
 **Implement:**
 
-- Triggers: `pull_request`, and `push` to `main` and `feature/desktop-packaging`.
-- Single job on `ubuntu-latest`: checkout, Python 3.11, Node 22.
-- Steps: `npm run install:all`, then `npm run verify`.
-- Do not install Rust. Do not run Playwright here.
-- Concurrency group per ref with `cancel-in-progress: true`.
+- 触发器：`pull_request`，以及对 `main` 和 `feature/desktop-packaging` 的 `push`。
+- `ubuntu-latest` 上单个 job：checkout、Python 3.11、Node 22。
+- 步骤：`npm run install:all`，然后 `npm run verify`。
+- 不要安装 Rust。这里不要跑 Playwright。
+- 每个 ref 一个 concurrency group，且 `cancel-in-progress: true`。
 
-**Tests:** none (CI config). Run locally before commit: `npm run verify`
+**Tests:** none（CI 配置）。提交前本地运行：`npm run verify`
 
 **Commit:** `ci: run npm verify on pull requests`
 
-### D0.01 — Sidecar CLI launcher
+### D0.01 — Sidecar CLI 启动器
 
 **Depends on:** none  
 **Files:**
 
 - Create: `apps/api/app/sidecar_main.py`
-- Create: `docs/desktop_feasibility_notes.md` (stub: Blockers + Baselines)
-- Modify: `apps/api/pyproject.toml` (`[project.scripts] framepilot-api = "app.sidecar_main:main"`)
+- Create: `docs/desktop_feasibility_notes.md`（stub：Blockers + Baselines）
+- Modify: `apps/api/pyproject.toml`（`[project.scripts] framepilot-api = "app.sidecar_main:main"`）
 - Test: `apps/api/tests/test_sidecar_cli.py`
 
 **Implement:**
 
-- argparse: `--host` (default `127.0.0.1`), `--port` (default `8000`, `0` = ephemeral), `--data-dir` (**required**), `--log-level` (default `info`).
-- Exit code 2 if `--host` is not `127.0.0.1` or `localhost`.
-- Exit code 2 if `--data-dir` is missing or not absolute. Never fall back to CWD-relative `.framepilot-data`.
-- Set `os.environ["FRAMEPILOT_DATA_DIR"]` **before** the first `import app.main`. `app.main` builds the app at import time (`main.py:76`), so the import must happen inside `main()` after argparse.
-- Port discovery: bind a `socket` yourself, read `getsockname()[1]`, print the ready line, then `uvicorn.Server(config).run(sockets=[sock])`. On POSIX set `SO_REUSEADDR`; do not set it on Windows (port hijacking).
-- Print exactly one stdout line after bind and before serve, `flush=True`: `FRAMEPILOT_API ready host=127.0.0.1 port=<actual> data_dir=<path>`. `<actual>` comes from `getsockname()`, never from the parsed argument.
-- Pass the FastAPI **object** to uvicorn, not the string `"app.main:app"`.
-- All logs go to stderr. Never print anything else to stdout.
+- argparse：`--host`（默认 `127.0.0.1`），`--port`（默认 `8000`，`0` = 临时端口），`--data-dir`（**必填**），`--log-level`（默认 `info`）。
+- 若 `--host` 不是 `127.0.0.1` 或 `localhost`，退出码 2。
+- 若 `--data-dir` 缺失或不是绝对路径，退出码 2。永不回退到相对 CWD 的 `.framepilot-data`。
+- 在第一次 `import app.main` **之前**设置 `os.environ["FRAMEPILOT_DATA_DIR"]`。`app.main` 在 import 时构建应用（`main.py:76`），因此 import 必须发生在 `main()` 内、argparse 之后。
+- 端口发现：自己 bind 一个 `socket`，读 `getsockname()[1]`，打印 ready 行，然后 `uvicorn.Server(config).run(sockets=[sock])`。POSIX 上设置 `SO_REUSEADDR`；Windows 上不要设置（端口劫持）。
+- bind 之后、serve 之前恰好打印一行 stdout，`flush=True`：`FRAMEPILOT_API ready host=127.0.0.1 port=<actual> data_dir=<path>`。`<actual>` 来自 `getsockname()`，永不来自解析后的参数。
+- 把 FastAPI **对象**传给 uvicorn，而不是字符串 `"app.main:app"`。
+- 所有日志走 stderr。stdout 上不要再打印任何别的内容。
 
 **Tests (write first):**
 
-- `parse_args` rejects `--host 0.0.0.0` and `--host 192.168.1.5` (exit 2).
-- `parse_args` rejects a missing or relative `--data-dir`.
-- `bind_listen_socket("127.0.0.1", 0)` returns a socket whose port is non-zero and address is `127.0.0.1`; close it in the test.
-- `ready_line(...)` renders the exact expected string.
-- `--data-dir` is applied before settings load.
-- `--help` exits 0.
-- Do not start a live server; monkeypatch `uvicorn.Server.run`.
+- `parse_args` 拒绝 `--host 0.0.0.0` 和 `--host 192.168.1.5`（退出码 2）。
+- `parse_args` 拒绝缺失或相对的 `--data-dir`。
+- `bind_listen_socket("127.0.0.1", 0)` 返回端口非零、地址为 `127.0.0.1` 的套接字；测试中关闭它。
+- `ready_line(...)` 渲染出精确期望字符串。
+- `--data-dir` 在 settings 加载之前生效。
+- `--help` 退出码 0。
+- 不要启动真实服务器；monkeypatch `uvicorn.Server.run`。
 
 **Commit:** `api: add localhost-only sidecar CLI`
 
-### D0.02 — Health payload for desktop probes
+### D0.02 — 供桌面探测的 health 负载
 
 **Depends on:** D0.01  
 **Files:**
 
-- Create: `apps/api/app/core/version.py` (`APP_VERSION = "2.0.0-rc2"`)
-- Modify: `apps/api/app/main.py` (`FastAPI(version=APP_VERSION)`, `/health`)
-- Modify: `apps/api/app/api/routes.py` (`/api/health`)
+- Create: `apps/api/app/core/version.py`（`APP_VERSION = "2.0.0-rc2"`）
+- Modify: `apps/api/app/main.py`（`FastAPI(version=APP_VERSION)`，`/health`）
+- Modify: `apps/api/app/api/routes.py`（`/api/health`）
 - Modify: `docs/api.md`
-- Test: `apps/api/tests/test_projects_api.py` (assertion currently `== {"status": "ok"}` at line 19)
+- Test: `apps/api/tests/test_projects_api.py`（断言当前在第 19 行为 `== {"status": "ok"}`）
 
-**Implement:** both `/health` and `/api/health` return:
+**Implement:** `/health` 与 `/api/health` 都返回：
 
 ```json
 { "status": "ok", "version": "2.0.0-rc2", "service": "framepilot-api" }
 ```
 
-`version` is `APP_VERSION`. No extra version literals in `main.py`, `routes.py`, or tests. Keep `status` as `"ok"` (`playwright.config.ts:23`).
+`version` 是 `APP_VERSION`。不要在 `main.py`、`routes.py` 或测试中再写额外的版本字面量。保持 `status` 为 `"ok"`（`playwright.config.ts:23`）。
 
 **Tests:**
 
-- `test_api_health_returns_ok` asserts `status`, `service`, and `version == APP_VERSION`.
-- Same for unprefixed `/health`.
-- `create_app().version == APP_VERSION`.
+- `test_api_health_returns_ok` 断言 `status`、`service`，以及 `version == APP_VERSION`。
+- 无前缀的 `/health` 同样如此。
+- `create_app().version == APP_VERSION`。
 
 **Commit:** `api: extend health payload with version`
 
-### D0.03 — Origin and Host policy for desktop without weakening local web
+### D0.03 — 桌面 Origin 与 Host 策略，且不削弱本地 Web
 
-**Depends on:** none (can parallel D0.01)  
+**Depends on:** none（可与 D0.01 并行）  
 **Files:**
 
 - Create: `apps/api/app/core/origins.py`
-- Modify: `apps/api/app/main.py` (allowlist, CORS, mutation guard)
+- Modify: `apps/api/app/main.py`（allowlist、CORS、写请求守卫）
 - Test: `apps/api/tests/test_desktop_origins.py`
 
 **Implement:**
 
-- `allowed_origins()`: always the current four web origins (3000 and 3100). When `FRAMEPILOT_DESKTOP=1`, also `http://localhost:1420`, `http://127.0.0.1:1420`, `http://tauri.localhost`, `https://tauri.localhost`, `tauri://localhost`.
-- Compute the set **inside `create_app()`**. Feed both `CORSMiddleware` and the mutating-origin guard. `allow_credentials=True` stays; wildcard is forbidden.
-- Host check on **all** methods: 403 unless hostname is `127.0.0.1`, `localhost`, `::1`, or `tauri.localhost`. Missing Host is rejected. This closes DNS rebinding against GET `/api/projects`, `/api/assets/...`, and export download.
-- Do not disable the origin guard globally.
+- `allowed_origins()`：始终包含当前四个 web origin（3000 与 3100）。当 `FRAMEPILOT_DESKTOP=1` 时，再加上 `http://localhost:1420`、`http://127.0.0.1:1420`、`http://tauri.localhost`、`https://tauri.localhost`、`tauri://localhost`。
+- 在 **`create_app()` 内部**计算该集合。同时喂给 `CORSMiddleware` 和写请求 origin 守卫。`allow_credentials=True` 保留；禁止通配符。
+- 对**所有**方法做 Host 检查：hostname 不是 `127.0.0.1`、`localhost`、`::1` 或 `tauri.localhost` 则 403。缺失 Host 则拒绝。这关闭针对 GET `/api/projects`、`/api/assets/...` 和导出下载的 DNS rebinding。
+- 不要全局关闭 origin 守卫。
 
 **Tests:**
 
-- POST `/api/projects` Origin `http://localhost:3000` → 201.
-- POST Origin `https://evil.example` → 403 with the existing detail.
-- POST Origin `tauri://localhost` → 403 unless `FRAMEPILOT_DESKTOP=1`.
-- POST with **no** Origin → 201 (Host check is why this is safe).
-- GET `/api/projects` `Host: attacker.example` → 403; `Host: 127.0.0.1:8000` → 200.
-- Desktop-mode CORS preflight for `tauri://localhost`.
+- POST `/api/projects` Origin `http://localhost:3000` → 201。
+- POST Origin `https://evil.example` → 403，detail 与现有一致。
+- POST Origin `tauri://localhost` → 除非 `FRAMEPILOT_DESKTOP=1`，否则 403。
+- **没有** Origin 的 POST → 201（Host 检查使这是安全的）。
+- GET `/api/projects` `Host: attacker.example` → 403；`Host: 127.0.0.1:8000` → 200。
+- 桌面模式下针对 `tauri://localhost` 的 CORS preflight。
 
 **Commit:** `api: allow Tauri origins and reject non-loopback hosts in desktop mode`
 
-### D0.04a — Import path expansion helper (pure, no HTTP)
+### D0.04a — 导入路径展开辅助函数（纯逻辑，无 HTTP）
 
 **Depends on:** none  
 **Files:**
@@ -396,34 +396,34 @@ Phase 5
 - Modify: `apps/api/app/services/importing.py`
 - Test: `apps/api/tests/test_import_path_expansion.py`
 
-**Implement:** add next to `IMPORT_MAX_FILES_PER_REQUEST`:
+**Implement:** 紧挨 `IMPORT_MAX_FILES_PER_REQUEST` 添加：
 
 ```python
 PATH_IMPORT_MAX_INPUT_ENTRIES = 5000
 PATH_IMPORT_MAX_EXPANDED_FILES = 20000
 ```
 
-`expand_import_paths(paths, project_root) -> ExpandedImportPaths` with `files` and `skipped`.
+`expand_import_paths(paths, project_root) -> ExpandedImportPaths`，带 `files` 与 `skipped`。
 
-Rules:
+规则：
 
-- `ValueError` for empty list, too many input entries, any non-absolute path, missing path, or expansion over the cap.
-- Directories: `os.walk(followlinks=False)`; drop entries whose `resolve()` is not under the walked root.
-- Regular files only (`stat.S_ISREG`). Skip FIFOs/devices (`mkfifo photo.jpg` would block `_copy_file_to_path` forever).
-- Extension filter reuses existing supported/unsupported helpers (HEIC/RAW skip reasons match upload).
-- Skip sources under `project_root.resolve()` (`"Source is inside the project folder"`).
-- Deduplicate by resolved path; sort for determinism.
+- 空列表、输入条目过多、任何非绝对路径、路径缺失或展开超过上限时抛 `ValueError`。
+- 目录：`os.walk(followlinks=False)`；丢弃 `resolve()` 不在被 walk 根之下的条目。
+- 仅普通文件（`stat.S_ISREG`）。跳过 FIFO/设备（`mkfifo photo.jpg` 会让 `_copy_file_to_path` 永久阻塞）。
+- 扩展名过滤复用现有 supported/unsupported 辅助函数（HEIC/RAW 跳过原因与上传一致）。
+- 跳过 `project_root.resolve()` 之下的源（`"Source is inside the project folder"`）。
+- 按解析后的路径去重；排序以保证确定性。
 
-**Tests:** nested JPEGs + txt + heic; relative/missing/empty errors; symlink-out not followed (POSIX); FIFO skipped (POSIX); file inside project originals skipped; deterministic order.
+**Tests:** 嵌套 JPEG + txt + heic；相对 / 缺失 / 空错误；不跟随指向外部的 symlink（POSIX）；跳过 FIFO（POSIX）；项目 originals 内的文件被跳过；确定性顺序。
 
 **Commit:** `api: add import path expansion helper`
 
-### D0.04b — Path-based import endpoint
+### D0.04b — 基于路径的导入端点
 
 **Depends on:** D0.04a  
 **Files:**
 
-- Modify: `apps/api/app/schemas/api.py`, `apps/api/app/api/routes.py`
+- Modify: `apps/api/app/schemas/api.py`，`apps/api/app/api/routes.py`
 - Test: `apps/api/tests/test_import_from_paths.py`
 - Docs: `docs/api.md`
 
@@ -434,103 +434,103 @@ POST /api/projects/{project_id}/imports/from-paths
 {"paths": ["/abs/folder", "/abs/file.jpg"], "job_id": null, "expected_total": null, "finalize": true}
 ```
 
-- Expand; `ValueError` → 422.
-- Consume at most 100 expanded files. Return `remaining_paths` + `expanded_total`. Client re-posts remainder with the same `job_id`; `finalize: true` only on the last slice.
-- Reuse multipart control flow (active-import 409, stale-job, expected_total).
-- Per file: `source.open("rb")` then existing `register_import_file`. Do not add a second copy path.
-- Queue derivative job on the same `finalize` terms as multipart.
-- When finalize, a single input directory was given, and `source_root_path` is empty, record it as read-only metadata. No rescan.
-- Multipart `ImportResult` gains `remaining_paths: []` and `expanded_total` so the browser client stays compatible.
+- 展开；`ValueError` → 422。
+- 最多消费 100 个展开后的文件。返回 `remaining_paths` + `expanded_total`。客户端用同一个 `job_id` 把剩余部分再 POST；仅在最后一片使用 `finalize: true`。
+- 复用 multipart 控制流（进行中导入 409、stale-job、expected_total）。
+- 每个文件：`source.open("rb")`，然后走现有 `register_import_file`。不要增加第二条复制路径。
+- 按与 multipart 相同的 `finalize` 条件排队衍生任务。
+- 当 finalize、只给了一个输入目录、且 `source_root_path` 为空时，把它记为只读元数据。不要再扫描。
+- multipart 的 `ImportResult` 增加 `remaining_paths: []` 与 `expanded_total`，以便浏览器客户端保持兼容。
 
-**Tests:** two JPEGs; 250-file three-request loop with one job; relative/empty 422; concurrent 409; destinations under `originals/`; unsupported skip reason; `docs/api.md` documents the loop.
+**Tests:** 两张 JPEG；250 个文件、三次请求、一个 job 的循环；相对 / 空 422；并发 409；目标位于 `originals/` 下；不支持的跳过原因；`docs/api.md` 记录该循环。
 
 **Commit:** `api: add path-based local import`
 
-### D0.04c — Original-file immutability for path import
+### D0.04c — 路径导入的原图不可变
 
 **Depends on:** D0.04b  
 **Files:**
 
 - Test: `apps/api/tests/test_import_from_paths_immutability.py`
 
-**Implement:** no production change expected. If a test fails, fix the service, not the test.
+**Implement:** 预期无需改生产代码。若测试失败，修服务，不要修测试。
 
-**Tests:** source `st_size` / `st_mtime_ns` / SHA-256 unchanged; directory entry count unchanged; not a hard link to the copy (POSIX); read-only source dir still imports (POSIX, skip as root); cancel mid-import leaves sources untouched.
+**Tests:** 源文件 `st_size` / `st_mtime_ns` / SHA-256 不变；目录条目数不变；不是副本的硬链接（POSIX）；只读源目录仍可导入（POSIX，以 root 运行时跳过）；导入中途取消时源文件未被触碰。
 
 **Commit:** `test: assert path import never mutates source files`
 
-### D0.05 — PyInstaller spec and Linux sidecar smoke
+### D0.05 — PyInstaller spec 与 Linux sidecar smoke
 
 **Depends on:** D0.01, D0.02  
 **Files:**
 
-- Create: `packaging/pyinstaller/framepilot-api.spec`, `packaging/pyinstaller/build.sh`, `packaging/pyinstaller/hooks/hook-app.py` if needed
-- Create: `scripts/sidecar-smoke.sh` (not a pytest file under repo-root `tests/desktop/` — `npm run test:api` only collects `apps/api/tests`)
-- Modify: root `package.json` (`packaging:sidecar`, `test:sidecar`)
+- Create: `packaging/pyinstaller/framepilot-api.spec`、`packaging/pyinstaller/build.sh`、必要时 `packaging/pyinstaller/hooks/hook-app.py`
+- Create: `scripts/sidecar-smoke.sh`（不是仓库根 `tests/desktop/` 下的 pytest 文件 — `npm run test:api` 只收集 `apps/api/tests`）
+- Modify: 根 `package.json`（`packaging:sidecar`、`test:sidecar`）
 
 **Implement:**
 
-- one-dir build named `framepilot-api`.
-- Hiddenimports: `app.main`, `app.sidecar_main`, `uvicorn.loops.auto`, `uvicorn.protocols.http.auto`, `uvicorn.protocols.websockets.auto`, `uvicorn.lifespan.on`, `uvicorn.lifespan.off`, `httptools`, `sqlalchemy.dialects.sqlite`, `PIL.JpegImagePlugin`, `PIL.PngImagePlugin`, `PIL.WebPImagePlugin`, `imagehash`, `numpy`, scipy submodules pulled by imagehash.
-- Pass the FastAPI object, not `"app.main:app"`.
-- Windows: document `--loop asyncio` if uvloop is absent.
-- `build.sh` must fail if `/health` is not OK after start.
-- Do not commit `dist/` (`dist/` and `build/` are already gitignored).
+- 名为 `framepilot-api` 的 one-dir 构建。
+- Hiddenimports：`app.main`、`app.sidecar_main`、`uvicorn.loops.auto`、`uvicorn.protocols.http.auto`、`uvicorn.protocols.websockets.auto`、`uvicorn.lifespan.on`、`uvicorn.lifespan.off`、`httptools`、`sqlalchemy.dialects.sqlite`、`PIL.JpegImagePlugin`、`PIL.PngImagePlugin`、`PIL.WebPImagePlugin`、`imagehash`、`numpy`，以及 imagehash 拉入的 scipy 子模块。
+- 传递 FastAPI 对象，而不是 `"app.main:app"`。
+- Windows：若没有 uvloop，文档说明 `--loop asyncio`。
+- 启动后 `/health` 不是 OK 则 `build.sh` 必须失败。
+- 不要提交 `dist/`（`dist/` 与 `build/` 已经在 gitignore 中）。
 
-**Tests:** `bash scripts/sidecar-smoke.sh` — tmp `--data-dir`, `--port 0`, parse ready line, curl `/health` for `version`, SIGTERM, exit within 5s, no leftover children.
+**Tests:** `bash scripts/sidecar-smoke.sh` — 临时 `--data-dir`、`--port 0`、解析 ready 行、curl `/health` 取 `version`、SIGTERM、5 秒内退出、无残留子进程。
 
 **Commit:** `desktop: add PyInstaller sidecar spec and smoke`
 
-### D0.06 — Next.js static export spike (document only)
+### D0.06 — Next.js static export 试探（仅文档）
 
 **Depends on:** none  
 **Files:** `docs/desktop_feasibility_notes.md`
 
-**Implement:** Attempt `output: 'export'` in a throwaway change. Record whether `next build` succeeds, what happens to `projects/[projectId]` routes, and `useSearchParams` Suspense warnings. Revert any Next config that breaks `npm run test:web`. Locked follow-up is Vite SPA.
+**Implement:** 在一次性改动中尝试 `output: 'export'`。记录 `next build` 是否成功、`projects/[projectId]` 路由会怎样、以及 `useSearchParams` 的 Suspense 警告。回滚任何会弄坏 `npm run test:web` 的 Next 配置。锁定的后续方案是 Vite SPA。
 
-**Tests:** none (documentation). After revert: `npm run test:web` if any Next config was touched.
+**Tests:** none（文档）。回滚后：若动过任何 Next 配置则运行 `npm run test:web`。
 
 **Commit:** `docs: record Next static export spike`
 
-### D0.07a — Keep `npm run verify` green with Tauri assets
+### D0.07a — 有 Tauri 资源时仍保持 `npm run verify` 全绿
 
 **Depends on:** D0.00  
 **Files:**
 
-- Modify: `scripts/check-release-artifacts.sh`, `.gitignore`
+- Modify: `scripts/check-release-artifacts.sh`、`.gitignore`
 - Test: `scripts/test-release-checks.sh`
 
 **Implement:**
 
-- Add exactly one exception after the blocked-pattern match:
+- 在 blocked-pattern 匹配之后恰好增加一个例外：
 
 ```bash
 allowed_pattern='^apps/desktop/src-tauri/icons/[^/]+\.(png|ico|icns)$'
 ```
 
-- Do not broaden `blocked_pattern`. Do not add any other exception.
-- `.gitignore`: add `target/` and `.framepilot-desktop-dev/`.
+- 不要放宽 `blocked_pattern`。不要增加任何其他例外。
+- `.gitignore`：加入 `target/` 与 `.framepilot-desktop-dev/`。
 
-**Tests:** tracked `apps/desktop/src-tauri/icons/128x128.png` passes; tracked `apps/desktop/other.png` still fails.
+**Tests:** 被跟踪的 `apps/desktop/src-tauri/icons/128x128.png` 通过；被跟踪的 `apps/desktop/other.png` 仍然失败。
 
 **Commit:** `desktop: allow tauri icons in the release artifact check`
 
-### D0.07 — Minimal Tauri 2 hello + sidecar spawn
+### D0.07 — 最小 Tauri 2 hello + 拉起 sidecar
 
 **Depends on:** D0.01, D0.03, D0.05, D0.07a  
 **Files:**
 
-- Create: `apps/desktop/**` skeleton plus `apps/desktop/src-tauri/icons/` (32x32.png, 128x128.png, 128x128@2x.png, icon.icns, icon.ico)
-- Modify: root `package.json` (`dev:desktop`)
+- Create: `apps/desktop/**` 骨架，加上 `apps/desktop/src-tauri/icons/`（32x32.png、128x128.png、128x128@2x.png、icon.icns、icon.ico）
+- Modify: 根 `package.json`（`dev:desktop`）
 
 **Implement:**
 
-- Tauri 2 blank window.
-- Spawn sidecar (dev: venv uvicorn via sidecar CLI; prod later) with `--host 127.0.0.1 --port <free> --data-dir <app-support>`.
-- Set `FRAMEPILOT_DESKTOP=1`.
-- Poll `/health` (15s timeout). Show “API ready” or the error.
-- On exit: SIGTERM, then kill after 5s.
-- Locked CSP (`app.security.csp`):
+- Tauri 2 空白窗口。
+- 拉起 sidecar（开发：经 sidecar CLI 的 venv uvicorn；生产稍后）并传入 `--host 127.0.0.1 --port <free> --data-dir <app-support>`。
+- 设置 `FRAMEPILOT_DESKTOP=1`。
+- 轮询 `/health`（15 秒超时）。显示 “API ready” 或错误。
+- 退出时：SIGTERM，然后 5 秒后 kill。
+- 锁定的 CSP（`app.security.csp`）：
 
 ```text
 default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
@@ -539,22 +539,22 @@ connect-src 'self' http://127.0.0.1:* http://localhost:* ipc: http://ipc.localho
 font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 ```
 
-`assetUrl` returns absolute `http://127.0.0.1:PORT/...` used in `<img src>` (`ImportPanel.tsx`, `CullingWorkspace.tsx`). Missing `img-src` looks like a backend bug.
+`assetUrl` 返回用于 `<img src>` 的绝对地址 `http://127.0.0.1:PORT/...`（`ImportPanel.tsx`、`CullingWorkspace.tsx`）。缺少 `img-src` 看起来会像后端 bug。
 
-If WSL cannot open a WebView: keep the Rust spawn/health code, run sidecar smoke without GUI, mark `[~]`.
+若 WSL 无法打开 WebView：保留 Rust 拉起 / 健康检查代码，无 GUI 跑 sidecar smoke，标 `[~]`。
 
-**Tests:** none (Rust/config). Run: `npm run verify`, `bash scripts/sidecar-smoke.sh`. Record WebView result or WSL error in feasibility notes.
+**Tests:** none（Rust/配置）。运行：`npm run verify`、`bash scripts/sidecar-smoke.sh`。把 WebView 结果或 WSL 错误记入可行性说明。
 
 **Commit:** `desktop: add minimal Tauri shell with sidecar health`
 
-### D0.08 — Measure baselines
+### D0.08 — 测量基线
 
 **Depends on:** D0.05, D0.07  
 **Files:** `docs/desktop_feasibility_notes.md`
 
-Record, even if only Linux sidecar: dist size, RSS after `/health`, time to `/health`, Tauri hello RSS or “blocked on WSL”, scipy/pywavelets presence.
+即使只有 Linux sidecar 也要记录：dist 体积、`/health` 之后的 RSS、到 `/health` 的时间、Tauri hello 的 RSS 或 “blocked on WSL”、scipy/pywavelets 是否存在。
 
-**Tests:** none (documentation).
+**Tests:** none（文档）。
 
 **Commit:** `docs: record desktop feasibility baselines`
 
@@ -563,463 +563,463 @@ Record, even if only Linux sidecar: dist size, RSS after `/health`, time to `/he
 **Depends on:** D0.06, D0.08  
 **Files:** `docs/desktop_feasibility_notes.md`
 
-Write: Shell Tauri 2 (or Electron only if Tauri cannot spawn sidecar / WebView cannot reach loopback). Frontend Vite SPA. Keep imagehash/scipy unless unpacked sidecar **>250 MB**.
+写明：壳用 Tauri 2（仅当 Tauri 无法拉起 sidecar / WebView 无法到达回环时才用 Electron）。前端 Vite SPA。除非未打包 sidecar **>250 MB**，否则保留 imagehash/scipy。
 
-**Tests:** none (documentation). Run: `npm run test:api`
+**Tests:** none（文档）。运行：`npm run test:api`
 
-**Phase 0 acceptance** (ticked `上线` 2026-08-19; GUI remains `[~]`):
+**Phase 0 验收**（已于 2026-08-19 勾选 `上线`；GUI 仍为 `[~]`）：
 
-- [x] Sidecar starts, answers `/health`, exits on SIGTERM
-- [x] Origin + Host policy rejects random sites and attacker Host headers
-- [x] Path-based import exists, chunks at 100, does not mutate sources
-- [x] Feasibility notes committed
-- [x] `npm run test:api` and `npm run verify` green
-- [x] Browser web app still runs
-- [~] GUI shell is `[x]` or `[~]` with a recorded command/error — 2026-08-19 `cargo --version` / `rustc --version`: command not found (exit 127); see `docs/desktop_feasibility_notes.md`
+- [x] Sidecar 启动、应答 `/health`、收到 SIGTERM 后退出
+- [x] Origin + Host 策略拒绝随机站点与攻击者 Host 头
+- [x] 基于路径的导入存在，按 100 分块，不修改源文件
+- [x] 可行性说明已提交
+- [x] `npm run test:api` 与 `npm run verify` 全绿
+- [x] 浏览器 Web 应用仍可运行
+- [~] GUI 壳为 `[x]` 或带有记录命令 / 错误的 `[~]` — 2026-08-19 `cargo --version` / `rustc --version`: command not found (exit 127)；见 `docs/desktop_feasibility_notes.md`
 
 ---
 
-## Phase 1 — Desktop Shell and Sidecar Lifecycle (about 1.5–2 weeks)
+## Phase 1 — 桌面壳与 Sidecar 生命周期（约 1.5–2 周）
 
-**Phase goal:** `npm run dev:desktop` opens FramePilot UI that can list projects through the sidecar (or `[~]` with a Vite/HTTP equivalent on WSL).
+**阶段目标：** `npm run dev:desktop` 打开能通过 sidecar 列出项目的 FramePilot UI（或在 WSL 上以 Vite/HTTP 等价物标 `[~]`）。
 
-### D1.01 — Navigation adapter (keep Next working)
+### D1.01 — 导航适配层（保持 Next 可用）
 
-**Depends on:** Phase 0 exit  
+**Depends on:** Phase 0 退出  
 **Files:**
 
-- Create: `apps/web/src/lib/navigation.ts`, `apps/web/src/lib/navigation.next.tsx`
-- Modify (grep-verified): `Shell.tsx`, `ProjectList.tsx`, `ProjectDashboard.tsx`, `ProcessingPanel.tsx`, `ImportPanel.tsx`, `ProjectCreator.tsx`, `CullingWorkspace.tsx`
-- Modify mocks: `CullingWorkspace.test.tsx`, `ProcessingPanel.test.tsx`, `ImportExportPanels.test.tsx`
-- Test: `apps/web/src/lib/navigation.test.tsx` (not `.test.ts` — node `--test` has no JSX; vitest only collects `*.test.tsx`)
+- Create: `apps/web/src/lib/navigation.ts`，`apps/web/src/lib/navigation.next.tsx`
+- Modify（已 grep 核实）：`Shell.tsx`、`ProjectList.tsx`、`ProjectDashboard.tsx`、`ProcessingPanel.tsx`、`ImportPanel.tsx`、`ProjectCreator.tsx`、`CullingWorkspace.tsx`
+- Modify mocks：`CullingWorkspace.test.tsx`、`ProcessingPanel.test.tsx`、`ImportExportPanels.test.tsx`
+- Test: `apps/web/src/lib/navigation.test.tsx`（不是 `.test.ts` — node `--test` 没有 JSX；vitest 只收集 `*.test.tsx`）
 
 **Implement:**
 
-- Types + re-export point only. `Link`, `useNavigator`, `useQueryParams` come from `./navigation.next` in the web build.
-- Desktop Vite aliases that module to `apps/desktop/src/navigation.router.tsx` in D1.03a. A barrel that re-exports `next/link` would pull Next into Vite.
-- `useQueryParams(): URLSearchParams` hides Next vs React Router shape differences. `CullingWorkspace.tsx` must consume only the wrapper.
-- Shared components import `@/lib/navigation` only. No `next/link` or `next/navigation` under `apps/web/src/components/`.
-- Re-point existing mocks at `@/lib/navigation` in the same commit.
+- 仅类型 + 再导出点。Web 构建中 `Link`、`useNavigator`、`useQueryParams` 来自 `./navigation.next`。
+- 桌面 Vite 在 D1.03a 把该模块 alias 到 `apps/desktop/src/navigation.router.tsx`。一个再导出 `next/link` 的 barrel 会把 Next 拉进 Vite。
+- `useQueryParams(): URLSearchParams` 隐藏 Next 与 React Router 的形态差异。`CullingWorkspace.tsx` 必须只消费该包装。
+- 共享组件只 import `@/lib/navigation`。`apps/web/src/components/` 下不要有 `next/link` 或 `next/navigation`。
+- 在同一次提交中把现有 mock 改指 `@/lib/navigation`。
 
-**Tests:** Link renders `<a href>`; `push` called with expected href; `useQueryParams` reads a value; guard that components do not import `next/link` or `next/navigation`; existing component tests pass. Run: `npm run typecheck && npm run test:web`
+**Tests:** Link 渲染 `<a href>`；`push` 以期望 href 被调用；`useQueryParams` 读到一个值；守卫组件不 import `next/link` 或 `next/navigation`；现有组件测试通过。运行：`npm run typecheck && npm run test:web`
 
-Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) import/creator/culling + mocks. Finish all three before D1.03a.
+允许拆分：(a) 适配层 + 测试，(b) Shell/list/dashboard/processing，(c) import/creator/culling + mocks。在 D1.03a 之前完成全部三块。
 
 **Commit:** `web: isolate Next navigation behind an adapter`
 
-### D1.02 — Runtime API base (stop baking :8000)
+### D1.02 — 运行时 API base（停止写死 :8000）
 
 **Depends on:** D1.01  
 **Files:**
 
-- Create: `apps/web/src/lib/apiBase.ts`, `apps/web/src/types/globals.d.ts`
-- Modify: `apps/web/src/lib/api.ts` (`API_BASE`, `request`, `exportDownloadUrl`, `assetUrl`)
-- Test: `apps/web/src/lib/apiBase.test.ts`, `apps/web/src/lib/api.test.ts`
+- Create: `apps/web/src/lib/apiBase.ts`，`apps/web/src/types/globals.d.ts`
+- Modify: `apps/web/src/lib/api.ts`（`API_BASE`、`request`、`exportDownloadUrl`、`assetUrl`）
+- Test: `apps/web/src/lib/apiBase.test.ts`，`apps/web/src/lib/api.test.ts`
 
 **Implement:**
 
-- `resolveApiBase()`: `window.__FRAMEPILOT_API_BASE__`, then `NEXT_PUBLIC_API_BASE_URL`, then `http://127.0.0.1:8000`. Safe when `window` is undefined (`next build`).
-- Keep exporting `API_BASE` but read `resolveApiBase()` **at call time** inside `request` / URL helpers. A frozen module-level constant cannot see a port injected after load.
-- Trim trailing slash. Declare Window extras in `globals.d.ts`.
+- `resolveApiBase()`：`window.__FRAMEPILOT_API_BASE__`，然后 `NEXT_PUBLIC_API_BASE_URL`，然后 `http://127.0.0.1:8000`。`window` 未定义时安全（`next build`）。
+- 继续导出 `API_BASE`，但在 `request` / URL 辅助函数内部**调用时**读取 `resolveApiBase()`。冻结的模块级常量看不到加载之后注入的端口。
+- 去掉尾部斜杠。在 `globals.d.ts` 中声明 Window 扩展。
 
-**Tests:** window wins; env second; default third; trailing slash trimmed; no throw without window; with injected base, `assetUrl` and `exportDownloadUrl` use that host; existing encoding assertions still hold with the default.
+**Tests:** window 优先；env 其次；默认第三；去掉尾部斜杠；没有 window 时不抛；注入 base 后 `assetUrl` 与 `exportDownloadUrl` 使用该 host；现有编码断言在默认值下仍成立。
 
 **Commit:** `web: resolve API base at runtime for desktop`
 
-### D1.02a — `window.__FRAMEPILOT_DESKTOP__` shell flag
+### D1.02a — `window.__FRAMEPILOT_DESKTOP__` 壳标志
 
 **Depends on:** D1.02  
 **Files:**
 
 - Create: `apps/web/src/lib/shell.ts`
-- Test: `apps/web/src/lib/shell.test.ts` (and `.test.tsx` if DOM is required)
+- Test: `apps/web/src/lib/shell.test.ts`（若需要 DOM 则加 `.test.tsx`）
 
-**Implement:** `isDesktopShell()` is true only for literal `true`. `applyShellDataset()` sets `document.documentElement.dataset.shell`. Call from desktop entry (D1.03b) and from `Providers.tsx` (browser → `"browser"`). D3.02/D3.04 consume the helper / `[data-shell="desktop"]`, never inline `window` checks.
+**Implement:** `isDesktopShell()` 仅对字面量 `true` 为真。`applyShellDataset()` 设置 `document.documentElement.dataset.shell`。从桌面入口（D1.03b）和 `Providers.tsx`（浏览器 → `"browser"`）调用。D3.02/D3.04 消费该辅助函数 / `[data-shell="desktop"]`，不要内联 `window` 检查。
 
-**Tests:** true only for `true`; false for undefined/`"1"`/`0`; no throw without window.
+**Tests:** 仅 `true` 为真；undefined/`"1"`/`0` 为假；没有 window 时不抛。
 
 **Commit:** `web: add desktop shell detection helper`
 
-### D1.03a — Vite desktop build with shared aliases and Tailwind
+### D1.03a — 带共享别名与 Tailwind 的 Vite 桌面构建
 
 **Depends on:** D1.01, D1.02  
 **Files:**
 
-- Create: `apps/desktop/package.json`, `index.html`, `vite.config.ts`, `tsconfig.json`, `tailwind.config.ts`, `postcss.config.js`, `src/main.tsx`, `src/styles.css`
-- Modify: root `package.json` (`install:all`, `typecheck:desktop`, `lint:desktop`; add both to `verify` **without** Rust)
+- Create: `apps/desktop/package.json`、`index.html`、`vite.config.ts`、`tsconfig.json`、`tailwind.config.ts`、`postcss.config.js`、`src/main.tsx`、`src/styles.css`
+- Modify: 根 `package.json`（`install:all`、`typecheck:desktop`、`lint:desktop`；把后两者加入 `verify`，**不要**要求 Rust）
 
 **Implement:**
 
-- Dependencies mirroring web: react, react-dom, tanstack query/virtual, zustand, lucide-react, plus `react-router-dom`. Dev: vite, plugin-react, typescript, tailwindcss ^3.4, postcss, autoprefixer, `@tauri-apps/cli`.
-- Vite alias `"@"` → `../web/src` (shared files import `@/lib/...`). Alias `./navigation.next` → `./src/navigation.router.tsx` (file may be a stub until D1.03b).
-- `server.fs.allow` includes `../web`. Port **1420**, `strictPort: true`.
-- Tailwind content includes `../web/src/**/*.{ts,tsx}` and the **same** theme tokens as `apps/web/tailwind.config.ts` (import shared object; do not duplicate hex).
-- `src/styles.css`: `@import "../../web/src/app/globals.css";` — do not fork CSS.
+- 依赖镜像 web：react、react-dom、tanstack query/virtual、zustand、lucide-react，外加 `react-router-dom`。Dev：vite、plugin-react、typescript、tailwindcss ^3.4、postcss、autoprefixer、`@tauri-apps/cli`。
+- Vite alias `"@"` → `../web/src`（共享文件 import `@/lib/...`）。Alias `./navigation.next` → `./src/navigation.router.tsx`（该文件在 D1.03b 之前可以是 stub）。
+- `server.fs.allow` 包含 `../web`。端口 **1420**，`strictPort: true`。
+- Tailwind content 包含 `../web/src/**/*.{ts,tsx}`，以及与 `apps/web/tailwind.config.ts` **相同**的主题 token（import 共享对象；不要复制 hex）。
+- `src/styles.css`：`@import "../../web/src/app/globals.css";` — 不要分叉 CSS。
 
-**Tests:** `npm --prefix apps/desktop run build` succeeds with non-trivial CSS; `npm run typecheck:desktop`; `npm run verify` still does not require Rust.
+**Tests:** `npm --prefix apps/desktop run build` 成功且 CSS 非平凡；`npm run typecheck:desktop`；`npm run verify` 仍不要求 Rust。
 
 **Commit:** `desktop: add Vite build with shared aliases and Tailwind`
 
-### D1.03b — Desktop router reusing shared page components
+### D1.03b — 复用共享页面组件的桌面路由器
 
 **Depends on:** D1.03a, D1.02a  
 **Files:**
 
-- Create: `apps/desktop/src/router.tsx`, `navigation.router.tsx`, `App.tsx`
+- Create: `apps/desktop/src/router.tsx`、`navigation.router.tsx`、`App.tsx`
 - Modify: `apps/desktop/src/main.tsx`
 
-**Implement:** React Router implements the D1.01 contract (`href` → `to`, drop `prefetch`). Routes match `apps/web/src/app` exactly plus a catch-all to home. Same providers as `Providers.tsx`. Call `applyShellDataset()`. Leave `"use client"` directives in shared files.
+**Implement:** React Router 实现 D1.01 约定（`href` → `to`，去掉 `prefetch`）。路由精确匹配 `apps/web/src/app`，外加 catch-all 回首页。与 `Providers.tsx` 相同的 providers。调用 `applyShellDataset()`。共享文件中保留 `"use client"` 指令。
 
-**Tests:** `npm run typecheck:desktop` and desktop build; `npm run test:web` unaffected.
+**Tests:** `npm run typecheck:desktop` 与桌面构建；`npm run test:web` 不受影响。
 
 **Commit:** `desktop: add router reusing web page components`
 
-### D1.04 — Sidecar lifecycle in Rust
+### D1.04 — Rust 中的 sidecar 生命周期
 
 **Depends on:** D0.07, D1.03b  
-**Files:** `apps/desktop/src-tauri/src/` (`sidecar.rs`, `lib.rs`)
+**Files:** `apps/desktop/src-tauri/src/`（`sidecar.rs`、`lib.rs`）
 
 **Implement:**
 
-- Allocate port in Rust (`TcpListener::bind("127.0.0.1:0")`, read addr, drop listener, pass `--port <n>`). Never pass `--port 0` in the shipped path.
-- Always pass `--data-dir`. Env `FRAMEPILOT_DESKTOP=1`.
-- Inject both globals before frontend load: `__FRAMEPILOT_API_BASE__` and `__FRAMEPILOT_DESKTOP__ = true`.
-- Parse stdout ready line; fail fast if reported port differs.
-- Crash policy: one automatic restart; if health fails twice, blocking error page.
-- Shutdown: SIGTERM, wait 5s, then kill. Windows: job object or `GenerateConsoleCtrlEvent` — document which in feasibility notes.
-- Log sidecar stderr to `{data_dir}/logs/sidecar.log`.
+- 在 Rust 中分配端口（`TcpListener::bind("127.0.0.1:0")`，读地址，丢掉 listener，传入 `--port <n>`）。发布路径上永不传 `--port 0`。
+- 始终传入 `--data-dir`。环境变量 `FRAMEPILOT_DESKTOP=1`。
+- 在前端加载前注入两个全局：`__FRAMEPILOT_API_BASE__` 与 `__FRAMEPILOT_DESKTOP__ = true`。
+- 解析 stdout ready 行；报告端口不一致则快速失败。
+- 崩溃策略：自动重启一次；若 health 失败两次，阻塞错误页。
+- 关闭：SIGTERM，等待 5 秒，然后 kill。Windows：job object 或 `GenerateConsoleCtrlEvent` — 在可行性说明中记录用了哪一种。
+- 把 sidecar stderr 记到 `{data_dir}/logs/sidecar.log`。
 
-**Tests:** Rust unit tests for `allocate_loopback_port()` and `parse_ready_line()`. Run: `cargo test` in `src-tauri`, `npm run verify`. Mark GUI-only `[~]` if needed.
+**Tests:** 针对 `allocate_loopback_port()` 与 `parse_ready_line()` 的 Rust 单元测试。运行：在 `src-tauri` 中 `cargo test`，以及 `npm run verify`。仅 GUI 部分必要时标 `[~]`。
 
 **Commit:** `desktop: manage sidecar lifecycle and API base injection`
 
-### D1.05 — App-support data directory
+### D1.05 — 应用支持数据目录
 
 **Depends on:** D1.04  
-**Files:** Rust path helper only (do not duplicate in TS)
+**Files:** 仅 Rust 路径辅助（不要在 TS 中复制）
 
-**Implement:** Default dirs as locked decision 8. Create on first launch. Packaged runs never use repo `.framepilot-data`. Dev may use `.framepilot-desktop-dev` (gitignored in D0.07a).
+**Implement:** 默认目录见锁定决策 8。首次启动时创建。打包运行永不使用仓库 `.framepilot-data`。开发可用 `.framepilot-desktop-dev`（D0.07a 已 gitignore）。
 
-**Tests:** table-driven Rust tests for macOS/Windows/Linux prefixes. Run: `cargo test`.
+**Tests:** 针对 macOS/Windows/Linux 前缀的表驱动 Rust 测试。运行：`cargo test`。
 
 **Commit:** `desktop: use OS app-support data directory`
 
-### D1.06 — Window basics and single instance
+### D1.06 — 窗口基础与单实例
 
 **Depends on:** D1.04  
-**Files:** `tauri.conf.json`, Rust setup
+**Files:** `tauri.conf.json`、Rust setup
 
-**Implement:** Title `FramePilot`; min size ~1100×720; remember position/size; single instance focuses the first window; close window stops sidecar.
+**Implement:** 标题 `FramePilot`；最小尺寸约 1100×720；记住位置/大小；单实例聚焦第一个窗口；关闭窗口停止 sidecar。
 
-**Tests:** none (shell). Run: `cargo check`. Record GUI or `[~]`.
+**Tests:** none（壳）。运行：`cargo check`。记录 GUI 或 `[~]`。
 
 **Commit:** `desktop: add window state and single-instance lock`
 
-### D1.07 — Dev scripts and verify wiring
+### D1.07 — 开发脚本与 verify 接线
 
 **Depends on:** D1.03a, D1.04  
-**Files:** root `package.json`, `apps/desktop/package.json`, short README section
+**Files:** 根 `package.json`、`apps/desktop/package.json`、简短 README 小节
 
-**Implement:** `npm run dev:desktop` → tauri dev + Vite + sidecar. `build:desktop` may wait until Phase 4. `verify` must **not** require Rust. `install:all` already installs desktop from D1.03a.
+**Implement:** `npm run dev:desktop` → tauri dev + Vite + sidecar。`build:desktop` 可以等到 Phase 4。`verify` 必须**不**要求 Rust。`install:all` 已从 D1.03a 起安装 desktop。
 
-**Tests:** none (scripts). Run: `npm run verify`.
+**Tests:** none（脚本）。运行：`npm run verify`。
 
 **Commit:** `desktop: add tauri dev scripts`
 
-### D1.08 — Desktop smoke: health + project list
+### D1.08 — 桌面 smoke：health + 项目列表
 
 **Depends on:** D1.04, D1.05, D1.07  
-**Files:** `tests/desktop/smoke.sh` or Playwright against Vite `:1420`
+**Files:** `tests/desktop/smoke.sh` 或针对 Vite `:1420` 的 Playwright
 
-**Acceptance:** UI (or the Vite page) can call `GET /api/projects` and render the home list (empty is OK). Failure must be visible, not a silent CORS 403. On WSL, HTTP-level smoke against the sidecar + Vite is enough for `[x]` of the non-GUI part; WebView render stays `[~]` if needed — split the tracker note accordingly, do not leave the whole id `[ ]`.
+**Acceptance:** UI（或 Vite 页面）能调用 `GET /api/projects` 并渲染首页列表（空列表 OK）。失败必须可见，不能是静默 CORS 403。在 WSL 上，对 sidecar + Vite 的 HTTP 级 smoke 足以把非 GUI 部分标 `[x]`；若需要，WebView 渲染保持 `[~]` — 在跟踪表备注中拆开写，不要把整个 id 留成 `[ ]`。
 
-**Tests:** script asserts `/health` and `/api/projects` 200 from the injected base. Run: `npm run test:desktop:smoke` (skip with explicit message only for the WebView half).
+**Tests:** 脚本断言注入的 base 上 `/health` 与 `/api/projects` 为 200。运行：`npm run test:desktop:smoke`（仅 WebView 一半可用明确消息跳过）。
 
 **Commit:** `test: add desktop project-list smoke`
 
-### D1.09 — Graceful quit while a job is running
+### D1.09 — 有运行中任务时的优雅退出
 
 **Depends on:** D1.04, D1.06  
 **Files:**
 
-- Modify: sidecar/window close handler; reuse existing cancel route
-- Test: `apps/api/tests/test_job_reliability.py`; Rust shutdown state machine
-- Docs: `docs/v2_known_limitations.md` if any remaining gap
+- Modify: sidecar/窗口关闭处理；复用现有 cancel 路由
+- Test: `apps/api/tests/test_job_reliability.py`；Rust 关闭状态机
+- Docs: 若仍有缺口则改 `docs/v2_known_limitations.md`
 
-**Implement:** On close, if an import/process job is active: confirm — Cancel quit / Quit and cancel job / Quit anyway. Cancel: existing POST cancel, wait up to 10s, then SIGTERM. Quit anyway: SIGTERM then kill after 5s. Next launch: existing startup sweep; UI must show the recovery message (`importLoadRecoveryMessage`), not a bare “failed”.
+**Implement:** 关闭时若有导入/处理任务在运行：确认 — 取消退出 / 退出并取消任务 / 仍然退出。取消：现有 POST cancel，最多等 10 秒，然后 SIGTERM。仍然退出：SIGTERM，然后 5 秒后 kill。下次启动：现有启动扫描；UI 必须显示恢复消息（`importLoadRecoveryMessage`），而不是光秃秃的 “failed”。
 
-**Tests:** cancelled-then-restarted import leaves no photo in `processing`; job terminal `cancelled` not `failed`; killed worker still retryable; Rust state machine returns Kill after grace window.
+**Tests:** 取消后再重启的导入不在 `processing` 中留下照片；任务终态为 `cancelled` 不是 `failed`；被 kill 的 worker 仍可重试；Rust 状态机在宽限期后返回 Kill。
 
 **Commit:** `desktop: cancel or drain jobs before quitting`
 
-**Phase 1 acceptance** (ticked `上线` 2026-08-19; Phase 2 not started):
+**Phase 1 验收**（已于 2026-08-19 勾选 `上线`；Phase 2 未开始）：
 
-- [x] Home UI or HTTP smoke lists projects — `GET /api/projects` `[]` from `test:desktop:smoke`, live sidecar, desktop sidecar `:54451`, and browser API `:8000`
+- [x] 首页 UI 或 HTTP smoke 能列出项目 — 来自 `test:desktop:smoke`、活 sidecar、桌面 sidecar `:54451` 以及浏览器 API `:8000` 的 `GET /api/projects` `[]`
 - [x] Sidecar health OK — `GET /health` `{"status":"ok","version":"2.0.0-rc2","service":"framepilot-api"}`
-- [x] `npm run verify` green without Tauri — exit 0; fail-if-invoked `rustc`/`cargo`/`tauri` wrappers were not called by verify
-- [x] Browser `npm run dev` still works on :3000/:8000 — 2026-08-19T18:59:32+08:00 `npm run dev`: `:8000/health` 200, `:8000/api/projects` `[]`, `:3000/` 200 title `FramePilot`
+- [x] 无 Tauri 时 `npm run verify` 全绿 — 退出码 0；fail-if-invoked 的 `rustc`/`cargo`/`tauri` 包装器未被 verify 调用
+- [x] 浏览器 `npm run dev` 在 :3000/:8000 仍可用 — 2026-08-19T18:59:32+08:00 `npm run dev`：`:8000/health` 200，`:8000/api/projects` `[]`，`:3000/` 200 标题 `FramePilot`
 
 ---
 
-## Phase 2 — Native Filesystem and Core Workflow (about 1.5–2 weeks)
+## Phase 2 — 原生文件系统与核心工作流（约 1.5–2 周）
 
-**Phase goal:** Import → Process → Cull → Export works using native folder pickers. Originals stay immutable.
+**阶段目标：** 使用原生文件夹选择器完成 导入 → 处理 → 筛选 → 导出。原图保持不可变。
 
-### D2.00 — Registered project roots for desktop folder pickers
+### D2.00 — 为桌面文件夹选择器注册项目根
 
 **Depends on:** D0.03  
 **Files:**
 
 - Create: `apps/api/app/core/project_roots.py`
-- Modify: `apps/api/app/services/projects.py` (allowed roots), `apps/api/app/api/routes.py`
-- Docs: `docs/api.md` (`root_path` currently omits the allowlist)
+- Modify: `apps/api/app/services/projects.py`（允许的根），`apps/api/app/api/routes.py`
+- Docs: `docs/api.md`（`root_path` 目前省略了 allowlist）
 - Test: `apps/api/tests/test_desktop_project_roots.py`
 
 **Implement:**
 
-- Problem: allowlist is read once via `lru_cache`; the user picks a folder **after** spawn. Setting `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST=$HOME` voids the control.
-- Process-level registry **not** inside `Settings` (mutating settings resets the DB engine). Persist `{data_dir}/desktop_project_roots.json`, cap 50.
-- `register_root`: absolute, exists, directory, resolved; reject `BLOCKED_ROOT_NAMES`, filesystem anchors, data dir and its parents.
-- `create_project` allowed roots = `[projects_root, *allowlist, *registered_roots()]`. Do not change error messages.
-- Endpoints **only when `FRAMEPILOT_DESKTOP=1`** (else 404): `POST /api/desktop/project-roots` `{"path"}`, `GET` same.
-- Desktop flow: pick → POST register → POST `/api/projects` with `root_path`.
+- 问题：allowlist 经 `lru_cache` 只读一次；用户是在进程拉起**之后**选文件夹。把 `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST=$HOME` 会废掉该控制。
+- 进程级注册表**不**放在 `Settings` 内（改 settings 会重置 DB engine）。持久化 `{data_dir}/desktop_project_roots.json`，上限 50。
+- `register_root`：绝对路径、存在、是目录、已 resolve；拒绝 `BLOCKED_ROOT_NAMES`、文件系统锚点、数据目录及其父目录。
+- `create_project` 允许的根 = `[projects_root, *allowlist, *registered_roots()]`。不要改错误消息。
+- 端点**仅当 `FRAMEPILOT_DESKTOP=1`**（否则 404）：`POST /api/desktop/project-roots` `{"path"}`，`GET` 相同。
+- 桌面流程：选择 → POST 注册 → 带 `root_path` 的 POST `/api/projects`。
 
-**Tests:** existing allowlist test still passes unchanged; outside root 422 until registered; `/`, `/etc`, `C:\Windows`, data dir 422; relative/file 422; endpoints 404 when desktop env unset; roots survive `create_app()` restart; `clear_registered_roots()` in fixtures.
+**Tests:** 现有 allowlist 测试仍原样通过；根在注册前在外则为 422；`/`、`/etc`、`C:\Windows`、数据目录为 422；相对路径 / 文件为 422；未设置桌面环境时端点 404；根在 `create_app()` 重启后仍在；fixture 中有 `clear_registered_roots()`。
 
 **Commit:** `api: register desktop project roots before use`
 
-### D2.01 — Desktop capability: pick files and directories
+### D2.01 — 桌面能力：选择文件与目录
 
 **Depends on:** Phase 1  
-**Files:** `apps/desktop/src/lib/nativeFs.ts`, Tauri dialog plugin, capabilities JSON
+**Files:** `apps/desktop/src/lib/nativeFs.ts`、Tauri dialog plugin、capabilities JSON
 
-**Implement:** `pickDirectory()`, `pickImageFiles()`, `revealInFileManager()`. Web builds must not import Tauri plugins. `getNativeFs()` returns `null` in the browser.
+**Implement:** `pickDirectory()`、`pickImageFiles()`、`revealInFileManager()`。Web 构建不得 import Tauri 插件。浏览器中 `getNativeFs()` 返回 `null`。
 
-**Tests:** unit-test the null-browser branch; desktop wrappers mocked.
+**Tests:** 单测浏览器 null 分支；桌面包装被 mock。
 
 **Commit:** `desktop: add native file dialog adapters`
 
-### D2.02 — Project create/open with native directory picker
+### D2.02 — 用原生目录选择器创建 / 打开项目
 
 **Depends on:** D2.00, D2.01  
-**Files:** `ProjectCreator.tsx`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/projectCreation.ts`
+**Files:** `ProjectCreator.tsx`、`apps/web/src/lib/api.ts`、`apps/web/src/lib/projectCreation.ts`
 
-**Implement:** If native FS exists, Browse fills `root_path` after `POST /api/desktop/project-roots`. Surface 422 verbatim. Extend `createProject` with `acknowledgeNonempty`. Confirm: “This folder already contains files. FramePilot will create its project folders inside it and will not modify existing files. Continue?” Browser: text field stays; no acknowledge flag unless confirmed.
+**Implement:** 若存在原生 FS，Browse 在 `POST /api/desktop/project-roots` 之后填入 `root_path`。原样展示 422。给 `createProject` 增加 `acknowledgeNonempty`。确认文案：“This folder already contains files. FramePilot will create its project folders inside it and will not modify existing files. Continue?” 浏览器：文本框保留；未确认则不加 acknowledge 标志。
 
-**Tests:** `projectCreation.test.ts` — `acknowledgeNonempty` only after confirmation. API: registered nonempty root fails without the flag and succeeds with it; existing files still present.
+**Tests:** `projectCreation.test.ts` — 仅在确认后才有 `acknowledgeNonempty`。API：已注册的非空根无该标志失败、有该标志成功；现有文件仍在。
 
 **Commit:** `web: use native directory picker when desktop APIs exist`
 
-### D2.03 — Import panel uses path import on desktop
+### D2.03 — 导入面板在桌面上使用路径导入
 
 **Depends on:** D0.04b, D2.01  
-**Files:** `ImportPanel.tsx`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/importWorkflow.ts`
+**Files:** `ImportPanel.tsx`、`apps/web/src/lib/api.ts`、`apps/web/src/lib/importWorkflow.ts`
 
 **Implement:**
 
-- Desktop: pick folder/files → `importPhotosFromPaths`, loop `remaining_paths` with same `job_id`, `finalize: true` only on last slice. Progress uses `expanded_total`.
-- Browser: existing multipart.
-- **Invariant:** when `isDesktopShell()` is false, both `<input type="file">` elements (`ImportPanel.tsx` ~234 and ~253 including `webkitdirectory`) keep current DOM position, labels, and disabled semantics. `tests/e2e/local-workflow.spec.ts` depends on them.
+- 桌面：选择文件夹/文件 → `importPhotosFromPaths`，用同一个 `job_id` 循环 `remaining_paths`，仅最后一片 `finalize: true`。进度使用 `expanded_total`。
+- 浏览器：现有 multipart。
+- **不变量：** 当 `isDesktopShell()` 为 false 时，两个 `<input type="file">` 元素（`ImportPanel.tsx` 约 234 与约 253，含 `webkitdirectory`）保持当前 DOM 位置、标签与 disabled 语义。`tests/e2e/local-workflow.spec.ts` 依赖它们。
 
-**Tests:** `importWorkflow.test.ts` branch + remaining-paths loop. Run `npm run test:e2e` before closing Phase 2.
+**Tests:** `importWorkflow.test.ts` 分支 + remaining-paths 循环。关闭 Phase 2 前运行 `npm run test:e2e`。
 
 **Commit:** `web: import from local paths in desktop mode`
 
-### D2.04 — Drag-and-drop folders/files onto import view
+### D2.04 — 把文件夹 / 文件拖放到导入视图
 
 **Depends on:** D2.03  
-**Files:** `ImportPanel.tsx`; Tauri drag-drop if WebView drop is insufficient
+**Files:** `ImportPanel.tsx`；若 WebView 拖放不够再用 Tauri drag-drop
 
-**Implement:** Dropped paths feed `from-paths`. Overlay `pointer-events: none` unless a drag is active (must not block Playwright file inputs). Do not start import on drop outside the import page.
+**Implement:** 放下的路径喂给 `from-paths`。除非正在拖拽，否则 overlay `pointer-events: none`（不得挡住 Playwright 文件输入）。不要在导入页之外的 drop 上开始导入。
 
-**Tests:** `collectDroppedPaths(event)` unit test. Run `npm run test:web` and note E2E in Phase 2 close.
+**Tests:** `collectDroppedPaths(event)` 单元测试。运行 `npm run test:web`，并在 Phase 2 收尾记录 E2E。
 
 **Commit:** `desktop: add import drag-and-drop`
 
-### D2.05 — Reveal project, originals, and export folders
+### D2.05 — 在文件管理器中显示项目、originals 与导出文件夹
 
 **Depends on:** D2.01  
-**Files:** `ProjectDashboard.tsx`, `ExportPanel.tsx`
+**Files:** `ProjectDashboard.tsx`、`ExportPanel.tsx`
 
-**Implement:** “Open project folder”, “Open export folder” via `revealInFileManager`. Folder export already returns `output_path`.
+**Implement:** 经 `revealInFileManager` 提供 “Open project folder”、“Open export folder”。文件夹导出已经返回 `output_path`。
 
-**Tests:** one helper test that the reveal callback is invoked with `output_path`. Run: `npm run test:web`.
+**Tests:** 一个辅助测试：reveal 回调以 `output_path` 被调用。运行：`npm run test:web`。
 
 **Commit:** `desktop: reveal project and export paths in the OS file manager`
 
-### D2.06 — Recent projects (desktop)
+### D2.06 — 最近项目（桌面）
 
 **Depends on:** D1.05  
-**Files:** helper + `ProjectList.tsx`
+**Files:** 辅助函数 + `ProjectList.tsx`
 
-**Implement:** last-opened project id in localStorage. Do not invent a second database. `GET /api/projects` remains the list.
+**Implement:** 上次打开的项目 id 存在 localStorage。不要发明第二个数据库。`GET /api/projects` 仍是列表。
 
-**Tests:** `recentProjects.test.ts` (or `.test.tsx`). Run: `npm run test:web`.
+**Tests:** `recentProjects.test.ts`（或 `.test.tsx`）。运行：`npm run test:web`。
 
 **Commit:** `desktop: remember last opened project`
 
-### D2.07 — Cross-platform path hardening
+### D2.07 — 跨平台路径加固
 
 **Depends on:** D0.04a  
-**Files:** `importing.py`, `projects.py`, tests
+**Files:** `importing.py`、`projects.py`、测试
 
-**Implement / test:** Windows drive letters, spaces, non-ASCII, trailing separators, reject NUL; keep `os.pathsep` allowlist parsing. Skip live Win32-only cases on POSIX.
+**Implement / test:** Windows 盘符、空格、非 ASCII、尾部分隔符、拒绝 NUL；保持 `os.pathsep` allowlist 解析。POSIX 上跳过仅 Win32 的现场用例。
 
 **Commit:** `api: harden desktop import paths`
 
-### D2.08 — Full workflow verification
+### D2.08 — 完整工作流验证
 
 **Depends on:** D2.03, D2.05  
-**Files:** `tests/desktop/workflow.md` + pytest using `from-paths` then process + export
+**Files:** `tests/desktop/workflow.md` + 使用 `from-paths` 然后 process + export 的 pytest
 
-**Automated:** create project, import synthetic JPEGs via from-paths, process, mark Pick, CSV/ZIP/folder export, originals unchanged.
+**Automated:** 创建项目，经 from-paths 导入合成 JPEG，处理，标记 Pick，CSV/ZIP/文件夹导出，原图不变。
 
-**Manual checklist** when GUI exists: pick folder, cull with keyboard, export, reveal folder.
+**Manual checklist** 在 GUI 存在时：选择文件夹、用键盘筛选、导出、显示文件夹。
 
-**Tests:** the pytest above. Run: `npm run test:api` and `npm run test:e2e` if ImportPanel changed.
+**Tests:** 上述 pytest。运行：`npm run test:api`，若改了 ImportPanel 再跑 `npm run test:e2e`。
 
 **Commit:** `test: cover path-import process export workflow`
 
-### D2.09 — Reveal exports instead of downloading them on desktop
+### D2.09 — 桌面上显示导出产物而不是下载
 
 **Depends on:** D2.01, D2.05  
-**Files:** `ExportPanel.tsx` (`<a download>` around lines 241 and 308); `ImportExportPanels.test.tsx`
+**Files:** `ExportPanel.tsx`（约 241 与 308 行的 `<a download>`）；`ImportExportPanels.test.tsx`
 
-**Implement:** On desktop, replace download anchors with “Show in folder” using `output_path`. Browser keeps anchors. Branch on `isDesktopShell()`. If macOS WKWebView blocks loopback HTTP images, record it — do not redesign the asset pipeline here.
+**Implement:** 在桌面上，用基于 `output_path` 的 “Show in folder” 替换下载锚点。浏览器保留锚点。按 `isDesktopShell()` 分支。若 macOS WKWebView 挡住回环 HTTP 图片，记录下来 — 不要在这里重做资源管线。
 
-**Tests:** with `__FRAMEPILOT_DESKTOP__ = true`, reveal button and no `<a download>`; flag unset → current href.
+**Tests:** `__FRAMEPILOT_DESKTOP__ = true` 时有 reveal 按钮且无 `<a download>`；标志未设置 → 当前 href。
 
 **Commit:** `desktop: reveal export artifacts instead of downloading them`
 
-**Phase 2 acceptance:**
+**Phase 2 验收：**
 
-- [x] Desktop (or API-equivalent) completes Import → Process → Cull → Export — API pytest `test_path_import_process_pick_and_export_leaves_originals_unchanged` plus browser e2e smoke (`npm run test:e2e`, 45 passed, 2026-08-21T08:36:30+08:00)
-- [x] Source files unmodified — D2.08 pytest asserts source `st_size` / `st_mtime_ns` / SHA-256 unchanged; `test_import_from_paths_immutability.py` green
-- [x] Multipart browser import and E2E file inputs still work — `ImportExportPanels.test.tsx` `webkitdirectory` inputs; e2e `Choose image files` smoke
-- [x] `npm run verify` green — rust-free wrappers, exit 0, 2026-08-21T08:36:30+08:00
+- [x] 桌面（或 API 等价物）完成 导入 → 处理 → 筛选 → 导出 — API pytest `test_path_import_process_pick_and_export_leaves_originals_unchanged` 加上浏览器 e2e smoke（`npm run test:e2e`，45 passed，2026-08-21T08:36:30+08:00）
+- [x] 源文件未被修改 — D2.08 pytest 断言源 `st_size` / `st_mtime_ns` / SHA-256 不变；`test_import_from_paths_immutability.py` 全绿
+- [x] multipart 浏览器导入与 E2E 文件输入仍可用 — `ImportExportPanels.test.tsx` `webkitdirectory` 输入；e2e `Choose image files` smoke
+- [x] `npm run verify` 全绿 — 无 rust 包装器，退出码 0，2026-08-21T08:36:30+08:00
 
 ---
 
-## Phase 3 — Desktop UI and Native Chrome (about 2 weeks)
+## Phase 3 — 桌面 UI 与原生窗口装饰（约 2 周）
 
-**Phase goal:** Feel like a desktop product. Do not rewrite the culling workspace. Detached preview / concurrency knobs / updater are **out of 2.1**.
+**阶段目标：** 感觉像桌面产品。不要重写筛选工作区。分离预览 / 并发旋钮 / 更新器 **不在 2.1 范围内**。
 
-### D3.01 — Native menu bar
+### D3.01 — 原生菜单栏
 
 **Depends on:** Phase 2  
-**Files:** Rust menu, JS listeners as needed
+**Files:** Rust 菜单，必要时加 JS 监听器
 
-Menus: File (New, Open data folder, Import, Export, Close, Quit); Edit (OS defaults); View (Fullscreen); Project (Process, Culling); Help (Shortcuts, About dialog only — no updater).
+菜单：File（New、Open data folder、Import、Export、Close、Quit）；Edit（操作系统默认）；View（Fullscreen）；Project（Process、Culling）；Help（Shortcuts、仅 About 对话框 — 无更新器）。
 
-Preserve P/M/X/U/1–5/0/Space/Z/C/G/F/E. **No native menu item may use a bare-key accelerator** for those keys.
+保留 P/M/X/U/1–5/0/Space/Z/C/G/F/E。**任何原生菜单项都不得对这些键使用裸键加速键**。
 
-**Tests:** `menuRoutes.test.ts` if a pure map is extracted; `reviewShortcutCommandFromEvent` still returns null for modifier chords (`reviewShortcuts.ts`). Run: `npm run test:web`. GUI recorded or `[~]`.
+**Tests:** 若抽出纯映射则写 `menuRoutes.test.ts`；`reviewShortcutCommandFromEvent` 对带修饰键的组合仍返回 null（`reviewShortcuts.ts`）。运行：`npm run test:web`。记录 GUI 或 `[~]`。
 
 **Commit:** `desktop: add native application menu`
 
-### D3.02 — Status bar and processing visibility
+### D3.02 — 状态栏与处理可见性
 
 **Depends on:** D3.01, D1.02a  
-**Files:** desktop-only status bar or `Shell.tsx` gated by `isDesktopShell()`
+**Files:** 仅桌面的状态栏，或由 `isDesktopShell()` 门控的 `Shell.tsx`
 
-Show sidecar connected, project name, job step/percent. Reuse `processingProgress.ts`. Keep browser shell unchanged if possible.
+显示 sidecar 已连接、项目名、任务步骤/百分比。复用 `processingProgress.ts`。若可能，保持浏览器壳不变。
 
-**Tests:** helper/render test when `isDesktopShell()` is true. Run: `npm run test:web`.
+**Tests:** `isDesktopShell()` 为 true 时的辅助 / 渲染测试。运行：`npm run test:web`。
 
 **Commit:** `desktop: add status bar for sidecar and jobs`
 
-### D3.03 — Settings: data directory display
+### D3.03 — 设置：数据目录显示
 
 **Depends on:** D1.05  
-**Files:** `SettingsPanel.tsx`; new `GET /api/meta` (do **not** extend `/health`)
+**Files:** `SettingsPanel.tsx`；新增 `GET /api/meta`（**不要**扩展 `/health`）
 
-**Implement:** `GET /api/meta` → `{version, service, data_dir, desktop_mode}`. Settings: read-only data directory + “Open data folder” on desktop. Changing data dir is out of 2.1.
+**Implement:** `GET /api/meta` → `{version, service, data_dir, desktop_mode}`。设置：只读数据目录 + 桌面上的 “Open data folder”。更改数据目录不在 2.1 范围内。
 
-**Tests:** `/api/meta` returns monkeypatched `FRAMEPILOT_DATA_DIR`; `desktop_mode` follows env. Component shows the value.
+**Tests:** `/api/meta` 返回被 monkeypatch 的 `FRAMEPILOT_DATA_DIR`；`desktop_mode` 跟随环境变量。组件显示该值。
 
 **Commit:** `desktop: show data directory in settings`
 
-### D3.04 — System theme follow (light/dark)
+### D3.04 — 跟随系统主题（浅色 / 深色）
 
 **Depends on:** D3.02  
-**Files:** CSS / Tailwind `dark:` scoped to `[data-shell="desktop"]`
+**Files:** CSS / Tailwind `dark:`，作用域为 `[data-shell="desktop"]`
 
-Browser may stay light-only.
+浏览器可以继续仅浅色。
 
-**Tests:** none (CSS) plus visual note. Run: `npm run test:web` if components changed.
+**Tests:** none（CSS）加上视觉说明。若改了组件则运行 `npm run test:web`。
 
 **Commit:** `desktop: follow system light/dark theme`
 
-### D3.05 — Window chrome and empty/error copy
+### D3.05 — 窗口装饰与空状态 / 错误文案
 
 **Depends on:** D3.02  
-**Files:** empty states on list, import, culling, export
+**Files:** 列表、导入、筛选、导出上的空状态
 
-Desktop copy: “Choose a folder”, not “Choose files in your browser”. Keep Help shortcuts accurate.
+桌面文案：“Choose a folder”，不是 “Choose files in your browser”。保持 Help 快捷键准确。
 
-**Tests:** string/helper tests if copy is centralized. Run: `npm run test:web`.
+**Tests:** 若文案集中管理则写字符串 / 辅助测试。运行：`npm run test:web`。
 
 **Commit:** `desktop: adapt empty and error copy for native folders`
 
-### D3.06 — Optional tray (defer if timeboxed)
+### D3.06 — 可选托盘（若时间不够则推迟）
 
 **Depends on:** D3.02  
-**Skip unless Phase 3 is ahead of schedule.** Not required for DoD. If skipped: `[-]` and D5.05 note.
+**除非 Phase 3 进度超前，否则跳过。** 不是 DoD 要求。若跳过：标 `[-]` 并在 D5.05 注明。
 
-**Tests:** none if deferred (`docs` commit). If implemented: smoke that tray menu has Show + Quit.
+**Tests:** 若推迟则为 none（`docs` 提交）。若实现：smoke 托盘菜单有 Show + Quit。
 
-**Commit:** `desktop: add optional tray status` **or** `docs: defer desktop tray to a later release`
+**Commit:** `desktop: add optional tray status` **或** `docs: defer desktop tray to a later release`
 
-### D3.07 — Keyboard vs native menu conflict pass
+### D3.07 — 键盘与原生菜单冲突核对
 
 **Depends on:** D3.01  
-**Files:** `CullingWorkspace.tsx` keydown, menu accelerators, Help page
+**Files:** `CullingWorkspace.tsx` keydown、菜单加速键、Help 页
 
-Do not steal P/M/X. Document accelerators on Help.
+不要抢走 P/M/X。在 Help 上记录加速键。
 
-**Tests:** `reviewShortcutCommandFromEvent` still ignores modifier chords. Run: `npm run test:web`.
+**Tests:** `reviewShortcutCommandFromEvent` 仍忽略带修饰键的组合。运行：`npm run test:web`。
 
 **Commit:** `desktop: reconcile shortcuts with native menus`
 
-**Phase 3 acceptance:**
+**Phase 3 验收：**
 
-- [ ] Menu actions reach real routes
-- [ ] Keyboard culling still matches Help
-- [ ] Settings shows data dir
-- [ ] Desktop import does not require a browser file input
-- [ ] `npm run verify` green
+- [ ] 菜单动作到达真实路由
+- [ ] 键盘筛选仍与 Help 一致
+- [ ] 设置显示数据目录
+- [ ] 桌面导入不要求浏览器文件输入
+- [ ] `npm run verify` 全绿
 
 ---
 
-## Phase 4 — Installers, CI, Signing Prep (about 1–1.5 weeks)
+## Phase 4 — 安装包、CI、签名准备（约 1–1.5 周）
 
-**Phase goal:** Unsigned (then optionally signed) Windows NSIS and macOS DMG from CI.
+**阶段目标：** 从 CI 产出未签名（然后可选签名）的 Windows NSIS 与 macOS DMG。
 
-### D4.01 — Bundle sidecar into Tauri resources
+### D4.01 — 把 sidecar 打进 Tauri resources
 
 **Depends on:** D0.05, Phase 1  
-**Files:** `tauri.conf.json` `externalBin` / `resources`, `packaging/scripts/stage-sidecar.sh`
+**Files:** `tauri.conf.json` 的 `externalBin` / `resources`，`packaging/scripts/stage-sidecar.sh`
 
-Dev uses venv; release uses PyInstaller output.
+开发用 venv；发布用 PyInstaller 输出。
 
-**Tests:** none (build config). Run: `npm run verify`. Record GUI or `[~]`.
+**Tests:** none（构建配置）。运行：`npm run verify`。记录 GUI 或 `[~]`。
 
 **Commit:** `desktop: bundle PyInstaller sidecar in Tauri resources`
 
-### D4.02 — Windows NSIS and macOS DMG config
+### D4.02 — Windows NSIS 与 macOS DMG 配置
 
 **Depends on:** D4.01  
 **Files:** `tauri.conf.json`
 
-App name `FramePilot`; bundle id `com.framepilot.app`.
+应用名 `FramePilot`；bundle id `com.framepilot.app`。
 
-**Tests:** none (bundle config). Run: `cargo check`.
+**Tests:** none（bundle 配置）。运行：`cargo check`。
 
 **Commit:** `desktop: configure NSIS and DMG bundle targets`
 
-### D4.03 — MOVED
+### D4.03 — 已迁移
 
-Moved to **D0.00**. Do not implement twice. If `.github/workflows/verify.yml` exists, this id is done (`[-]` in §5.1).
+已迁移到 **D0.00**。不要实现两次。若 `.github/workflows/verify.yml` 已存在，则此 id 完成（§5.1 中为 `[-]`）。
 
 **Depends on:** n/a  
 **Files:** none  
@@ -1027,151 +1027,151 @@ Moved to **D0.00**. Do not implement twice. If `.github/workflows/verify.yml` ex
 **Tests:** none  
 **Commit:** none
 
-### D4.04 — GitHub Actions desktop matrix
+### D4.04 — GitHub Actions 桌面矩阵
 
 **Depends on:** D4.01, D4.02, D0.00  
 **Files:** `.github/workflows/desktop.yml`
 
-Matrix: `windows-latest`, `macos-latest` (optional `ubuntu-latest` sidecar-only). Build sidecar, `tauri build`, upload installer artifacts only. Unsigned until certs exist. Never upload photos.
+矩阵：`windows-latest`、`macos-latest`（可选 `ubuntu-latest` 仅 sidecar）。构建 sidecar、`tauri build`，只上传安装包产物。在证书存在之前保持未签名。永不上传照片。
 
-**Tests:** none (CI). After merge, confirm artifacts exist.
+**Tests:** none（CI）。合并后确认产物存在。
 
 **Commit:** `ci: build Windows and macOS desktop artifacts`
 
-### D4.05 — Signing and notarization documentation
+### D4.05 — 签名与公证文档
 
 **Depends on:** D4.04  
 **Files:** `docs/desktop_signing.md`
 
-Unsigned builds OK for internal testers with a README warning. Do not fail first RC on missing certs.
+未签名构建可供内部测试者使用，README 需有警告。不要因缺少证书让第一个 RC 失败。
 
-**Tests:** none (documentation).
+**Tests:** none（文档）。
 
 **Commit:** `docs: add desktop code signing runbook`
 
-### D4.06 — Size pass
+### D4.06 — 体积核对
 
 **Depends on:** D4.01  
-**Files:** feasibility notes
+**Files:** 可行性说明
 
-If unpacked sidecar + app **> 400 MB**, document scipy/imagehash cost. Do not strip Pillow codecs.
+若未打包 sidecar + 应用 **> 400 MB**，记录 scipy/imagehash 成本。不要剥掉 Pillow 编解码器。
 
-**Tests:** none (documentation).
+**Tests:** none（文档）。
 
 **Commit:** `docs: record desktop installer size budget`
 
-**Phase 4 acceptance:**
+**Phase 4 验收：**
 
-- [ ] CI verify green on PRs (D0.00)
-- [ ] CI produces Windows installer + macOS DMG (unsigned OK)
-- [ ] Signing documented
-- [ ] `check:artifacts` still rejects committing binaries; icons exception remains narrow
+- [ ] PR 上 CI verify 全绿（D0.00）
+- [ ] CI 产出 Windows 安装包 + macOS DMG（未签名 OK）
+- [ ] 签名已文档化
+- [ ] `check:artifacts` 仍拒绝提交二进制；图标例外保持狭窄
 
 ---
 
-## Phase 5 — Test, Docs, Stabilize (about 1 week)
+## Phase 5 — 测试、文档、稳定（约 1 周）
 
-**Phase goal:** Meet product plan §2.2 Definition of Done for `2.1.0-desktop`.
+**阶段目标：** 满足产品计划 §2.2 对 `2.1.0-desktop` 的 Definition of Done。
 
-### D5.01 — Desktop test matrix document + commands
+### D5.01 — 桌面测试矩阵文档 + 命令
 
 **Depends on:** Phase 4  
-**Files:** `docs/desktop_testing.md`, package.json scripts
+**Files:** `docs/desktop_testing.md`、package.json 脚本
 
-Matrix: start/quit/sidecar crash/port in use; path import 100 synthetic JPEGs; optional 500/2000 via `perf:api`; install/uninstall checklist; origin/CORS notes (LAN access impossible because loopback-only).
+矩阵：启动 / 退出 / sidecar 崩溃 / 端口占用；路径导入 100 张合成 JPEG；可选经 `perf:api` 的 500/2000；安装 / 卸载清单；origin/CORS 说明（因仅回环，LAN 访问不可能）。
 
-**Tests:** none (documentation) unless a new script is added, then run that script.
+**Tests:** none（文档），除非加了新脚本，那时运行该脚本。
 
 **Commit:** `docs: add desktop test matrix`
 
-### D5.02 — README and user docs
+### D5.02 — README 与用户文档
 
 **Depends on:** D5.01  
-**Files:** `README.md`, `docs/desktop_user_guide.md`, `docs/v2_known_limitations.md`, `docs/v2_architecture.md` (desktop no longer deferred once shipped)
+**Files:** `README.md`、`docs/desktop_user_guide.md`、`docs/v2_known_limitations.md`、`docs/v2_architecture.md`（一旦发布，桌面不再是 deferred）
 
-Cover: install, first launch, data location, copies not moves, reveal export folders, how to keep using the web app for development.
+覆盖：安装、首次启动、数据位置、是复制不是移动、显示导出文件夹、如何继续用 Web 应用做开发。
 
-**Tests:** none (documentation). Run: `npm run verify` if README scripts changed.
+**Tests:** none（文档）。若改了 README 脚本则运行 `npm run verify`。
 
 **Commit:** `docs: add desktop install and data-dir instructions`
 
-### D5.03 — Performance notes on desktop WebView
+### D5.03 — 桌面 WebView 性能说明
 
 **Depends on:** D2.08  
-**Files:** feasibility notes or `docs/v2_performance_baseline.md`
+**Files:** 可行性说明或 `docs/v2_performance_baseline.md`
 
-One 100-photo path-import + process RSS for sidecar and UI if GUI exists; otherwise sidecar-only and mark UI pending.
+一次 100 张照片的路径导入 + 处理，记录 sidecar 与 UI 的 RSS（若有 GUI）；否则仅 sidecar，并标明 UI 待测。
 
-**Tests:** none (documentation).
+**Tests:** none（文档）。
 
 **Commit:** `docs: record desktop performance notes`
 
-### D5.04 — Version bump to 2.1.0-desktop (release candidate)
+### D5.04 — 版本升到 2.1.0-desktop（发布候选）
 
-**Depends on:** Phases 0–4 acceptance boxes  
-**Files:** `apps/api/app/core/version.py`, `pyproject.toml`, both `package.json`, FastAPI already reads `APP_VERSION`, changelog
+**Depends on:** Phase 0–4 验收框  
+**Files:** `apps/api/app/core/version.py`、`pyproject.toml`、两个 `package.json`、FastAPI 已读取 `APP_VERSION`、changelog
 
-Do not tag until `npm run verify` and desktop CI artifacts exist. Do not scatter version literals.
+在 `npm run verify` 与桌面 CI 产物存在之前不要打 tag。不要散落版本字面量。
 
-**Tests:** health still returns `APP_VERSION`. Run: `npm run test:api` `npm run verify`.
+**Tests:** health 仍返回 `APP_VERSION`。运行：`npm run test:api` `npm run verify`。
 
 **Commit:** `release: 2.1.0-desktop rc`
 
-### D5.05 — Known limitations for desktop 2.1
+### D5.05 — 桌面 2.1 已知限制
 
 **Depends on:** D5.02  
 **Files:** `docs/v2_known_limitations.md`
 
-List: jobs not durable across sidecar kill; HEIC/RAW skipped; auto-update deferred; unsigned until certs; WSL may not run GUI; copy mode only; no detached preview; no concurrency knobs; tray deferred unless D3.06 shipped.
+列出：任务在 sidecar 被 kill 后不持久；HEIC/RAW 被跳过；自动更新推迟；在有证书前未签名；WSL 可能跑不了 GUI；仅复制模式；无分离预览；无并发旋钮；除非 D3.06 已交付否则托盘推迟。
 
-**Tests:** none (documentation).
+**Tests:** none（文档）。
 
 **Commit:** `docs: document desktop 2.1 known limitations`
 
-**Phase 5 / product DoD:**
+**Phase 5 / 产品 DoD：**
 
-- [ ] Windows and macOS installers exist (CI artifacts)
-- [ ] App start manages Python sidecar without the user running uvicorn
-- [ ] Native folder picker and drag-drop import
-- [ ] Core workflow matches v2: import, process, keyboard cull, CSV/ZIP/folder export
-- [ ] Originals never modified
-- [ ] 500-photo API-level path import does not crash; 500 GUI documented if measured
-- [ ] User + developer docs exist
-- [ ] CI builds both platform installers; signing may still be pending
-- [ ] Loopback bind + Host/Origin checks in place
-- [ ] Custom project roots only via D2.00 registration
-
----
-
-## 6. What Not To Do In This Track
-
-- Do not implement HEIC, RAW, XMP, or local neural models.
-- Do not add a cloud updater.
-- Do not replace SQLite or move scoring into Rust.
-- Do not delete the Next.js app or break Playwright.
-- Do not switch to Electron unless D0.09 writes that Tauri failed.
-- Do not listen on `0.0.0.0`.
-- Do not use multipart upload as the desktop primary import for large batches.
-- Do not set `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` to `$HOME`, `/`, or a drive root.
-- Do not widen the artifact-check script beyond D0.07a.
-- Do not add version literals outside `apps/api/app/core/version.py`.
+- [ ] Windows 与 macOS 安装包存在（CI 产物）
+- [ ] 应用启动管理 Python sidecar，用户无需自己跑 uvicorn
+- [ ] 原生文件夹选择器与拖放导入
+- [ ] 核心工作流与 v2 一致：导入、处理、键盘筛选、CSV/ZIP/文件夹导出
+- [ ] 原图永不被修改
+- [ ] 500 张照片的 API 级路径导入不崩溃；若测过则记录 500 GUI
+- [ ] 用户 + 开发者文档存在
+- [ ] CI 构建双平台安装包；签名仍可待定
+- [ ] 回环绑定 + Host/Origin 检查已就位
+- [ ] 自定义项目根仅经 D2.00 注册
 
 ---
 
-## 7. Suggested Commit Cadence
+## 6. 本轨道不要做什么
 
-One task id = one commit (D1.01 may stack 2–3). Do not batch a whole phase.
+- 不要实现 HEIC、RAW、XMP 或本地神经网络模型。
+- 不要加入云更新器。
+- 不要替换 SQLite，也不要把评分搬到 Rust。
+- 不要删除 Next.js 应用或弄坏 Playwright。
+- 除非 D0.09 写明 Tauri 失败，否则不要切到 Electron。
+- 不要监听 `0.0.0.0`。
+- 不要把 multipart 上传当作大批次的桌面主导入路径。
+- 不要把 `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` 设为 `$HOME`、`/` 或盘符根。
+- 不要把产物检查脚本放宽到超出 D0.07a。
+- 不要在 `apps/api/app/core/version.py` 之外增加版本字面量。
 
 ---
 
-## 8. Stop Conditions
+## 7. 建议的提交节奏
 
-Stop and summarize if:
+一个 task id = 一次提交（D1.01 可以叠 2–3 次）。不要把整个阶段打成一批。
 
-- All Phase 5 DoD boxes are checked, or
-- D0.09 requires a product decision and notes are committed, or
-- Missing OS / signing / WebView makes GUI work impossible and remaining work is docs/CI-only, or
-- Tests cannot be made green after focused debugging, or
-- Session budget hit (5 tasks or one phase).
+---
 
-Final summary: branch, commits, completed task ids, checks run, remaining ids, risks, next Goal prompt.
+## 8. 停止条件
+
+若出现以下情况则停止并总结：
+
+- Phase 5 全部 DoD 框已勾选，或
+- D0.09 需要产品决策且说明已提交，或
+- 缺少 OS / 签名 / WebView 使 GUI 工作无法进行，剩余工作仅文档 / CI，或
+- 聚焦调试后测试仍无法全绿，或
+- 命中会话预算（5 个任务或一个阶段）。
+
+最终总结：分支、提交、已完成 task id、已运行检查、剩余 id、风险、下一句 Goal 提示。

@@ -254,6 +254,7 @@ write_pair() {
 link_root="$tmpdir/markdown-links"
 mkdir -p "$link_root/docs"
 write_pair "$link_root/README.md" "Root" "See [API](docs/api.md).\n"
+write_pair "$link_root/AGENTS.md" "Agents"
 write_pair "$link_root/develop_plan.md" "Plan"
 write_pair "$link_root/implement_goals.md" "Goals"
 write_pair "$link_root/docs/api.md" "API" \
@@ -273,6 +274,15 @@ expect_failure \
   "missing Chinese counterpart" \
   bash scripts/check-markdown-links.sh "$missing_zh"
 
+missing_en="$tmpdir/missing-en"
+cp -a "$link_root" "$missing_en"
+rm -f "$missing_en/README.md"
+
+expect_failure \
+  "markdown link check rejects a missing English counterpart" \
+  "missing English counterpart" \
+  bash scripts/check-markdown-links.sh "$missing_en"
+
 empty_zh="$tmpdir/empty-zh"
 cp -a "$link_root" "$empty_zh"
 printf '   \n' > "$empty_zh/README.zh.md"
@@ -281,6 +291,15 @@ expect_failure \
   "markdown link check rejects an empty Chinese counterpart" \
   "empty living page" \
   bash scripts/check-markdown-links.sh "$empty_zh"
+
+empty_en="$tmpdir/empty-en"
+cp -a "$link_root" "$empty_en"
+printf '   \n' > "$empty_en/README.md"
+
+expect_failure \
+  "markdown link check rejects an empty English counterpart" \
+  "empty living page" \
+  bash scripts/check-markdown-links.sh "$empty_en"
 
 missing_link="$tmpdir/missing-link"
 cp -a "$link_root" "$missing_link"
