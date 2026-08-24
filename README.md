@@ -140,3 +140,7 @@ See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for groupi
 The v2 foundation does not upload originals or generated previews to any remote service. Imported images are copied into the local project directory so originals are never modified.
 
 Experimental face and eye-open scores are computed locally with a deterministic color and luminance heuristic. They are local ranking hints, not a bundled professional face detection or biometric model.
+
+## License
+
+FramePilot is released under the [MIT License](LICENSE).

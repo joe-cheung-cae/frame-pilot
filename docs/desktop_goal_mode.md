@@ -14,7 +14,7 @@ Phase 0–2 are already on `main`. Remaining desktop work is Phase 3–5. Do not
 
 FramePilot today is a local web app (`2.0.0-rc2`): Next.js on port 3000 and FastAPI on port 8000. The desktop track wraps that stack as a Tauri 2 app with a PyInstaller sidecar. It must stay local-first and must never modify original photos.
 
-Use the long prompt for a fresh long-running session. Use the short prompt to continue. Use the documentation-only prompt to update notes without code.
+Use the long prompt for a fresh long-running session. Use the short prompt to continue. Use the documentation-only prompt to update notes without code. Use the Phase 3 only prompt when the session should stop at desktop UI chrome and must not start installers.
 
 ## 2. Long-Running Goal Mode Prompt
 
@@ -348,7 +348,190 @@ Never merge to main.
 Never write docs/handoff/STATUS.md.
 ```
 
-## 6. Phase 0 Only Prompt
+## 6. Phase 3 Only Prompt (Desktop UI)
+
+Use this when the session should implement **only** desktop UI chrome (native menu, status bar, settings data dir, theme, copy, shortcut reconciliation). Phase 0–2 are already on `main`. Do **not** start Phase 4 installers or Phase 5 release docs.
+
+Copy everything inside the following fence into Grok Build Goal Mode.
+
+```text
+You are working in the FramePilot repository.
+
+This is a bounded Grok Build Goal Mode task for FramePilot DESKTOP Phase 3 only: UI desktopization and native chrome.
+
+Mission: implement task ids D3.01 through D3.07 in docs/plans/2026-08-18-desktop-packaging.md. Phase 0–2 are already on main. Do not start D4.* or D5.*. Do not recreate docs/handoff/* (including STATUS.md). docs/handoff is retired.
+
+Read first, in this order, with tools (do not answer from memory):
+1. AGENTS.md
+2. develop_plan.md
+3. docs/desktop_development_plan.md §5 (UI principles) and Phase 3
+4. docs/plans/2026-08-18-desktop-packaging.md (locked decisions §2, Task Tracker §5.1, full D3.01–D3.07 specs and Phase 3 acceptance)
+5. docs/desktop_goal_mode.md §6
+6. docs/api.md, docs/desktop_feasibility_notes.md
+7. apps/web/src/lib/shell.ts, reviewShortcuts.ts, processingProgress.ts, nativeFs.ts
+8. apps/web/src/components/Shell.tsx, SettingsPanel.tsx, HelpShortcuts.tsx, CullingWorkspace.tsx, ImportPanel.tsx
+9. apps/desktop/src-tauri/src/lib.rs and capabilities/default.json
+
+BRANCH:
+Create or continue feature/desktop-ui from latest main.
+Do not commit on main. Do not merge. Do not squash. Do not force-push.
+If the working tree has unrelated user edits, inspect them and do not clobber them.
+
+SESSION BUDGET:
+This session is Phase 3 only (D3.01–D3.07). Complete the phase if possible, then stop.
+Do not start D4.01 even if time remains.
+Stop and summarize after Phase 3 acceptance is met, or after a remaining Phase 3 id cannot be made green.
+
+TASK COMPLETION PROTOCOL:
+Authoritative list: docs/plans/2026-08-18-desktop-packaging.md §5.1.
+Statuses: [ ] not started, [x] done, [~] blocked on GUI/signing, [-] cancelled or deferred.
+- Do not redo any [x] Phase 0–2 id. Do not “improve” Phase 2 filesystem/import/export.
+- One id per product commit. Tick that §5.1 box in the same commit as the code and tests.
+- Tests first. Write the failing test, watch it fail for the right reason, then implement.
+- Never tick a box whose tests you did not run and see pass in this session.
+- Drive shipped code. Do not mock the unit under test.
+- If a task’s remaining verification needs a real WebView this host cannot open: commit the non-GUI parts and tests, mark [~] with a dated command+error in docs/desktop_feasibility_notes.md, and continue with the next unblocked Phase 3 id. Never promote [~] to [x] without a recorded GUI run.
+- If a docs page changes, update the matching English name.md and Chinese name.zh.md in the same commit.
+
+SERIAL ORDER (lowest incomplete id whose dependencies are [x]):
+D3.01 Native menu bar
+D3.02 Status bar and processing visibility
+D3.03 Settings data directory (GET /api/meta)
+D3.04 System theme follow
+D3.05 Window chrome and empty/error copy
+D3.06 Optional tray (default skip to [-] unless ahead of schedule)
+D3.07 Keyboard vs native menu conflict pass
+
+Then tick the Phase 3 acceptance boxes in the plan if they hold, run npm run verify (must stay rust-free), and stop.
+
+PHASE GOAL:
+Feel like a desktop product. Do not rewrite the culling workspace.
+Out of 2.1 (do not implement): detached preview window, concurrency/cache knobs, auto-update / Check for updates, changing the data directory.
+
+D3.01 Native menu bar
+Depends on: Phase 2.
+Menus: File (New, Open data folder, Import, Export, Close, Quit); Edit (OS defaults); View (Fullscreen); Project (Process, Culling); Help (Shortcuts, About dialog only — no updater).
+Menu actions must reach real routes / existing desktop adapters (native folder pick, reveal, existing navigation adapter). File > Quit and window close must keep the D1.09 graceful-quit dialog; do not SIGTERM the sidecar behind that flow.
+Preserve culling keys P M X U 1-5 0 Space Z C G F E. No native menu item may use a bare-key accelerator for those keys. Cmd/Ctrl chords are allowed for File/Edit/View items.
+Extract a pure menu→route/command map if practical (menuRoutes.test.ts).
+Tests: menuRoutes.test.ts if extracted; reviewShortcutCommandFromEvent still returns null for modifier chords (apps/web/src/lib/reviewShortcuts.ts). Run: npm run test:web. GUI recorded or [~].
+Commit: desktop: add native application menu
+
+D3.02 Status bar and processing visibility
+Depends on: D3.01, D1.02a.
+Desktop-only status bar or Shell.tsx gated by isDesktopShell().
+Show sidecar connected, project name, job step/percent. Reuse apps/web/src/lib/processingProgress.ts. Keep the browser shell unchanged if possible.
+Tests: helper/render test when isDesktopShell() is true. Run: npm run test:web.
+Commit: desktop: add status bar for sidecar and jobs
+
+D3.03 Settings: data directory display
+Depends on: D1.05.
+New GET /api/meta → {version, service, data_dir, desktop_mode}. Do NOT extend GET /health or GET /api/health.
+version comes from apps/api/app/core/version.py APP_VERSION (still 2.0.0-rc2 until D5.04).
+desktop_mode follows FRAMEPILOT_DESKTOP. data_dir is the resolved FRAMEPILOT_DATA_DIR.
+SettingsPanel: read-only data directory. On desktop, add “Open data folder” using the existing reveal adapter. Changing the data directory is out of 2.1.
+Update docs/api.md and docs/api.zh.md.
+Tests: /api/meta returns monkeypatched FRAMEPILOT_DATA_DIR; desktop_mode follows env; SettingsPanel shows the value. Run: npm run test:api and npm run test:web.
+Commit: desktop: show data directory in settings
+
+D3.04 System theme follow (light/dark)
+Depends on: D3.02.
+Scope Tailwind dark: (or equivalent) to [data-shell="desktop"]. applyShellDataset() already sets documentElement.dataset.shell.
+Browser may stay light-only. Do not restyle the Next.js web app as a dark product.
+Tests: none required beyond CSS; if components changed, npm run test:web. Record a short visual note in docs/desktop_feasibility_notes.md if a GUI run happens, otherwise [~] for visual only and keep the CSS commit.
+Commit: desktop: follow system light/dark theme
+
+D3.05 Window chrome and empty/error copy
+Depends on: D3.02.
+Empty/error copy on list, import, culling, export: desktop says “Choose a folder”, not “Choose files in your browser”.
+Gate copy with isDesktopShell(). When isDesktopShell() is false, keep current browser labels, file inputs, and disabled semantics (including webkitdirectory).
+Keep Help shortcuts accurate.
+Tests: string/helper tests if copy is centralized. Run: npm run test:web.
+Commit: desktop: adapt empty and error copy for native folders
+
+D3.06 Optional tray
+Depends on: D3.02.
+NOT required for Definition of Done.
+Default: skip. After D3.05, unless the session is clearly ahead of schedule (D3.01–D3.05 already green and a tray smoke can still land), commit docs: defer desktop tray to a later release, mark D3.06 [-] in §5.1, and note that D5.05 will record the deferral. Do not let tray block D3.07.
+If implemented: tray menu Show + Quit; Quit must use the existing close dialog. Do not add fs: or shell: capabilities.
+Commit if implemented: desktop: add optional tray status
+
+D3.07 Keyboard vs native menu conflict pass
+Depends on: D3.01.
+Files: CullingWorkspace.tsx keydown, menu accelerators, Help page.
+Do not steal P/M/X/U/1-5/0/Space/Z/C/G/F/E. Document any Cmd/Ctrl menu accelerators on Help.
+Tests: reviewShortcutCommandFromEvent still ignores modifier chords (existing reviewShortcuts.test.ts must stay green). Run: npm run test:web.
+Commit: desktop: reconcile shortcuts with native menus
+
+PHASE 3 ACCEPTANCE (must be true before stopping):
+- Menu actions reach real routes
+- Keyboard culling still matches Help
+- Settings shows data dir
+- Desktop import does not require a browser file input (Phase 2 behavior; do not regress)
+- npm run verify green and still rust-free
+
+LOCKED DECISIONS (do not re-litigate):
+- Tauri 2 + Python sidecar. Dual shell. apps/web stays Next.js. No output: export.
+- HTTP to 127.0.0.1 for photos. Tauri IPC only for dialogs, paths, reveal, and now menus/theme as needed.
+- nativeFs: apps/web/src/lib/nativeFs.ts getNativeFs() returns null; desktop implementation is aliased. Next must not import @tauri-apps/plugin-*.
+- Capabilities stay dialog + opener (+ window-state). No fs:. No shell:. Add tray permission only if D3.06 is actually implemented.
+- Never set FRAMEPILOT_PROJECT_ROOT_ALLOWLIST to $HOME, /, or a drive root.
+- When isDesktopShell() is false, both ImportPanel file inputs keep current DOM position, labels, and disabled semantics.
+- Desktop reveals export output_path; browser keeps <a href=exportDownloadUrl>.
+- APP_VERSION stays 2.0.0-rc2 until D5.04.
+- npm run verify stays rust-free and must not compile apps/desktop/src-tauri.
+- No cloud, login, payment, original-file mutation, HEIC/RAW/XMP, bundled models.
+
+SCOPE FENCES:
+- Do not restart the product or rewrite CullingWorkspace.
+- Do not migrate apps/web off Next.js.
+- Do not replace scoring/grouping with Rust.
+- Do not change test_create_project_rejects_root_outside_allowlist.
+- Do not widen scripts/check-release-artifacts.sh.
+- Do not extend /health; meta is a new route.
+- Do not bump version, add NSIS/DMG, or write installer CI.
+- Do not recreate docs/handoff files.
+- Resolve repo with git rev-parse --show-toplevel. Do not hardcode machine-specific paths.
+- English for code, comments, tests, commits, and new UI strings. Living documentation is bilingual.
+
+Per-iteration:
+At the start of each id, print the id, expected files, and the test command.
+Prefer minimal shared-component changes gated by isDesktopShell().
+Put desktop-only Rust in apps/desktop/src-tauri.
+
+Before each commit, run the commands named in that task. Prefer:
+- npm run test:web for UI/shortcut/shell work
+- npm run test:api when GET /api/meta or API schemas change
+- npm run typecheck if web/desktop TS changed
+- npm run test:e2e if ImportPanel, CullingWorkspace, or workflow routing changed
+- npm run verify after D3.07 / phase close (rust-free)
+
+If npm run test:e2e is too slow for a non-workflow change: skip it for that commit, say so in the commit body, and run it at least once before closing Phase 3 if shared UI changed.
+
+Git: commit only after tests pass. Use the suggested message. git add only relevant files.
+
+开发: one id, tests first, tick §5.1, commit.
+测试: run the commands named in that task; npm run verify stays rust-free.
+上线: do not merge to main.
+
+Final response after stopping:
+1. Branch name
+2. Commits created (hash + subject), in order
+3. Task ids completed vs remaining (Phase 3 only)
+4. Tests/checks run and results
+5. D3.06 status ([x], [-], or skipped-not-yet)
+6. Known risks / [~] GUI items
+7. Recommended next Goal prompt (Phase 4 from docs/desktop_goal_mode.md §5, starting at D4.01)
+
+Most important instructions:
+Never start the next task id until the current id is implemented, tested, passing, reviewed, and committed.
+Never start Phase 4.
+Never merge to main.
+Never write docs/handoff/STATUS.md.
+Never give a culling key (P M X U 1-5 0 Space Z C G F E) to a native menu accelerator.
+```
+
+## 7. Phase 0 Only Prompt
 
 Phase 0 is already on `main`. Keep this prompt only as a historical bounded-spike template; do not re-run it or recreate `docs/handoff/*`.
 
@@ -364,10 +547,11 @@ Hard constraints from AGENTS.md apply. Keep the Next.js web app working. Do not 
 Stop after D0.09 is committed and summarize.
 ```
 
-## 7. Notes
+## 8. Notes
 
 - The long prompt is the main autonomous desktop prompt for the full track. Phase 0–2 are already on `main`; remaining work is Phase 3–5.
-- For remaining Phase 3–5 work, use §5 instead of re-running completed Phase 0–2 workflows.
+- For a session that should only ship desktop UI chrome, use §6 (Phase 3 only). It must stop before D4.01.
+- For remaining Phase 3–5 work in one long run, use §5 instead of re-running completed Phase 0–2 workflows.
 - The detailed file paths, tests, and acceptance boxes live in [`docs/plans/2026-08-18-desktop-packaging.md`](plans/2026-08-18-desktop-packaging.md) §5.1. Do not recreate `docs/handoff/*`.
 - Keep [`implement_goals.md`](../implement_goals.md) for the older v2 web Goal Mode. Do not mix v2 algorithm work into a desktop Goal Mode session unless the desktop plan’s current task requires a tiny shared-code fix.
 - First desktop product version: `2.1.0-desktop`. `3.0.0` is not on the table.
