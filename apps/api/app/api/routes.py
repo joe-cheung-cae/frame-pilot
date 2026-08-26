@@ -9,9 +9,10 @@ from fastapi.responses import FileResponse
 from sqlalchemy import case, func
 from sqlmodel import Session, select
 
+from app.core.config import get_settings
 from app.core.origins import desktop_mode_enabled
 from app.core.project_roots import register_root, registered_roots
-from app.core.version import health_payload
+from app.core.version import health_payload, meta_payload
 from app.db.session import get_session
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.schemas.api import (
@@ -65,6 +66,11 @@ router = APIRouter(prefix="/api")
 @router.get("/health")
 def api_health_endpoint() -> dict[str, str]:
     return health_payload()
+
+
+@router.get("/meta")
+def api_meta_endpoint() -> dict[str, str | bool]:
+    return meta_payload(data_dir=str(get_settings().data_dir), desktop_mode=desktop_mode_enabled())
 
 
 def _get_project(session: Session, project_id: str) -> Project:
