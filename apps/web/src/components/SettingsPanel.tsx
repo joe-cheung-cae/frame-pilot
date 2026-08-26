@@ -1,7 +1,11 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import { FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 import { EXPORT_STATUSES, type ExportStatus } from "@/lib/exportSelection";
+import { getNativeFs } from "@/lib/nativeFs";
 import {
   DEFAULT_EXPORT_STATUS_PREFERENCE,
   exportPreferenceMessageTone,
@@ -9,6 +13,7 @@ import {
   loadExportStatusPreference,
   toggleSavedExportStatusPreference,
 } from "@/lib/settings";
+import { isDesktopShell } from "@/lib/shell";
 
 const PREFERENCE_MESSAGE_CLASS = {
   neutral: "text-neutral-600",
@@ -17,8 +22,15 @@ const PREFERENCE_MESSAGE_CLASS = {
 } as const;
 
 export function SettingsPanel() {
+  const nativeFs = getNativeFs();
+  const desktopShell = isDesktopShell();
   const [statuses, setStatuses] = useState<ExportStatus[]>(DEFAULT_EXPORT_STATUS_PREFERENCE);
   const [message, setMessage] = useState("");
+  const metaQuery = useQuery({
+    queryKey: ["meta"],
+    queryFn: api.getMeta,
+    retry: false,
+  });
 
   useEffect(() => {
     setStatuses(loadExportStatusPreference());
@@ -30,11 +42,46 @@ export function SettingsPanel() {
     setMessage(result.message);
   }
 
+  const dataDir = metaQuery.data?.data_dir?.trim() ?? "";
+  const showOpenDataFolder = desktopShell && Boolean(nativeFs) && Boolean(dataDir);
+
   return (
     <section className="mx-auto grid max-w-3xl gap-6 px-5 py-8">
       <div className="grid gap-2">
         <p className="text-sm text-neutral-600">Local preferences</p>
         <h1 className="text-3xl font-semibold">Settings</h1>
+      </div>
+
+      <div className="grid gap-4 rounded border border-line bg-white p-5">
+        <div>
+          <h2 className="font-semibold">Data directory</h2>
+          <p className="mt-1 text-sm text-neutral-600">
+            FramePilot stores local project data here. Changing this location is not available in this version.
+          </p>
+        </div>
+        <p
+          aria-label="Data directory"
+          className="break-all rounded border border-line bg-neutral-50 px-3 py-2 text-sm"
+        >
+          {metaQuery.isError
+            ? "Could not load the data directory."
+            : dataDir || "Loading data directory…"}
+        </p>
+        {showOpenDataFolder ? (
+          <button
+            className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line px-3 py-2 font-medium"
+            onClick={() => {
+              if (!nativeFs) {
+                return;
+              }
+              void nativeFs.revealInFileManager(dataDir);
+            }}
+            type="button"
+          >
+            <FolderOpen size={16} />
+            Open data folder
+          </button>
+        ) : null}
       </div>
 
       <div className="grid gap-4 rounded border border-line bg-white p-5">
