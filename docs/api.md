@@ -6,11 +6,14 @@ Base URL during development: `http://127.0.0.1:8000`.
 
 `GET /health` and `GET /api/health` return `status`, `version`, and `service`. `version` is the API `APP_VERSION` value. Playwright and the desktop sidecar probe the unprefixed `/health` URL as a 2xx check.
 
+`GET /api/meta` returns `version`, `service`, `data_dir`, and `desktop_mode`. `data_dir` is the resolved `FRAMEPILOT_DATA_DIR` path. `desktop_mode` is `true` only when `FRAMEPILOT_DESKTOP=1`. This payload is not added to `/health`.
+
 Implemented endpoints:
 
 ```text
 GET    /health
 GET    /api/health
+GET    /api/meta
 
 POST   /api/projects
 GET    /api/projects
