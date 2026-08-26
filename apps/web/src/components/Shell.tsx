@@ -1,6 +1,8 @@
 import { Camera, CircleHelp, FolderOpen, SlidersHorizontal } from "lucide-react";
 import { Link } from "@/lib/navigation";
 
+import { StatusBar } from "./StatusBar";
+
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-mist">
@@ -12,7 +14,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </span>
             FramePilot
           </Link>
-          <nav className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end" aria-label="Primary">
+          <nav
+            className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end"
+            aria-label="Primary"
+          >
             <Link
               href="/help"
               className="focus-ring inline-flex min-h-10 items-center justify-center gap-2 rounded border border-line px-3 text-sm font-medium text-ink"
@@ -29,7 +34,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Link>
             <Link
               href="/projects/new"
-              className="focus-ring inline-flex min-h-10 items-center justify-center gap-2 rounded bg-ink px-3 text-sm font-medium text-white"
+              className="focus-ring inline-flex min-h-10 items-center justify-center gap-2 rounded bg-ink px-3 text-sm font-medium text-ink text-white"
             >
               <FolderOpen size={16} />
               New Project
@@ -38,6 +43,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       {children}
+      <StatusBar />
     </main>
   );
 }
