@@ -249,7 +249,7 @@ Phase 2
 
 Phase 3
 
-- [ ] D3.01 Native menu bar
+- [~] D3.01 Native menu bar — `npm run test:web` green 2026-08-23; GUI/`cargo test` unverified (`rustc` 1.85 cannot compile current Tauri lockfile). See `docs/desktop_feasibility_notes.md`.
 - [ ] D3.02 Status bar
 - [ ] D3.03 Settings data directory (`GET /api/meta`)
 - [ ] D3.04 System theme follow
