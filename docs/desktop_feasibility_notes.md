@@ -153,3 +153,29 @@ D1.09 quit dialog is injected HTML. Rust unit tests cover Kill-after-5s and canc
 6. **`APP_VERSION` remains `2.0.0-rc2`.** Do not bump to `2.1.0-desktop`.
 
 Phase 1 acceptance (see §5.1): HTTP/home project list `[x]`; sidecar health `[x]`; `verify` without Tauri `[x]`; browser `:3000`/`:8000` `[x]`.
+
+## D3.01 Native menu bar — 2026-08-23
+
+Branch `feature/d3-01-native-menu-bar`. Non-GUI tests passed. The native menu was not clicked in a live WebView on this host.
+
+Commands and exact errors for remaining GUI / Rust compile verification:
+
+```text
+$ rustc --version
+rustc 1.85.0 (4d91de4e4 2025-02-17) (built from a source tarball)
+
+$ cargo --version
+cargo 1.85.0 (d73d2caf9 2024-12-31)
+
+$ cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+error: the lock file apps/desktop/src-tauri/Cargo.lock needs to be updated but --locked was passed to prevent this
+
+$ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+error: rustc 1.85.0 is not supported by the following packages:
+  darling@0.23.0 requires rustc 1.88.0
+  ... (icu_*, plist, serde_with, time, zbus require rustc 1.86–1.88)
+```
+
+`npm run test:web` (node unit + vitest + Next build) and `npm run typecheck:desktop` passed. `APP_VERSION` stays `2.0.0-rc2`. `npm run dev:desktop` was not started because it would invoke the same failing `cargo` compile. No display-server packages were installed.
+
+Until a dated `cargo test` / WebView menu click succeeds, D3.01 stays `[~]`.
