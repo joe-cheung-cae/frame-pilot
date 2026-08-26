@@ -146,3 +146,254 @@ fn shell_prompt() {
     s += "notes: gating, file split, and render-test strategy.\n";
     s
 }
+
+fn plan_prompt(inspect_notes, progress_notes, shell_notes) {
+    let s = "";
+    s += "You are grok-4.6 planning FramePilot D3.02. Read-only. Do not edit. Do not commit.\n";
+    s += repo_rules();
+    s += d302_spec();
+    s += "Investigate notes (untrusted, re-check files if needed):\n";
+    s += inspect_notes + "\n";
+    s += progress_notes + "\n";
+    s += shell_notes + "\n";
+    s += "Write a tests-first plan for D3.02 only.\n";
+    s += "Required shape:\n";
+    s += "1) Extract a pure map apps/web/src/lib/statusBarModel.ts so npm run test:web picks up apps/web/src/lib/statusBarModel.test.ts (node:test via src/lib/*.test.ts).\n";
+    s += "   Pure helpers (no DOM, no fetch): sidecarLabel(connected: boolean | null), projectLabel(name: string | null), jobLabel using processingJobTypeLabel / processingStatusLabel / processingProgressPercent / current_step from processingProgress.ts, resolveStatusBarProjectId(pathname, lastOpenedId) reusing projectIdFromPathname.\n";
+    s += "   English strings only. Examples: Sidecar connected / Sidecar disconnected / Checking sidecar; No project when name missing; No active job when idle; otherwise job type · step · N%.\n";
+    s += "2) Render tests apps/web/src/components/StatusBar.test.tsx (vitest, picked up by src/**/*.test.tsx): when window.__FRAMEPILOT_DESKTOP__ !== true, Shell does not render the status region; when true, role=status (or equivalent) shows sidecar + project + job from mocked query data. Do not mock the statusBarModel helpers under test. Header Help/Settings/New Project remain.\n";
+    s += "3) Implement StatusBar.tsx (\"use client\") gated by isDesktopShell(); poll GET /health via a small api.getHealth() that hits existing /health (do NOT add GET /api/meta; do NOT add data_dir to health). Poll jobs with existing api.listJobs and project with api.getProject. Reuse processingJobForDisplay or hasActiveProcessingJob / active job helpers. Mount StatusBar from Shell.tsx at the bottom of the main chrome. Browser: StatusBar returns null so layout matches today.\n";
+    s += "4) Do not import @tauri-apps/plugin-* from apps/web. Do not restyle the Next.js app as a dark product. Do not rewrite CullingWorkspace.\n";
+    s += "5) GUI: if a real window cannot be recorded, still land unit tests and mark §5.1 D3.02 [~] with a dated docs/desktop_feasibility_notes.md note (command + error). Append a matching Chinese paragraph to docs/desktop_feasibility_notes.zh.md without rewriting older sections. If GUI is recorded, [x]. Never leave the box [ ].\n";
+    s += "6) After green tests: one local commit, subject exactly desktop: add status bar for sidecar and jobs, including tests + impl + §5.1 tick.\n";
+    s += "Set ok=true. tests_first, files, sidecar, gui, notes must be specific enough for the implementer to execute without inventing a second architecture.\n";
+    s
+}
+
+fn implement_prompt(plan_notes) {
+    let s = "";
+    s += "You are grok-4.6 implementing FramePilot D3.02 Status bar. Drive shipped code.\n";
+    s += repo_rules();
+    s += d302_spec();
+    s += "PLAN (follow this; re-read the live spec files before writing):\n";
+    s += plan_notes + "\n";
+    s += "IDEMPOTENT: if git log already contains subject 'desktop: add status bar for sidecar and jobs' on this branch AND §5.1 D3.02 is not [ ], return ok=true with that SHA and do not redo.\n";
+    s += "TESTS FIRST. Write apps/web/src/lib/statusBarModel.test.ts (and the failing import of statusBarModel.ts) plus StatusBar.test.tsx, and watch npm --prefix apps/web run test:unit fail for the missing map / assertions. Then implement the map, StatusBar, Shell mount, and optional api.getHealth. Then make tests pass.\n";
+    s += "Do not mock the unit under test. Do not write the test after a green implementation.\n";
+    s += "Implement ONLY D3.02. Minimal change. English UI strings.\n";
+    s += "Sidecar connected uses GET /health (existing health_payload). Do not add GET /api/meta. Do not put data_dir on health.\n";
+    s += "Reuse processingProgress.ts. Gate with isDesktopShell(). Do not inline window.__FRAMEPILOT_DESKTOP__ outside shell.ts.\n";
+    s += "Do not add version literals. APP_VERSION stays 2.0.0-rc2.\n";
+    s += "Run: npm run test:web (required). Also npm run typecheck:desktop if Shell/shared types changed. Do not make npm run verify require Rust.\n";
+    s += "If GUI/WebView cannot be opened, capture the exact command and error, append a dated note to docs/desktop_feasibility_notes.md and a matching append to docs/desktop_feasibility_notes.zh.md, and tick D3.02 [~]. If unit tests pass and you recorded a GUI run, tick [x]. Change only the §5.1 D3.02 box in the packaging plan. Do not tick other ids. Do not rewrite the plan body.\n";
+    s += "Then git add only D3.02 files plus .grok/workflows/d3-02-status-bar.rhai if present, commit on feature/d3-02-status-bar with subject: desktop: add status bar for sidecar and jobs\n";
+    s += "Do not git push. Do not gh pr create. Do not merge. Do not merge PR #41.\n";
+    s += "Return ok=true only if tests named above passed and the commit exists. commit=full sha. files_changed, tests_run, skipped, notes filled.\n";
+    s
+}
+
+fn verify_prompt() {
+    let s = "";
+    s += "You are grok-4.6 verifying FramePilot D3.02. Adversarially check the live tree. You may run tests. Do not git push. Do not open a PR. Do not start D3.03.\n";
+    s += repo_rules();
+    s += d302_spec();
+    s += "Use tools. Independently inspect; do not trust the implementer.\n";
+    s += "1) git status, git log -1, git diff origin/main...HEAD --stat. Confirm branch feature/d3-02-status-bar and commit subject desktop: add status bar for sidecar and jobs.\n";
+    s += "2) Confirm APP_VERSION is still 2.0.0-rc2. Confirm §5.1 D3.02 is [x] or [~] and D3.03-D3.07 remain [ ]. Confirm no GET /api/meta, no tray, no Phase 4/5 files, no theme follow, no empty-copy rewrite.\n";
+    s += "3) Confirm StatusBar is gated by isDesktopShell(); browser Shell still has Help/Settings/New Project and no status region when the flag is false. Confirm sidecar/project/job fields and processingProgress reuse by reading source.\n";
+    s += "4) Re-run npm run test:web and npm run typecheck:desktop. Confirm statusBarModel.test.ts and StatusBar.test.tsx (or the named helper/render tests) ran.\n";
+    s += "5) Confirm git push was NOT run and no PR was opened. Confirm PR #41 was not merged.\n";
+    s += "If a real defect exists (missing fields, status bar in browser, APP_VERSION bumped, extra phase work, tests failing, tracker not ticked), fix it in this session with tests, keep one logical commit (amend only if HEAD is the D3.02 commit, not pushed, and you are not rewriting unrelated history), and re-run tests. Do not implement D3.03+ while fixing.\n";
+    s += "Set passed=true only with evidence you ran. files_changed: list. tests_run: commands and results. skipped: anything skipped and why (e2e, GUI, verify, push, PR).\n";
+    s
+}
+
+fn text_of(r) {
+    if r == () {
+        return "";
+    }
+    if r.success && r.output != () {
+        if r.output.notes != () {
+            return r.output.notes;
+        }
+        return json_encode(r.output);
+    }
+    return "";
+}
+
+fn stage_ok(r) {
+    r != () && r.success
+}
+
+fn run_stage(prompt, opts, fail_msg) {
+    let first = agent(prompt, opts);
+    if stage_ok(first) {
+        return first;
+    }
+    log("Retrying once: " + fail_msg);
+    let second = agent(prompt, opts);
+    if stage_ok(second) {
+        return second;
+    }
+    await_user("verification", fail_msg + " Resume to retry this stage. Do not skip ahead.");
+    agent(prompt, opts)
+}
+
+let inspect_opts = #{
+    label: "d302-inspect-tree",
+    capability_mode: "read-only",
+    agent_type: "explore",
+    isolation_worktree: false,
+    output_schema: notes_schema(),
+};
+let progress_opts = #{
+    label: "d302-inspect-progress",
+    capability_mode: "read-only",
+    agent_type: "explore",
+    isolation_worktree: false,
+    output_schema: notes_schema(),
+};
+let shell_opts = #{
+    label: "d302-inspect-shell",
+    capability_mode: "read-only",
+    agent_type: "explore",
+    isolation_worktree: false,
+    output_schema: notes_schema(),
+};
+let plan_opts = #{
+    label: "d302-plan",
+    capability_mode: "read-only",
+    agent_type: "plan",
+    isolation_worktree: false,
+    output_schema: plan_schema(),
+};
+let implement_opts = #{
+    label: "d302-implement",
+    capability_mode: "all",
+    agent_type: "general-purpose",
+    isolation_worktree: false,
+    output_schema: stage_schema(),
+};
+let verify_opts = #{
+    label: "d302-verify",
+    capability_mode: "all",
+    agent_type: "general-purpose",
+    isolation_worktree: false,
+    output_schema: verify_schema(),
+};
+
+let issue = 46;
+if args != () && args.issue != () {
+    issue = args.issue;
+}
+if issue != 46 {
+    pause("verification", "This workflow only solves issue #46 / D3.02. Pass args.issue=46 or omit args.");
+}
+
+phase("Investigate");
+log("Investigating D3.02 spec, processingProgress reuse, and shell gating");
+let inv = parallel([
+    #{ prompt: inspect_prompt(), label: "d302-inspect-tree", capability_mode: "read-only", agent_type: "explore", isolation_worktree: false, output_schema: notes_schema() },
+    #{ prompt: progress_prompt(), label: "d302-inspect-progress", capability_mode: "read-only", agent_type: "explore", isolation_worktree: false, output_schema: notes_schema() },
+    #{ prompt: shell_prompt(), label: "d302-inspect-shell", capability_mode: "read-only", agent_type: "explore", isolation_worktree: false, output_schema: notes_schema() },
+]);
+
+let inspect_notes = "";
+let progress_notes = "";
+let shell_notes = "";
+if inv != () {
+    if inv.len() > 0 {
+        inspect_notes = text_of(inv[0]);
+    }
+    if inv.len() > 1 {
+        progress_notes = text_of(inv[1]);
+    }
+    if inv.len() > 2 {
+        shell_notes = text_of(inv[2]);
+    }
+}
+if inspect_notes == "" {
+    inspect_notes = "(investigate tree returned no notes; re-read the D3.02 spec and live Shell/processingProgress files yourself)";
+}
+if progress_notes == "" {
+    progress_notes = "(progress inspect returned no notes; re-read processingProgress.ts and reuse those helpers)";
+}
+if shell_notes == "" {
+    shell_notes = "(shell inspect returned no notes; gate StatusBar with isDesktopShell() and keep browser Shell unchanged)";
+}
+
+phase("Plan");
+log("Planning D3.02 tests-first status bar");
+let planned = run_stage(plan_prompt(inspect_notes, progress_notes, shell_notes), plan_opts, "D3.02 plan failed.");
+let plan_notes = text_of(planned);
+if planned != () && planned.success && planned.output != () {
+    plan_notes = json_encode(planned.output);
+}
+if plan_notes == "" {
+    plan_notes = "Follow D3.02 spec: tests-first statusBarModel.ts + StatusBar gated by isDesktopShell(); sidecar via GET /health; reuse processingProgress; local commit; no push.";
+}
+
+phase("Implement");
+log("Implementing D3.02 status bar for sidecar and jobs");
+let implemented = run_stage(implement_prompt(plan_notes), implement_opts, "D3.02 implement failed.");
+
+phase("Verify");
+log("Verifying D3.02 against spec and tests");
+let verified = run_stage(verify_prompt(), verify_opts, "D3.02 verify failed.");
+
+let files_changed = "";
+let tests_run = "";
+let skipped = "";
+let commit = "";
+let passed = false;
+if implemented != () && implemented.success && implemented.output != () {
+    if implemented.output.files_changed != () {
+        files_changed = implemented.output.files_changed;
+    }
+    if implemented.output.tests_run != () {
+        tests_run = implemented.output.tests_run;
+    }
+    if implemented.output.skipped != () {
+        skipped = implemented.output.skipped;
+    }
+    if implemented.output.commit != () {
+        commit = implemented.output.commit;
+    }
+}
+if verified != () && verified.success && verified.output != () {
+    if verified.output.files_changed != () {
+        files_changed = verified.output.files_changed;
+    }
+    if verified.output.tests_run != () {
+        tests_run = verified.output.tests_run;
+    }
+    if verified.output.skipped != () {
+        skipped = verified.output.skipped;
+    }
+    if verified.output.commit != () {
+        commit = verified.output.commit;
+    }
+    if verified.output.passed == true {
+        passed = true;
+    }
+}
+
+let report = "";
+report += "# D3.02 Status bar\n\n";
+report += "passed: " + passed.to_string() + "\n";
+report += "commit: " + commit + "\n\n";
+report += "## Files changed\n" + files_changed + "\n\n";
+report += "## Test commands and results\n" + tests_run + "\n\n";
+report += "## Skipped\n" + skipped + "\n";
+let report_path = write_scratch_file("d3-02-report.md", report);
+
+complete(#{
+    summary: "D3.02 status bar workflow finished",
+    passed: passed,
+    commit: commit,
+    files_changed: files_changed,
+    tests_run: tests_run,
+    skipped: skipped,
+    report: report_path,
+    phases: ["Investigate", "Plan", "Implement", "Verify"],
+});
