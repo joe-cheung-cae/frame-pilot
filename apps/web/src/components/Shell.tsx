@@ -34,7 +34,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Link>
             <Link
               href="/projects/new"
-              className="focus-ring inline-flex min-h-10 items-center justify-center gap-2 rounded bg-ink px-3 text-sm font-medium text-ink text-white"
+              className="focus-ring inline-flex min-h-10 items-center justify-center gap-2 rounded bg-ink px-3 text-sm font-medium text-white"
             >
               <FolderOpen size={16} />
               New Project
