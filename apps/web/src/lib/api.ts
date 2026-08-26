@@ -101,6 +101,13 @@ export type HealthStatus = {
   service: string;
 };
 
+export type AppMeta = {
+  version: string;
+  service: string;
+  data_dir: string;
+  desktop_mode: boolean;
+};
+
 export type ProcessingJob = {
   id: string;
   project_id: string;
@@ -315,6 +322,7 @@ export const api = {
       body: JSON.stringify({ path }),
     }),
   getHealth: () => request<HealthStatus>("/api/health"),
+  getMeta: () => request<AppMeta>("/api/meta"),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   getPhoto: (projectId: string, photoId: string) => request<Photo>(`/api/projects/${projectId}/photos/${photoId}`),
   importPhotosBatch: (
