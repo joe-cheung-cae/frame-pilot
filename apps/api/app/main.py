@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlmodel import Session
 
+from app.api.meta import router as meta_router
 from app.api.routes import router
 from app.core.config import reset_settings_cache
 from app.core.origins import allowed_origins, host_is_allowed
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         return health_payload()
 
+    app.include_router(meta_router)
     app.include_router(router)
     ensure_db_ready()
     return app
