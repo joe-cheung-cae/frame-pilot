@@ -4,8 +4,48 @@
 
 :root {
   color-scheme: light;
-  background: #f5f7f8;
-  color: #151515;
+  --fp-ink: 21 21 21;
+  --fp-mist: 245 247 248;
+  --fp-line: 216 222 220;
+  --fp-leaf: 47 111 94;
+  --fp-coral: 191 91 69;
+  --fp-gold: 167 119 33;
+  --fp-paper: 255 255 255;
+  background: rgb(var(--fp-mist));
+  color: rgb(var(--fp-ink));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-shell="desktop"] {
+    color-scheme: dark;
+    --fp-ink: 245 247 248;
+    --fp-mist: 18 18 18;
+    --fp-line: 58 64 62;
+    --fp-leaf: 79 163 140;
+    --fp-coral: 216 120 100;
+    --fp-gold: 212 170 80;
+    --fp-paper: 32 32 32;
+  }
+
+  :root[data-shell="desktop"] .bg-white {
+    background-color: rgb(var(--fp-paper));
+  }
+
+  :root[data-shell="desktop"] .bg-white\/90 {
+    background-color: rgb(var(--fp-paper) / 0.9);
+  }
+
+  :root[data-shell="desktop"] .bg-white\/80 {
+    background-color: rgb(var(--fp-paper) / 0.8);
+  }
+
+  :root[data-shell="desktop"] .bg-neutral-50 {
+    background-color: rgb(var(--fp-paper));
+  }
+
+  :root[data-shell="desktop"] .text-neutral-700 {
+    color: rgb(var(--fp-ink) / 0.82);
+  }
 }
 
 * {
@@ -14,8 +54,8 @@
 
 body {
   margin: 0;
-  background: #f5f7f8;
-  color: #151515;
+  background: rgb(var(--fp-mist));
+  color: rgb(var(--fp-ink));
   font-family: Arial, Helvetica, sans-serif;
 }
 
