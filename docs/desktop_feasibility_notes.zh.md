@@ -153,3 +153,26 @@ D1.09 退出对话框是注入的 HTML。Rust 单元测试覆盖 Kill-after-5s �
 6. **`APP_VERSION` remains `2.0.0-rc2`.** 不要升到 `2.1.0-desktop`。
 
 Phase 1 验收（见 §5.1）：HTTP/home 项目列表 `[x]`；sidecar health `[x]`；无 Tauri 的 `verify` `[x]`；浏览器 `:3000`/`:8000` `[x]`。
+
+## D3.02 状态栏 — 2026-08-26
+
+分支 `feature/d3-02-status-bar`。非 GUI 测试已通过。本机未在现场 WebView 中查看桌面状态栏。
+
+剩余 GUI / Rust 编译验证的命令与确切错误：
+
+```text
+$ rustc --version
+rustc 1.85.0 (4d91de4e4 2025-02-17) (built from a source tarball)
+
+$ cargo --version
+cargo 1.85.0 (d73d2caf9 2024-12-31)
+
+$ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+error: rustc 1.85.0 is not supported by the following packages:
+  darling@0.23.0 requires rustc 1.88.0
+  ... (icu_*, plist, serde_with, time, zbus require rustc 1.86–1.88)
+```
+
+`npm run test:web`（node unit + vitest + Next build）和 `npm run typecheck:desktop` 已通过。`APP_VERSION` 仍为 `2.0.0-rc2`。未启动 `npm run dev:desktop`，因为它会触发同样失败的 `cargo` 编译。未安装 display-server 包。
+
+直到有日期的 `cargo test` / WebView 状态栏渲染成功，D3.02 保持 `[~]`。
