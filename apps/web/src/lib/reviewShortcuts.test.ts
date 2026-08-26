@@ -91,3 +91,13 @@ test("ignores shortcuts when modifier keys or IME composition are active", () =>
   assert.equal(reviewShortcutCommandFromEvent({ key: "f", isComposing: true }), null);
   assert.deepEqual(reviewShortcutCommandFromEvent({ key: "p" }), { type: "mark", status: "Pick" });
 });
+
+test("keeps modifier menu chords from stealing culling keys", () => {
+  for (const key of ["n", "w", "q", "c", "f"]) {
+    assert.equal(reviewShortcutCommandFromEvent({ key, ctrlKey: true }), null);
+    assert.equal(reviewShortcutCommandFromEvent({ key, metaKey: true }), null);
+  }
+  assert.deepEqual(reviewShortcutCommandFromEvent({ key: "p" }), { type: "mark", status: "Pick" });
+  assert.deepEqual(reviewShortcutCommandFromEvent({ key: "c" }), { type: "toggle_compare" });
+  assert.deepEqual(reviewShortcutCommandFromEvent({ key: "f" }), { type: "focus_filters" });
+});
