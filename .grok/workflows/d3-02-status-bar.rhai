@@ -101,3 +101,48 @@ fn d302_spec() {
     s += "If GUI/WebView cannot be recorded, tick D3.02 [~] and append a dated command+error note in docs/desktop_feasibility_notes.md (and the matching .zh.md append, without rewriting existing sections). If unit tests pass and a GUI run was recorded, tick [x]. Never leave the box [ ].\n";
     s
 }
+
+fn inspect_prompt() {
+    let s = "";
+    s += "You are grok-4.6 investigating FramePilot D3.02 Status bar. Read-only. Do not edit. Do not commit.\n";
+    s += repo_rules();
+    s += d302_spec();
+    s += "Use grep/read_file/list_dir. Read at least:\n";
+    s += "- docs/plans/2026-08-18-desktop-packaging.md D3.02, D1.02a isDesktopShell, §2 locked decisions, §5.1 Phase 3 boxes\n";
+    s += "- docs/desktop_goal_mode.md WSL/GUI and test-first rules for D3.02\n";
+    s += "- apps/web/src/components/Shell.tsx (no status bar yet)\n";
+    s += "- apps/web/src/lib/shell.ts, shell.test.ts, processingProgress.ts, processingProgress.test.ts\n";
+    s += "- apps/web/src/lib/api.ts (no getHealth yet; listJobs/getProject exist), apiBase.ts\n";
+    s += "- apps/web/src/lib/menuRoutes.ts projectIdFromPathname, recentProjects.ts loadLastOpenedProjectId\n";
+    s += "- apps/web/src/components/ProcessingPanel.tsx job polling pattern\n";
+    s += "- apps/web/src/components/Providers.tsx, apps/desktop/src/App.tsx applyShellDataset\n";
+    s += "- apps/api/app/core/version.py APP_VERSION and health_payload; apps/api/app/main.py GET /health; apps/api/app/api/routes.py GET /api/health\n";
+    s += "- apps/web/package.json test:unit (src/lib/*.test.ts node:test + vitest src/**/*.test.tsx)\n";
+    s += "- docs/desktop_feasibility_notes.md D3.01 GUI skip pattern\n";
+    s += "Confirm: Shell has no status bar; isDesktopShell is true only for literal true; processingProgress already formats step/percent; health exists and must not grow data_dir; GET /api/meta does not exist.\n";
+    s += "notes: a factual brief of live files, gaps, and risks for D3.02 only.\n";
+    s
+}
+
+fn progress_prompt() {
+    let s = "";
+    s += "You are grok-4.6 investigating D3.02 processing visibility reuse. Read-only. Do not edit.\n";
+    s += "Read apps/web/src/lib/processingProgress.ts and processingProgress.test.ts and ProcessingPanel.tsx.\n";
+    s += "List the exact helpers D3.02 must reuse for job type label, status label, progress percent, progress summary, and picking an active job (queued/running, then latest processing job).\n";
+    s += "State how ProcessingPanel polls jobs (queryKey, refetchInterval). Status bar should follow that pattern, not invent a second progress formula.\n";
+    s += "Do not propose GET /api/meta. Sidecar connected must use existing GET /health or GET /api/health (status === \"ok\").\n";
+    s += "notes: reuse table (helper -> status-bar field) and polling approach.\n";
+    s
+}
+
+fn shell_prompt() {
+    let s = "";
+    s += "You are grok-4.6 investigating D3.02 shell gating and render tests. Read-only. Do not edit product files.\n";
+    s += "Read Shell.tsx, shell.ts, shell.test.ts, a representative component test (ProcessingPanel.test.tsx or ProjectDashboard.test.tsx), apps/web/src/app/page.tsx, apps/desktop/src/router.tsx.\n";
+    s += "Explain how to keep the browser shell unchanged: StatusBar returns null unless isDesktopShell() is true; do not inline window.__FRAMEPILOT_DESKTOP__ checks; consume isDesktopShell() / [data-shell=desktop].\n";
+    s += "Shell is imported from Next.js server pages; keep Shell itself free of hooks if possible and put hooks in a client StatusBar.tsx with \"use client\".\n";
+    s += "Do not add usePathname to the navigation adapter (out of D3.02). Resolve project id from window.location.pathname via projectIdFromPathname then loadLastOpenedProjectId; re-read on the same poll interval as health/jobs so SPA navigations update.\n";
+    s += "Render tests: set window.__FRAMEPILOT_DESKTOP__ to true vs not-true; assert a status region appears only when true; header Help/Settings/New Project stay.\n";
+    s += "notes: gating, file split, and render-test strategy.\n";
+    s
+}
