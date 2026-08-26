@@ -179,3 +179,26 @@ error: rustc 1.85.0 is not supported by the following packages:
 `npm run test:web` (node unit + vitest + Next build) and `npm run typecheck:desktop` passed. `APP_VERSION` stays `2.0.0-rc2`. `npm run dev:desktop` was not started because it would invoke the same failing `cargo` compile. No display-server packages were installed.
 
 Until a dated `cargo test` / WebView menu click succeeds, D3.01 stays `[~]`.
+
+## D3.02 Status bar — 2026-08-26
+
+Branch `feature/d3-02-status-bar`. Non-GUI tests passed. The desktop status bar was not viewed in a live WebView on this host.
+
+Commands and exact errors for remaining GUI / Rust compile verification:
+
+```text
+$ rustc --version
+rustc 1.85.0 (4d91de4e4 2025-02-17) (built from a source tarball)
+
+$ cargo --version
+cargo 1.85.0 (d73d2caf9 2024-12-31)
+
+$ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+error: rustc 1.85.0 is not supported by the following packages:
+  darling@0.23.0 requires rustc 1.88.0
+  ... (icu_*, plist, serde_with, time, zbus require rustc 1.86–1.88)
+```
+
+`npm run test:web` (node unit + vitest + Next build) and `npm run typecheck:desktop` passed. `APP_VERSION` stays `2.0.0-rc2`. `npm run dev:desktop` was not started because it would invoke the same failing `cargo` compile. No display-server packages were installed.
+
+Until a dated `cargo test` / WebView status-bar render succeeds, D3.02 stays `[~]`.
