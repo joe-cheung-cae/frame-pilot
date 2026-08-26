@@ -1,6 +1,7 @@
 //! FramePilot desktop shell. Sidecar spawn is owned by Rust; `npm run verify` does not compile this crate.
 
 mod data_dir;
+mod menu;
 mod sidecar;
 
 use std::process::Child;
@@ -10,6 +11,7 @@ use std::thread;
 use std::time::Duration;
 
 use data_dir::resolve_runtime_data_dir;
+use menu::{build_app_menu, handle_menu_event, DesktopPaths};
 use sidecar::{
     allocate_loopback_port, api_pythonpath, app_quit_action, blocking_error_script,
     close_choice_from_handshake, close_decision, close_decision_requests_shutdown, close_job_kind,
@@ -249,6 +251,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Arc::clone(&state))
+        .manage(DesktopPaths {
+            data_dir: data_dir.clone(),
+        })
+        .on_menu_event(|app, event| handle_menu_event(app, event))
         .setup(move |app| {
             let (startup_error, restart_used) = {
                 let startup_state = Arc::clone(&setup_state);
@@ -278,6 +284,9 @@ pub fn run() {
             .min_inner_size(1100.0, 720.0)
             .initialization_script(&initialization_script(port))
             .build()?;
+
+            let menu = build_app_menu(app)?;
+            app.set_menu(menu)?;
 
             if let Some(err) = startup_error {
                 show_blocking_error(
