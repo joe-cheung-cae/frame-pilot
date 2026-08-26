@@ -95,6 +95,12 @@ export type PhotoGroup = {
   score_summary: string;
 };
 
+export type HealthStatus = {
+  status: string;
+  version: string;
+  service: string;
+};
+
 export type ProcessingJob = {
   id: string;
   project_id: string;
@@ -308,6 +314,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ path }),
     }),
+  getHealth: () => request<HealthStatus>("/api/health"),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   getPhoto: (projectId: string, photoId: string) => request<Photo>(`/api/projects/${projectId}/photos/${photoId}`),
   importPhotosBatch: (
