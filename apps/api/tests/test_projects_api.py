@@ -88,7 +88,10 @@ def test_list_projects_stale_job_handling_query_count_is_bounded(tmp_path, monke
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
     project_count = 12
-    projects = [client.post("/api/projects", json={"name": f"Project {index}"}).json() for index in range(project_count)]
+    projects = [
+        client.post("/api/projects", json={"name": f"Project {index}"}).json()
+        for index in range(project_count)
+    ]
 
     with Session(get_engine()) as session:
         now = datetime.now(UTC)

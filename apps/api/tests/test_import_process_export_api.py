@@ -2469,8 +2469,13 @@ def test_batch_update_does_not_block_status_polling(tmp_path, monkeypatch):
                 poll_statuses.extend(
                     [counts_response.status_code, jobs_response.status_code, project_response.status_code]
                 )
-                if any(code >= 500 for code in (counts_response.status_code, jobs_response.status_code, project_response.status_code)):
-                    poll_errors.append(RuntimeError(f"poll failed: {[counts_response.status_code, jobs_response.status_code, project_response.status_code]}"))
+                poll_codes = (
+                    counts_response.status_code,
+                    jobs_response.status_code,
+                    project_response.status_code,
+                )
+                if any(code >= 500 for code in poll_codes):
+                    poll_errors.append(RuntimeError(f"poll failed: {list(poll_codes)}"))
             except Exception as error:  # pragma: no cover - surfaced below
                 poll_errors.append(error)
 
