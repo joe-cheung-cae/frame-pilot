@@ -16,4 +16,6 @@ export const colors = {
   coral: "rgb(var(--fp-coral) / <alpha-value>)",
   gold: "rgb(var(--fp-gold) / <alpha-value>)",
   paper: "rgb(var(--fp-paper) / <alpha-value>)",
+  surface: "rgb(var(--fp-surface) / <alpha-value>)",
+  muted: "rgb(var(--fp-muted) / <alpha-value>)",
 } as const;

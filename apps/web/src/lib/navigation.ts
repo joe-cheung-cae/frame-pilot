@@ -10,4 +10,4 @@ export type Navigator = {
   push: (href: string) => void;
 };
 
-export { Link, useNavigator, useQueryParams } from "./navigation.next";
+export { Link, useNavigator, usePathname, useQueryParams } from "./navigation.next";

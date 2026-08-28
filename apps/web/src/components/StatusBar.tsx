@@ -1,34 +1,23 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
-import { hasActiveProcessingJob } from "@/lib/processingProgress";
+import { jobsRefetchIntervalMs } from "@/lib/processingProgress";
 import { loadLastOpenedProjectId } from "@/lib/recentProjects";
 import { isDesktopShell } from "@/lib/shell";
 import { jobLabel, projectLabel, resolveStatusBarProjectId, sidecarLabel, statusBarJob } from "@/lib/statusBarModel";
 
 const HEALTH_POLL_MS = 5000;
-const ACTIVE_POLL_MS = 1000;
 
-export function StatusBar() {
+export function StatusBar({ pathname = "/" }: { pathname?: string } = {}) {
   if (!isDesktopShell()) {
     return null;
   }
-  return <DesktopStatusBar />;
+  return <DesktopStatusBar pathname={pathname} />;
 }
 
-function DesktopStatusBar() {
-  const [pathname, setPathname] = useState(() => (typeof window === "undefined" ? "/" : window.location.pathname));
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setPathname(window.location.pathname);
-    }, ACTIVE_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
+function DesktopStatusBar({ pathname }: { pathname: string }) {
   const projectId = resolveStatusBarProjectId(pathname, loadLastOpenedProjectId());
 
   const healthQuery = useQuery({
@@ -51,7 +40,7 @@ function DesktopStatusBar() {
     queryFn: () => api.listJobs(projectId ?? "", { limit: 10, offset: 0 }),
     enabled: Boolean(projectId),
     retry: false,
-    refetchInterval: (query) => (hasActiveProcessingJob(query.state.data) ? ACTIVE_POLL_MS : HEALTH_POLL_MS),
+    refetchInterval: (query) => jobsRefetchIntervalMs(query.state.data),
   });
 
   const connected = healthQuery.isError ? false : healthQuery.data ? healthQuery.data.status === "ok" : null;
@@ -61,7 +50,7 @@ function DesktopStatusBar() {
     <footer
       role="status"
       aria-label="Desktop status"
-      className="sticky bottom-0 border-t border-line bg-white px-5 py-2 text-sm text-neutral-700"
+      className="sticky bottom-0 border-t border-line bg-surface px-5 py-2 text-sm text-muted"
     >
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-1">
         <span>{sidecarLabel(connected)}</span>

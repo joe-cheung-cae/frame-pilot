@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -48,6 +49,18 @@ test("formats job type, step, and clamped percent from processingProgress helper
     }),
     "Import · Running · 100%",
   );
+});
+
+test("status bar model does not scrape window or import menu routing", () => {
+  const model = fs.readFileSync(new URL("./statusBarModel.ts", import.meta.url), "utf8");
+  const bar = fs.readFileSync(new URL("../components/StatusBar.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(model, /menuRoutes/);
+  assert.match(model, /projectIdFromPathname/);
+  assert.match(model, /firstActiveJob/);
+  assert.doesNotMatch(bar, /window\.location/);
+  assert.doesNotMatch(bar, /menuRoutes/);
+  assert.match(bar, /jobsRefetchIntervalMs/);
+  assert.match(bar, /pathname/);
 });
 
 test("prefers an active job of any type over a completed processing job", () => {

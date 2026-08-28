@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
-import { MENU_EVENT, menuHrefForCommand } from "@/lib/menuRoutes";
+import { MENU_EVENT, resolveMenuCommand } from "@/lib/menuRoutes";
 import { useNavigator } from "@/lib/navigation";
 import { loadLastOpenedProjectId } from "@/lib/recentProjects";
 import { applyShellDataset } from "@/lib/shell";
@@ -15,9 +15,9 @@ function NativeMenuListener() {
       if (typeof command !== "string") {
         return;
       }
-      const href = menuHrefForCommand(command, window.location.pathname, loadLastOpenedProjectId());
-      if (href) {
-        navigator.push(href);
+      const result = resolveMenuCommand(command, window.location.pathname, loadLastOpenedProjectId());
+      if (result.type === "navigate") {
+        navigator.push(result.href);
       }
     };
     window.addEventListener(MENU_EVENT, onMenu);

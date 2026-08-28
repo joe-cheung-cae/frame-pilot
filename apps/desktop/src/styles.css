@@ -1,1 +1,18 @@
 @import "../../web/src/app/globals.css";
+
+@media (prefers-color-scheme: dark) {
+  html[data-shell="desktop"] {
+    color-scheme: dark;
+    --fp-ink: 245 247 248;
+    --fp-mist: 18 18 18;
+    --fp-line: 58 64 62;
+    --fp-leaf: 79 163 140;
+    --fp-coral: 216 120 100;
+    --fp-gold: 212 170 80;
+    --fp-paper: 28 31 30;
+    --fp-surface: 28 31 30;
+    --fp-muted: 212 212 212;
+    background: rgb(var(--fp-mist));
+    color: rgb(var(--fp-ink));
+  }
+}

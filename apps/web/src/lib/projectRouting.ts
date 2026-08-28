@@ -129,3 +129,12 @@ export function projectWorkflowStepHint(project: ProjectActionState, step: Proje
 
   return "Export selected statuses";
 }
+
+export function projectIdFromPathname(pathname: string): string | null {
+  const match = pathname.match(/^\/projects\/([^/]+)/);
+  const segment = match?.[1];
+  if (!segment || segment === "new") {
+    return null;
+  }
+  return segment;
+}

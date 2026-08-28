@@ -249,10 +249,10 @@ Phase 2
 
 Phase 3
 
-- [ ] D3.01 原生菜单栏
-- [~] D3.02 状态栏 (2026-08-26)
-- [ ] D3.03 设置中的数据目录（`GET /api/meta`）
-- [ ] D3.04 跟随系统主题
+- [~] D3.01 原生菜单栏 — `npm run test:web` 于 2026-08-23 通过；GUI/`cargo test` 未验证（`rustc` 1.85 无法编译当前 Tauri lockfile）。见 `docs/desktop_feasibility_notes.zh.md`。
+- [~] D3.02 状态栏 — `npm run test:web` 于 2026-08-26 通过；GUI/`cargo test` 未验证（与 D3.01 相同的 rustc 1.85 阻碍）。见 `docs/desktop_feasibility_notes.zh.md`。
+- [~] D3.03 设置中的数据目录（`GET /api/meta`） — API + Settings 测试已在 `main`；GUI/`cargo test` 未验证（与 D3.01 相同阻碍）。见 `docs/desktop_feasibility_notes.zh.md`。
+- [x] D3.04 跟随系统主题 — CSS `[x]`。视觉 GUI `[~]` 2026-08-28（与 D3.01 相同的 rustc/cargo 阻碍）。见 `docs/desktop_feasibility_notes.zh.md`。
 - [ ] D3.05 空状态与错误文案
 - [ ] D3.06 可选托盘（可能以 `[-]` 结束）
 - [ ] D3.07 快捷键与菜单加速键核对
@@ -907,13 +907,13 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 ### D3.01 — 原生菜单栏
 
 **Depends on:** Phase 2  
-**Files:** Rust 菜单，必要时加 JS 监听器
+**Files:** Rust 菜单 `apps/desktop/src-tauri/src/menu.rs` 拥有原生动作（Edit / About / Close / Quit / Fullscreen / Open-data-folder）。JS `apps/web/src/lib/menuRoutes.ts` 只解析可导航命令（`new`、`shortcuts`、`import`、`export`、`process`、`cull`）为 href 或 ignore。Help 只列出 `CmdOrCtrl+N/W/Q`，不复制一份原生菜单树。
 
 菜单：File（New、Open data folder、Import、Export、Close、Quit）；Edit（操作系统默认）；View（Fullscreen）；Project（Process、Culling）；Help（Shortcuts、仅 About 对话框 — 无更新器）。
 
 保留 P/M/X/U/1–5/0/Space/Z/C/G/F/E。**任何原生菜单项都不得对这些键使用裸键加速键**。
 
-**Tests:** 若抽出纯映射则写 `menuRoutes.test.ts`；`reviewShortcutCommandFromEvent` 对带修饰键的组合仍返回 null（`reviewShortcuts.ts`）。运行：`npm run test:web`。记录 GUI 或 `[~]`。
+**Tests:** `menuRoutes.test.ts`（仅可导航 id；原生拥有的 id 返回 ignore）。运行：`npm --prefix apps/web run test:unit`。记录 GUI 或 `[~]`。
 
 **Commit:** `desktop: add native application menu`
 
@@ -922,9 +922,9 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 **Depends on:** D3.01, D1.02a  
 **Files:** 仅桌面的状态栏，或由 `isDesktopShell()` 门控的 `Shell.tsx`
 
-显示 sidecar 已连接、项目名、任务步骤/百分比。复用 `processingProgress.ts`。若可能，保持浏览器壳不变。
+显示 sidecar 已连接、项目名、任务步骤/百分比。复用 `processingProgress.ts` 中的 `firstActiveJob` / `hasActiveProcessingJob`。`Shell` 把 `usePathname()` 传入状态栏；状态栏不读 `window.location`，也不 import `menuRoutes`。jobs query key 仍是 `["jobs", projectId]`，空闲时慢轮询，以便新开始的导入可见。
 
-**Tests:** `isDesktopShell()` 为 true 时的辅助 / 渲染测试。运行：`npm run test:web`。
+**Tests:** `processingProgress.test.ts` / `statusBarModel.test.ts`。运行：`npm --prefix apps/web run test:unit`。
 
 **Commit:** `desktop: add status bar for sidecar and jobs`
 
@@ -942,11 +942,9 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 ### D3.04 — 跟随系统主题（浅色 / 深色）
 
 **Depends on:** D3.02  
-**Files:** CSS / Tailwind `dark:`，作用域为 `[data-shell="desktop"]`
+**Files:** `ink` / `mist` / `line` / `surface` / `muted` 的 CSS 变量（`apps/web/src/app/globals.css` 中 `--fp-*` 浅色默认；`apps/desktop/src/styles.css` 在 `html[data-shell="desktop"]` 且 `prefers-color-scheme: dark` 时交换）。两边 Tailwind 配置都消费 `apps/web/src/theme/tokens.ts`。不要 Tailwind `darkMode`，不要 `dark:` 补丁，不要重映射 `.bg-white`。主按钮 `bg-ink` 使用 `text-mist`。浏览器保持仅浅色。
 
-浏览器可以继续仅浅色。
-
-**Tests:** none（CSS）加上视觉说明。若改了组件则运行 `npm run test:web`。
+**Tests:** `apps/web/src/lib/desktopTheme.test.ts`。运行：`npm --prefix apps/web run test:unit`。没有桌面 WebView 记录时视觉 GUI 仍为 `[~]`。
 
 **Commit:** `desktop: follow system light/dark theme`
 

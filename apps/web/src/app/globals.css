@@ -11,41 +11,10 @@
   --fp-coral: 191 91 69;
   --fp-gold: 167 119 33;
   --fp-paper: 255 255 255;
+  --fp-surface: 255 255 255;
+  --fp-muted: 82 82 82;
   background: rgb(var(--fp-mist));
   color: rgb(var(--fp-ink));
-}
-
-@media (prefers-color-scheme: dark) {
-  :root[data-shell="desktop"] {
-    color-scheme: dark;
-    --fp-ink: 245 247 248;
-    --fp-mist: 18 18 18;
-    --fp-line: 58 64 62;
-    --fp-leaf: 79 163 140;
-    --fp-coral: 216 120 100;
-    --fp-gold: 212 170 80;
-    --fp-paper: 32 32 32;
-  }
-
-  :root[data-shell="desktop"] .bg-white {
-    background-color: rgb(var(--fp-paper));
-  }
-
-  :root[data-shell="desktop"] .bg-white\/90 {
-    background-color: rgb(var(--fp-paper) / 0.9);
-  }
-
-  :root[data-shell="desktop"] .bg-white\/80 {
-    background-color: rgb(var(--fp-paper) / 0.8);
-  }
-
-  :root[data-shell="desktop"] .bg-neutral-50 {
-    background-color: rgb(var(--fp-paper));
-  }
-
-  :root[data-shell="desktop"] .text-neutral-700 {
-    color: rgb(var(--fp-ink) / 0.82);
-  }
 }
 
 * {

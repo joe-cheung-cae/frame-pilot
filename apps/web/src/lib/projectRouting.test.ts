@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  projectIdFromPathname,
   projectNextActionLabel,
   projectNextHref,
   projectLoadRecoveryMessage,
@@ -10,6 +11,12 @@ import {
   projectWorkflowStepHint,
   projectWorkflowStepHref,
 } from "./projectRouting.ts";
+
+test("extracts a project id from a project pathname", () => {
+  assert.equal(projectIdFromPathname("/projects/abc/cull"), "abc");
+  assert.equal(projectIdFromPathname("/projects/new"), null);
+  assert.equal(projectIdFromPathname("/help"), null);
+});
 
 test("routes empty projects to import", () => {
   assert.equal(

@@ -225,3 +225,9 @@ error: rustc 1.85.0 is not supported by the following packages:
 `npm run test:api` (pytest including `test_api_meta.py`) and `npm run test:web` (node unit + vitest + Next build) passed. `npm run typecheck:desktop` passed. `APP_VERSION` stays `2.0.0-rc2`. `npm run dev:desktop` was not started because it would invoke the same failing `cargo` compile.
 
 Until a dated `cargo test` / WebView Settings render succeeds, D3.03 stays `[~]`.
+
+## D3.01–D3.04 landed review — 2026-08-28
+
+Branch `feature/phase3-landed-review` (issue https://github.com/joe-cheung-cae/frame-pilot/issues/52). Theme now uses CSS variables (`surface` / `muted`) swapped in `apps/desktop/src/styles.css` under `prefers-color-scheme: dark` for `html[data-shell="desktop"]`. Browser `globals.css` stays light-only and no longer remaps `.bg-white`. JS menu routing is navigable-only; the status bar uses `usePathname` and `firstActiveJob`.
+
+This host has no `rustc`/`cargo` on PATH. Visual WebView for the inverted theme remains unverified. D3.04 CSS is `[x]`; D3.04 visual and D3.01–D3.03 GUI stay `[~]`. `APP_VERSION` stays `2.0.0-rc2`.

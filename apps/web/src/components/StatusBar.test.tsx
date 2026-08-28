@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/navigation", () => ({
   Link: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  usePathname: () => "/projects/project-1/cull",
 }));
 
 vi.mock("@/lib/recentProjects", () => ({

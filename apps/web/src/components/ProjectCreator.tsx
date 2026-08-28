@@ -68,7 +68,7 @@ export function ProjectCreator() {
       <label className="grid gap-2 text-sm font-medium text-ink">
         Project name
         <input
-          className="focus-ring rounded border border-line bg-white px-3 py-3 text-base"
+          className="focus-ring rounded border border-line bg-surface px-3 py-3 text-base"
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="Saturday portrait session"
@@ -79,14 +79,14 @@ export function ProjectCreator() {
         {nativeFs ? (
           <div className="flex gap-2">
             <input
-              className="focus-ring min-w-0 flex-1 rounded border border-line bg-white px-3 py-3 text-base"
+              className="focus-ring min-w-0 flex-1 rounded border border-line bg-surface px-3 py-3 text-base"
               value={rootPath}
               onChange={(event) => setRootPath(event.target.value)}
               placeholder="/Users/name/Pictures/FramePilot project"
             />
             <button
               type="button"
-              className="focus-ring inline-flex min-h-11 shrink-0 items-center justify-center rounded border border-line bg-white px-4 font-medium text-ink"
+              className="focus-ring inline-flex min-h-11 shrink-0 items-center justify-center rounded border border-line bg-surface px-4 font-medium text-ink"
               onClick={() => {
                 void onBrowse();
               }}
@@ -96,14 +96,14 @@ export function ProjectCreator() {
           </div>
         ) : (
           <input
-            className="focus-ring rounded border border-line bg-white px-3 py-3 text-base"
+            className="focus-ring rounded border border-line bg-surface px-3 py-3 text-base"
             value={rootPath}
             onChange={(event) => setRootPath(event.target.value)}
             placeholder="/Users/name/Pictures/FramePilot project"
           />
         )}
       </label>
-      <p className="-mt-2 text-sm text-neutral-600">{projectDataFolderHint(rootPath)}</p>
+      <p className="-mt-2 text-sm text-muted">{projectDataFolderHint(rootPath)}</p>
       <button
         className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded bg-leaf px-4 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
         disabled={Boolean(createBlockMessage)}
@@ -111,11 +111,11 @@ export function ProjectCreator() {
         {mutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <ArrowRight size={18} />}
         Create and Import
       </button>
-      {createBlockMessage ? <p className="text-sm text-neutral-600">{createBlockMessage}</p> : null}
+      {createBlockMessage ? <p className="text-sm text-muted">{createBlockMessage}</p> : null}
       {errorMessage ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{errorMessage}</p>
-          <p className="text-neutral-600">{projectCreationRecoveryHint(rootPath)}</p>
+          <p className="text-muted">{projectCreationRecoveryHint(rootPath)}</p>
         </div>
       ) : null}
     </form>

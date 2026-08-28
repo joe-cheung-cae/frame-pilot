@@ -9,12 +9,12 @@ export default function HomePage() {
           <h1 className="max-w-3xl text-4xl font-semibold leading-tight">
             Turn large shoots into a clean reviewable shortlist.
           </h1>
-          <p className="max-w-2xl text-neutral-700">
+          <p className="max-w-2xl text-muted">
             Create a local project, import images, generate previews, group similar frames, and keep the final culling
             decision under your control.
           </p>
         </div>
-        <div className="rounded border border-line bg-white p-5">
+        <div className="rounded border border-line bg-surface p-5">
           <h2 className="mb-4 font-semibold">Recent Projects</h2>
           <ProjectList />
         </div>

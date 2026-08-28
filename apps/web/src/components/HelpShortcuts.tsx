@@ -1,19 +1,20 @@
+import { desktopMenuHelpSection } from "@/lib/menuRoutes";
 import { REVIEW_SHORTCUT_HELP_SECTIONS } from "@/lib/reviewShortcuts";
 
 export function HelpShortcuts() {
   return (
     <section className="mx-auto grid max-w-5xl gap-8 px-5 py-10">
       <div className="grid gap-2">
-        <p className="text-sm text-neutral-600">Review reference</p>
+        <p className="text-sm text-muted">Review reference</p>
         <h1 className="text-3xl font-semibold">Keyboard Shortcuts</h1>
-        <p className="max-w-2xl text-neutral-700">
+        <p className="max-w-2xl text-muted">
           These shortcuts work in the culling workspace after a project has imported and processed photos.
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        {REVIEW_SHORTCUT_HELP_SECTIONS.map((section) => (
-          <section key={section.title} className="rounded border border-line bg-white p-5">
-            <h2 className="text-sm font-semibold text-neutral-600">{section.title}</h2>
+        {[desktopMenuHelpSection, ...REVIEW_SHORTCUT_HELP_SECTIONS].map((section) => (
+          <section key={section.title} className="rounded border border-line bg-surface p-5">
+            <h2 className="text-sm font-semibold text-muted">{section.title}</h2>
             <dl className="mt-4 grid gap-3">
               {section.shortcuts.map((shortcut) => (
                 <div key={shortcut.keys} className="grid grid-cols-[7rem_1fr] items-center gap-3">
@@ -22,7 +23,7 @@ export function HelpShortcuts() {
                       {shortcut.keys}
                     </kbd>
                   </dt>
-                  <dd className="text-sm text-neutral-700">{shortcut.action}</dd>
+                  <dd className="text-sm text-muted">{shortcut.action}</dd>
                 </div>
               ))}
             </dl>
