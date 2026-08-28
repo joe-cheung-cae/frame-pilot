@@ -1,9 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { maxRenderedVirtualItems } from "@/lib/virtualRenderBudget";
+import { photoMatchesReviewFilter } from "@/lib/reviewFilters";
 
 const push = vi.fn();
 const updatePhoto = vi.fn();
+const batchUpdatePhotos = vi.fn();
+const listAllPhotos = vi.fn();
 const setQueryData = vi.fn();
 const getQueryData = vi.fn();
 const cancelQueries = vi.fn();
@@ -53,8 +56,20 @@ type PhotoFixture = {
   updated_at: string;
 };
 
-const { photosState } = vi.hoisted(() => ({
+type GroupFixture = {
+  id: string;
+  project_id: string;
+  representative_photo_id: string | null;
+  photo_count: number;
+  sequence: number;
+  score_summary: string | null;
+  created_at: string;
+};
+
+const { photosState, groupsState, projectTotalImages } = vi.hoisted(() => ({
   photosState: { current: [] as PhotoFixture[] },
+  groupsState: { current: [] as GroupFixture[] },
+  projectTotalImages: { current: 0 },
 }));
 
 function makePhoto(index: number, overrides: Partial<PhotoFixture> = {}): PhotoFixture {
@@ -105,6 +120,19 @@ function makePhoto(index: number, overrides: Partial<PhotoFixture> = {}): PhotoF
   };
 }
 
+function makeGroup(index: number, overrides: Partial<GroupFixture> = {}): GroupFixture {
+  return {
+    id: `group-${index}`,
+    project_id: "project-1",
+    representative_photo_id: `photo-${index}`,
+    photo_count: 1,
+    sequence: index,
+    score_summary: null,
+    created_at: "2026-08-21T00:00:00Z",
+    ...overrides,
+  };
+}
+
 vi.mock("@/lib/navigation", () => ({
   Link: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
   useNavigator: () => ({ push }),
@@ -123,7 +151,7 @@ vi.mock("@/lib/api", async () => {
         root_path: "/tmp/demo",
         source_mode: "copy",
         source_root_path: null,
-        total_images: photosState.current.length,
+        total_images: projectTotalImages.current || photosState.current.length,
         processed_images: photosState.current.length,
         last_processed_at: null,
         schema_version: 3,
@@ -133,72 +161,81 @@ vi.mock("@/lib/api", async () => {
       })),
       listJobs: vi.fn(async () => []),
       listPhotos: vi.fn(async () => photosState.current),
-      listAllPhotos: vi.fn(async () => photosState.current),
-      listAllGroups: vi.fn(async () => []),
+      listAllPhotos: (...args: unknown[]) => listAllPhotos(...args),
+      listAllGroups: vi.fn(async () => groupsState.current),
       updatePhoto: (...args: unknown[]) => updatePhoto(...args),
-      batchUpdatePhotos: vi.fn(async () => []),
+      batchUpdatePhotos: (...args: unknown[]) => batchUpdatePhotos(...args),
     },
     assetUrl: () => null,
   };
 });
 
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: ({ queryKey }: { queryKey: unknown[] }) => {
-    if (queryKey[0] === "project") {
-      return {
-        isLoading: false,
-        isError: false,
-        isSuccess: true,
-        data: {
-          id: "project-1",
-          name: "Demo",
-          total_images: photosState.current.length,
-          processed_images: photosState.current.length,
-          active_import_job: null,
-        },
-        error: null,
-      };
-    }
-    if (queryKey[0] === "jobs") {
+vi.mock("@tanstack/react-query", async () => {
+  const React = await import("react");
+  return {
+    useQuery: ({ queryKey }: { queryKey: unknown[] }) => {
+      if (queryKey[0] === "project") {
+        return {
+          isLoading: false,
+          isError: false,
+          isSuccess: true,
+          data: {
+            id: "project-1",
+            name: "Demo",
+            total_images: projectTotalImages.current || photosState.current.length,
+            processed_images: photosState.current.length,
+            active_import_job: null,
+          },
+          error: null,
+        };
+      }
+      if (queryKey[0] === "jobs") {
+        return { isLoading: false, isError: false, isSuccess: true, data: [], error: null };
+      }
+      if (queryKey[0] === "photos") {
+        return { isLoading: false, isError: false, isSuccess: true, data: photosState.current, error: null };
+      }
+      if (queryKey[0] === "groups") {
+        return { isLoading: false, isError: false, isSuccess: true, data: groupsState.current, error: null };
+      }
       return { isLoading: false, isError: false, isSuccess: true, data: [], error: null };
-    }
-    if (queryKey[0] === "photos") {
-      return { isLoading: false, isError: false, isSuccess: true, data: photosState.current, error: null };
-    }
-    if (queryKey[0] === "groups") {
-      return { isLoading: false, isError: false, isSuccess: true, data: [], error: null };
-    }
-    return { isLoading: false, isError: false, isSuccess: true, data: [], error: null };
-  },
-  useMutation: (options: {
-    mutationFn: (input: unknown) => Promise<unknown>;
-    onMutate?: (input: unknown) => Promise<unknown> | unknown;
-    onError?: (error: Error, input: unknown, context: unknown) => void;
-    onSuccess?: (data: unknown, input: unknown) => void;
-  }) => ({
-    mutate: (input: unknown) => {
-      void (async () => {
-        let context: unknown;
-        try {
-          context = options.onMutate ? await options.onMutate(input) : undefined;
-          const result = await options.mutationFn(input);
-          options.onSuccess?.(result, input);
-        } catch (error) {
-          options.onError?.(error as Error, input, context);
-        }
-      })();
     },
-    isPending: false,
-    error: null,
-    isError: false,
-  }),
-  useQueryClient: () => ({
-    invalidateQueries: vi.fn(),
-    setQueryData,
-    getQueryData,
-    cancelQueries,
-  }),
-}));
+    useMutation: (options: {
+      mutationFn: (input: unknown) => Promise<unknown>;
+      onMutate?: (input: unknown) => Promise<unknown> | unknown;
+      onError?: (error: Error, input: unknown, context: unknown) => void;
+      onSuccess?: (data: unknown, input: unknown) => void;
+    }) => {
+      const [error, setError] = React.useState<Error | null>(null);
+      return {
+        mutate: (input: unknown) => {
+          void (async () => {
+            let context: unknown;
+            try {
+              context = options.onMutate ? await options.onMutate(input) : undefined;
+              const result = await options.mutationFn(input);
+              setError(null);
+              options.onSuccess?.(result, input);
+            } catch (caught) {
+              const nextError = caught as Error;
+              setError(nextError);
+              options.onError?.(nextError, input, context);
+            }
+          })();
+        },
+        isPending: false,
+        error,
+        isError: Boolean(error),
+      };
+    },
+    useQueryClient: () => ({
+      invalidateQueries: vi.fn(),
+      setQueryData,
+      getQueryData,
+      cancelQueries,
+    }),
+  };
+});
 
 vi.mock("@/store/reviewStore", () => ({
   useReviewStore: () => ({
@@ -267,14 +304,63 @@ function mockFilmstripViewport(width = 960) {
   });
 }
 
+function mockGroupListViewport(height = 720) {
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+    configurable: true,
+    get() {
+      return 260;
+    },
+  });
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+    configurable: true,
+    get() {
+      return height;
+    },
+  });
+  Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+    configurable: true,
+    get() {
+      return 260;
+    },
+  });
+  Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+    configurable: true,
+    get() {
+      return height;
+    },
+  });
+  Object.defineProperty(HTMLElement.prototype, "getBoundingClientRect", {
+    configurable: true,
+    value() {
+      return {
+        width: 260,
+        height,
+        top: 0,
+        left: 0,
+        bottom: height,
+        right: 260,
+        x: 0,
+        y: 0,
+        toJSON() {
+          return {};
+        },
+      };
+    },
+  });
+}
+
 describe("CullingWorkspace", () => {
   beforeEach(() => {
     push.mockReset();
     updatePhoto.mockReset();
+    batchUpdatePhotos.mockReset();
+    listAllPhotos.mockReset();
     setQueryData.mockReset();
     getQueryData.mockReset();
     cancelQueries.mockReset();
     photosState.current = [];
+    groupsState.current = [];
+    projectTotalImages.current = 0;
     getQueryData.mockImplementation((key: unknown[]) => {
       if (key[0] === "photos") {
         return photosState.current;
@@ -282,8 +368,12 @@ describe("CullingWorkspace", () => {
       return undefined;
     });
     setQueryData.mockImplementation((key: unknown[], updater: unknown) => {
-      if (key[0] === "photos" && typeof updater === "function") {
-        photosState.current = (updater as (current: PhotoFixture[]) => PhotoFixture[])(photosState.current);
+      if (key[0] === "photos") {
+        if (typeof updater === "function") {
+          photosState.current = (updater as (current: PhotoFixture[]) => PhotoFixture[])(photosState.current);
+        } else if (Array.isArray(updater)) {
+          photosState.current = updater as PhotoFixture[];
+        }
       }
     });
   });
@@ -300,6 +390,7 @@ describe("CullingWorkspace", () => {
 
   it("keeps filmstrip DOM bounded for a 2000-photo workspace", async () => {
     photosState.current = Array.from({ length: 2000 }, (_value, index) => makePhoto(index));
+    projectTotalImages.current = 2000;
     mockFilmstripViewport(960);
     const budget = maxRenderedVirtualItems({
       itemCount: 2000,
@@ -321,8 +412,34 @@ describe("CullingWorkspace", () => {
     expect(renderedOptions.length).toBeLessThan(100);
   });
 
-  it("marks the active photo with a keyboard shortcut", async () => {
-    photosState.current = [makePhoto(0), makePhoto(1)];
+  it("keeps group list DOM bounded for a 2000-group workspace", async () => {
+    photosState.current = [makePhoto(0)];
+    groupsState.current = Array.from({ length: 2000 }, (_value, index) => makeGroup(index));
+    projectTotalImages.current = 2000;
+    mockGroupListViewport(720);
+    const budget = maxRenderedVirtualItems({
+      itemCount: 2000,
+      viewportSize: 720,
+      estimateSize: 64,
+      overscan: 8,
+    });
+
+    render(<CullingWorkspace projectId="project-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Photo groups")).toBeTruthy();
+    });
+
+    const groupList = screen.getByLabelText("Photo groups");
+    const renderedOptions = within(groupList).queryAllByRole("option");
+    expect(renderedOptions.length).toBeGreaterThan(0);
+    expect(renderedOptions.length).toBeLessThanOrEqual(budget);
+    expect(renderedOptions.length).toBeLessThan(100);
+  });
+
+  it("marks the active photo with a keyboard shortcut without requiring Load all", async () => {
+    photosState.current = Array.from({ length: 500 }, (_value, index) => makePhoto(index));
+    projectTotalImages.current = 2000;
     updatePhoto.mockResolvedValue(makePhoto(0, { user_status: "Pick" }));
 
     render(<CullingWorkspace projectId="project-1" />);
@@ -335,12 +452,13 @@ describe("CullingWorkspace", () => {
     await waitFor(() => {
       expect(updatePhoto).toHaveBeenCalled();
     });
+    expect(listAllPhotos).not.toHaveBeenCalled();
     expect(updatePhoto.mock.calls[0]?.[0]).toBe("project-1");
     expect(updatePhoto.mock.calls[0]?.[1]).toBe("photo-0");
     expect(updatePhoto.mock.calls[0]?.[2]).toEqual({ user_status: "Pick" });
   });
 
-  it("rolls back optimistic status when a save fails", async () => {
+  it("rolls back optimistic status and shows the save-failure banner", async () => {
     photosState.current = [makePhoto(0, { user_status: "Unreviewed" }), makePhoto(1)];
     updatePhoto.mockRejectedValue(new Error("API offline"));
 
@@ -357,5 +475,76 @@ describe("CullingWorkspace", () => {
     await waitFor(() => {
       expect(photosState.current[0]?.user_status).toBe("Unreviewed");
     });
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Photo update could not be saved. The visible status has been restored. API offline",
+        ),
+      ).toBeTruthy();
+    });
+  });
+
+  it("auto-loads the full project before batch mark so scope is not a silent partial set", async () => {
+    const loaded = Array.from({ length: 3 }, (_value, index) => makePhoto(index));
+    const allPhotos = Array.from({ length: 8 }, (_value, index) => makePhoto(index));
+    photosState.current = loaded;
+    projectTotalImages.current = 8;
+    listAllPhotos.mockResolvedValue(allPhotos);
+    batchUpdatePhotos.mockResolvedValue(allPhotos.map((photo) => ({ ...photo, user_status: "Pick" })));
+
+    render(<CullingWorkspace projectId="project-1" />);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Photo filmstrip")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Set visible photos to selected" }));
+
+    await waitFor(() => {
+      expect(listAllPhotos).toHaveBeenCalledWith("project-1");
+    });
+    await waitFor(() => {
+      expect(batchUpdatePhotos).toHaveBeenCalled();
+    });
+    expect(batchUpdatePhotos.mock.calls[0]?.[0]).toBe("project-1");
+    expect(batchUpdatePhotos.mock.calls[0]?.[1]).toEqual(allPhotos.map((photo) => photo.id));
+    expect(batchUpdatePhotos.mock.calls[0]?.[2]).toEqual({ user_status: "Pick" });
+  });
+
+  it("applies a 2000-id batch mark within a latency budget once photos are loaded", async () => {
+    photosState.current = Array.from({ length: 2000 }, (_value, index) => makePhoto(index));
+    projectTotalImages.current = 2000;
+    batchUpdatePhotos.mockImplementation(async (_projectId: string, photoIds: string[]) =>
+      photoIds.map((id, index) => makePhoto(index, { id, user_status: "Reject" })),
+    );
+
+    render(<CullingWorkspace projectId="project-1" />);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Photo filmstrip")).toBeTruthy();
+    });
+
+    const started = performance.now();
+    fireEvent.click(screen.getByRole("button", { name: "Set visible photos to rejected" }));
+    await waitFor(() => {
+      expect(batchUpdatePhotos).toHaveBeenCalled();
+    });
+    const elapsed = performance.now() - started;
+
+    expect(batchUpdatePhotos.mock.calls[0]?.[1]).toHaveLength(2000);
+    expect(elapsed).toBeLessThan(250);
+  });
+});
+
+describe("culling batch scope helpers at 2000", () => {
+  it("filters a 2000-photo set within a latency budget", () => {
+    const photos = Array.from({ length: 2000 }, (_value, index) =>
+      makePhoto(index, { user_status: index % 2 === 0 ? "Pick" : "Unreviewed" }),
+    );
+    const started = performance.now();
+    const filtered = photos.filter((photo) => photoMatchesReviewFilter(photo, "Picks", new Set()));
+    const ids = filtered.map((photo) => photo.id);
+    const elapsed = performance.now() - started;
+
+    expect(ids).toHaveLength(1000);
+    expect(elapsed).toBeLessThan(50);
   });
 });

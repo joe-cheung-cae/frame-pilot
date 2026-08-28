@@ -3,6 +3,7 @@ import hashlib
 import json
 import shutil
 import threading
+import time
 import zipfile
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
@@ -2113,6 +2114,7 @@ def test_incremental_import_preserves_untouched_groups_after_reprocess(tmp_path,
                 "group_id": photo.group_id,
                 "ai_recommendation": photo.ai_recommendation,
                 "recommendation_explanation": photo.recommendation_explanation,
+                "overall_score": photo.overall_score,
             }
             for photo in seeded_photos
         }
@@ -2134,6 +2136,7 @@ def test_incremental_import_preserves_untouched_groups_after_reprocess(tmp_path,
         after_import = client.get(f"/api/projects/{project['id']}/photos/{photo_id}").json()
         assert after_import["group_id"] == before["group_id"]
         assert after_import["ai_recommendation"] == before["ai_recommendation"]
+        assert after_import["overall_score"] == before["overall_score"]
 
     reprocess = client.post(f"/api/projects/{project['id']}/process")
     assert reprocess.status_code == 202
@@ -2143,15 +2146,32 @@ def test_incremental_import_preserves_untouched_groups_after_reprocess(tmp_path,
     photos_after = {photo["id"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
     groups_after = {group["id"] for group in client.get(f"/api/projects/{project['id']}/groups").json()}
     assert set(photos_after) == original_ids | {new_photo_id}
+    changed_seeded = []
     for photo_id, before in membership_before.items():
         after = photos_after[photo_id]
         assert after["group_id"] == before["group_id"]
         assert after["ai_recommendation"] == before["ai_recommendation"]
         assert after["recommendation_explanation"] == before["recommendation_explanation"]
+        assert after["overall_score"] == before["overall_score"]
         assert after["processing_state"] == "processed"
         assert before["group_id"] in groups_after
+        if (
+            after["group_id"],
+            after["ai_recommendation"],
+            after["overall_score"],
+        ) != (
+            before["group_id"],
+            before["ai_recommendation"],
+            before["overall_score"],
+        ):
+            changed_seeded.append(photo_id)
+    # Reprocess after a 1-photo import must touch ≈ new photos only (#72 / legacy #15).
+    assert changed_seeded == []
     assert photos_after[new_photo_id]["group_id"] is not None
     assert photos_after[new_photo_id]["processing_state"] == "processed"
+    touched_ids = {new_photo_id}
+    assert len(touched_ids) == 1
+    assert len(touched_ids) <= max(1, len(original_ids) // 4)
 
 
 def test_group_list_returns_groups_in_creation_order(tmp_path, monkeypatch):
@@ -2368,11 +2388,11 @@ def test_batch_photo_update_rejects_more_than_500_ids(tmp_path, monkeypatch):
 
 
 def test_chunked_batch_photo_update_updates_large_photo_set(tmp_path, monkeypatch):
-    """Client chunks of ≤500 (schema max_length) update many IDs; server IN-clauses use 400 (#22)."""
+    """Client chunks of ≤500 update 2000 IDs under SQLite's 999-parameter limit (#75 / #22)."""
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
     project = client.post("/api/projects", json={"name": "Batch chunked"}).json()
-    photo_count = 800
+    photo_count = 2000
     batch_size = 500
 
     with Session(get_engine()) as session:
@@ -2406,6 +2426,75 @@ def test_chunked_batch_photo_update_updates_large_photo_set(tmp_path, monkeypatc
     assert updated_ids == photo_ids
     counts = client.get(f"/api/projects/{project['id']}/photos/status-counts").json()
     assert counts == {"Pick": 0, "Maybe": photo_count, "Reject": 0, "Unreviewed": 0}
+
+
+def test_batch_update_does_not_block_status_polling(tmp_path, monkeypatch):
+    """Status/job polling stays responsive during a large chunked batch update (#75)."""
+    import threading
+    import time
+
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    batch_client = TestClient(create_app())
+    poll_client = TestClient(create_app())
+    project = batch_client.post("/api/projects", json={"name": "Batch poll"}).json()
+    photo_count = 2000
+    batch_size = 500
+
+    with Session(get_engine()) as session:
+        photos = [
+            Photo(
+                project_id=project["id"],
+                original_path=f"/tmp/poll-{index:04d}.jpg",
+                filename=f"poll-{index:04d}.jpg",
+            )
+            for index in range(photo_count)
+        ]
+        session.add_all(photos)
+        session.commit()
+        photo_ids = [photo.id for photo in photos]
+
+    stop_polling = threading.Event()
+    poll_latencies: list[float] = []
+    poll_errors: list[BaseException] = []
+    poll_statuses: list[int] = []
+
+    def poll_status() -> None:
+        while not stop_polling.is_set():
+            try:
+                started = time.perf_counter()
+                counts_response = poll_client.get(f"/api/projects/{project['id']}/photos/status-counts")
+                jobs_response = poll_client.get(f"/api/projects/{project['id']}/jobs")
+                project_response = poll_client.get(f"/api/projects/{project['id']}")
+                poll_latencies.append(time.perf_counter() - started)
+                poll_statuses.extend(
+                    [counts_response.status_code, jobs_response.status_code, project_response.status_code]
+                )
+                if any(code >= 500 for code in (counts_response.status_code, jobs_response.status_code, project_response.status_code)):
+                    poll_errors.append(RuntimeError(f"poll failed: {[counts_response.status_code, jobs_response.status_code, project_response.status_code]}"))
+            except Exception as error:  # pragma: no cover - surfaced below
+                poll_errors.append(error)
+
+    poll_thread = threading.Thread(target=poll_status)
+    poll_thread.start()
+    try:
+        for start in range(0, len(photo_ids), batch_size):
+            chunk = photo_ids[start : start + batch_size]
+            response = batch_client.patch(
+                f"/api/projects/{project['id']}/photos/batch",
+                json={"photo_ids": chunk, "user_status": "Pick"},
+            )
+            assert response.status_code == 200, response.text
+    finally:
+        stop_polling.set()
+        poll_thread.join(timeout=10)
+
+    assert poll_errors == [], poll_errors
+    assert len(poll_latencies) >= 2
+    assert all(status == 200 for status in poll_statuses)
+    max_latency = max(poll_latencies)
+    assert max_latency < 3.0, f"status polling hung during batch update: max_latency={max_latency:.3f}s"
+    counts = batch_client.get(f"/api/projects/{project['id']}/photos/status-counts").json()
+    assert counts == {"Pick": photo_count, "Maybe": 0, "Reject": 0, "Unreviewed": 0}
 
 
 def test_processing_recommendation_explains_face_and_eye_quality(tmp_path, monkeypatch):
@@ -2859,6 +2948,69 @@ def test_export_progress_counts_initialize_and_complete(tmp_path, monkeypatch):
     assert completed["status"] == "complete"
     assert completed["processed_count"] == 2
     assert completed["total_count"] == 2
+
+
+def test_large_export_create_returns_quickly_with_pollable_running_record(tmp_path, monkeypatch):
+    """Creating an export must return a pollable running record before work finishes (#70)."""
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    scheduled_tasks: list[tuple[object, tuple, dict]] = []
+
+    def capture_background_task(self, func, *args, **kwargs):
+        scheduled_tasks.append((func, args, kwargs))
+
+    monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Large export create"}).json()
+
+    selected_count = 40
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    with Session(get_engine()) as session:
+        for index in range(selected_count):
+            path = originals / f"frame-{index:03d}.jpg"
+            path.write_bytes(_image_bytes())
+            session.add(
+                Photo(
+                    project_id=project["id"],
+                    original_path=str(path),
+                    filename=path.name,
+                    user_status="Pick",
+                )
+            )
+        project_row = session.get(Project, project["id"])
+        assert project_row is not None
+        project_row.total_images = selected_count
+        session.add(project_row)
+        session.commit()
+
+    started = time.perf_counter()
+    response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "zip", "statuses": ["Pick"]},
+    )
+    elapsed = time.perf_counter() - started
+
+    assert response.status_code == 201
+    created = response.json()
+    assert created["status"] == "running"
+    assert created["processed_count"] == 0
+    assert created["total_count"] == selected_count
+    assert created["selected_count"] == selected_count
+    assert elapsed < 2.0
+    assert len(scheduled_tasks) == 1
+
+    polled = client.get(f"/api/projects/{project['id']}/exports/{created['id']}")
+    assert polled.status_code == 200
+    assert polled.json()["status"] == "running"
+    assert polled.json()["processed_count"] == 0
+    assert polled.json()["total_count"] == selected_count
+
+    task, args, kwargs = scheduled_tasks[0]
+    task(*args, **kwargs)
+    completed = client.get(f"/api/projects/{project['id']}/exports/{created['id']}").json()
+    assert completed["status"] == "complete"
+    assert completed["processed_count"] == selected_count
+    assert completed["total_count"] == selected_count
 
 
 def test_failed_export_records_failed_history_and_removes_partial_artifact(tmp_path, monkeypatch):

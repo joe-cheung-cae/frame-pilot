@@ -138,10 +138,70 @@ def test_list_projects_stale_job_handling_query_count_is_bounded(tmp_path, monke
     listed = response.json()
     assert len(listed) == project_count
     assert all(item["active_import_job"] is not None for item in listed)
-    # Constant-ish job handling: one projects query + batched active/stale job queries,
+    # Constant-ish job handling: one projects query + batched active import job query,
     # not a per-project stale sweep (which would be ~3N+).
     assert len(statements) <= 12
     assert len(statements) < project_count * 3
+
+
+def test_list_projects_get_does_not_write_when_jobs_are_stale(tmp_path, monkeypatch):
+    """GET /api/projects must stay read-only even when stale jobs exist (#76)."""
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Stale list read"}).json()
+    stale_updated_at = datetime.now(UTC).replace(year=2020)
+
+    with Session(get_engine()) as session:
+        stale_job = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="running",
+            current_step="derivative_generation",
+            total_items=2,
+            processed_items=1,
+            failed_items=0,
+            progress_percent=50.0,
+            started_at=stale_updated_at,
+            updated_at=stale_updated_at,
+        )
+        session.add(stale_job)
+        session.commit()
+        stale_job_id = stale_job.id
+
+    engine = get_engine()
+    write_statements: list[str] = []
+
+    def before_cursor_execute(_conn, _cursor, statement, _parameters, _context, _executemany):
+        normalized = " ".join(str(statement).lower().split())
+        if normalized.startswith(("insert ", "update ", "delete ")):
+            write_statements.append(normalized)
+
+    event.listen(engine, "before_cursor_execute", before_cursor_execute)
+    try:
+        response = client.get("/api/projects")
+    finally:
+        event.remove(engine, "before_cursor_execute", before_cursor_execute)
+
+    assert response.status_code == 200
+    listed = next(item for item in response.json() if item["id"] == project["id"])
+    assert listed["active_import_job"] is None
+    assert write_statements == []
+
+    with Session(get_engine()) as session:
+        still_running = session.get(ProcessingJob, stale_job_id)
+        assert still_running is not None
+        assert still_running.status == "running"
+        assert still_running.current_step == "derivative_generation"
+
+    # Stale failure remains prompt on the project detail / jobs path.
+    detail = client.get(f"/api/projects/{project['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["active_import_job"] is None
+    with Session(get_engine()) as session:
+        failed = session.get(ProcessingJob, stale_job_id)
+        assert failed is not None
+        assert failed.status == "failed"
+        assert failed.current_step == "failed - stale"
 
 
 def test_create_project_rejects_empty_name(tmp_path, monkeypatch):

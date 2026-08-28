@@ -319,22 +319,16 @@ def create_project_endpoint(payload: ProjectCreate, session: Session = Depends(g
 
 @router.get("/projects", response_model=list[ProjectRead])
 def list_projects_endpoint(session: Session = Depends(get_session)):
+    """List projects with a read-only query path (no stale-job failure writes).
+
+    Stale queued/running jobs are omitted from ``active_import_job`` here and are
+    failed promptly by project detail, jobs endpoints, mutations, and API startup.
+    """
     projects = list_projects(session)
     if not projects:
         return []
 
     project_ids = [project.id for project in projects]
-    active_jobs = list(
-        session.exec(
-            select(ProcessingJob)
-            .where(ProcessingJob.project_id.in_(project_ids))
-            .where(ProcessingJob.status.in_(["queued", "running"]))
-        ).all()
-    )
-    for job in active_jobs:
-        if job_is_stale(job):
-            fail_stale_job(session, job)
-
     active_import_by_project: dict[str, ProcessingJob] = {}
     for job in session.exec(
         select(ProcessingJob)
@@ -343,6 +337,9 @@ def list_projects_endpoint(session: Session = Depends(get_session)):
         .where(ProcessingJob.status.in_(["queued", "running"]))
         .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
     ).all():
+        # Read-only list path: skip stale jobs for display without writing.
+        if job_is_stale(job):
+            continue
         active_import_by_project.setdefault(job.project_id, job)
 
     return [

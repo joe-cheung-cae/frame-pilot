@@ -32,3 +32,14 @@ test("virtual render budget never exceeds the item count", () => {
     0,
   );
 });
+
+test("dom budget for 2000 items stays under an interaction-friendly ceiling", () => {
+  const budget = maxRenderedVirtualItems({
+    itemCount: 2000,
+    viewportSize: 1280,
+    estimateSize: 120,
+    overscan: 6,
+  });
+  assert.ok(budget <= 32);
+  assert.ok(budget < 50);
+});

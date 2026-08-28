@@ -71,7 +71,7 @@ GET /api/assets/{project_id}/{thumbnails|previews}/{filename}
 ```
 
 `last_processed_at` 在第一次处理作业完成前为 `null`。v2 当前使用 `copy` 模式，将导入的照片复制到本地项目目录，且不修改原始源文件。
-`active_import_job` 是该项目最新的、非过期的排队或运行中导入作业；当导入衍生工作未在进行时为 `null`。项目列表和仪表板使用这个轻量字段，把处于活动导入的项目导回导入进度，而不是处理或筛选。
+`active_import_job` 是该项目最新的、非过期的排队或运行中导入作业；当导入衍生工作未在进行时为 `null`。项目列表和仪表板使用这个轻量字段，把处于活动导入的项目导回导入进度，而不是处理或筛选。`GET /api/projects` 为只读：它会从 `active_import_job` 中省略过期作业，但不会写入。过期作业的失败写入改由项目详情、作业端点、变更接口以及 API 启动处理。
 当 `POST /api/projects` 省略 `root_path` 或将其发送为空时，FramePilot 使用默认的托管项目目录。项目创建 UI 将其作为可选的本地项目数据文件夹字段暴露。自定义 `root_path` 必须是 `{data_dir}/projects` 下可用的本地目录、`FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` 条目，或通过 `POST /api/desktop/project-roots` 注册的文件夹。无效存储路径会在创建项目元数据之前返回 `422`。
 
 `GET` 和 `POST /api/desktop/project-roots` 仅在 `FRAMEPILOT_DESKTOP=1` 时存在；否则返回 `404`。`POST` 接受 `{"path": "/absolute/folder"}`，要求该目录已存在；会拒绝被拦截的系统路径、文件系统锚点、数据目录以及数据目录的父目录，并在 `{data_dir}/desktop_project_roots.json` 中最多存储 50 条解析后的路径。`GET` 返回 `{"roots": [...]}`。该注册表以文件为后端，不存储在 Settings 中。
@@ -209,7 +209,7 @@ HEIC 和 RAW 扩展名（如 `.heic`、`.dng`、`.arw`、`.cr3` 和 `.nef`）被
 ```
 
 导入作业到达 `complete`、`complete_with_errors`、`failed` 或 `cancelled` 等终态后，处理可以开始。
-如果更早的排队或运行中处理作业超过 10 分钟没有更新，项目和作业端点会将该过期作业标记为失败。过期处理清理会清除部分分组，移除照片分组分配，将已处理或进行中的照片恢复为带中断原因的可重试 `imported` 状态，并将项目已处理计数重置为零。之后的处理请求可以启动替换作业，并从已导入照片集重建分组。API 启动时也会在进程重启后立即将残留的活动作业标记为失败。
+如果更早的排队或运行中处理作业超过 10 分钟没有更新，项目详情和作业端点会将该过期作业标记为失败。项目列表端点在观察到过期作业时不会写入。过期处理清理会清除部分分组，移除照片分组分配，将已处理或进行中的照片恢复为带中断原因的可重试 `imported` 状态，并将项目已处理计数重置为零。之后的处理请求可以启动替换作业，并从已导入照片集重建分组。API 启动时也会在进程重启后立即将残留的活动作业标记为失败。
 
 `GET /api/projects/{project_id}/jobs` 按最新优先返回项目作业，包括 `import` 和 `processing` 作业。可选的 `limit` 和 `offset` 查询参数可以为大型作业历史分页。导入 UI 在上传/登记返回后轮询返回的导入作业；处理 UI 使用作业历史，在页面重新加载或导航后继续轮询排队或运行中的处理作业。如果排队或正在运行的导入作业超过 10 分钟没有更新，作业端点会将其标记为失败，并将 `current_step` 设为 `failed - stale`；这可以防止中断的本地导入永远保持活动，同时又不会重试或修改照片。
 

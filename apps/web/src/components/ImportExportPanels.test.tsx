@@ -176,6 +176,13 @@ describe("ImportPanel", () => {
     expect(screen.getAllByText("API offline").length).toBeGreaterThan(0);
   });
 
+  it("shows the empty import chooser when the project loads with no active import", () => {
+    queryMode.current = "success";
+    render(<ImportPanel projectId="project-1" />);
+    expect(screen.getByText("Choose image files")).toBeTruthy();
+    expect(screen.getByText(/Choose a folder|Choose folder/i)).toBeTruthy();
+  });
+
   it("keeps both browser file inputs including webkitdirectory", () => {
     const { container } = render(<ImportPanel projectId="project-1" />);
     const inputs = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
@@ -195,6 +202,14 @@ describe("ExportPanel", () => {
   it("shows project load errors", () => {
     render(<ExportPanel projectId="project-1" />);
     expect(screen.getAllByText("API offline").length).toBeGreaterThan(0);
+  });
+
+  it("shows an empty export history state", () => {
+    queryMode.current = "success";
+    mutationData.current = undefined;
+    exportRecords.current = [];
+    render(<ExportPanel projectId="project-1" />);
+    expect(screen.getByText("No exports yet.")).toBeTruthy();
   });
 
   it("shows fine-grained running export progress in history", () => {
