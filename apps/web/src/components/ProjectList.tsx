@@ -14,8 +14,11 @@ import {
   projectsHaveActiveImport,
 } from "@/lib/projectRouting";
 import { loadLastOpenedProjectId, orderProjectsByLastOpened, saveLastOpenedProjectId } from "@/lib/recentProjects";
+import { isDesktopShell } from "@/lib/shell";
+import { copyForShell } from "@/lib/shellCopy";
 
 export function ProjectList() {
+  const copy = copyForShell(isDesktopShell());
   const { data, isLoading, error } = useQuery({
     queryKey: ["projects"],
     queryFn: api.listProjects,
@@ -49,7 +52,7 @@ export function ProjectList() {
     return (
       <div className="grid gap-3 rounded border border-dashed border-line bg-mist p-4 text-sm">
         <p className="font-medium text-ink">No projects yet.</p>
-        <p className="text-muted">Create a local project before importing photos.</p>
+        <p className="text-muted">{copy.projectListEmptyDetail}</p>
         <Link
           className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-3 py-2 font-medium text-mist"
           href="/projects/new"

@@ -26,6 +26,7 @@ import {
 import { getNativeFs } from "@/lib/nativeFs";
 import { Link } from "@/lib/navigation";
 import { isDesktopShell } from "@/lib/shell";
+import { copyForShell } from "@/lib/shellCopy";
 import {
   activeJobOfType,
   processingProgressPercent,
@@ -48,6 +49,7 @@ type ImportRequest = { files: readonly File[] } | { paths: readonly string[] };
 
 export function ImportPanel({ projectId }: { projectId: string }) {
   const desktopShell = isDesktopShell();
+  const copy = copyForShell(desktopShell);
   const nativeFs = getNativeFs();
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<ImportFeedbackTone>("neutral");
@@ -447,7 +449,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           >
             <span className="grid gap-3">
               <FileImage className="mx-auto text-leaf" size={34} />
-              <span className="font-medium">Choose a folder</span>
+              <span className="font-medium">{copy.chooseFolder}</span>
               <span className="text-sm text-muted">Original files are copied into the local project folder.</span>
               <span className="text-sm text-muted">Source folders are not tracked for rescan yet.</span>
             </span>
@@ -490,7 +492,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             />
             <span className="grid gap-3">
               <FileImage className="mx-auto text-leaf" size={34} />
-              <span className="font-medium">Choose a folder</span>
+              <span className="font-medium">{copy.chooseFolder}</span>
               <span className="text-sm text-muted">Original files are copied into the local project folder.</span>
               <span className="text-sm text-muted">Source folders are not tracked for rescan yet.</span>
             </span>
@@ -600,7 +602,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       {mutation.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{mutation.error.message}</p>
-          <p className="text-muted">{importLoadRecoveryMessage("import")}</p>
+          <p className="text-muted">{copy.importLoadRetryHint}</p>
         </div>
       ) : null}
       {cancelMutation.isError ? (

@@ -443,9 +443,10 @@ Commit: desktop: follow system light/dark theme
 D3.05 Window chrome and empty/error copy
 Depends on: D3.02.
 Empty/error copy on list, import, culling, export: desktop says “Choose a folder”, not “Choose files in your browser”.
-Gate copy with isDesktopShell(). When isDesktopShell() is false, keep current browser labels, file inputs, and disabled semantics (including webkitdirectory).
+UI selects copyForShell(isDesktopShell()) once. importWorkflow/exportSelection helpers are shell-agnostic (no desktop parameter, no shellCopy calls). ImportPanel folder label comes from copy.chooseFolder.
+When isDesktopShell() is false, keep current browser labels, file inputs, and disabled semantics (including webkitdirectory).
 Keep Help shortcuts accurate.
-Tests: string/helper tests if copy is centralized. Run: npm run test:web.
+Tests: apps/web/src/lib/shellCopy.test.ts. npm --prefix apps/web run test:unit.
 Commit: desktop: adapt empty and error copy for native folders
 
 D3.06 Optional tray
