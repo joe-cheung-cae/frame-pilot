@@ -263,3 +263,43 @@ zsh:1: command not found: cargo
 ```
 
 Both exited **127**. `npm run verify` is the D4.02 gate (rust-free). `cargo check` stays `[~]` on this host. D4.02 tracker is `[x]` for bundle-config + verify. `APP_VERSION` stays `2.0.0-rc2`.
+
+## D4.06 Size pass / installer size budget — 2026-08-28
+
+Branch `feature/d4-06-size-budget`. Docs-only. **Do not strip Pillow codecs** (keep JPEG/PNG/WebP plugins in `packaging/pyinstaller/framepilot-api.spec`).
+
+### Budget rule
+
+If **unpacked** sidecar (`dist/framepilot-api` / staged `resources/framepilot-api`) **plus** the Tauri app payload exceeds **400 MB**, treat that as expected cost of the scoring stack (especially **scipy** + **imagehash** → numpy / PyWavelets), not a cue to strip codecs or drop scipy for the first desktop RC.
+
+Phase 0 used a separate **>250 MB** “consider dropping scipy” trigger that was never measured. D4.06 keeps the stack and records the **400 MB** documentation threshold for installers.
+
+### Measurement status (this host, 2026-08-28)
+
+| Item | Result |
+| ---- | ------ |
+| Local `dist/framepilot-api` | **Absent** — not built on this WSL2 host (`du` N/A). PyInstaller build not completed here (`.venv` lacks `pip`). |
+| Invented unpacked MB | **None** — do not treat installer artifact download sizes as unpacked sidecar size. |
+| CI installers | [desktop.yml run 33170731977](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/33170731977) (`00e34a5`, D4.04 merge): `windows-latest` + `macos-latest` **success**; uploaded `FramePilot-windows-nsis` (~53.7 MiB artifact) and `FramePilot-macos-dmg` (~60.1 MiB artifact). Compressed installer artifacts ≠ unpacked on-disk footprint. |
+
+Re-confirm artifacts anytime: GitHub Actions → **desktop** → **Run workflow** (`workflow_dispatch`), or push to `main` under the path filters in `.github/workflows/desktop.yml`.
+
+### Expected size drivers (venv site-packages on this host, not PyInstaller `dist/`)
+
+Approximate weights under `.venv` (Linux WSL2, 2026-08-28) — illustrate what one-dir bundling will carry when `collect_submodules("scipy")` and imagehash/numpy/Pillow hiddenimports run:
+
+| Package | Approx. on-disk (`du -sh`) |
+| ------- | -------------------------- |
+| `scipy` + `scipy.libs` | ~113 MB |
+| `numpy` + `numpy.libs` | ~62 MB |
+| `pywt` (PyWavelets) | ~8.6 MB |
+| `PIL` (Pillow) | ~6.8 MB |
+| `imagehash` | ~72 KB (small; pulls the heavy numeric stack) |
+
+Together these dominate sidecar size long before the Tauri shell. Pillow codecs stay intact for JPEG/PNG/WebP import and previews.
+
+### Policy
+
+- Keep imagehash / scipy / PyWavelets / Pillow codecs for desktop RC.
+- Do not commit `dist/`, staged `resources/framepilot-api/`, NSIS, or DMG binaries.
+- `npm run check:artifacts` still rejects tracked binaries; only the narrow `apps/desktop/src-tauri/icons/*.{png,ico,icns}` exception remains (confirmed green on this branch, 2026-08-28).

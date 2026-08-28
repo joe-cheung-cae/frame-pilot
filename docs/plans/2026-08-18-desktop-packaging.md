@@ -264,7 +264,7 @@ Phase 4
 - [-] D4.03 Moved to D0.00
 - [x] D4.04 Desktop CI matrix
 - [x] D4.05 Signing runbook
-- [ ] D4.06 Size pass
+- [x] D4.06 Size pass
 
 Phase 5
 
@@ -1060,10 +1060,10 @@ If unpacked sidecar + app **> 400 MB**, document scipy/imagehash cost. Do not st
 
 **Phase 4 acceptance:**
 
-- [ ] CI verify green on PRs (D0.00)
-- [ ] CI produces Windows installer + macOS DMG (unsigned OK)
-- [ ] Signing documented
-- [ ] `check:artifacts` still rejects committing binaries; icons exception remains narrow
+- [x] CI verify green on PRs (D0.00)
+- [x] CI produces Windows installer + macOS DMG (unsigned OK) — evidenced 2026-08-28: [desktop.yml run 33170731977](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/33170731977) on `00e34a5` (D4.04 merge) uploaded `FramePilot-windows-nsis` + `FramePilot-macos-dmg`. Re-confirm via Actions → desktop → workflow_dispatch.
+- [x] Signing documented
+- [x] `check:artifacts` still rejects committing binaries; icons exception remains narrow
 
 ---
 
