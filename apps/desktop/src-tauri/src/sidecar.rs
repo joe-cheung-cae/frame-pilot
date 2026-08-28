@@ -445,6 +445,10 @@ pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<C
         .stderr(Stdio::from(log));
     if let Some(ref pythonpath) = spec.pythonpath {
         command.env("PYTHONPATH", pythonpath);
+    } else {
+        // Frozen one-dir binary must not inherit a parent PYTHONPATH that could
+        // shadow bundled imports (defense in depth for release/packaged spawn).
+        command.env_remove("PYTHONPATH");
     }
     #[cfg(windows)]
     {
