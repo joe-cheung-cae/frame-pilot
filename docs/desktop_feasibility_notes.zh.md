@@ -198,3 +198,19 @@ zsh:1: command not found: cargo
 ```
 
 二者均以 **127** 退出。D4.01 门槛是 `npm run verify`（不依赖 Rust）。本机 GUI/`cargo test` 保持 `[~]`。跟踪表 D4.01 因构建配置 + verify 记为 `[x]`。`APP_VERSION` 仍为 `2.0.0-rc2`。
+
+## D4.02 NSIS 与 DMG 配置 — 2026-08-28
+
+分支 `feature/d4-02-nsis-dmg`。Bundle 配置：`identifier` → `com.framepilot.app`；`productName` 仍为 `FramePilot`；`bundle.targets` → `["nsis", "dmg"]`；保留 D4.01 的 `bundle.resources`；设置 `windows.nsis` 与 `macOS.dmg`，不含签名密钥或 updater。
+
+剩余 `cargo check` 验证的命令与确切错误：
+
+```text
+$ rustc --version
+zsh:1: command not found: rustc
+
+$ cargo --version
+zsh:1: command not found: cargo
+```
+
+二者均以 **127** 退出。D4.02 门槛是 `npm run verify`（不依赖 Rust）。本机 `cargo check` 保持 `[~]`。跟踪表 D4.02 因 bundle 配置 + verify 记为 `[x]`。`APP_VERSION` 仍为 `2.0.0-rc2`。
