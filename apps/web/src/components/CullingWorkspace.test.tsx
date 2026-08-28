@@ -51,7 +51,7 @@ type PhotoFixture = {
   perceptual_hash: string | null;
   embedding_path: string | null;
   recommendation_explanation: string;
-  processing_state: string;
+  processing_state: "processed" | "imported" | "processing" | "failed";
   processing_error: string | null;
   created_at: string;
   updated_at: string;
