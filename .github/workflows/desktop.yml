@@ -1,0 +1,96 @@
+# D4.04 — Desktop installer matrix (Windows NSIS + macOS DMG).
+#
+# Trigger design:
+#   - workflow_dispatch: manual rebuilds without a merge.
+#   - push to main with path filters: after merge, installers appear when
+#     desktop/API/packaging/desktop workflow paths change. Docs-only merges
+#     skip this job. PRs keep using verify.yml only (rust-free, minutes not
+#     30+). Never attach photos or project data to artifacts.
+#
+# Unsigned builds only (signing is D4.05). verify.yml stays untouched.
+
+name: desktop
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/desktop/**"
+      - "apps/api/**"
+      - "packaging/**"
+      - ".github/workflows/desktop.yml"
+      - "package.json"
+      - "package-lock.json"
+
+concurrency:
+  group: desktop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install workspace dependencies
+        shell: bash
+        run: npm run install:all
+
+      - name: Build PyInstaller sidecar
+        shell: bash
+        run: bash packaging/pyinstaller/build.sh
+
+      - name: Stage sidecar into Tauri resources
+        shell: bash
+        run: bash packaging/scripts/stage-sidecar.sh
+
+      - name: Build Tauri installer
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            npx tauri build --bundles nsis
+          else
+            npx tauri build --bundles dmg
+          fi
+
+      - name: Upload Windows NSIS installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FramePilot-windows-nsis
+          path: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+      - name: Upload macOS DMG
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FramePilot-macos-dmg
+          path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
