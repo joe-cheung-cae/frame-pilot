@@ -270,7 +270,7 @@ If a whole processing job fails before individual photos complete, partial group
 
 The export UI uses this endpoint to calculate selected counts for large projects before submitting an export request.
 
-`PATCH /api/projects/{project_id}/photos/{photo_id}` and `PATCH /api/projects/{project_id}/photos/batch` update review status and star rating. Requests must include at least one of `user_status` or `star_rating`.
+`PATCH /api/projects/{project_id}/photos/{photo_id}` and `PATCH /api/projects/{project_id}/photos/batch` update review status and star rating. Requests must include at least one of `user_status` or `star_rating`. Batch actions in the culling workspace apply to the current filter/group among loaded photos; when the workspace is only partially loaded, batch mark loads the full project before applying so full-project batch remains available without requiring a separate "Load all" click first. Keyboard review still uses the currently loaded page until the user explicitly loads all photos.
 
 `GET /api/projects/{project_id}/groups` returns groups in stable creation order for group-by-group review. Optional `limit` and `offset` query parameters can page large group lists. The culling workspace requests an initial bounded page and exposes an explicit full-load action if the group list may continue. Each group includes a JSON `score_summary` string with the top photo id, best score, score gap, confidence label, recommendation counts, and a short deterministic explanation.
 
@@ -309,6 +309,8 @@ The response includes the number of exported photos and the local output path:
   "mode": "csv",
   "status": "complete",
   "selected_count": 12,
+  "processed_count": 12,
+  "total_count": 12,
   "statuses": "[\"Pick\", \"Maybe\"]",
   "output_path": ".../exports/csv/selection-export-id.csv",
   "error_message": null,
@@ -318,6 +320,8 @@ The response includes the number of exported photos and the local output path:
 ```
 
 Exports are written under mode-specific local project directories: `exports/csv/`, `exports/zip/`, and `exports/folders/`. Repeated exports use unique paths. Requests with no matching photos return `422` and do not write an export artifact. ZIP and folder exports fail if any selected local original copy is missing, or if the selected source path resolves outside the project's local `originals/` directory. Missing-file failures keep the missing path in the response detail and export history error message; project-originals containment failures use a path-free safety message. If artifact creation fails, the API returns `500`, removes partial output inside the project export directory when possible, and keeps a local export history record with `status` set to `failed` and `error_message` set.
+
+While an export is `running`, `processed_count` and `total_count` advance as files or CSV rows are written so clients can show fine-grained progress (for example `Running (3/12)`). On completion, both counts match `selected_count`.
 
 CSV exports include filename, project photo id, original path, project copy path, source identity, content hash, file size, file mtime, capture and camera metadata, user status, star rating, group id, AI recommendation, overall and technical scores, face and eye-open signals, image dimensions, recommendation explanation, processing state, and processing error.
 

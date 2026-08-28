@@ -430,9 +430,21 @@ def test_export_writers_report_progress_callbacks(tmp_path):
     copy_progress: list[tuple[int, int]] = []
     zip_progress: list[tuple[int, int]] = []
 
-    write_selection_csv(tmp_path / "selection.csv", photos, progress_callback=csv_progress.append)
-    copy_selected_files(tmp_path / "selected", photos, progress_callback=copy_progress.append)
-    zip_selected_files(tmp_path / "selection.zip", photos, progress_callback=zip_progress.append)
+    write_selection_csv(
+        tmp_path / "selection.csv",
+        photos,
+        progress_callback=lambda processed, total: csv_progress.append((processed, total)),
+    )
+    copy_selected_files(
+        tmp_path / "selected",
+        photos,
+        progress_callback=lambda processed, total: copy_progress.append((processed, total)),
+    )
+    zip_selected_files(
+        tmp_path / "selection.zip",
+        photos,
+        progress_callback=lambda processed, total: zip_progress.append((processed, total)),
+    )
 
     assert csv_progress == [(1, 2), (2, 2)]
     assert copy_progress == [(1, 2), (2, 2)]

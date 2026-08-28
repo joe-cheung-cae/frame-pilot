@@ -197,6 +197,29 @@ describe("ExportPanel", () => {
     expect(screen.getAllByText("API offline").length).toBeGreaterThan(0);
   });
 
+  it("shows fine-grained running export progress in history", () => {
+    queryMode.current = "success";
+    mutationData.current = undefined;
+    exportRecords.current = [
+      {
+        id: "export-running",
+        project_id: "project-1",
+        mode: "zip",
+        status: "running",
+        selected_count: 12,
+        processed_count: 3,
+        total_count: 12,
+        statuses: '["Pick"]',
+        output_path: "pending",
+        error_message: null,
+        completed_at: null,
+        created_at: "2026-08-21T00:00:00Z",
+      },
+    ];
+    render(<ExportPanel projectId="project-1" />);
+    expect(screen.getByText("Running (3/12)")).toBeTruthy();
+  });
+
   it("keeps browser download hrefs when the desktop flag is unset", () => {
     const { container } = renderSuccessfulExportPanel();
 

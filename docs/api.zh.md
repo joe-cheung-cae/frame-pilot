@@ -267,7 +267,7 @@ HEIC 和 RAW 扩展名（如 `.heic`、`.dng`、`.arw`、`.cr3` 和 `.nef`）被
 
 导出 UI 使用该端点，在提交导出请求前为大型项目计算所选计数。
 
-`PATCH /api/projects/{project_id}/photos/{photo_id}` 和 `PATCH /api/projects/{project_id}/photos/batch` 更新审阅状态和星级评分。请求必须至少包含 `user_status` 或 `star_rating` 之一。
+`PATCH /api/projects/{project_id}/photos/{photo_id}` 和 `PATCH /api/projects/{project_id}/photos/batch` 更新审阅状态和星级评分。请求必须至少包含 `user_status` 或 `star_rating` 之一。筛选工作区中的批量操作作用于当前已加载照片中的过滤/分组范围；当工作区仅部分加载时，批量标记会在应用前加载整个项目，因此无需先单独点击“加载全部”即可完成全项目批量。键盘审阅仍使用当前已加载分页，直到用户显式加载全部照片。
 
 `GET /api/projects/{project_id}/groups` 按稳定的创建顺序返回分组，供逐组审阅。可选的 `limit` 和 `offset` 查询参数可以为大型分组列表分页。筛选工作区请求初始有界页，并在分组列表可能继续时暴露显式的完整加载操作。每个分组包含一个 JSON `score_summary` 字符串，含顶部照片 id、最高分、分数差距、置信度标签、推荐计数，以及简短的确定性解释。
 
@@ -306,6 +306,8 @@ HEIC 和 RAW 扩展名（如 `.heic`、`.dng`、`.arw`、`.cr3` 和 `.nef`）被
   "mode": "csv",
   "status": "complete",
   "selected_count": 12,
+  "processed_count": 12,
+  "total_count": 12,
   "statuses": "[\"Pick\", \"Maybe\"]",
   "output_path": ".../exports/csv/selection-export-id.csv",
   "error_message": null,
@@ -315,6 +317,8 @@ HEIC 和 RAW 扩展名（如 `.heic`、`.dng`、`.arw`、`.cr3` 和 `.nef`）被
 ```
 
 导出写入按模式划分的本地项目目录：`exports/csv/`、`exports/zip/` 和 `exports/folders/`。重复导出会使用唯一路径。没有匹配照片的请求返回 `422`，并且不写入导出产物。如果任何所选本地原片副本缺失，或所选源路径解析到项目本地 `originals/` 目录之外，ZIP 和文件夹导出失败。缺失文件失败会在响应 detail 和导出历史错误消息中保留缺失路径；项目原片包含性失败使用不含路径的安全消息。如果产物创建失败，API 返回 `500`，在可能时删除项目导出目录内的部分输出，并保留一条本地导出历史记录，将 `status` 设为 `failed` 且设置 `error_message`。
+
+当导出处于 `running` 时，`processed_count` 与 `total_count` 会随着文件或 CSV 行写入而推进，便于客户端显示细粒度进度（例如 `Running (3/12)`）。完成后两个计数与 `selected_count` 一致。
 
 CSV 导出包含文件名、项目照片 id、原始路径、项目副本路径、源身份、内容哈希、文件大小、文件 mtime、拍摄和相机元数据、用户状态、星级评分、分组 id、AI 推荐、总体和技术分数、人脸和睁眼信号、图像尺寸、推荐解释、处理状态和处理错误。
 

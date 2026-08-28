@@ -21,7 +21,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
+import { api, assetUrl, DEFAULT_LIST_PAGE_LIMIT, Photo, PhotoPatch } from "@/lib/api";
 import { isDesktopShell } from "@/lib/shell";
 import { copyForShell } from "@/lib/shellCopy";
 import { Link, useNavigator, useQueryParams } from "@/lib/navigation";
@@ -72,7 +72,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const filmstripButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const groupButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const skipNextProgressSave = useRef<string | null>(null);
-  const [, setAllPhotosLoaded] = useState(false);
+  const [allPhotosLoaded, setAllPhotosLoaded] = useState(false);
   const [, setAllGroupsLoaded] = useState(false);
   const [failedAssetUrls, setFailedAssetUrls] = useState<Set<string>>(() => new Set());
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
@@ -90,7 +90,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const isProcessing = Boolean(activeProcessingJob);
   const photosQuery = useQuery({
     queryKey: ["photos", projectId],
-    queryFn: () => api.listAllPhotos(projectId),
+    queryFn: () => api.listPhotos(projectId, { limit: DEFAULT_LIST_PAGE_LIMIT, offset: 0 }),
     enabled: project.isSuccess && jobsQuery.isSuccess && !isImportRunning && !isProcessing,
     retry: false,
   });
@@ -120,7 +120,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const photos = useMemo(() => photosQuery.data ?? [], [photosQuery.data]);
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
   const projectPhotoCount = project.data?.total_images ?? photos.length;
-  const photosPartiallyLoaded = false;
+  const photosPartiallyLoaded = !allPhotosLoaded && projectPhotoCount > 0 && photos.length < projectPhotoCount;
   const groupsMayBePartial = false;
   const duplicateGroupIds = useMemo(
     () => new Set(groups.filter((group) => group.photo_count > 1).map((group) => group.id)),
@@ -173,7 +173,6 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     estimateSize: () => GROUP_ITEM_HEIGHT,
     overscan: 8,
   });
-  const visiblePhotoIds = useMemo(() => visiblePhotos.map((photo) => photo.id), [visiblePhotos]);
   const metadataRows = useMemo(() => reviewMetadataRows(activePhoto), [activePhoto]);
   const photoStatusCountsQueryKey = useMemo(() => ["photo-status-counts", projectId], [projectId]);
   const batchScopeGroupIndex = activeGroupId ? activeGroupIndex : -1;
@@ -412,10 +411,33 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   }
 
   function batchMark(status: Photo["user_status"]) {
-    if (visiblePhotoIds.length) {
-      setLiveAnnouncement(`Marked ${visiblePhotoIds.length} photos as ${status}.`);
-      batchUpdateMutation.mutate({ photoIds: visiblePhotoIds, patch: { user_status: status } });
-    }
+    void (async () => {
+      let targetPhotos = photos;
+      if (photosPartiallyLoaded) {
+        setLiveAnnouncement("Loading all photos before batch mark...");
+        try {
+          const allPhotos = await api.listAllPhotos(projectId);
+          const merged = mergeLoadedPhotosWithCurrentReviews(allPhotos, photos);
+          queryClient.setQueryData<Photo[]>(["photos", projectId], merged);
+          setAllPhotosLoaded(true);
+          targetPhotos = merged;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Could not load all photos.";
+          setLiveAnnouncement(message);
+          return;
+        }
+      }
+
+      const duplicateIds = new Set(groups.filter((group) => group.photo_count > 1).map((group) => group.id));
+      const filtered = targetPhotos.filter((photo) => photoMatchesReviewFilter(photo, filter, duplicateIds));
+      const scoped = activeGroupId ? filtered.filter((photo) => photo.group_id === activeGroupId) : filtered;
+      const photoIds = scoped.map((photo) => photo.id);
+      if (!photoIds.length) {
+        return;
+      }
+      setLiveAnnouncement(`Marked ${photoIds.length} photos as ${status}.`);
+      batchUpdateMutation.mutate({ photoIds, patch: { user_status: status } });
+    })();
   }
 
   function rate(star_rating: number) {
