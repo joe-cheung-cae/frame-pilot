@@ -32,6 +32,7 @@ import { getNativeFs } from "@/lib/nativeFs";
 import { invalidateProjectExportQueries } from "@/lib/queryInvalidation";
 import { projectExportRoot, revealFolder } from "@/lib/revealFolder";
 import { isDesktopShell } from "@/lib/shell";
+import { copyForShell } from "@/lib/shellCopy";
 import {
   DEFAULT_EXPORT_STATUS_PREFERENCE,
   exportPreferenceMessageTone,
@@ -55,6 +56,7 @@ function photoCountLabel(count: number) {
 export function ExportPanel({ projectId }: { projectId: string }) {
   const nativeFs = getNativeFs();
   const desktopShell = isDesktopShell();
+  const copy = copyForShell(desktopShell);
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
   const [statuses, setStatuses] = useState<ExportStatus[]>(DEFAULT_EXPORT_STATUS_PREFERENCE);
@@ -326,7 +328,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       {copyError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{copyError}</p>
-          <p className="text-muted">{exportActionRecoveryMessage("copyPath")}</p>
+          <p className="text-muted">{copy.exportCopyPathRecovery}</p>
         </div>
       ) : null}
       {mutation.isError ? (
@@ -395,7 +397,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           </button>
         ) : null}
         {!exportsQuery.isLoading && !exportsQuery.isError && !exportsQuery.data?.length ? (
-          <p className="text-sm text-muted">No exports yet.</p>
+          <p className="text-sm text-muted">{copy.exportHistoryEmptyDetail}</p>
         ) : null}
       </div>
     </section>

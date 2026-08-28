@@ -253,7 +253,7 @@ Phase 3
 - [~] D3.02 Status bar — `npm run test:web` green 2026-08-26; GUI/`cargo test` unverified (`rustc` 1.85 cannot compile current Tauri lockfile). See `docs/desktop_feasibility_notes.md`.
 - [~] D3.03 Settings data directory (`GET /api/meta`) — API + Settings tests on `main`; GUI/`cargo test` unverified (same rustc 1.85 block as D3.01). See `docs/desktop_feasibility_notes.md`.
 - [x] D3.04 System theme follow — CSS `[x]`. Visual GUI `[~]` 2026-08-28 (same rustc/cargo block as D3.01). See `docs/desktop_feasibility_notes.md`.
-- [ ] D3.05 Empty and error copy
+- [x] D3.05 Empty and error copy
 - [ ] D3.06 Optional tray (may end `[-]`)
 - [ ] D3.07 Shortcut vs menu accelerator pass
 
@@ -953,9 +953,9 @@ Show sidecar connected, project name, job step/percent. Reuse `firstActiveJob` /
 **Depends on:** D3.02  
 **Files:** empty states on list, import, culling, export
 
-Desktop copy: “Choose a folder”, not “Choose files in your browser”. Keep Help shortcuts accurate.
+Desktop copy: “Choose a folder”, not “Choose files in your browser”. UI selects `copyForShell(isDesktopShell())` once. `importWorkflow` / `exportSelection` helpers take no `desktop` parameter and do not call shell copy. ImportPanel folder label comes from `copy.chooseFolder`. Keep Help shortcuts accurate.
 
-**Tests:** string/helper tests if copy is centralized. Run: `npm run test:web`.
+**Tests:** `shellCopy.test.ts` (`copyForShell` record; ImportPanel uses `copy.chooseFolder`). Run: `npm --prefix apps/web run test:unit`.
 
 **Commit:** `desktop: adapt empty and error copy for native folders`
 

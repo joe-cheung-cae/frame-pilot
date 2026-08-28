@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
 import { isDesktopShell } from "@/lib/shell";
+import { copyForShell } from "@/lib/shellCopy";
 import { Link, useNavigator, useQueryParams } from "@/lib/navigation";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
 import {
@@ -62,6 +63,7 @@ const FILMSTRIP_ITEM_WIDTH = 120;
 const GROUP_ITEM_HEIGHT = 64;
 
 export function CullingWorkspace({ projectId }: { projectId: string }) {
+  const copy = copyForShell(isDesktopShell());
   const queryClient = useQueryClient();
   const navigator = useNavigator();
   const queryParams = useQueryParams();
@@ -597,9 +599,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           <p className="text-sm text-muted">{project.data?.name ?? "Project"}</p>
           <h1 className="mt-1 text-2xl font-semibold">No Photos Imported</h1>
         </div>
-        <p className="text-sm text-muted">
-          Import JPEG, PNG, or WebP images before opening the culling workspace.
-        </p>
+        <p className="text-sm text-muted">{copy.cullingEmptyImportDetail}</p>
         <Link
           className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-mist"
           href={`/projects/${projectId}/import`}

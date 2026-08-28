@@ -253,7 +253,7 @@ Phase 3
 - [~] D3.02 状态栏 — `npm run test:web` 于 2026-08-26 通过；GUI/`cargo test` 未验证（与 D3.01 相同的 rustc 1.85 阻碍）。见 `docs/desktop_feasibility_notes.zh.md`。
 - [~] D3.03 设置中的数据目录（`GET /api/meta`） — API + Settings 测试已在 `main`；GUI/`cargo test` 未验证（与 D3.01 相同阻碍）。见 `docs/desktop_feasibility_notes.zh.md`。
 - [x] D3.04 跟随系统主题 — CSS `[x]`。视觉 GUI `[~]` 2026-08-28（与 D3.01 相同的 rustc/cargo 阻碍）。见 `docs/desktop_feasibility_notes.zh.md`。
-- [ ] D3.05 空状态与错误文案
+- [x] D3.05 空状态与错误文案
 - [ ] D3.06 可选托盘（可能以 `[-]` 结束）
 - [ ] D3.07 快捷键与菜单加速键核对
 
@@ -953,9 +953,9 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 **Depends on:** D3.02  
 **Files:** 列表、导入、筛选、导出上的空状态
 
-桌面文案：“Choose a folder”，不是 “Choose files in your browser”。保持 Help 快捷键准确。
+桌面文案：“Choose a folder”，不是 “Choose files in your browser”。UI 一次选择 `copyForShell(isDesktopShell())`。`importWorkflow` / `exportSelection` 辅助函数不接收 `desktop` 参数，也不调用 shell copy。ImportPanel 文件夹标签来自 `copy.chooseFolder`。保持 Help 快捷键准确。
 
-**Tests:** 若文案集中管理则写字符串 / 辅助测试。运行：`npm run test:web`。
+**Tests:** `shellCopy.test.ts`（`copyForShell` 记录；ImportPanel 使用 `copy.chooseFolder`）。运行：`npm --prefix apps/web run test:unit`。
 
 **Commit:** `desktop: adapt empty and error copy for native folders`
 
