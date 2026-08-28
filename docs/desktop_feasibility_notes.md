@@ -231,3 +231,19 @@ Until a dated `cargo test` / WebView Settings render succeeds, D3.03 stays `[~]`
 Branch `feature/phase3-landed-review` (issue https://github.com/joe-cheung-cae/frame-pilot/issues/52). Theme now uses CSS variables (`surface` / `muted`) swapped in `apps/desktop/src/styles.css` under `prefers-color-scheme: dark` for `html[data-shell="desktop"]`. Browser `globals.css` stays light-only and no longer remaps `.bg-white`. JS menu routing is navigable-only; the status bar uses `usePathname` and `firstActiveJob`.
 
 This host has no `rustc`/`cargo` on PATH. Visual WebView for the inverted theme remains unverified. D3.04 CSS is `[x]`; D3.04 visual and D3.01–D3.03 GUI stay `[~]`. `APP_VERSION` stays `2.0.0-rc2`.
+
+## D4.01 Bundle sidecar into Tauri resources — 2026-08-28
+
+Branch `feature/d4-01-bundle-sidecar`. Build config: `packaging/scripts/stage-sidecar.sh` stages PyInstaller one-dir into `apps/desktop/src-tauri/resources/framepilot-api/`; `tauri.conf.json` sets `bundle.active` + `bundle.resources` (not `externalBin` — one-dir `_MEIPASS` siblings). Rust spawn: debug keeps `.venv` + `python -m app.sidecar_main`; release resolves the frozen binary. Unit tests cover both spawn-spec shapes.
+
+Commands for remaining GUI / Rust compile verification:
+
+```text
+$ rustc --version
+zsh:1: command not found: rustc
+
+$ cargo --version
+zsh:1: command not found: cargo
+```
+
+Both exited **127**. `npm run verify` is the D4.01 gate (rust-free). GUI/`cargo test` stay `[~]` on this host. D4.01 tracker is `[x]` for build-config + verify. `APP_VERSION` stays `2.0.0-rc2`.

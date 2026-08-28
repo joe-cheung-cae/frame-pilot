@@ -259,7 +259,7 @@ Phase 3
 
 Phase 4
 
-- [ ] D4.01 Bundle sidecar into Tauri resources
+- [x] D4.01 Bundle sidecar into Tauri resources
 - [ ] D4.02 NSIS and DMG config
 - [-] D4.03 Moved to D0.00
 - [ ] D4.04 Desktop CI matrix

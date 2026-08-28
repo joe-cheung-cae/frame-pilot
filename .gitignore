@@ -7,6 +7,9 @@
 .venv/
 target/
 apps/desktop/src-tauri/gen/
+# Staged PyInstaller one-dir sidecar (D4.01); keep .gitkeep only
+apps/desktop/src-tauri/resources/framepilot-api/*
+!apps/desktop/src-tauri/resources/framepilot-api/.gitkeep
 .framepilot-desktop-dev/
 __pycache__/
 .pytest_cache/
