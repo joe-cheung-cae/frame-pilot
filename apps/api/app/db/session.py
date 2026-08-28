@@ -58,6 +58,10 @@ def _ensure_export_record_columns(engine) -> None:
         statements.append("ALTER TABLE exportrecord ADD COLUMN error_message VARCHAR")
     if "completed_at" not in existing:
         statements.append("ALTER TABLE exportrecord ADD COLUMN completed_at DATETIME")
+    if "processed_count" not in existing:
+        statements.append("ALTER TABLE exportrecord ADD COLUMN processed_count INTEGER NOT NULL DEFAULT 0")
+    if "total_count" not in existing:
+        statements.append("ALTER TABLE exportrecord ADD COLUMN total_count INTEGER NOT NULL DEFAULT 0")
 
     if not statements:
         return

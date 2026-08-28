@@ -1,7 +1,9 @@
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlmodel import Session, select
 
 from app.core.version import APP_VERSION
@@ -79,6 +81,67 @@ def test_create_and_list_projects(tmp_path, monkeypatch):
     projects = list_response.json()
     assert len(projects) == 1
     assert projects[0]["id"] == created["id"]
+
+
+def test_list_projects_stale_job_handling_query_count_is_bounded(tmp_path, monkeypatch):
+    """Listing N projects with active jobs must not issue O(N) per-project stale sweeps (#25)."""
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project_count = 12
+    projects = [client.post("/api/projects", json={"name": f"Project {index}"}).json() for index in range(project_count)]
+
+    with Session(get_engine()) as session:
+        now = datetime.now(UTC)
+        for project in projects:
+            session.add(
+                ProcessingJob(
+                    project_id=project["id"],
+                    job_type="import",
+                    status="running",
+                    current_step="derivative_generation",
+                    total_items=2,
+                    processed_items=1,
+                    failed_items=0,
+                    progress_percent=50.0,
+                    started_at=now,
+                    updated_at=now,
+                )
+            )
+            session.add(
+                ProcessingJob(
+                    project_id=project["id"],
+                    job_type="processing",
+                    status="queued",
+                    current_step="queued",
+                    total_items=2,
+                    processed_items=0,
+                    failed_items=0,
+                    progress_percent=0.0,
+                    updated_at=now,
+                )
+            )
+        session.commit()
+
+    engine = get_engine()
+    statements: list[str] = []
+
+    def before_cursor_execute(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(str(statement))
+
+    event.listen(engine, "before_cursor_execute", before_cursor_execute)
+    try:
+        response = client.get("/api/projects")
+    finally:
+        event.remove(engine, "before_cursor_execute", before_cursor_execute)
+
+    assert response.status_code == 200
+    listed = response.json()
+    assert len(listed) == project_count
+    assert all(item["active_import_job"] is not None for item in listed)
+    # Constant-ish job handling: one projects query + batched active/stale job queries,
+    # not a per-project stale sweep (which would be ~3N+).
+    assert len(statements) <= 12
+    assert len(statements) < project_count * 3
 
 
 def test_create_project_rejects_empty_name(tmp_path, monkeypatch):

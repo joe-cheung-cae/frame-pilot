@@ -218,6 +218,8 @@ def test_import_process_update_and_export_csv(tmp_path, monkeypatch):
     assert export_record["status"] == "complete"
     assert export_record["output_path"].endswith(".csv")
     assert export_record["selected_count"] == 1
+    assert export_record["processed_count"] == 1
+    assert export_record["total_count"] == 1
     assert export_record["statuses"] == '["Pick"]'
     assert export_record["completed_at"] is not None
     export_history = client.get(f"/api/projects/{project['id']}/export")
@@ -2041,6 +2043,117 @@ def test_import_after_processing_invalidates_stale_groups_and_recommendations(tm
     assert updated_second["group_id"] is None
 
 
+def test_incremental_import_preserves_untouched_groups_after_reprocess(tmp_path, monkeypatch):
+    """Importing into a multi-group processed project must keep intact group identity (#15)."""
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Incremental groups"}).json()
+    project_root = Path(project["root_path"])
+    originals = project_root / "originals"
+    thumbnails = project_root / "thumbnails"
+    previews = project_root / "previews"
+    originals.mkdir(parents=True, exist_ok=True)
+    thumbnails.mkdir(parents=True, exist_ok=True)
+    previews.mkdir(parents=True, exist_ok=True)
+
+    with Session(get_engine()) as session:
+        group_a = PhotoGroup(project_id=project["id"], group_type="burst", sequence=1, photo_count=2)
+        group_b = PhotoGroup(project_id=project["id"], group_type="similar", sequence=2, photo_count=2)
+        session.add(group_a)
+        session.add(group_b)
+        session.commit()
+        session.refresh(group_a)
+        session.refresh(group_b)
+
+        seeded_photos: list[Photo] = []
+        for index, (group, color, embedding) in enumerate(
+            (
+                (group_a, (210, 40, 40), "[1, 0]"),
+                (group_a, (200, 45, 45), "[0.99, 0.01]"),
+                (group_b, (40, 40, 210), "[0, 1]"),
+                (group_b, (45, 45, 200), "[0.01, 0.99]"),
+            ),
+            start=1,
+        ):
+            filename = f"seeded-{index}.jpg"
+            original_path = originals / filename
+            original_path.write_bytes(_image_bytes(color))
+            thumb_path = thumbnails / f"{filename}.webp"
+            preview_path = previews / f"{filename}.webp"
+            thumb_path.write_bytes(b"thumb")
+            preview_path.write_bytes(b"preview")
+            photo = Photo(
+                project_id=project["id"],
+                original_path=str(original_path),
+                project_copy_path=str(original_path),
+                filename=filename,
+                thumbnail_path=str(thumb_path),
+                preview_path=str(preview_path),
+                group_id=group.id,
+                ai_recommendation="Pick" if index % 2 else "Maybe",
+                recommendation_explanation=f"seeded explanation {index}",
+                overall_score=0.8,
+                embedding=embedding,
+                perceptual_hash=f"hash-{index}",
+                processing_state="processed",
+                width=96,
+                height=72,
+            )
+            session.add(photo)
+            seeded_photos.append(photo)
+
+        db_project = session.get(Project, project["id"])
+        assert db_project is not None
+        db_project.total_images = 4
+        db_project.processed_images = 4
+        session.add(db_project)
+        session.commit()
+        membership_before = {
+            photo.id: {
+                "group_id": photo.group_id,
+                "ai_recommendation": photo.ai_recommendation,
+                "recommendation_explanation": photo.recommendation_explanation,
+            }
+            for photo in seeded_photos
+        }
+        original_ids = set(membership_before)
+        preserved_group_ids = {info["group_id"] for info in membership_before.values()}
+
+    assert len(preserved_group_ids) == 2
+
+    second_import = client.post(
+        f"/api/projects/{project['id']}/imports",
+        files=[("files", ("new-card.jpg", _image_bytes((20, 180, 90)), "image/jpeg"))],
+    )
+    assert second_import.status_code == 201
+    second_job = _wait_for_job(client, project["id"], second_import.json()["job"])
+    assert second_job["status"] in {"complete", "complete_with_errors"}
+    new_photo_id = second_import.json()["imported"][0]["id"]
+
+    for photo_id, before in membership_before.items():
+        after_import = client.get(f"/api/projects/{project['id']}/photos/{photo_id}").json()
+        assert after_import["group_id"] == before["group_id"]
+        assert after_import["ai_recommendation"] == before["ai_recommendation"]
+
+    reprocess = client.post(f"/api/projects/{project['id']}/process")
+    assert reprocess.status_code == 202
+    reprocess_job = _wait_for_job(client, project["id"], reprocess.json())
+    assert reprocess_job["status"] == "complete"
+
+    photos_after = {photo["id"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
+    groups_after = {group["id"] for group in client.get(f"/api/projects/{project['id']}/groups").json()}
+    assert set(photos_after) == original_ids | {new_photo_id}
+    for photo_id, before in membership_before.items():
+        after = photos_after[photo_id]
+        assert after["group_id"] == before["group_id"]
+        assert after["ai_recommendation"] == before["ai_recommendation"]
+        assert after["recommendation_explanation"] == before["recommendation_explanation"]
+        assert after["processing_state"] == "processed"
+        assert before["group_id"] in groups_after
+    assert photos_after[new_photo_id]["group_id"] is not None
+    assert photos_after[new_photo_id]["processing_state"] == "processed"
+
+
 def test_group_list_returns_groups_in_creation_order(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
@@ -2239,6 +2352,60 @@ def test_batch_photo_update_rejects_missing_project_photo_without_partial_update
     assert response.status_code == 404
     assert "Photo not found" in response.text
     assert client.get(f"/api/projects/{project['id']}/photos/{project_photo_id}").json()["user_status"] == "Unreviewed"
+
+
+def test_batch_photo_update_rejects_more_than_500_ids(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Batch cap"}).json()
+
+    response = client.patch(
+        f"/api/projects/{project['id']}/photos/batch",
+        json={"photo_ids": [f"photo-{index}" for index in range(501)], "user_status": "Pick"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_chunked_batch_photo_update_updates_large_photo_set(tmp_path, monkeypatch):
+    """Client chunks of ≤500 (schema max_length) update many IDs; server IN-clauses use 400 (#22)."""
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Batch chunked"}).json()
+    photo_count = 800
+    batch_size = 500
+
+    with Session(get_engine()) as session:
+        photos = [
+            Photo(
+                project_id=project["id"],
+                original_path=f"/tmp/batch-{index:04d}.jpg",
+                filename=f"batch-{index:04d}.jpg",
+            )
+            for index in range(photo_count)
+        ]
+        session.add_all(photos)
+        session.commit()
+        photo_ids = [photo.id for photo in photos]
+
+    updated_ids: list[str] = []
+    for start in range(0, len(photo_ids), batch_size):
+        chunk = photo_ids[start : start + batch_size]
+        assert len(chunk) <= batch_size
+        response = client.patch(
+            f"/api/projects/{project['id']}/photos/batch",
+            json={"photo_ids": chunk, "user_status": "Maybe", "star_rating": 3},
+        )
+        assert response.status_code == 200, response.text
+        updated = response.json()
+        assert len(updated) == len(chunk)
+        assert {photo["user_status"] for photo in updated} == {"Maybe"}
+        assert {photo["star_rating"] for photo in updated} == {3}
+        updated_ids.extend(photo["id"] for photo in updated)
+
+    assert updated_ids == photo_ids
+    counts = client.get(f"/api/projects/{project['id']}/photos/status-counts").json()
+    assert counts == {"Pick": 0, "Maybe": photo_count, "Reject": 0, "Unreviewed": 0}
 
 
 def test_processing_recommendation_explains_face_and_eye_quality(tmp_path, monkeypatch):
@@ -2622,6 +2789,78 @@ def test_repeated_exports_write_unique_records_and_paths(tmp_path, monkeypatch):
     assert Path(second_record["output_path"]).exists()
 
 
+def test_export_progress_counts_initialize_and_complete(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Export progress"}).json()
+    photo_dicts: list[dict] = []
+    for name in ("one.jpg", "two.jpg"):
+        imported = client.post(
+            f"/api/projects/{project['id']}/import",
+            files=[("files", (name, _image_bytes(), "image/jpeg"))],
+        ).json()["imported"][0]
+        updated = client.patch(
+            f"/api/projects/{project['id']}/photos/{imported['id']}",
+            json={"user_status": "Pick"},
+        ).json()
+        photo_dicts.append(updated)
+
+    export_root = Path(project["root_path"]) / "exports" / "csv"
+    export_root.mkdir(parents=True, exist_ok=True)
+    target = export_root / "progress.csv"
+    with Session(get_engine()) as session:
+        record = ExportRecord(
+            project_id=project["id"],
+            mode="csv",
+            status="running",
+            selected_count=2,
+            processed_count=0,
+            total_count=2,
+            statuses='["Pick"]',
+            output_path=str(target),
+        )
+        session.add(record)
+        session.commit()
+        export_id = record.id
+
+    seen_progress: list[tuple[int, int]] = []
+
+    def tracking_csv(target_path: Path, photos: list[dict], progress_callback=None) -> Path:
+        photos = list(photos)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        for index, _photo in enumerate(photos, start=1):
+            if progress_callback is not None:
+                progress_callback(index, len(photos))
+            with Session(get_engine()) as session:
+                current = session.get(ExportRecord, export_id)
+                assert current is not None
+                seen_progress.append((current.processed_count, current.total_count))
+        target_path.write_text("filename\n")
+        return target_path
+
+    monkeypatch.setattr(routes, "write_selection_csv", tracking_csv)
+    routes.run_export_job(export_id, "csv", photo_dicts, project["root_path"])
+
+    assert seen_progress == [(1, 2), (2, 2)]
+    finished = client.get(f"/api/projects/{project['id']}/exports/{export_id}").json()
+    assert finished["status"] == "complete"
+    assert finished["processed_count"] == 2
+    assert finished["total_count"] == 2
+
+    create_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "csv", "statuses": ["Pick"]},
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["processed_count"] == 0
+    assert created["total_count"] == 2
+    completed = _wait_for_export(client, project["id"], created)
+    assert completed["status"] == "complete"
+    assert completed["processed_count"] == 2
+    assert completed["total_count"] == 2
+
+
 def test_failed_export_records_failed_history_and_removes_partial_artifact(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
@@ -2636,7 +2875,7 @@ def test_failed_export_records_failed_history_and_removes_partial_artifact(tmp_p
         json={"user_status": "Pick"},
     )
 
-    def fail_after_partial_write(target: Path, photos: list[dict]) -> Path:
+    def fail_after_partial_write(target: Path, photos: list[dict], progress_callback=None) -> Path:
         assert len(photos) == 1
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("partial export")
@@ -2675,7 +2914,7 @@ def test_failed_export_cleanup_does_not_remove_artifact_outside_export_root(tmp_
     def outside_export_target(_export_root: Path, _export_id: str, _mode: str) -> Path:
         return outside_artifact
 
-    def fail_after_outside_partial_write(target: Path, photos: list[dict]) -> Path:
+    def fail_after_outside_partial_write(target: Path, photos: list[dict], progress_callback=None) -> Path:
         assert target == outside_artifact
         assert len(photos) == 1
         target.write_text("outside partial export")

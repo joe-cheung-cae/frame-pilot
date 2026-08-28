@@ -216,6 +216,8 @@ class ExportRead(BaseModel):
     mode: str
     status: str
     selected_count: int
+    processed_count: int = 0
+    total_count: int = 0
     statuses: str
     output_path: str
     error_message: str | None

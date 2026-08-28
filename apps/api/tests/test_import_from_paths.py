@@ -118,6 +118,60 @@ def test_import_from_paths_chunks_250_files_in_three_requests(tmp_path, monkeypa
     assert len(list(originals.glob("*.jpg"))) == 250
 
 
+def test_import_from_paths_imports_500_files_beyond_single_request_limit(tmp_path, monkeypatch):
+    """Path-import hundreds of files via chunked requests without 'Too many files' (#4)."""
+    monkeypatch.setattr("app.api.routes.run_import_derivative_job", lambda *args, **kwargs: None)
+    client = _client(tmp_path, monkeypatch)
+    project = client.post("/api/projects", json={"name": "Large path import"}).json()
+    folder = tmp_path / "card"
+    total = 500
+    for index in range(total):
+        _write_jpeg(folder / f"frame-{index:04d}.jpg", (index % 200, 30, 90))
+
+    remaining = [str(folder)]
+    job_id = None
+    imported_names: list[str] = []
+    request_count = 0
+    while remaining:
+        request_count += 1
+        payload = {
+            "paths": remaining,
+            "expected_total": total,
+            "finalize": False,
+        }
+        if job_id is not None:
+            payload["job_id"] = job_id
+        response = client.post(f"/api/projects/{project['id']}/imports/from-paths", json=payload)
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert "Too many files" not in response.text
+        assert len(body["imported"]) <= IMPORT_MAX_FILES_PER_REQUEST
+        imported_names.extend(item["filename"] for item in body["imported"])
+        job_id = body["job"]["id"]
+        remaining = body["remaining_paths"]
+        assert body["expanded_total"] == total
+        assert body["job"]["total_items"] == total
+
+    finalize = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={
+            "paths": [],
+            "job_id": job_id,
+            "expected_total": total,
+            "finalize": True,
+        },
+    )
+    assert finalize.status_code == 201, finalize.text
+    assert finalize.json()["remaining_paths"] == []
+    assert request_count >= total // IMPORT_MAX_FILES_PER_REQUEST
+    assert len(imported_names) == total
+    assert len(set(imported_names)) == total
+    originals = Path(project["root_path"]) / "originals"
+    assert len(list(originals.glob("*.jpg"))) == total
+    with Session(get_engine()) as session:
+        assert session.exec(select(Photo).where(Photo.project_id == project["id"])).all().__len__() == total
+
+
 def test_import_from_paths_rejects_relative_and_empty(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     project = client.post("/api/projects", json={"name": "Bad paths"}).json()

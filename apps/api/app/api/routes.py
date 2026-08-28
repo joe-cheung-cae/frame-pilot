@@ -1034,17 +1034,36 @@ def run_export_job(export_id: str, mode: str, photo_dicts: list[dict], project_r
             session.add(record)
             session.commit()
             return
+
+        total = len(photo_dicts)
+        record.total_count = total
+        record.processed_count = 0
+        session.add(record)
+        session.commit()
+
+        def progress_callback(processed: int, total_items: int) -> None:
+            record.processed_count = processed
+            record.total_count = total_items
+            session.add(record)
+            session.commit()
+
         try:
             export_root = project_export_root(project)
             target = Path(record.output_path)
             if mode == "csv":
-                output_path = write_selection_csv(target, photo_dicts)
+                output_path = write_selection_csv(target, photo_dicts, progress_callback=progress_callback)
             elif mode == "folder":
-                output_path = copy_selected_files(target, photo_dicts, project_root=Path(project_root))
+                output_path = copy_selected_files(
+                    target, photo_dicts, project_root=Path(project_root), progress_callback=progress_callback
+                )
             else:
-                output_path = zip_selected_files(target, photo_dicts, project_root=Path(project_root))
+                output_path = zip_selected_files(
+                    target, photo_dicts, project_root=Path(project_root), progress_callback=progress_callback
+                )
             record.status = "complete"
             record.output_path = str(output_path)
+            record.processed_count = total
+            record.total_count = total
             record.error_message = None
             record.completed_at = utc_now()
             session.add(record)
@@ -1094,11 +1113,14 @@ def create_export_endpoint(
         export_root = project_export_root(project)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    selected_count = len(photo_dicts)
     record = ExportRecord(
         project_id=project_id,
         mode=payload.mode,
         status="running",
-        selected_count=len(photo_dicts),
+        selected_count=selected_count,
+        processed_count=0,
+        total_count=selected_count,
         statuses=json.dumps(payload.statuses),
         output_path="pending",
     )

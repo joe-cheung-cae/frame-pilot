@@ -417,6 +417,28 @@ def test_folder_export_preserves_files_with_duplicate_names(tmp_path):
     assert (tmp_path / "selected" / "frame-1.jpg").read_bytes() == b"second"
 
 
+def test_export_writers_report_progress_callbacks(tmp_path):
+    first = tmp_path / "a.jpg"
+    second = tmp_path / "b.jpg"
+    first.write_bytes(b"a")
+    second.write_bytes(b"b")
+    photos = [
+        {"id": "1", "filename": "a.jpg", "original_path": str(first), "user_status": "Pick"},
+        {"id": "2", "filename": "b.jpg", "original_path": str(second), "user_status": "Pick"},
+    ]
+    csv_progress: list[tuple[int, int]] = []
+    copy_progress: list[tuple[int, int]] = []
+    zip_progress: list[tuple[int, int]] = []
+
+    write_selection_csv(tmp_path / "selection.csv", photos, progress_callback=csv_progress.append)
+    copy_selected_files(tmp_path / "selected", photos, progress_callback=copy_progress.append)
+    zip_selected_files(tmp_path / "selection.zip", photos, progress_callback=zip_progress.append)
+
+    assert csv_progress == [(1, 2), (2, 2)]
+    assert copy_progress == [(1, 2), (2, 2)]
+    assert zip_progress == [(1, 2), (2, 2)]
+
+
 def test_folder_export_rejects_missing_original_file(tmp_path):
     with pytest.raises(FileNotFoundError):
         copy_selected_files(tmp_path / "selected", [{"original_path": str(tmp_path / "missing.jpg")}])

@@ -14,6 +14,8 @@ type ExportRecordMock = {
   mode: "csv" | "folder" | "zip";
   status: "running" | "complete" | "failed";
   selected_count: number;
+  processed_count: number;
+  total_count: number;
   statuses: string;
   output_path: string;
   error_message: string | null;
@@ -97,6 +99,8 @@ const csvLatest: ExportRecordMock = {
   mode: "csv",
   status: "complete",
   selected_count: 2,
+  processed_count: 2,
+  total_count: 2,
   statuses: '["Pick"]',
   output_path: "/projects/shoot/exports/csv/latest.csv",
   error_message: null,
@@ -110,6 +114,8 @@ const csvHistory: ExportRecordMock = {
   mode: "csv",
   status: "complete",
   selected_count: 2,
+  processed_count: 2,
+  total_count: 2,
   statuses: '["Pick"]',
   output_path: "/projects/shoot/exports/csv/selection.csv",
   error_message: null,
@@ -123,6 +129,8 @@ const zipHistory: ExportRecordMock = {
   mode: "zip",
   status: "complete",
   selected_count: 2,
+  processed_count: 2,
+  total_count: 2,
   statuses: '["Pick"]',
   output_path: "/projects/shoot/exports/zip/selection.zip",
   error_message: null,
@@ -136,6 +144,8 @@ const folderHistory: ExportRecordMock = {
   mode: "folder",
   status: "complete",
   selected_count: 2,
+  processed_count: 2,
+  total_count: 2,
   statuses: '["Pick"]',
   output_path: "/projects/shoot/exports/folders/selection-1",
   error_message: null,
