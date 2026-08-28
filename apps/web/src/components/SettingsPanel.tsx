@@ -61,7 +61,7 @@ export function SettingsPanel() {
         </div>
         <p
           aria-label="Data directory"
-          className="break-all rounded border border-line bg-neutral-50 px-3 py-2 text-sm"
+          className="break-all rounded border border-line bg-mist px-3 py-2 text-sm"
         >
           {metaQuery.isError
             ? "Could not load the data directory."

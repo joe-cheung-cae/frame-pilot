@@ -98,3 +98,39 @@ test("desktop chrome uses surface/muted tokens and ink CTAs use mist not frozen 
   assert.match(shell, /bg-ink[\s\S]*text-mist/);
   assert.doesNotMatch(shell, /bg-ink[\s\S]*text-white/);
 });
+
+test("shared chrome has no frozen white or neutral utilities after stripping photo-stage classes", () => {
+  const roots = [
+    path.join(srcRoot, "components"),
+    path.join(srcRoot, "app"),
+    path.join(repoRoot, "apps/desktop/src"),
+  ];
+  const files: string[] = [];
+  function walk(dir: string) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (/\.(tsx|ts|css)$/.test(entry.name) && !entry.name.includes(".test.")) {
+        files.push(full);
+      }
+    }
+  }
+  for (const root of roots) {
+    walk(root);
+  }
+  const offenders: string[] = [];
+  for (const file of files) {
+    const source = fs
+      .readFileSync(file, "utf8")
+      .replaceAll("bg-neutral-900", "")
+      .replaceAll("bg-neutral-950", "")
+      .replaceAll("bg-white/10", "");
+    if (/\bbg-white\b/.test(source) || /\bbg-neutral-50\b/.test(source) || /\btext-neutral-/.test(source) || /\bdark:/.test(source)) {
+      offenders.push(path.relative(repoRoot, file));
+    }
+  }
+  assert.deepEqual(offenders, []);
+});

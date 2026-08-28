@@ -1,7 +1,10 @@
 import { desktopMenuHelpSection } from "@/lib/menuRoutes";
 import { REVIEW_SHORTCUT_HELP_SECTIONS } from "@/lib/reviewShortcuts";
+import { isDesktopShell } from "@/lib/shell";
 
 export function HelpShortcuts() {
+  const desktopShell = isDesktopShell();
+  const sections = desktopShell ? [desktopMenuHelpSection, ...REVIEW_SHORTCUT_HELP_SECTIONS] : REVIEW_SHORTCUT_HELP_SECTIONS;
   return (
     <section className="mx-auto grid max-w-5xl gap-8 px-5 py-10">
       <div className="grid gap-2">
@@ -10,9 +13,14 @@ export function HelpShortcuts() {
         <p className="max-w-2xl text-muted">
           These shortcuts work in the culling workspace after a project has imported and processed photos.
         </p>
+        {desktopShell ? (
+          <p className="max-w-2xl text-muted">
+            Desktop also lists native menu accelerators CmdOrCtrl+N, CmdOrCtrl+W, and CmdOrCtrl+Q.
+          </p>
+        ) : null}
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        {[desktopMenuHelpSection, ...REVIEW_SHORTCUT_HELP_SECTIONS].map((section) => (
+        {sections.map((section) => (
           <section key={section.title} className="rounded border border-line bg-surface p-5">
             <h2 className="text-sm font-semibold text-muted">{section.title}</h2>
             <dl className="mt-4 grid gap-3">
