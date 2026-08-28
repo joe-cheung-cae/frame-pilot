@@ -16,7 +16,7 @@ import {
 import { isDesktopShell } from "@/lib/shell";
 
 const PREFERENCE_MESSAGE_CLASS = {
-  neutral: "text-neutral-600",
+  neutral: "text-muted",
   success: "text-leaf",
   warning: "text-coral",
 } as const;
@@ -48,20 +48,20 @@ export function SettingsPanel() {
   return (
     <section className="mx-auto grid max-w-3xl gap-6 px-5 py-8">
       <div className="grid gap-2">
-        <p className="text-sm text-neutral-600">Local preferences</p>
+        <p className="text-sm text-muted">Local preferences</p>
         <h1 className="text-3xl font-semibold">Settings</h1>
       </div>
 
-      <div className="grid gap-4 rounded border border-line bg-white p-5">
+      <div className="grid gap-4 rounded border border-line bg-surface p-5">
         <div>
           <h2 className="font-semibold">Data directory</h2>
-          <p className="mt-1 text-sm text-neutral-600">
+          <p className="mt-1 text-sm text-muted">
             FramePilot stores local project data here. Changing this location is not available in this version.
           </p>
         </div>
         <p
           aria-label="Data directory"
-          className="break-all rounded border border-line bg-neutral-50 px-3 py-2 text-sm"
+          className="break-all rounded border border-line bg-mist px-3 py-2 text-sm"
         >
           {metaQuery.isError
             ? "Could not load the data directory."
@@ -84,10 +84,10 @@ export function SettingsPanel() {
         ) : null}
       </div>
 
-      <div className="grid gap-4 rounded border border-line bg-white p-5">
+      <div className="grid gap-4 rounded border border-line bg-surface p-5">
         <div>
           <h2 className="font-semibold">Default export statuses</h2>
-          <p className="mt-1 text-sm text-neutral-600">Stored in this browser only.</p>
+          <p className="mt-1 text-sm text-muted">Stored in this browser only.</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-4">
           {EXPORT_STATUSES.map((status) => {
@@ -111,7 +111,7 @@ export function SettingsPanel() {
             );
           })}
         </div>
-        <p className="text-sm text-neutral-600">At least one default status stays selected for future exports.</p>
+        <p className="text-sm text-muted">At least one default status stays selected for future exports.</p>
         {message ? (
           <p className={`text-sm ${PREFERENCE_MESSAGE_CLASS[exportPreferenceMessageTone(message)]}`}>{message}</p>
         ) : null}

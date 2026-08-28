@@ -436,9 +436,8 @@ Commit: desktop: show data directory in settings
 
 D3.04 System theme follow (light/dark)
 Depends on: D3.02.
-Scope Tailwind dark: (or equivalent) to [data-shell="desktop"]. applyShellDataset() already sets documentElement.dataset.shell.
-Browser may stay light-only. Do not restyle the Next.js web app as a dark product.
-Tests: none required beyond CSS; if components changed, npm run test:web. Record a short visual note in docs/desktop_feasibility_notes.md if a GUI run happens, otherwise [~] for visual only and keep the CSS commit.
+CSS variables on ink/mist/line/surface/muted. html[data-shell=desktop] swaps them under prefers-color-scheme: dark. Browser globals stay light-only. No Tailwind darkMode and no dark: chrome patches; do not remap .bg-white.
+Tests: apps/web/src/lib/desktopTheme.test.ts. npm --prefix apps/web run test:unit. Visual GUI [~] without a recorded desktop WebView.
 Commit: desktop: follow system light/dark theme
 
 D3.05 Window chrome and empty/error copy

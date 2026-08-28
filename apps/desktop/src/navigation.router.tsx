@@ -1,5 +1,5 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
-import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-dom";
+import { Link as RouterLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 type LinkProps = Omit<ComponentPropsWithoutRef<"a">, "href"> & {
   href: string;
@@ -31,4 +31,8 @@ export function useNavigator(): Navigator {
 export function useQueryParams(): URLSearchParams {
   const [searchParams] = useSearchParams();
   return new URLSearchParams(searchParams.toString());
+}
+
+export function usePathname(): string {
+  return useLocation().pathname;
 }

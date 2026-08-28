@@ -51,7 +51,7 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
       <section className="mx-auto grid max-w-5xl gap-6 px-5 py-8">
         <div className="grid gap-1 text-sm">
           <p className="text-coral">Could not load project details: {project.error.message}</p>
-          <p className="text-neutral-600">{projectLoadRecoveryMessage("dashboard")}</p>
+          <p className="text-muted">{projectLoadRecoveryMessage("dashboard")}</p>
         </div>
       </section>
     );
@@ -66,12 +66,12 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
   return (
     <section className="mx-auto grid max-w-5xl gap-6 px-5 py-8">
       <div className="grid gap-2">
-        <p className="text-sm text-neutral-600">Project dashboard</p>
+        <p className="text-sm text-muted">Project dashboard</p>
         <h1 className="text-3xl font-semibold">{project.data.name}</h1>
-        <p className="break-all text-sm text-neutral-600">Project data: {project.data.root_path}</p>
+        <p className="break-all text-sm text-muted">Project data: {project.data.root_path}</p>
         {nativeFs ? (
           <button
-            className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line bg-white px-3 py-2 text-sm font-medium"
+            className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line bg-surface px-3 py-2 text-sm font-medium"
             onClick={() => {
               void revealFolder("project", { rootPath: project.data.root_path }, nativeFs.revealInFileManager);
             }}
@@ -83,7 +83,7 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
         ) : null}
       </div>
 
-      <div className="grid gap-3 rounded border border-line bg-white p-4 text-sm">
+      <div className="grid gap-3 rounded border border-line bg-surface p-4 text-sm">
         <p className="font-medium">{projectProgressSummary(project.data)}</p>
         <Link
           className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-leaf px-4 py-2 font-medium text-white"
@@ -92,7 +92,7 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
           {projectNextActionLabel(project.data)}
         </Link>
         {activeImport ? (
-          <p className="text-sm text-neutral-600">
+          <p className="text-sm text-muted">
             Import is still running. Finish import progress before processing or culling.
           </p>
         ) : null}
@@ -105,13 +105,13 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
           const hint = projectWorkflowStepHint(project.data, item.suffix);
           return (
             <Link
-              className="focus-ring grid min-h-28 content-center justify-items-center gap-3 rounded border border-line bg-white p-4 text-center font-medium hover:border-leaf"
+              className="focus-ring grid min-h-28 content-center justify-items-center gap-3 rounded border border-line bg-surface p-4 text-center font-medium hover:border-leaf"
               href={href}
               key={item.suffix}
             >
               <Icon className="text-leaf" size={24} />
               <span>{item.label}</span>
-              <span className="text-xs font-normal text-neutral-600">{hint}</span>
+              <span className="text-xs font-normal text-muted">{hint}</span>
             </Link>
           );
         })}

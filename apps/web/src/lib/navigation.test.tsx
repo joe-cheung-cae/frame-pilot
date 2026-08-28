@@ -13,9 +13,10 @@ vi.mock("next/link", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
   useSearchParams: () => new URLSearchParams("filter=Pick"),
+  usePathname: () => "/projects/project-1/cull",
 }));
 
-import { Link, useNavigator, useQueryParams } from "@/lib/navigation";
+import { Link, useNavigator, usePathname, useQueryParams } from "@/lib/navigation";
 
 function PushProbe({ href }: { href: string }) {
   const navigator = useNavigator();
@@ -29,6 +30,10 @@ function PushProbe({ href }: { href: string }) {
 function QueryProbe({ name }: { name: string }) {
   const queryParams = useQueryParams();
   return <span>{queryParams.get(name) ?? ""}</span>;
+}
+
+function PathnameProbe() {
+  return <span>{usePathname()}</span>;
 }
 
 describe("navigation adapter", () => {
@@ -47,6 +52,11 @@ describe("navigation adapter", () => {
   it("reads a query value from useQueryParams", () => {
     render(<QueryProbe name="filter" />);
     expect(screen.getByText("Pick")).toBeTruthy();
+  });
+
+  it("reads the current pathname from the adapter", () => {
+    render(<PathnameProbe />);
+    expect(screen.getByText("/projects/project-1/cull")).toBeTruthy();
   });
 
   it("keeps next/link and next/navigation out of shared components", () => {

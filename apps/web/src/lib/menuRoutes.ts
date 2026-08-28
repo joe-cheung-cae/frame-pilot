@@ -1,73 +1,28 @@
+import { projectIdFromPathname } from "./projectRouting.ts";
+
 export const MENU_EVENT = "framepilot-menu";
 
-export type MenuCommandId =
-  | "new"
-  | "open-data-folder"
-  | "import"
-  | "export"
-  | "close"
-  | "quit"
-  | "undo"
-  | "redo"
-  | "cut"
-  | "copy"
-  | "paste"
-  | "select_all"
-  | "fullscreen"
-  | "process"
-  | "cull"
-  | "shortcuts"
-  | "about";
+export const NAVIGABLE_MENU_COMMANDS = ["new", "shortcuts", "import", "export", "process", "cull"] as const;
 
-export type MenuItemSpec = {
-  id: MenuCommandId;
-  label: string;
-  accelerator: string | null;
-};
+export type NavigableMenuCommand = (typeof NAVIGABLE_MENU_COMMANDS)[number];
 
-export const MENU_ITEMS: Record<"File" | "Edit" | "View" | "Project" | "Help", MenuItemSpec[]> = {
-  File: [
-    { id: "new", label: "New", accelerator: "CmdOrCtrl+N" },
-    { id: "open-data-folder", label: "Open data folder", accelerator: null },
-    { id: "import", label: "Import", accelerator: null },
-    { id: "export", label: "Export", accelerator: null },
-    { id: "close", label: "Close", accelerator: "CmdOrCtrl+W" },
-    { id: "quit", label: "Quit", accelerator: "CmdOrCtrl+Q" },
-  ],
-  Edit: [
-    { id: "undo", label: "Undo", accelerator: "CmdOrCtrl+Z" },
-    { id: "redo", label: "Redo", accelerator: "CmdOrCtrl+Shift+Z" },
-    { id: "cut", label: "Cut", accelerator: "CmdOrCtrl+X" },
-    { id: "copy", label: "Copy", accelerator: "CmdOrCtrl+C" },
-    { id: "paste", label: "Paste", accelerator: "CmdOrCtrl+V" },
-    { id: "select_all", label: "Select All", accelerator: "CmdOrCtrl+A" },
-  ],
-  View: [{ id: "fullscreen", label: "Fullscreen", accelerator: null }],
-  Project: [
-    { id: "process", label: "Process", accelerator: null },
-    { id: "cull", label: "Culling", accelerator: null },
-  ],
-  Help: [
-    { id: "shortcuts", label: "Shortcuts", accelerator: null },
-    { id: "about", label: "About", accelerator: null },
-  ],
-};
+export type MenuCommandResult = { type: "navigate"; href: string } | { type: "ignore" };
 
-const PROJECT_COMMANDS: Partial<Record<MenuCommandId, "import" | "export" | "process" | "cull">> = {
+export const desktopMenuHelpSection = {
+  title: "Desktop",
+  shortcuts: [
+    { keys: "CmdOrCtrl+N", action: "New project" },
+    { keys: "CmdOrCtrl+W", action: "Close window" },
+    { keys: "CmdOrCtrl+Q", action: "Quit" },
+  ],
+} as const;
+
+const PROJECT_COMMANDS: Partial<Record<NavigableMenuCommand, "import" | "export" | "process" | "cull">> = {
   import: "import",
   export: "export",
   process: "process",
   cull: "cull",
 };
-
-export function projectIdFromPathname(pathname: string): string | null {
-  const match = pathname.match(/^\/projects\/([^/]+)/);
-  const segment = match?.[1];
-  if (!segment || segment === "new") {
-    return null;
-  }
-  return segment;
-}
 
 export function menuHrefForCommand(
   command: string,
@@ -80,7 +35,10 @@ export function menuHrefForCommand(
   if (command === "shortcuts") {
     return "/help";
   }
-  const suffix = PROJECT_COMMANDS[command as MenuCommandId];
+  if (command !== "import" && command !== "export" && command !== "process" && command !== "cull") {
+    return null;
+  }
+  const suffix = PROJECT_COMMANDS[command];
   if (!suffix) {
     return null;
   }
@@ -89,4 +47,16 @@ export function menuHrefForCommand(
     return null;
   }
   return `/projects/${projectId}/${suffix}`;
+}
+
+export function resolveMenuCommand(
+  command: string,
+  pathname: string,
+  lastOpenedProjectId: string | null,
+): MenuCommandResult {
+  const href = menuHrefForCommand(command, pathname, lastOpenedProjectId);
+  if (!href) {
+    return { type: "ignore" };
+  }
+  return { type: "navigate", href };
 }

@@ -87,17 +87,17 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
       <div>
-        <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
+        <p className="text-sm text-muted">{project.data?.name ?? "Project"}</p>
         <h1 className="mt-1 text-3xl font-semibold">Processing Status</h1>
       </div>
-      <div className="rounded border border-line bg-white p-5">
+      <div className="rounded border border-line bg-surface p-5">
         <div className="flex items-center justify-between gap-4">
           <span className="font-medium">{statusLabel}</span>
-          <span className="text-sm text-neutral-600">
+          <span className="text-sm text-muted">
             {processingProgressSummary(job, project.data)}
           </span>
         </div>
-        <p className="mt-2 text-sm text-neutral-700">
+        <p className="mt-2 text-sm text-muted">
           {job?.current_step ?? "Run grouping and ranking when imports are ready."}
         </p>
         <div className="mt-4 h-2 rounded bg-mist">
@@ -111,12 +111,12 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
             {job.error_message ?? "Processing failed. Review the imported files and try again."}
           </p>
         ) : null}
-        {jobRecoveryMessage ? <p className="mt-3 text-sm text-neutral-700">{jobRecoveryMessage}</p> : null}
+        {jobRecoveryMessage ? <p className="mt-3 text-sm text-muted">{jobRecoveryMessage}</p> : null}
         {jobFailureNotice && job?.status !== "failed" ? (
           <div className="mt-3 grid gap-2 text-sm">
             <p className="text-coral">{jobFailureNotice}</p>
             <Link
-              className="focus-ring w-fit rounded border border-line bg-white px-3 py-2 font-medium"
+              className="focus-ring w-fit rounded border border-line bg-surface px-3 py-2 font-medium"
               href={processingFailuresHref}
             >
               Review processing failures
@@ -128,11 +128,11 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
             <p className="font-medium text-coral">
               Import is still running. Wait for previews and analysis to finish before processing.
             </p>
-            <p className="text-neutral-700">
+            <p className="text-muted">
               {activeImportJob.current_step} · {processingProgressSummary(activeImportJob, project.data)}
             </p>
             <Link
-              className="focus-ring w-fit rounded border border-line bg-white px-3 py-2 font-medium"
+              className="focus-ring w-fit rounded border border-line bg-surface px-3 py-2 font-medium"
               href={`/projects/${projectId}/import`}
             >
               Back to Import Progress
@@ -151,7 +151,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
         </button>
         {!hasImportedPhotos ? (
           <Link
-            className="focus-ring inline-flex items-center gap-2 rounded border border-line bg-white px-4 py-3 font-medium"
+            className="focus-ring inline-flex items-center gap-2 rounded border border-line bg-surface px-4 py-3 font-medium"
             href={`/projects/${projectId}/import`}
           >
             <Upload size={18} />
@@ -160,7 +160,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
         ) : null}
         {canOpenCulling ? (
           <Link
-            className="focus-ring inline-flex items-center gap-2 rounded border border-line bg-white px-4 py-3 font-medium"
+            className="focus-ring inline-flex items-center gap-2 rounded border border-line bg-surface px-4 py-3 font-medium"
             href={`/projects/${projectId}/cull`}
           >
             <Rows3 size={18} />
@@ -168,27 +168,27 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           </Link>
         ) : null}
       </div>
-      {processingBlockMessage ? <p className="text-sm text-neutral-600">{processingBlockMessage}</p> : null}
+      {processingBlockMessage ? <p className="text-sm text-muted">{processingBlockMessage}</p> : null}
       {project.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{project.error.message}</p>
-          <p className="text-neutral-600">{processingLoadRecoveryMessage("project")}</p>
+          <p className="text-muted">{processingLoadRecoveryMessage("project")}</p>
         </div>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
       {jobQuery.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">Could not load processing job status: {jobQuery.error.message}</p>
-          <p className="text-neutral-600">{processingLoadRecoveryMessage("job")}</p>
+          <p className="text-muted">{processingLoadRecoveryMessage("job")}</p>
         </div>
       ) : null}
       <div className="grid gap-3">
         <h2 className="text-sm font-semibold">Job History</h2>
-        {jobsQuery.isLoading ? <p className="text-sm text-neutral-600">Loading job history...</p> : null}
+        {jobsQuery.isLoading ? <p className="text-sm text-muted">Loading job history...</p> : null}
         {jobsQuery.isError ? (
           <div className="grid gap-1 text-sm">
             <p className="text-coral">{jobsQuery.error.message}</p>
-            <p className="text-neutral-600">{processingLoadRecoveryMessage("history")}</p>
+            <p className="text-muted">{processingLoadRecoveryMessage("history")}</p>
           </div>
         ) : null}
         {jobsQuery.data?.length ? (
@@ -197,20 +197,20 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
               const recordFailureNotice = processingFailureNotice(record) ?? record.error_message;
               return (
                 <div
-                  className="grid gap-1 rounded border border-line bg-white p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
+                  className="grid gap-1 rounded border border-line bg-surface p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
                   key={record.id}
                 >
                   <div>
                     <p className="font-medium">
                       {processingJobTypeLabel(record.job_type)}
-                      <span className={record.status === "failed" ? "ml-2 text-coral" : "ml-2 text-neutral-500"}>
+                      <span className={record.status === "failed" ? "ml-2 text-coral" : "ml-2 text-muted"}>
                         {processingStatusLabel(record.status)}
                       </span>
                     </p>
-                    <p className="text-neutral-600">{record.current_step}</p>
+                    <p className="text-muted">{record.current_step}</p>
                     {recordFailureNotice ? <p className="text-coral">{recordFailureNotice}</p> : null}
                   </div>
-                  <p className="text-neutral-600">{processingProgressSummary(record, project.data)}</p>
+                  <p className="text-muted">{processingProgressSummary(record, project.data)}</p>
                 </div>
               );
             })}
@@ -218,7 +218,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
         ) : null}
         {canLoadMoreJobs ? (
           <button
-            className="focus-ring w-fit rounded border border-line bg-white px-3 py-2 text-sm font-medium disabled:opacity-50"
+            className="focus-ring w-fit rounded border border-line bg-surface px-3 py-2 text-sm font-medium disabled:opacity-50"
             disabled={jobsQuery.isFetching}
             onClick={() => setJobLimit((current) => current + RECENT_JOB_LIMIT)}
           >
@@ -226,7 +226,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           </button>
         ) : null}
         {!jobsQuery.isLoading && !jobsQuery.isError && !jobsQuery.data?.length ? (
-          <p className="text-sm text-neutral-600">No jobs yet.</p>
+          <p className="text-sm text-muted">No jobs yet.</p>
         ) : null}
       </div>
     </section>

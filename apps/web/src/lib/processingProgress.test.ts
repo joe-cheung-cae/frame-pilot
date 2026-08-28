@@ -1,10 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import fs from "node:fs";
+
 import {
   activeJobOfType,
   activeProcessingJob,
+  firstActiveJob,
   hasActiveProcessingJob,
+  jobsRefetchIntervalMs,
   processingActionBlockMessage,
   processingFailureNotice,
   processingJobForDisplay,
@@ -57,6 +61,29 @@ test("detects active processing jobs", () => {
     ]),
     true,
   );
+});
+
+test("firstActiveJob is the shared queued/running finder", () => {
+  const jobs = [
+    { job_type: "processing", status: "complete" as const },
+    { job_type: "import", status: "running" as const },
+  ];
+  assert.equal(firstActiveJob(undefined), undefined);
+  assert.equal(firstActiveJob(jobs)?.job_type, "import");
+  assert.equal(hasActiveProcessingJob(jobs), Boolean(firstActiveJob(jobs)));
+  assert.equal(activeJobOfType(jobs, "import")?.job_type, "import");
+  assert.equal(activeJobOfType(jobs, "processing"), undefined);
+  const source = fs.readFileSync(new URL("./processingProgress.ts", import.meta.url), "utf8");
+  assert.match(source, /export function hasActiveProcessingJob[\s\S]*firstActiveJob/);
+  assert.match(source, /export function activeJobOfType[\s\S]*firstActiveJob/);
+});
+
+test("jobs query polls fast while active and slowly while idle", () => {
+  assert.equal(jobsRefetchIntervalMs(undefined), 5000);
+  assert.equal(jobsRefetchIntervalMs([]), 5000);
+  assert.equal(jobsRefetchIntervalMs([{ job_type: "import", status: "complete" }]), 5000);
+  assert.equal(jobsRefetchIntervalMs([{ job_type: "import", status: "running" }]), 1000);
+  assert.ok(jobsRefetchIntervalMs([]) > 0);
 });
 
 test("clamps processing progress percentages", () => {

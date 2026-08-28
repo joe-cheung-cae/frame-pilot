@@ -39,7 +39,7 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
 }
 
 const IMPORT_MESSAGE_CLASS: Record<ImportFeedbackTone, string> = {
-  neutral: "text-neutral-600",
+  neutral: "text-muted",
   success: "text-leaf",
   warning: "text-coral",
 };
@@ -403,7 +403,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       <div
         aria-hidden={!dragActive}
         className={`absolute inset-0 z-10 grid place-items-center rounded text-center ${
-          dragActive ? "border-2 border-dashed border-leaf bg-white/80" : ""
+          dragActive ? "border-2 border-dashed border-leaf bg-surface/80" : ""
         }`}
         data-testid="import-drop-overlay"
         style={{ pointerEvents: importDropOverlayPointerEvents(dragActive) }}
@@ -411,16 +411,16 @@ export function ImportPanel({ projectId }: { projectId: string }) {
         {dragActive ? <p className="font-medium">Drop files or folders to import</p> : null}
       </div>
       <div>
-        <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
+        <p className="text-sm text-muted">{project.data?.name ?? "Project"}</p>
         <h1 className="mt-1 text-3xl font-semibold">Import Images</h1>
         {project.data?.root_path ? (
-          <p className="mt-2 break-all text-sm text-neutral-600">Project data: {project.data.root_path}</p>
+          <p className="mt-2 break-all text-sm text-muted">Project data: {project.data.root_path}</p>
         ) : null}
       </div>
       {desktopShell ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <button
-            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-surface p-8 text-center ${
               importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
             }`}
             disabled={importSelectionDisabled}
@@ -432,11 +432,11 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             <span className="grid gap-3">
               <FileImage className="mx-auto text-leaf" size={34} />
               <span className="font-medium">Choose image files</span>
-              <span className="text-sm text-neutral-600">JPEG, PNG, and WebP are supported.</span>
+              <span className="text-sm text-muted">JPEG, PNG, and WebP are supported.</span>
             </span>
           </button>
           <button
-            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-surface p-8 text-center ${
               importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
             }`}
             disabled={importSelectionDisabled}
@@ -448,15 +448,15 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             <span className="grid gap-3">
               <FileImage className="mx-auto text-leaf" size={34} />
               <span className="font-medium">Choose a folder</span>
-              <span className="text-sm text-neutral-600">Original files are copied into the local project folder.</span>
-              <span className="text-sm text-neutral-600">Source folders are not tracked for rescan yet.</span>
+              <span className="text-sm text-muted">Original files are copied into the local project folder.</span>
+              <span className="text-sm text-muted">Source folders are not tracked for rescan yet.</span>
             </span>
           </button>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           <label
-            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-surface p-8 text-center ${
               importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
             }`}
           >
@@ -471,11 +471,11 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             <span className="grid gap-3">
               <FileImage className="mx-auto text-leaf" size={34} />
               <span className="font-medium">Choose image files</span>
-              <span className="text-sm text-neutral-600">JPEG, PNG, and WebP are supported.</span>
+              <span className="text-sm text-muted">JPEG, PNG, and WebP are supported.</span>
             </span>
           </label>
           <label
-            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-white p-8 text-center ${
+            className={`focus-within:ring-2 focus-within:ring-leaf grid min-h-56 place-items-center rounded border border-dashed border-line bg-surface p-8 text-center ${
               importSelectionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
             }`}
           >
@@ -491,13 +491,13 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             <span className="grid gap-3">
               <FileImage className="mx-auto text-leaf" size={34} />
               <span className="font-medium">Choose a folder</span>
-              <span className="text-sm text-neutral-600">Original files are copied into the local project folder.</span>
-              <span className="text-sm text-neutral-600">Source folders are not tracked for rescan yet.</span>
+              <span className="text-sm text-muted">Original files are copied into the local project folder.</span>
+              <span className="text-sm text-muted">Source folders are not tracked for rescan yet.</span>
             </span>
           </label>
         </div>
       )}
-      {importSelectionBlock ? <p className="text-sm text-neutral-600">{importSelectionBlock}</p> : null}
+      {importSelectionBlock ? <p className="text-sm text-muted">{importSelectionBlock}</p> : null}
       {mutation.isPending ? (
         <p className="inline-flex items-center gap-2 text-sm">
           <Loader2 className="animate-spin" size={16} />
@@ -505,26 +505,26 @@ export function ImportPanel({ projectId }: { projectId: string }) {
         </p>
       ) : null}
       {importJob ? (
-        <div className="grid gap-2 rounded border border-line bg-white p-4 text-sm">
+        <div className="grid gap-2 rounded border border-line bg-surface p-4 text-sm">
           <div className="flex items-center justify-between gap-4">
             <span className="font-medium">Import {processingStatusLabel(importJob.status)}</span>
-            <span className="text-neutral-600">{processingProgressSummary(importJob, project.data)}</span>
+            <span className="text-muted">{processingProgressSummary(importJob, project.data)}</span>
           </div>
-          <p className="text-neutral-700">{importJob.current_step}</p>
+          <p className="text-muted">{importJob.current_step}</p>
           <div className="h-2 rounded bg-mist">
             <div
               className={`h-2 rounded ${importJob.status === "failed" || importJob.status === "cancelled" ? "bg-coral" : "bg-leaf"}`}
               style={{ width: `${importProgress}%` }}
             />
           </div>
-          {importTerminalMessage ? <p className="text-neutral-700">{importTerminalMessage}</p> : null}
+          {importTerminalMessage ? <p className="text-muted">{importTerminalMessage}</p> : null}
           {importJob.error_message ? <p className="text-coral">{importJob.error_message}</p> : null}
           {importJob.cancellation_requested && importJob.status !== "cancelled" ? (
-            <p className="text-neutral-600">Cancellation requested. FramePilot will stop after a safe checkpoint.</p>
+            <p className="text-muted">Cancellation requested. FramePilot will stop after a safe checkpoint.</p>
           ) : null}
           {canCancelImport ? (
             <button
-              className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line bg-white px-3 py-2 font-medium"
+              className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line bg-surface px-3 py-2 font-medium"
               onClick={() => cancelMutation.mutate(importJob.id)}
               type="button"
             >
@@ -534,7 +534,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           ) : null}
           {canRetryImport ? (
             <button
-              className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line bg-white px-3 py-2 font-medium"
+              className="focus-ring inline-flex w-fit items-center gap-2 rounded border border-line bg-surface px-3 py-2 font-medium"
               onClick={() => retryMutation.mutate(importJob.id)}
               type="button"
             >
@@ -546,7 +546,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       ) : null}
       {message ? <p className={`text-sm ${IMPORT_MESSAGE_CLASS[messageTone]}`}>{message}</p> : null}
       {skipped.length ? (
-        <div className="rounded border border-line bg-white p-3 text-sm text-neutral-700">
+        <div className="rounded border border-line bg-surface p-3 text-sm text-muted">
           <p className="font-medium text-coral">
             {skipped.length} {pluralize(skipped.length, "file")} skipped.
           </p>
@@ -559,7 +559,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
           </ul>
           {skipped.length > 5 ? (
             <button
-              className="focus-ring mt-3 rounded border border-line bg-white px-3 py-2 text-xs font-medium"
+              className="focus-ring mt-3 rounded border border-line bg-surface px-3 py-2 text-xs font-medium"
               onClick={() => setShowAllSkipped((current) => !current)}
               aria-expanded={showAllSkipped}
             >
@@ -569,7 +569,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
         </div>
       ) : null}
       {recentImports.length ? (
-        <div className="grid gap-3 rounded border border-line bg-white p-4">
+        <div className="grid gap-3 rounded border border-line bg-surface p-4">
           <h2 className="text-sm font-semibold">Recently Imported</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {recentImports.slice(0, 12).map((photo) => {
@@ -585,51 +585,51 @@ export function ImportPanel({ projectId }: { projectId: string }) {
                       decoding="async"
                     />
                   ) : (
-                    <div className="grid aspect-[4/3] place-items-center text-xs text-neutral-600">No preview</div>
+                    <div className="grid aspect-[4/3] place-items-center text-xs text-muted">No preview</div>
                   )}
-                  <p className="truncate px-2 py-1 text-xs text-neutral-700">{photo.filename}</p>
+                  <p className="truncate px-2 py-1 text-xs text-muted">{photo.filename}</p>
                 </div>
               );
             })}
           </div>
           {recentImports.length > 12 ? (
-            <p className="text-sm text-neutral-600">Showing the first 12 imported images.</p>
+            <p className="text-sm text-muted">Showing the first 12 imported images.</p>
           ) : null}
         </div>
       ) : null}
       {mutation.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{mutation.error.message}</p>
-          <p className="text-neutral-600">{importLoadRecoveryMessage("import")}</p>
+          <p className="text-muted">{importLoadRecoveryMessage("import")}</p>
         </div>
       ) : null}
       {cancelMutation.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{cancelMutation.error.message}</p>
-          <p className="text-neutral-600">{importLoadRecoveryMessage("cancel")}</p>
+          <p className="text-muted">{importLoadRecoveryMessage("cancel")}</p>
         </div>
       ) : null}
       {retryMutation.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{retryMutation.error.message}</p>
-          <p className="text-neutral-600">{importLoadRecoveryMessage("retry")}</p>
+          <p className="text-muted">{importLoadRecoveryMessage("retry")}</p>
         </div>
       ) : null}
       {currentImportJobQuery.isError || importJobsQuery.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">Could not load import status: {importStatusErrorMessage}</p>
-          <p className="text-neutral-600">{importLoadRecoveryMessage("job")}</p>
+          <p className="text-muted">{importLoadRecoveryMessage("job")}</p>
         </div>
       ) : null}
       {project.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{project.error.message}</p>
-          <p className="text-neutral-600">{importLoadRecoveryMessage("project")}</p>
+          <p className="text-muted">{importLoadRecoveryMessage("project")}</p>
         </div>
       ) : null}
       {canProcessProject ? (
         <Link
-          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-mist"
           href={`/projects/${projectId}/process`}
         >
           <Play size={18} />
@@ -638,14 +638,14 @@ export function ImportPanel({ projectId }: { projectId: string }) {
       ) : (
         <div className="grid gap-2">
           <button
-            className="inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white opacity-50"
+            className="inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-mist opacity-50"
             disabled
             type="button"
           >
             <Play size={18} />
             Process Project
           </button>
-          {processBlockMessage ? <p className="text-sm text-neutral-600">{processBlockMessage}</p> : null}
+          {processBlockMessage ? <p className="text-sm text-muted">{processBlockMessage}</p> : null}
         </div>
       )}
     </section>

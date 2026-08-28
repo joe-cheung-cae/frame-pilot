@@ -251,8 +251,8 @@ Phase 3
 
 - [~] D3.01 Native menu bar — `npm run test:web` green 2026-08-23; GUI/`cargo test` unverified (`rustc` 1.85 cannot compile current Tauri lockfile). See `docs/desktop_feasibility_notes.md`.
 - [~] D3.02 Status bar — `npm run test:web` green 2026-08-26; GUI/`cargo test` unverified (`rustc` 1.85 cannot compile current Tauri lockfile). See `docs/desktop_feasibility_notes.md`.
-- [ ] D3.03 Settings data directory (`GET /api/meta`)
-- [ ] D3.04 System theme follow
+- [~] D3.03 Settings data directory (`GET /api/meta`) — API + Settings tests on `main`; GUI/`cargo test` unverified (same rustc 1.85 block as D3.01). See `docs/desktop_feasibility_notes.md`.
+- [x] D3.04 System theme follow — CSS `[x]`. Visual GUI `[~]` 2026-08-28 (same rustc/cargo block as D3.01). See `docs/desktop_feasibility_notes.md`.
 - [ ] D3.05 Empty and error copy
 - [ ] D3.06 Optional tray (may end `[-]`)
 - [ ] D3.07 Shortcut vs menu accelerator pass
@@ -907,13 +907,13 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 ### D3.01 — Native menu bar
 
 **Depends on:** Phase 2  
-**Files:** Rust menu, JS listeners as needed
+**Files:** Rust menu in `apps/desktop/src-tauri/src/menu.rs` owns native actions (Edit / About / Close / Quit / Fullscreen / Open-data-folder). JS `apps/web/src/lib/menuRoutes.ts` resolves only navigable commands (`new`, `shortcuts`, `import`, `export`, `process`, `cull`) to an href or ignore. Help lists `CmdOrCtrl+N/W/Q` only, not a second native menu tree.
 
 Menus: File (New, Open data folder, Import, Export, Close, Quit); Edit (OS defaults); View (Fullscreen); Project (Process, Culling); Help (Shortcuts, About dialog only — no updater).
 
 Preserve P/M/X/U/1–5/0/Space/Z/C/G/F/E. **No native menu item may use a bare-key accelerator** for those keys.
 
-**Tests:** `menuRoutes.test.ts` if a pure map is extracted; `reviewShortcutCommandFromEvent` still returns null for modifier chords (`reviewShortcuts.ts`). Run: `npm run test:web`. GUI recorded or `[~]`.
+**Tests:** `menuRoutes.test.ts` (navigable ids only; native-owned ids return ignore). Run: `npm --prefix apps/web run test:unit`. GUI recorded or `[~]`.
 
 **Commit:** `desktop: add native application menu`
 
@@ -922,9 +922,9 @@ Preserve P/M/X/U/1–5/0/Space/Z/C/G/F/E. **No native menu item may use a bare-k
 **Depends on:** D3.01, D1.02a  
 **Files:** desktop-only status bar or `Shell.tsx` gated by `isDesktopShell()`
 
-Show sidecar connected, project name, job step/percent. Reuse `processingProgress.ts`. Keep browser shell unchanged if possible.
+Show sidecar connected, project name, job step/percent. Reuse `firstActiveJob` / `hasActiveProcessingJob` from `processingProgress.ts`. `Shell` passes `usePathname()` into the status bar; the bar does not read `window.location` or import `menuRoutes`. Jobs query key stays `["jobs", projectId]` and polls slowly while idle so a newly started import is visible.
 
-**Tests:** helper/render test when `isDesktopShell()` is true. Run: `npm run test:web`.
+**Tests:** `processingProgress.test.ts` / `statusBarModel.test.ts`. Run: `npm --prefix apps/web run test:unit`.
 
 **Commit:** `desktop: add status bar for sidecar and jobs`
 
@@ -942,11 +942,9 @@ Show sidecar connected, project name, job step/percent. Reuse `processingProgres
 ### D3.04 — System theme follow (light/dark)
 
 **Depends on:** D3.02  
-**Files:** CSS / Tailwind `dark:` scoped to `[data-shell="desktop"]`
+**Files:** CSS variables on the `ink` / `mist` / `line` / `surface` / `muted` tokens (`--fp-*` light defaults in `apps/web/src/app/globals.css`; `apps/desktop/src/styles.css` swaps them on `html[data-shell="desktop"]` under `prefers-color-scheme: dark`). Both Tailwind configs consume `apps/web/src/theme/tokens.ts`. No Tailwind `darkMode`, no `dark:` chrome patches, and no `.bg-white` utility remaps. Primary `bg-ink` controls use `text-mist`. Browser stays light-only.
 
-Browser may stay light-only.
-
-**Tests:** none (CSS) plus visual note. Run: `npm run test:web` if components changed.
+**Tests:** `apps/web/src/lib/desktopTheme.test.ts`. Run: `npm --prefix apps/web run test:unit`. Visual GUI remains `[~]` without a recorded desktop WebView.
 
 **Commit:** `desktop: follow system light/dark theme`
 

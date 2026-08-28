@@ -4,38 +4,46 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { MENU_EVENT, MENU_ITEMS, menuHrefForCommand } from "./menuRoutes.ts";
+import {
+  MENU_EVENT,
+  desktopMenuHelpSection,
+  menuHrefForCommand,
+  resolveMenuCommand,
+} from "./menuRoutes.ts";
+import { projectIdFromPathname } from "./projectRouting.ts";
 
-test("defines File Edit View Project Help native menu items", () => {
-  assert.deepEqual(Object.keys(MENU_ITEMS), ["File", "Edit", "View", "Project", "Help"]);
-  assert.deepEqual(
-    MENU_ITEMS.File.map((item) => item.id),
-    ["new", "open-data-folder", "import", "export", "close", "quit"],
-  );
-  assert.deepEqual(
-    MENU_ITEMS.File.map((item) => item.label),
-    ["New", "Open data folder", "Import", "Export", "Close", "Quit"],
-  );
-  assert.deepEqual(
-    MENU_ITEMS.Edit.map((item) => item.id),
-    ["undo", "redo", "cut", "copy", "paste", "select_all"],
-  );
-  assert.deepEqual(
-    MENU_ITEMS.View.map((item) => item.id),
-    ["fullscreen"],
-  );
-  assert.deepEqual(MENU_ITEMS.View.map((item) => item.label), ["Fullscreen"]);
-  assert.deepEqual(
-    MENU_ITEMS.Project.map((item) => item.id),
-    ["process", "cull"],
-  );
-  assert.deepEqual(MENU_ITEMS.Project.map((item) => item.label), ["Process", "Culling"]);
-  assert.deepEqual(
-    MENU_ITEMS.Help.map((item) => item.id),
-    ["shortcuts", "about"],
-  );
-  assert.deepEqual(MENU_ITEMS.Help.map((item) => item.label), ["Shortcuts", "About"]);
+const NAVIGABLE = ["new", "shortcuts", "import", "export", "process", "cull"] as const;
+const NATIVE_OWNED = [
+  "open-data-folder",
+  "close",
+  "quit",
+  "fullscreen",
+  "about",
+  "undo",
+  "redo",
+  "cut",
+  "copy",
+  "paste",
+  "select_all",
+] as const;
+
+test("TypeScript resolves only navigable menu commands", () => {
+  const source = fs.readFileSync(new URL("./menuRoutes.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /export const MENU_ITEMS/);
+  assert.doesNotMatch(source, /menuNativeAction/);
   assert.equal(MENU_EVENT, "framepilot-menu");
+  for (const id of NAVIGABLE) {
+    const resolved = resolveMenuCommand(id, "/projects/abc/cull", "abc");
+    assert.equal(resolved.type, "navigate");
+    assert.ok(resolved.href);
+  }
+});
+
+test("native-owned menu ids are ignored by JS routing", () => {
+  for (const id of NATIVE_OWNED) {
+    assert.equal(menuHrefForCommand(id, "/projects/abc", "abc"), null);
+    assert.deepEqual(resolveMenuCommand(id, "/projects/abc", "abc"), { type: "ignore" });
+  }
 });
 
 test("routes New and Shortcuts without a project id", () => {
@@ -57,31 +65,24 @@ test("ignores the new-project path and uses last opened project id", () => {
   assert.equal(menuHrefForCommand("export", "/projects/new", null), null);
 });
 
-test("leaves native-only menu commands without a route", () => {
-  assert.equal(menuHrefForCommand("open-data-folder", "/projects/abc", "abc"), null);
-  assert.equal(menuHrefForCommand("close", "/projects/abc", "abc"), null);
-  assert.equal(menuHrefForCommand("quit", "/projects/abc", "abc"), null);
-  assert.equal(menuHrefForCommand("fullscreen", "/projects/abc", "abc"), null);
-  assert.equal(menuHrefForCommand("about", "/projects/abc", "abc"), null);
+test("projectIdFromPathname is a generic path helper", () => {
+  assert.equal(projectIdFromPathname("/projects/abc/cull"), "abc");
+  assert.equal(projectIdFromPathname("/projects/new"), null);
+  assert.equal(projectIdFromPathname("/help"), null);
+  const menuSource = fs.readFileSync(new URL("./menuRoutes.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(menuSource, /export function projectIdFromPathname/);
 });
 
-test("does not bind reserved culling keys as bare accelerators", () => {
-  const reserved = new Set(["p", "m", "x", "u", "1", "2", "3", "4", "5", "0", " ", "z", "c", "g", "f", "e", "space"]);
-  const items = Object.values(MENU_ITEMS).flat();
-  for (const item of items) {
-    const accelerator = item.accelerator;
-    if (!accelerator) {
-      continue;
-    }
-    const parts = accelerator.split("+");
-    const last = parts[parts.length - 1]?.toLowerCase() ?? "";
-    if (parts.length === 1) {
-      assert.equal(reserved.has(last), false, `${item.id} uses reserved bare accelerator ${accelerator}`);
-    }
-  }
+test("Help documents only CmdOrCtrl+N/W/Q from the desktop menu", () => {
+  assert.deepEqual(
+    desktopMenuHelpSection.shortcuts.map((item) => item.keys),
+    ["CmdOrCtrl+N", "CmdOrCtrl+W", "CmdOrCtrl+Q"],
+  );
+  const help = fs.readFileSync(new URL("../components/HelpShortcuts.tsx", import.meta.url), "utf8");
+  assert.match(help, /desktopMenuHelpSection/);
 });
 
-test("rust menu source avoids reserved bare-key accelerators", () => {
+test("rust menu source remains the native catalog and avoids reserved bare-key accelerators", () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const menuSourcePath = path.resolve(here, "../../../desktop/src-tauri/src/menu.rs");
   const source = fs.readFileSync(menuSourcePath, "utf8");

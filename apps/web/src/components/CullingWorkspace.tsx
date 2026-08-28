@@ -22,6 +22,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
+import { isDesktopShell } from "@/lib/shell";
 import { Link, useNavigator, useQueryParams } from "@/lib/navigation";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
 import {
@@ -516,8 +517,14 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
 
   if (isLoading) {
     return (
-      <section className="grid min-h-[calc(100vh-73px)] place-items-center px-5">
-        <div className="inline-flex items-center gap-2 text-sm text-neutral-700">
+      <section
+        className={
+          isDesktopShell()
+            ? "grid h-full min-h-0 place-items-center px-5"
+            : "grid min-h-[calc(100vh-73px)] place-items-center px-5"
+        }
+      >
+        <div className="inline-flex items-center gap-2 text-sm text-muted">
           <Loader2 className="animate-spin text-leaf" size={18} />
           Loading culling workspace...
         </div>
@@ -530,7 +537,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
         <h1 className="text-2xl font-semibold">Culling Workspace</h1>
         <p className="text-sm text-coral">Could not load this project: {loadErrorMessage}</p>
-        <p className="text-sm text-neutral-600">{reviewLoadRecoveryMessage("workspace")}</p>
+        <p className="text-sm text-muted">{reviewLoadRecoveryMessage("workspace")}</p>
       </section>
     );
   }
@@ -539,17 +546,17 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     return (
       <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
         <div>
-          <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
+          <p className="text-sm text-muted">{project.data?.name ?? "Project"}</p>
           <h1 className="mt-1 text-2xl font-semibold">Import Still Running</h1>
         </div>
-        <p className="text-sm text-neutral-700">
+        <p className="text-sm text-muted">
           Wait for previews and import analysis to finish before opening the culling workspace.
         </p>
-        <p className="text-sm text-neutral-700">
+        <p className="text-sm text-muted">
           {activeImportJob.current_step} · {processingProgressSummary(activeImportJob, project.data)}
         </p>
         <Link
-          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-mist"
           href={`/projects/${projectId}/import`}
         >
           <Upload size={18} />
@@ -563,17 +570,17 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     return (
       <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
         <div>
-          <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
+          <p className="text-sm text-muted">{project.data?.name ?? "Project"}</p>
           <h1 className="mt-1 text-2xl font-semibold">Processing Still Running</h1>
         </div>
-        <p className="text-sm text-neutral-700">
+        <p className="text-sm text-muted">
           Wait for grouping and ranking to finish before opening the culling workspace.
         </p>
-        <p className="text-sm text-neutral-700">
+        <p className="text-sm text-muted">
           {activeProcessingJob.current_step} · {processingProgressSummary(activeProcessingJob, project.data)}
         </p>
         <Link
-          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-mist"
           href={`/projects/${projectId}/process`}
         >
           <Play size={18} />
@@ -587,14 +594,14 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     return (
       <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
         <div>
-          <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
+          <p className="text-sm text-muted">{project.data?.name ?? "Project"}</p>
           <h1 className="mt-1 text-2xl font-semibold">No Photos Imported</h1>
         </div>
-        <p className="text-sm text-neutral-700">
+        <p className="text-sm text-muted">
           Import JPEG, PNG, or WebP images before opening the culling workspace.
         </p>
         <Link
-          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-mist"
           href={`/projects/${projectId}/import`}
         >
           <Upload size={18} />
@@ -608,12 +615,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     return (
       <section className="mx-auto grid max-w-3xl gap-4 px-5 py-10">
         <div>
-          <p className="text-sm text-neutral-600">{project.data?.name ?? "Project"}</p>
+          <p className="text-sm text-muted">{project.data?.name ?? "Project"}</p>
           <h1 className="mt-1 text-2xl font-semibold">Processing Needed</h1>
         </div>
-        <p className="text-sm text-neutral-700">Run grouping and ranking before reviewing recommendations.</p>
+        <p className="text-sm text-muted">Run grouping and ranking before reviewing recommendations.</p>
         <Link
-          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white"
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-mist"
           href={`/projects/${projectId}/process`}
         >
           <Play size={18} />
@@ -624,14 +631,20 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   }
 
   return (
-    <section className="grid min-h-[calc(100vh-73px)] grid-rows-[auto_1fr_auto] lg:h-[calc(100vh-73px)] lg:min-h-0 lg:overflow-hidden">
+    <section
+      className={
+        isDesktopShell()
+          ? "grid h-full min-h-0 grid-rows-[auto_1fr_auto] overflow-hidden"
+          : "grid min-h-[calc(100vh-73px)] grid-rows-[auto_1fr_auto] lg:h-[calc(100vh-73px)] lg:min-h-0 lg:overflow-hidden"
+      }
+    >
       <div className="sr-only" aria-live="polite" role="status">
         {liveAnnouncement}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-5 py-3">
         <div>
           <h1 className="text-lg font-semibold">{project.data?.name ?? "Culling Workspace"}</h1>
-          <p className="text-sm text-neutral-600">
+          <p className="text-sm text-muted">
             {reviewHeaderSummary({
               activeGroupIndex,
               groupCount: groups.length,
@@ -645,7 +658,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               <p className="text-coral">
                 {(loadAllPhotosMutation.error ?? loadAllGroupsMutation.error)?.message}
               </p>
-              <p className="text-neutral-600">
+              <p className="text-muted">
                 {reviewLoadRecoveryMessage(loadAllPhotosMutation.error ? "photos" : "groups")}
               </p>
             </div>
@@ -654,7 +667,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         <div className="flex flex-wrap items-center gap-2">
           {photosPartiallyLoaded ? (
             <button
-              className="focus-ring rounded border border-line bg-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+              className="focus-ring rounded border border-line bg-surface px-4 py-2 text-sm font-medium disabled:opacity-50"
               disabled={loadAllPhotosMutation.isPending}
               onClick={() => loadAllPhotosMutation.mutate()}
             >
@@ -662,7 +675,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
             </button>
           ) : null}
           <Link
-            className="focus-ring rounded bg-ink px-4 py-2 text-sm font-medium text-white"
+            className="focus-ring rounded bg-ink px-4 py-2 text-sm font-medium text-mist"
             href={`/projects/${projectId}/export`}
           >
             Export
@@ -670,7 +683,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         </div>
       </div>
       <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_320px]">
-        <aside className="min-h-0 border-b border-line bg-white p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r">
+        <aside className="min-h-0 border-b border-line bg-surface p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r">
           <h2 className="mb-3 text-sm font-semibold">Filters</h2>
           <div className="grid gap-1">
             {REVIEW_FILTERS.map((item, index) => (
@@ -699,10 +712,10 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
               </button>
             ) : null}
           </div>
-          <div className="grid gap-2 text-sm text-neutral-700">
+          <div className="grid gap-2 text-sm text-muted">
             {activeGroupId ? (
               <button
-                className="focus-ring rounded border border-line bg-white px-3 py-2 text-left"
+                className="focus-ring rounded border border-line bg-surface px-3 py-2 text-left"
                 onClick={() => selectGroup(null)}
               >
                 Show filtered photos
@@ -723,7 +736,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   const groupPhotoLabel = groupPhotoCountLabel(group.photo_count);
                   return (
                     <button
-                      className={`focus-ring absolute left-0 top-0 w-full rounded border px-3 py-2 text-left ${isActiveGroup ? "border-leaf bg-mist" : "border-line bg-white"}`}
+                      className={`focus-ring absolute left-0 top-0 w-full rounded border px-3 py-2 text-left ${isActiveGroup ? "border-leaf bg-mist" : "border-line bg-surface"}`}
                       key={group.id}
                       data-index={virtualItem.index}
                       style={{
@@ -746,7 +759,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                         <span>Group {groupNumber}</span>
                         <span>{group.photo_count}</span>
                       </span>
-                      <span className="mt-1 block text-xs text-neutral-500">{groupConfidenceLabel(summary)}</span>
+                      <span className="mt-1 block text-xs text-muted">{groupConfidenceLabel(summary)}</span>
                     </button>
                   );
                 })}
@@ -762,7 +775,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           {compareMode && comparePhotos.length > 1 ? (
             <div className="grid h-full w-full min-w-0 gap-3 md:grid-cols-2">
               {compareCandidates.length > comparePhotos.length ? (
-                <span className="md:col-span-2 justify-self-start rounded bg-white/90 px-2 py-1 text-xs text-ink">
+                <span className="md:col-span-2 justify-self-start rounded bg-surface/90 px-2 py-1 text-xs text-ink">
                   {comparePhotos.length} of {compareCandidates.length} compare candidates
                 </span>
               ) : null}
@@ -793,7 +806,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     ) : (
                       <span className="text-sm text-white">{compareFallback.shortTitle}</span>
                     )}
-                    <span className="mt-2 justify-self-start rounded bg-white/90 px-2 py-1 text-xs text-ink">
+                    <span className="mt-2 justify-self-start rounded bg-surface/90 px-2 py-1 text-xs text-ink">
                       {photo.filename} · {photo.ai_recommendation}
                     </span>
                   </button>
@@ -852,22 +865,22 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           )}
         </div>
         {!largePreview ? (
-          <aside className="min-h-0 border-t border-line bg-white p-4 lg:overflow-y-auto lg:border-l lg:border-t-0">
+          <aside className="min-h-0 border-t border-line bg-surface p-4 lg:overflow-y-auto lg:border-l lg:border-t-0">
             {activePhoto ? (
               <div className="grid gap-4">
                 <div>
                   <h2 className="font-semibold">{activePhoto.filename}</h2>
-                  <p className="text-sm text-neutral-600">
+                  <p className="text-sm text-muted">
                     {activePhoto.width} x {activePhoto.height}
                   </p>
                 </div>
                 {metadataRows.length ? (
                   <div className="rounded border border-line p-3 text-sm">
                     <p className="font-semibold">Metadata</p>
-                    <div className="mt-2 grid gap-1 text-neutral-700">
+                    <div className="mt-2 grid gap-1 text-muted">
                       {metadataRows.map(([label, value]) => (
                         <p className="flex justify-between gap-3" key={label}>
-                          <span className="text-neutral-500">{label}</span>
+                          <span className="text-muted">{label}</span>
                           <span className="text-right">{value}</span>
                         </p>
                       ))}
@@ -878,12 +891,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   <div className="rounded border border-line bg-mist p-3 text-sm">
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-semibold">{groupConfidenceLabel(activeGroupSummary)}</p>
-                      <p className="text-neutral-600">{groupPhotoCountLabel(activeGroup.photo_count)}</p>
+                      <p className="text-muted">{groupPhotoCountLabel(activeGroup.photo_count)}</p>
                     </div>
                     {activeGroupSummary ? (
                       <>
-                        <p className="mt-2 text-neutral-700">{activeGroupSummary.explanation}</p>
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-neutral-700">
+                        <p className="mt-2 text-muted">{activeGroupSummary.explanation}</p>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
                           {groupScoreSummaryRows(activeGroupSummary).map(([label, value]) => (
                             <span key={label}>
                               {label} {value}
@@ -897,12 +910,12 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   {reviewScoreRows(activePhoto).map(([label, value]) => (
                     <div className="rounded border border-line p-3" key={label}>
-                      <p className="text-neutral-600">{label}</p>
+                      <p className="text-muted">{label}</p>
                       <p className="mt-1 font-semibold">{value}</p>
                     </div>
                   ))}
                 </div>
-                <p className="text-sm text-neutral-600">
+                <p className="text-sm text-muted">
                   {activePhoto.face_presence
                     ? "Experimental face signals detected for this frame."
                     : "No experimental face signals detected."}
@@ -913,15 +926,15 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                 {activePhoto.processing_error ? (
                   <div className="rounded border border-coral/40 bg-coral/10 p-3 text-sm">
                     <p className="font-semibold text-coral">Processing error</p>
-                    <p className="mt-1 text-neutral-700">{activePhoto.processing_error}</p>
+                    <p className="mt-1 text-muted">{activePhoto.processing_error}</p>
                   </div>
                 ) : null}
                 <div className="rounded border border-line p-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold">Batch mark</p>
-                    <p className="text-right text-xs text-neutral-600">{batchScopeSummary}</p>
+                    <p className="text-right text-xs text-muted">{batchScopeSummary}</p>
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-neutral-600">{batchScopeDetail}</p>
+                  <p className="mt-2 text-xs leading-5 text-muted">{batchScopeDetail}</p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <button
                       className="focus-ring rounded bg-leaf px-2 py-2 text-xs font-medium text-white disabled:opacity-50"
@@ -957,7 +970,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                     </button>
                   </div>
                 </div>
-                <div className="sticky bottom-0 -mx-4 grid gap-3 border-t border-line bg-white px-4 pb-1 pt-3 shadow-[0_-8px_18px_rgba(21,21,21,0.06)]">
+                <div className="sticky bottom-0 -mx-4 grid gap-3 border-t border-line bg-surface px-4 pb-1 pt-3 shadow-[0_-8px_18px_rgba(21,21,21,0.06)]">
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       className="focus-ring rounded bg-leaf px-3 py-2 text-sm font-medium text-white"
@@ -995,7 +1008,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                   {saveErrorMessage ? <p className="text-sm text-coral">{saveErrorMessage}</p> : null}
                   <div className="flex gap-1">
                     <button
-                      className="focus-ring rounded p-2 text-neutral-600"
+                      className="focus-ring rounded p-2 text-muted"
                       onClick={() => rate(0)}
                       aria-label="Clear rating"
                       aria-pressed={activePhoto.star_rating === 0}
@@ -1020,7 +1033,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
           </aside>
         ) : null}
       </div>
-      <div className="flex min-h-28 items-center gap-3 border-t border-line bg-white px-4 py-3 lg:min-h-0">
+      <div className="flex min-h-28 items-center gap-3 border-t border-line bg-surface px-4 py-3 lg:min-h-0">
         <button
           className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border border-line"
           onClick={() => move(-1)}
@@ -1077,7 +1090,7 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
                       {thumbnailFallback.shortTitle}
                     </span>
                   )}
-                  <span className="absolute bottom-1 left-1 rounded bg-white/90 px-1 text-xs">{photo.user_status}</span>
+                  <span className="absolute bottom-1 left-1 rounded bg-surface/90 px-1 text-xs">{photo.user_status}</span>
                   {photo.ai_recommendation === "Pick" ? (
                     <Check className="absolute right-1 top-1 rounded bg-leaf text-white" size={16} />
                   ) : null}

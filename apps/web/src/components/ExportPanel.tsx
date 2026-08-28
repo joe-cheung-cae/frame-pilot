@@ -43,7 +43,7 @@ type Mode = "csv" | "folder" | "zip";
 
 const RECENT_EXPORT_LIMIT = 50;
 const PREFERENCE_MESSAGE_CLASS = {
-  neutral: "text-neutral-600",
+  neutral: "text-muted",
   success: "text-leaf",
   warning: "text-coral",
 } as const;
@@ -221,18 +221,18 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   return (
     <section className="mx-auto grid max-w-4xl gap-6 px-5 py-8">
       <div>
-        <p className="text-sm text-neutral-600">
+        <p className="text-sm text-muted">
           {exportSelectedCountLabel({ isLoading: statusCountsLoading, selectedCount })}
         </p>
         <h1 className="mt-1 text-3xl font-semibold">Export Selection</h1>
         {projectQuery.data?.root_path ? (
-          <p className="mt-2 break-all text-sm text-neutral-600">
+          <p className="mt-2 break-all text-sm text-muted">
             Exports folder: {projectExportRoot(projectQuery.data.root_path)}
           </p>
         ) : null}
         {nativeFs ? <div className="mt-2">{openExportFolderButton()}</div> : null}
       </div>
-      <div className="grid gap-2 rounded border border-line bg-white p-4">
+      <div className="grid gap-2 rounded border border-line bg-surface p-4">
         <h2 className="text-sm font-semibold">Statuses</h2>
         <div className="grid gap-2 sm:grid-cols-4">
           {EXPORT_STATUSES.map((status) => (
@@ -252,7 +252,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                 />
                 {status}
               </span>
-              <span className="text-neutral-600">
+              <span className="text-muted">
                 {exportStatusCountLabel({ count: statusCounts[status], isLoading: statusCountsLoading })}
               </span>
             </label>
@@ -270,7 +270,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
             <button
               aria-pressed={mode === item.mode}
               className={`focus-ring flex min-h-24 items-center justify-center gap-3 rounded border px-4 font-medium disabled:cursor-not-allowed disabled:opacity-60 ${
-                mode === item.mode ? "border-leaf bg-white text-leaf" : "border-line bg-white"
+                mode === item.mode ? "border-leaf bg-surface text-leaf" : "border-line bg-surface"
               }`}
               disabled={exportControlsDisabled}
               key={item.mode}
@@ -284,7 +284,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         })}
       </div>
       <button
-        className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-white disabled:opacity-50"
+        className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-mist disabled:opacity-50"
         disabled={Boolean(exportBlockMessage)}
         onClick={() => mutation.mutate()}
       >
@@ -294,17 +294,17 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       {projectQuery.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{projectQuery.error.message}</p>
-          <p className="text-neutral-600">{exportLoadRecoveryMessage("project")}</p>
+          <p className="text-muted">{exportLoadRecoveryMessage("project")}</p>
         </div>
       ) : null}
       {statusCountsQuery.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{statusCountsQuery.error.message}</p>
-          <p className="text-neutral-600">{exportLoadRecoveryMessage("statusCounts")}</p>
+          <p className="text-muted">{exportLoadRecoveryMessage("statusCounts")}</p>
         </div>
       ) : null}
       {exportBlockMessage && !statusCountsQuery.isError ? (
-        <p className={`text-sm ${!statuses.length ? "text-coral" : "text-neutral-600"}`}>{exportBlockMessage}</p>
+        <p className={`text-sm ${!statuses.length ? "text-coral" : "text-muted"}`}>{exportBlockMessage}</p>
       ) : null}
       {preferenceMessage ? (
         <p className={`text-sm ${PREFERENCE_MESSAGE_CLASS[exportPreferenceMessageTone(preferenceMessage)]}`}>
@@ -312,12 +312,12 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         </p>
       ) : null}
       {mutation.data ? (
-        <div className="grid gap-3 rounded border border-line bg-white p-4 text-sm">
+        <div className="grid gap-3 rounded border border-line bg-surface p-4 text-sm">
           <p className="break-all text-leaf">
             {photoCountLabel(mutation.data.selected_count)} exported
             {mutation.data.mode === "folder" ? ` to ${mutation.data.output_path}` : "."}
           </p>
-          <p className="text-neutral-600">Statuses: {formatExportStatusSummary(mutation.data.statuses)}</p>
+          <p className="text-muted">Statuses: {formatExportStatusSummary(mutation.data.statuses)}</p>
           {copyPathButton(mutation.data.output_path)}
           {mutation.data.mode === "folder" ? openExportFolderButton(mutation.data.output_path) : null}
           {csvZipRevealOrDownload(mutation.data, `Download ${mutation.data.mode.toUpperCase()}`)}
@@ -326,22 +326,22 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       {copyError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{copyError}</p>
-          <p className="text-neutral-600">{exportActionRecoveryMessage("copyPath")}</p>
+          <p className="text-muted">{exportActionRecoveryMessage("copyPath")}</p>
         </div>
       ) : null}
       {mutation.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{mutation.error.message}</p>
-          <p className="text-neutral-600">{exportActionRecoveryMessage("runExport")}</p>
+          <p className="text-muted">{exportActionRecoveryMessage("runExport")}</p>
         </div>
       ) : null}
       <div className="grid gap-3">
         <h2 className="text-sm font-semibold">Export History</h2>
-        {exportsQuery.isLoading ? <p className="text-sm text-neutral-600">Loading export history...</p> : null}
+        {exportsQuery.isLoading ? <p className="text-sm text-muted">Loading export history...</p> : null}
         {exportsQuery.isError ? (
           <div className="grid gap-1 text-sm">
             <p className="text-coral">{exportsQuery.error.message}</p>
-            <p className="text-neutral-600">{exportLoadRecoveryMessage("history")}</p>
+            <p className="text-muted">{exportLoadRecoveryMessage("history")}</p>
           </div>
         ) : null}
         {exportsQuery.data?.length ? (
@@ -350,7 +350,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
               const recoveryMessage = exportRecoveryMessage(record.status);
               return (
                 <div
-                  className="grid gap-1 rounded border border-line bg-white p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
+                  className="grid gap-1 rounded border border-line bg-surface p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
                   key={record.id}
                 >
                   <div>
@@ -362,18 +362,18 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                             ? "text-coral"
                             : record.status === "running"
                               ? "text-leaf"
-                              : "text-neutral-500"
+                              : "text-muted"
                         }`}
                       >
                         {formatExportRecordStatus(record.status)}
                       </span>
                     </p>
-                    <p className="text-neutral-600">Statuses: {formatExportStatusSummary(record.statuses)}</p>
-                    <p className="break-all text-neutral-600">{record.output_path}</p>
+                    <p className="text-muted">Statuses: {formatExportStatusSummary(record.statuses)}</p>
+                    <p className="break-all text-muted">{record.output_path}</p>
                     {record.status === "failed" && record.error_message ? (
                       <p className="text-coral">{record.error_message}</p>
                     ) : null}
-                    {recoveryMessage ? <p className="text-neutral-600">{recoveryMessage}</p> : null}
+                    {recoveryMessage ? <p className="text-muted">{recoveryMessage}</p> : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {copyPathButton(record.output_path)}
@@ -387,7 +387,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
         ) : null}
         {canLoadMoreExports ? (
           <button
-            className="focus-ring w-fit rounded border border-line bg-white px-3 py-2 text-sm font-medium disabled:opacity-50"
+            className="focus-ring w-fit rounded border border-line bg-surface px-3 py-2 text-sm font-medium disabled:opacity-50"
             disabled={exportsQuery.isFetching}
             onClick={() => setExportLimit((current) => current + RECENT_EXPORT_LIMIT)}
           >
@@ -395,7 +395,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           </button>
         ) : null}
         {!exportsQuery.isLoading && !exportsQuery.isError && !exportsQuery.data?.length ? (
-          <p className="text-sm text-neutral-600">No exports yet.</p>
+          <p className="text-sm text-muted">No exports yet.</p>
         ) : null}
       </div>
     </section>

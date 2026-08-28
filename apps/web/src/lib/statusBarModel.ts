@@ -1,11 +1,6 @@
 import type { ProcessingJob } from "./api.ts";
-import { projectIdFromPathname } from "./menuRoutes.ts";
-import {
-  processingJobForDisplay,
-  processingJobTypeLabel,
-  processingProgressPercent,
-  processingStatusLabel,
-} from "./processingProgress.ts";
+import { firstActiveJob, processingJobForDisplay, processingJobTypeLabel, processingProgressPercent, processingStatusLabel } from "./processingProgress.ts";
+import { projectIdFromPathname } from "./projectRouting.ts";
 
 type StatusBarJobLabel = Pick<ProcessingJob, "current_step" | "job_type" | "progress_percent" | "status">;
 type StatusBarJobCandidate = Pick<ProcessingJob, "id" | "job_type" | "status">;
@@ -52,7 +47,7 @@ export function jobLabel(job: StatusBarJobLabel | null | undefined): string {
 }
 
 export function statusBarJob<T extends StatusBarJobCandidate>(jobs: readonly T[] | null | undefined): T | undefined {
-  const active = jobs?.find((job) => job.status === "queued" || job.status === "running");
+  const active = firstActiveJob(jobs);
   if (active) {
     return active;
   }

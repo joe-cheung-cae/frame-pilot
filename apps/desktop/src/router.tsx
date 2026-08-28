@@ -15,7 +15,7 @@ function HomePage() {
   return (
     <Shell>
       <section className="mx-auto max-w-7xl px-5 py-8">
-        <div className="rounded border border-line bg-white p-5">
+        <div className="rounded border border-line bg-surface p-5">
           <h2 className="mb-4 font-semibold">Recent Projects</h2>
           <ProjectList />
         </div>
@@ -45,10 +45,10 @@ function NewProjectPage() {
     <Shell>
       <section className="mx-auto grid max-w-2xl gap-6 px-5 py-10">
         <div>
-          <p className="text-sm text-neutral-600">Local project database</p>
+          <p className="text-sm text-muted">Local project database</p>
           <h1 className="mt-1 text-3xl font-semibold">Create Project</h1>
         </div>
-        <div className="rounded border border-line bg-white p-5">
+        <div className="rounded border border-line bg-surface p-5">
           <ProjectCreator />
         </div>
       </section>

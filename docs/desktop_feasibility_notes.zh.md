@@ -176,3 +176,9 @@ error: rustc 1.85.0 is not supported by the following packages:
 `npm run test:web`（node unit + vitest + Next build）和 `npm run typecheck:desktop` 已通过。`APP_VERSION` 仍为 `2.0.0-rc2`。未启动 `npm run dev:desktop`，因为它会触发同样失败的 `cargo` 编译。未安装 display-server 包。
 
 直到有日期的 `cargo test` / WebView 状态栏渲染成功，D3.02 保持 `[~]`。
+
+## D3.01–D3.04 合入后补审 — 2026-08-28
+
+分支 `feature/phase3-landed-review`（issue https://github.com/joe-cheung-cae/frame-pilot/issues/52）。主题改为 CSS 变量（`surface` / `muted`），在 `apps/desktop/src/styles.css` 里对 `html[data-shell="desktop"]` 且 `prefers-color-scheme: dark` 时交换。浏览器 `globals.css` 保持仅浅色，不再重映射 `.bg-white`。JS 菜单路由只处理可导航命令；状态栏使用 `usePathname` 和 `firstActiveJob`。
+
+本机 PATH 上没有 `rustc`/`cargo`。反转主题的 WebView 仍未验证。D3.04 CSS 为 `[x]`；D3.04 视觉与 D3.01–D3.03 GUI 仍为 `[~]`。`APP_VERSION` 仍为 `2.0.0-rc2`。

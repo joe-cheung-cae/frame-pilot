@@ -40,7 +40,7 @@ export function ProjectList() {
     return (
       <div className="grid gap-1 text-sm">
         <p className="text-coral">Could not load projects: {error.message}</p>
-        <p className="text-neutral-600">{projectLoadRecoveryMessage("list")}</p>
+        <p className="text-muted">{projectLoadRecoveryMessage("list")}</p>
       </div>
     );
   }
@@ -49,9 +49,9 @@ export function ProjectList() {
     return (
       <div className="grid gap-3 rounded border border-dashed border-line bg-mist p-4 text-sm">
         <p className="font-medium text-ink">No projects yet.</p>
-        <p className="text-neutral-600">Create a local project before importing photos.</p>
+        <p className="text-muted">Create a local project before importing photos.</p>
         <Link
-          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-3 py-2 font-medium text-white"
+          className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-3 py-2 font-medium text-mist"
           href="/projects/new"
         >
           <FolderOpen size={16} />
@@ -70,7 +70,7 @@ export function ProjectList() {
         const activeImport = projectHasActiveImport(project);
         const lastOpened = project.id === lastOpenedId;
         return (
-          <article className="grid gap-3 rounded border border-line bg-white p-4" key={project.id}>
+          <article className="grid gap-3 rounded border border-line bg-surface p-4" key={project.id}>
             <span className="flex items-center justify-between gap-4">
               <Link
                 className="focus-ring font-medium text-ink hover:text-leaf"
@@ -81,7 +81,7 @@ export function ProjectList() {
               </Link>
               <Images size={18} className="text-leaf" />
             </span>
-            <span className="text-sm text-neutral-600">{projectProgressSummary(project)}</span>
+            <span className="text-sm text-muted">{projectProgressSummary(project)}</span>
             {lastOpened ? (
               <span className="inline-flex w-fit rounded bg-mist px-2 py-1 text-xs font-medium text-leaf">
                 Last opened
@@ -100,7 +100,7 @@ export function ProjectList() {
               Next: {projectNextActionLabel(project)}
               <ArrowRight size={14} />
             </Link>
-            <span className="grid gap-1 text-xs text-neutral-500">
+            <span className="grid gap-1 text-xs text-muted">
               <span>Storage: Copy mode</span>
               <span className="break-all">Project data: {project.root_path}</span>
             </span>

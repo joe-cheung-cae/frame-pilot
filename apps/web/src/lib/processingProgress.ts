@@ -62,15 +62,25 @@ export function processingJobTypeLabel(jobType: string): string {
   return jobType ? jobType[0].toUpperCase() + jobType.slice(1) : "Job";
 }
 
+export function firstActiveJob<T extends ProcessingJobCandidate>(
+  jobs: readonly T[] | null | undefined,
+): T | undefined {
+  return jobs?.find((job) => job.status === "queued" || job.status === "running");
+}
+
 export function hasActiveProcessingJob(jobs: readonly ProcessingJobCandidate[] | null | undefined): boolean {
-  return Boolean(jobs?.some((job) => job.status === "queued" || job.status === "running"));
+  return Boolean(firstActiveJob(jobs));
 }
 
 export function activeJobOfType<T extends ProcessingJobCandidate>(
   jobs: readonly T[] | null | undefined,
   jobType: string,
 ): T | undefined {
-  return jobs?.find((job) => job.job_type === jobType && (job.status === "queued" || job.status === "running"));
+  return firstActiveJob(jobs?.filter((job) => job.job_type === jobType));
+}
+
+export function jobsRefetchIntervalMs(jobs: readonly ProcessingJobCandidate[] | null | undefined): number {
+  return hasActiveProcessingJob(jobs) ? 1000 : 5000;
 }
 
 export function activeProcessingJob<T extends ProcessingJobCandidate>(jobs: readonly T[] | null | undefined): T | undefined {
