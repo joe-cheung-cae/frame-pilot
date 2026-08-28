@@ -2,14 +2,16 @@
 
 import { Camera, CircleHelp, FolderOpen, SlidersHorizontal } from "lucide-react";
 import { Link, usePathname } from "@/lib/navigation";
+import { isDesktopShell } from "@/lib/shell";
 
 import { StatusBar } from "./StatusBar";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const desktopShell = isDesktopShell();
   return (
-    <main className="min-h-screen bg-mist">
-      <header className="border-b border-line bg-surface">
+    <main className={desktopShell ? "flex h-screen flex-col overflow-hidden bg-mist" : "min-h-screen bg-mist"}>
+      <header className="shrink-0 border-b border-line bg-surface">
         <div className="mx-auto grid max-w-7xl gap-3 px-5 py-4 sm:flex sm:items-center sm:justify-between">
           <Link href="/" className="flex items-center gap-3 font-semibold text-ink">
             <span className="grid h-9 w-9 place-items-center rounded bg-leaf text-white">
@@ -45,7 +47,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </header>
-      {children}
+      <div className={desktopShell ? "flex min-h-0 flex-1 flex-col overflow-auto" : undefined}>{children}</div>
       <StatusBar pathname={pathname} />
     </main>
   );

@@ -22,6 +22,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { api, assetUrl, Photo, PhotoPatch } from "@/lib/api";
+import { isDesktopShell } from "@/lib/shell";
 import { Link, useNavigator, useQueryParams } from "@/lib/navigation";
 import { applyStatusCountChange, type ExportStatus } from "@/lib/exportSelection";
 import {
@@ -516,7 +517,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
 
   if (isLoading) {
     return (
-      <section className="grid min-h-[calc(100vh-73px)] place-items-center px-5">
+      <section
+        className={
+          isDesktopShell()
+            ? "grid h-full min-h-0 place-items-center px-5"
+            : "grid min-h-[calc(100vh-73px)] place-items-center px-5"
+        }
+      >
         <div className="inline-flex items-center gap-2 text-sm text-muted">
           <Loader2 className="animate-spin text-leaf" size={18} />
           Loading culling workspace...
@@ -624,7 +631,13 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   }
 
   return (
-    <section className="grid min-h-[calc(100vh-73px)] grid-rows-[auto_1fr_auto] lg:h-[calc(100vh-73px)] lg:min-h-0 lg:overflow-hidden">
+    <section
+      className={
+        isDesktopShell()
+          ? "grid h-full min-h-0 grid-rows-[auto_1fr_auto] overflow-hidden"
+          : "grid min-h-[calc(100vh-73px)] grid-rows-[auto_1fr_auto] lg:h-[calc(100vh-73px)] lg:min-h-0 lg:overflow-hidden"
+      }
+    >
       <div className="sr-only" aria-live="polite" role="status">
         {liveAnnouncement}
       </div>

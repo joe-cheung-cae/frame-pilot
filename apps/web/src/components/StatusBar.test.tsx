@@ -90,6 +90,10 @@ describe("StatusBar", () => {
     expect(status.textContent).toContain("Grouping and ranking");
     expect(status.textContent).toContain("Building groups");
     expect(status.textContent).toContain("42%");
+    const shell = status.closest("main");
+    expect(shell?.className).toContain("h-screen");
+    expect(shell?.className).toContain("flex-col");
+    expect(status.className).toContain("shrink-0");
     expect(screen.getByRole("link", { name: "Help" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Settings" })).toBeTruthy();
     expect(screen.getByRole("link", { name: /New Project/ })).toBeTruthy();
