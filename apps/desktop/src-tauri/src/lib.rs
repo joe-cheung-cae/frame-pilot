@@ -15,27 +15,56 @@ use menu::{build_app_menu, handle_menu_event, DesktopPaths};
 use sidecar::{
     allocate_loopback_port, api_pythonpath, app_quit_action, blocking_error_script,
     close_choice_from_handshake, close_decision, close_decision_requests_shutdown, close_job_kind,
-    default_python, find_active_job, initialization_script, parse_quit_choice, probe_health,
-    quit_dialog_script, repo_root, request_cancel_then_wait, sidecar_spawn_spec, sidecar_stderr_log,
-    spawn_sidecar, start_sidecar_unless_shutdown, supervisor_tick_after_probe, terminate_sidecar,
-    wait_for_health, AppQuitAction, AppQuitEvent, CloseDecision, CloseJobKind, SidecarStart,
-    SidecarState, SpawnedSidecar, SupervisorTick, CANCEL_WAIT, STARTUP_TIMEOUT,
+    default_python, find_active_job, frozen_sidecar_binary, initialization_script, parse_quit_choice,
+    probe_health, quit_dialog_script, repo_root, request_cancel_then_wait, sidecar_spawn_spec,
+    sidecar_stderr_log, spawn_sidecar, staged_sidecar_resource_root, start_sidecar_unless_shutdown,
+    supervisor_tick_after_probe, terminate_sidecar, wait_for_health, AppQuitAction, AppQuitEvent,
+    CloseDecision, CloseJobKind, SidecarLaunchMode, SidecarStart, SidecarState, SpawnedSidecar,
+    SupervisorTick, CANCEL_WAIT, STARTUP_TIMEOUT,
 };
 use tauri::{Listener, Manager, RunEvent, WindowEvent};
+
+fn resolve_launch_mode(
+    app: &tauri::AppHandle,
+    repo_root: &std::path::Path,
+) -> Result<SidecarLaunchMode, String> {
+    if cfg!(debug_assertions) {
+        return Ok(SidecarLaunchMode::DevVenv {
+            python: default_python(repo_root),
+            pythonpath: api_pythonpath(repo_root),
+        });
+    }
+
+    let mut candidates = Vec::new();
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        candidates.push(frozen_sidecar_binary(&resource_dir));
+    }
+    candidates.push(frozen_sidecar_binary(&staged_sidecar_resource_root()));
+
+    for binary in &candidates {
+        if binary.is_file() {
+            return Ok(SidecarLaunchMode::Frozen {
+                binary: binary.clone(),
+            });
+        }
+    }
+
+    Err(format!(
+        "frozen sidecar not found (tried {}). Run packaging/pyinstaller/build.sh then packaging/scripts/stage-sidecar.sh before a release build.",
+        candidates
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    ))
+}
 
 fn spawn_ready_sidecar(
     port: u16,
     data_dir: &std::path::Path,
-    python: &std::path::Path,
-    pythonpath: &std::path::Path,
+    mode: &SidecarLaunchMode,
 ) -> Result<Child, String> {
-    let spec = sidecar_spawn_spec(
-        python.to_path_buf(),
-        port,
-        data_dir,
-        pythonpath.to_path_buf(),
-    )
-    .map_err(|err| err.to_string())?;
+    let spec = sidecar_spawn_spec(mode.clone(), port, data_dir).map_err(|err| err.to_string())?;
     let spawned = SpawnedSidecar::new(
         spawn_sidecar(&spec, &sidecar_stderr_log(data_dir)).map_err(|err| err.to_string())?,
     );
@@ -50,26 +79,22 @@ fn spawn_ready_sidecar(
 fn start_sidecar_process(
     port: u16,
     data_dir: &std::path::Path,
-    python: &std::path::Path,
-    pythonpath: &std::path::Path,
+    mode: &SidecarLaunchMode,
     is_shutdown: impl Fn() -> bool,
 ) -> Result<SidecarStart, String> {
-    start_sidecar_unless_shutdown(is_shutdown, || {
-        spawn_ready_sidecar(port, data_dir, python, pythonpath)
-    })
+    start_sidecar_unless_shutdown(is_shutdown, || spawn_ready_sidecar(port, data_dir, mode))
 }
 
 fn start_sidecar_with_retry(
     port: u16,
     data_dir: &std::path::Path,
-    python: &std::path::Path,
-    pythonpath: &std::path::Path,
+    mode: &SidecarLaunchMode,
     is_shutdown: impl Fn() -> bool,
 ) -> Result<(Child, bool), String> {
-    match start_sidecar_process(port, data_dir, python, pythonpath, &is_shutdown) {
+    match start_sidecar_process(port, data_dir, mode, &is_shutdown) {
         Ok(SidecarStart::Started(child)) => Ok((child, false)),
         Ok(SidecarStart::Abandoned) => Err("sidecar start abandoned during shutdown".into()),
-        Err(first) => match start_sidecar_process(port, data_dir, python, pythonpath, &is_shutdown) {
+        Err(first) => match start_sidecar_process(port, data_dir, mode, &is_shutdown) {
             Ok(SidecarStart::Started(child)) => Ok((child, true)),
             Ok(SidecarStart::Abandoned) => {
                 Err(format!("{first}; retry abandoned during shutdown"))
@@ -150,8 +175,7 @@ fn supervise_sidecar(
     state: Arc<SidecarState>,
     port: u16,
     data_dir: std::path::PathBuf,
-    python: std::path::PathBuf,
-    pythonpath: std::path::PathBuf,
+    mode: SidecarLaunchMode,
     mut restart_used: bool,
 ) {
     let mut health_failures: u8 = 0;
@@ -187,9 +211,7 @@ fn supervise_sidecar(
                 if state.is_shutdown() {
                     return;
                 }
-                match start_sidecar_process(port, &data_dir, &python, &pythonpath, || {
-                    state.is_shutdown()
-                }) {
+                match start_sidecar_process(port, &data_dir, &mode, || state.is_shutdown()) {
                     Ok(SidecarStart::Started(child)) => {
                         health_failures = 0;
                         state.store_child(child);
@@ -231,13 +253,9 @@ pub fn run() {
         }
     };
     let root = repo_root();
-    let python = default_python(&root);
-    let pythonpath = api_pythonpath(&root);
     let state = SidecarState::new();
     let setup_state = Arc::clone(&state);
     let setup_data_dir = data_dir.clone();
-    let setup_python = python.clone();
-    let setup_pythonpath = pythonpath.clone();
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -256,22 +274,26 @@ pub fn run() {
         })
         .on_menu_event(|app, event| handle_menu_event(app, event))
         .setup(move |app| {
-            let (startup_error, restart_used) = {
-                let startup_state = Arc::clone(&setup_state);
-                match start_sidecar_with_retry(
-                    port,
-                    &setup_data_dir,
-                    &setup_python,
-                    &setup_pythonpath,
-                    move || startup_state.is_shutdown(),
-                ) {
-                    Ok((child, restart_used)) => {
-                        setup_state.store_child(child);
-                        (None, restart_used)
+            let launch_mode = resolve_launch_mode(app.handle(), &root);
+
+            let (startup_error, restart_used, watch_mode) = match launch_mode {
+                Ok(mode) => {
+                    let startup_state = Arc::clone(&setup_state);
+                    match start_sidecar_with_retry(
+                        port,
+                        &setup_data_dir,
+                        &mode,
+                        move || startup_state.is_shutdown(),
+                    ) {
+                        Ok((child, restart_used)) => {
+                            setup_state.store_child(child);
+                            (None, restart_used, Some(mode))
+                        }
+                        Err(_) if setup_state.is_shutdown() => (None, true, Some(mode)),
+                        Err(err) => (Some(err), true, Some(mode)),
                     }
-                    Err(_) if setup_state.is_shutdown() => (None, true),
-                    Err(err) => (Some(err), true),
                 }
+                Err(err) => (Some(err), true, None),
             };
 
             tauri::WebviewWindowBuilder::new(
@@ -293,20 +315,17 @@ pub fn run() {
                     app.handle(),
                     &format!("The local FramePilot API failed to start. {err}"),
                 );
-            } else {
+            } else if let Some(mode) = watch_mode {
                 let watch_app = app.handle().clone();
                 let watch_state = Arc::clone(&setup_state);
                 let watch_data_dir = setup_data_dir.clone();
-                let watch_python = setup_python.clone();
-                let watch_pythonpath = setup_pythonpath.clone();
                 thread::spawn(move || {
                     supervise_sidecar(
                         watch_app,
                         watch_state,
                         port,
                         watch_data_dir,
-                        watch_python,
-                        watch_pythonpath,
+                        mode,
                         restart_used,
                     );
                 });

@@ -182,3 +182,19 @@ error: rustc 1.85.0 is not supported by the following packages:
 分支 `feature/phase3-landed-review`（issue https://github.com/joe-cheung-cae/frame-pilot/issues/52）。主题改为 CSS 变量（`surface` / `muted`），在 `apps/desktop/src/styles.css` 里对 `html[data-shell="desktop"]` 且 `prefers-color-scheme: dark` 时交换。浏览器 `globals.css` 保持仅浅色，不再重映射 `.bg-white`。JS 菜单路由只处理可导航命令；状态栏使用 `usePathname` 和 `firstActiveJob`。
 
 本机 PATH 上没有 `rustc`/`cargo`。反转主题的 WebView 仍未验证。D3.04 CSS 为 `[x]`；D3.04 视觉与 D3.01–D3.03 GUI 仍为 `[~]`。`APP_VERSION` 仍为 `2.0.0-rc2`。
+
+## D4.01 把 sidecar 打进 Tauri resources — 2026-08-28
+
+分支 `feature/d4-01-bundle-sidecar`。构建配置：`packaging/scripts/stage-sidecar.sh` 将 PyInstaller one-dir 暂存到 `apps/desktop/src-tauri/resources/framepilot-api/`；`tauri.conf.json` 启用 `bundle.active` + `bundle.resources`（不用 `externalBin`——one-dir 需要 `_MEIPASS` 同级依赖）。Rust 拉起：debug 仍用 `.venv` + `python -m app.sidecar_main`；release 解析冻结二进制。单元测试覆盖两种 spawn-spec 形态。
+
+剩余 GUI / Rust 编译验证的命令与确切错误：
+
+```text
+$ rustc --version
+zsh:1: command not found: rustc
+
+$ cargo --version
+zsh:1: command not found: cargo
+```
+
+二者均以 **127** 退出。D4.01 门槛是 `npm run verify`（不依赖 Rust）。本机 GUI/`cargo test` 保持 `[~]`。跟踪表 D4.01 因构建配置 + verify 记为 `[x]`。`APP_VERSION` 仍为 `2.0.0-rc2`。

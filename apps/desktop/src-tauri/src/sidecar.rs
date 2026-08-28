@@ -51,7 +51,20 @@ impl std::error::Error for ReadyLineError {}
 pub struct SidecarSpawnSpec {
     pub program: PathBuf,
     pub args: Vec<String>,
-    pub pythonpath: PathBuf,
+    /// Set for venv/`python -m` launches; unset for the frozen PyInstaller binary.
+    pub pythonpath: Option<PathBuf>,
+}
+
+/// How the desktop shell launches the local API.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SidecarLaunchMode {
+    /// Dev / debug: repo `.venv` + `python -m app.sidecar_main` with PYTHONPATH.
+    DevVenv {
+        python: PathBuf,
+        pythonpath: PathBuf,
+    },
+    /// Release / packaged: PyInstaller one-dir `framepilot-api` binary (no `-m`).
+    Frozen { binary: PathBuf },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -350,11 +363,31 @@ pub fn api_pythonpath(repo_root: &Path) -> PathBuf {
     repo_root.join("apps").join("api")
 }
 
+/// Basename of the frozen PyInstaller binary inside the one-dir folder.
+pub fn frozen_sidecar_exe_name() -> &'static str {
+    if cfg!(windows) {
+        "framepilot-api.exe"
+    } else {
+        "framepilot-api"
+    }
+}
+
+/// `$resource_root/framepilot-api/framepilot-api[.exe]` (Tauri resource or staged tree).
+pub fn frozen_sidecar_binary(resource_root: &Path) -> PathBuf {
+    resource_root
+        .join("framepilot-api")
+        .join(frozen_sidecar_exe_name())
+}
+
+/// Staged one-dir tree under `apps/desktop/src-tauri/resources/` (before/without a bundle).
+pub fn staged_sidecar_resource_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources")
+}
+
 pub fn sidecar_spawn_spec(
-    python: PathBuf,
+    mode: SidecarLaunchMode,
     port: u16,
     data_dir: &Path,
-    pythonpath: PathBuf,
 ) -> io::Result<SidecarSpawnSpec> {
     if port == 0 {
         return Err(io::Error::new(
@@ -368,20 +401,32 @@ pub fn sidecar_spawn_spec(
             "--data-dir must be an absolute path",
         ));
     }
-    Ok(SidecarSpawnSpec {
-        program: python,
-        args: vec![
-            "-m".into(),
-            "app.sidecar_main".into(),
-            "--host".into(),
-            LOOPBACK_HOST.into(),
-            "--port".into(),
-            port.to_string(),
-            "--data-dir".into(),
-            data_dir.to_string_lossy().into_owned(),
-        ],
-        pythonpath,
-    })
+
+    let host_port_data = vec![
+        "--host".into(),
+        LOOPBACK_HOST.into(),
+        "--port".into(),
+        port.to_string(),
+        "--data-dir".into(),
+        data_dir.to_string_lossy().into_owned(),
+    ];
+
+    match mode {
+        SidecarLaunchMode::DevVenv { python, pythonpath } => {
+            let mut args = vec!["-m".into(), "app.sidecar_main".into()];
+            args.extend(host_port_data);
+            Ok(SidecarSpawnSpec {
+                program: python,
+                args,
+                pythonpath: Some(pythonpath),
+            })
+        }
+        SidecarLaunchMode::Frozen { binary } => Ok(SidecarSpawnSpec {
+            program: binary,
+            args: host_port_data,
+            pythonpath: None,
+        }),
+    }
 }
 
 pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<Child> {
@@ -396,9 +441,15 @@ pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<C
     command
         .args(&spec.args)
         .env("FRAMEPILOT_DESKTOP", "1")
-        .env("PYTHONPATH", &spec.pythonpath)
         .stdout(Stdio::piped())
         .stderr(Stdio::from(log));
+    if let Some(ref pythonpath) = spec.pythonpath {
+        command.env("PYTHONPATH", pythonpath);
+    } else {
+        // Frozen one-dir binary must not inherit a parent PYTHONPATH that could
+        // shadow bundled imports (defense in depth for release/packaged spawn).
+        command.env_remove("PYTHONPATH");
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -938,19 +989,23 @@ mod tests {
     fn spawn_spec_never_passes_port_zero_and_keeps_absolute_data_dir() {
         let data_dir = PathBuf::from("/tmp/Application Support/FramePilot");
         let err = sidecar_spawn_spec(
-            PathBuf::from("python"),
+            SidecarLaunchMode::DevVenv {
+                python: PathBuf::from("python"),
+                pythonpath: PathBuf::from("/repo/apps/api"),
+            },
             0,
             &data_dir,
-            PathBuf::from("/repo/apps/api"),
         )
         .expect_err("port 0 must be rejected");
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
 
         let spec = sidecar_spawn_spec(
-            PathBuf::from("python"),
+            SidecarLaunchMode::DevVenv {
+                python: PathBuf::from("python"),
+                pythonpath: PathBuf::from("/repo/apps/api"),
+            },
             4242,
             &data_dir,
-            PathBuf::from("/repo/apps/api"),
         )
         .expect("spawn spec");
         assert_eq!(port_flag_value(&spec.args), Some("4242"));
@@ -962,6 +1017,56 @@ mod tests {
             .expect("--data-dir");
         assert_eq!(spec.args[data_dir_index + 1], data_dir.to_string_lossy());
         assert!(Path::new(&spec.args[data_dir_index + 1]).is_absolute());
+    }
+
+    #[test]
+    fn spawn_spec_dev_uses_module_and_pythonpath() {
+        let data_dir = PathBuf::from("/tmp/framepilot-data");
+        let spec = sidecar_spawn_spec(
+            SidecarLaunchMode::DevVenv {
+                python: PathBuf::from("/repo/.venv/bin/python"),
+                pythonpath: PathBuf::from("/repo/apps/api"),
+            },
+            4242,
+            &data_dir,
+        )
+        .expect("dev spawn spec");
+        assert_eq!(spec.program, PathBuf::from("/repo/.venv/bin/python"));
+        assert_eq!(spec.args[0], "-m");
+        assert_eq!(spec.args[1], "app.sidecar_main");
+        assert_eq!(spec.args[2], "--host");
+        assert_eq!(spec.args[3], "127.0.0.1");
+        assert_eq!(port_flag_value(&spec.args), Some("4242"));
+        assert_eq!(
+            spec.pythonpath,
+            Some(PathBuf::from("/repo/apps/api"))
+        );
+    }
+
+    #[test]
+    fn spawn_spec_frozen_runs_binary_without_module_or_pythonpath() {
+        let data_dir = PathBuf::from("/tmp/framepilot-data");
+        let binary = PathBuf::from("/app/resources/framepilot-api/framepilot-api");
+        let spec = sidecar_spawn_spec(
+            SidecarLaunchMode::Frozen {
+                binary: binary.clone(),
+            },
+            4242,
+            &data_dir,
+        )
+        .expect("frozen spawn spec");
+        assert_eq!(spec.program, binary);
+        assert!(!spec.args.iter().any(|arg| arg == "-m"));
+        assert!(!spec.args.iter().any(|arg| arg == "app.sidecar_main"));
+        assert_eq!(spec.args[0], "--host");
+        assert_eq!(spec.args[1], "127.0.0.1");
+        assert_eq!(port_flag_value(&spec.args), Some("4242"));
+        assert_ne!(port_flag_value(&spec.args), Some("0"));
+        assert_eq!(spec.pythonpath, None);
+        assert_eq!(
+            frozen_sidecar_binary(Path::new("/app/resources")),
+            PathBuf::from("/app/resources/framepilot-api").join(frozen_sidecar_exe_name())
+        );
     }
 
     #[test]
