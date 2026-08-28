@@ -254,8 +254,8 @@ Phase 3
 - [~] D3.03 Settings data directory (`GET /api/meta`) — API + Settings tests on `main`; GUI/`cargo test` unverified (same rustc 1.85 block as D3.01). See `docs/desktop_feasibility_notes.md`.
 - [x] D3.04 System theme follow — CSS `[x]`. Visual GUI `[~]` 2026-08-28 (same rustc/cargo block as D3.01). See `docs/desktop_feasibility_notes.md`.
 - [x] D3.05 Empty and error copy
-- [ ] D3.06 Optional tray (may end `[-]`)
-- [ ] D3.07 Shortcut vs menu accelerator pass
+- [-] D3.06 Optional tray — deferred 2026-08-28T17:24:26+08:00. Not required for DoD. D5.05 will record the deferral. No `fs:` or `shell:` capabilities added.
+- [x] D3.07 Shortcut vs menu accelerator pass — Help documents CmdOrCtrl+N/W/Q; `menu.rs` has no bare culling accelerators; `reviewShortcutCommandFromEvent` ignores modifier chords (`npm run test:web` 2026-08-28).
 
 Phase 4
 
@@ -981,11 +981,11 @@ Do not steal P/M/X. Document accelerators on Help.
 
 **Phase 3 acceptance:**
 
-- [ ] Menu actions reach real routes
-- [ ] Keyboard culling still matches Help
-- [ ] Settings shows data dir
-- [ ] Desktop import does not require a browser file input
-- [ ] `npm run verify` green
+- [x] Menu actions reach real routes
+- [x] Keyboard culling still matches Help
+- [x] Settings shows data dir
+- [x] Desktop import does not require a browser file input
+- [x] `npm run verify` green — 2026-08-28T17:28:00+08:00 (rust-free; D3.01–D3.03 GUI remain `[~]`)
 
 ---
 

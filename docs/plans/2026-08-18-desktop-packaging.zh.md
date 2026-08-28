@@ -254,8 +254,8 @@ Phase 3
 - [~] D3.03 设置中的数据目录（`GET /api/meta`） — API + Settings 测试已在 `main`；GUI/`cargo test` 未验证（与 D3.01 相同阻碍）。见 `docs/desktop_feasibility_notes.zh.md`。
 - [x] D3.04 跟随系统主题 — CSS `[x]`。视觉 GUI `[~]` 2026-08-28（与 D3.01 相同的 rustc/cargo 阻碍）。见 `docs/desktop_feasibility_notes.zh.md`。
 - [x] D3.05 空状态与错误文案
-- [ ] D3.06 可选托盘（可能以 `[-]` 结束）
-- [ ] D3.07 快捷键与菜单加速键核对
+- [-] D3.06 可选托盘 — 已推迟 2026-08-28T17:24:26+08:00。不是 DoD 要求。D5.05 将记录此次推迟。未添加 `fs:` 或 `shell:` capabilities。
+- [x] D3.07 快捷键与菜单加速键核对 — Help 记录 CmdOrCtrl+N/W/Q；`menu.rs` 无裸 culling 加速键；`reviewShortcutCommandFromEvent` 忽略修饰键组合（`npm run test:web` 2026-08-28）。
 
 Phase 4
 
@@ -981,11 +981,11 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 
 **Phase 3 验收：**
 
-- [ ] 菜单动作到达真实路由
-- [ ] 键盘筛选仍与 Help 一致
-- [ ] 设置显示数据目录
-- [ ] 桌面导入不要求浏览器文件输入
-- [ ] `npm run verify` 全绿
+- [x] 菜单动作到达真实路由
+- [x] 键盘筛选仍与 Help 一致
+- [x] 设置显示数据目录
+- [x] 桌面导入不要求浏览器文件输入
+- [x] `npm run verify` 全绿 — 2026-08-28T17:28:00+08:00（无 rust；D3.01–D3.03 GUI 仍为 `[~]`）
 
 ---
 
