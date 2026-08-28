@@ -135,6 +135,10 @@ npm run perf:api -- --output /tmp/framepilot-perf-targets --counts 100 500 2000
 参见 [FramePilot v2 迁移计划](docs/v2_migration_plan.zh.md) 了解 schema、存储、API 和项目数据迁移规则。
 参见 [FramePilot v2 算法策略](docs/v2_algorithm_strategy.zh.md) 了解分组、排序、解释和可选模型策略。
 
+## 桌面打包
+
+CI 可能上传**未签名**的 Windows NSIS 与 macOS DMG 安装包供内部测试。请预期 SmartScreen / Gatekeeper 警告；不要把未签名包当作公开发布。详见 [桌面代码签名手册](docs/desktop_signing.zh.md)。缺少证书不得阻塞第一个桌面 RC。
+
 ## 隐私
 
 v2 基础不会把原片或生成的预览上传到任何远程服务。导入的图像被复制到本地项目目录，因此原片永不被修改。
