@@ -135,6 +135,10 @@ See [FramePilot v2 Validation Decision](docs/v2_rc2_validation_decision.md) for 
 See [FramePilot v2 Migration Plan](docs/v2_migration_plan.md) for schema, storage, API, and project data migration rules.
 See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for grouping, ranking, explanation, and optional model policy.
 
+## Desktop packaging
+
+CI may upload **unsigned** Windows NSIS and macOS DMG installers for internal testing. Expect SmartScreen / Gatekeeper warnings; do not treat unsigned packages as public releases. See [Desktop Code Signing Runbook](docs/desktop_signing.md). Missing certificates must not block the first desktop RC.
+
 ## Privacy
 
 The v2 foundation does not upload originals or generated previews to any remote service. Imported images are copied into the local project directory so originals are never modified.

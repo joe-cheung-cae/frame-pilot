@@ -263,7 +263,7 @@ Phase 4
 - [x] D4.02 NSIS and DMG config
 - [-] D4.03 Moved to D0.00
 - [x] D4.04 Desktop CI matrix
-- [ ] D4.05 Signing runbook
+- [x] D4.05 Signing runbook
 - [ ] D4.06 Size pass
 
 Phase 5
