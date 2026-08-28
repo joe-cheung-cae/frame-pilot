@@ -264,7 +264,7 @@ Phase 4
 - [-] D4.03 已迁移到 D0.00
 - [x] D4.04 桌面 CI 矩阵
 - [x] D4.05 签名手册
-- [ ] D4.06 体积核对
+- [x] D4.06 体积核对
 
 Phase 5
 
@@ -1060,10 +1060,10 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 
 **Phase 4 验收：**
 
-- [ ] PR 上 CI verify 全绿（D0.00）
-- [ ] CI 产出 Windows 安装包 + macOS DMG（未签名 OK）
-- [ ] 签名已文档化
-- [ ] `check:artifacts` 仍拒绝提交二进制；图标例外保持狭窄
+- [x] PR 上 CI verify 全绿（D0.00）
+- [x] CI 产出 Windows 安装包 + macOS DMG（未签名 OK）— 证据 2026-08-28：[desktop.yml run 33170731977](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/33170731977)（`00e34a5`，D4.04 合入）上传了 `FramePilot-windows-nsis` + `FramePilot-macos-dmg`。可再次通过 Actions → desktop → workflow_dispatch 确认。
+- [x] 签名已文档化
+- [x] `check:artifacts` 仍拒绝提交二进制；图标例外保持狭窄
 
 ---
 

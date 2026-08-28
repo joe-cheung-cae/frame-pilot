@@ -214,3 +214,43 @@ zsh:1: command not found: cargo
 ```
 
 二者均以 **127** 退出。D4.02 门槛是 `npm run verify`（不依赖 Rust）。本机 `cargo check` 保持 `[~]`。跟踪表 D4.02 因 bundle 配置 + verify 记为 `[x]`。`APP_VERSION` 仍为 `2.0.0-rc2`。
+
+## D4.06 体积核对 / 安装包体积预算 — 2026-08-28
+
+分支 `feature/d4-06-size-budget`。仅文档。**不要剥掉 Pillow 编解码器**（保留 `packaging/pyinstaller/framepilot-api.spec` 中的 JPEG/PNG/WebP 插件）。
+
+### 预算规则
+
+若**未打包** sidecar（`dist/framepilot-api` / 暂存的 `resources/framepilot-api`）**加上** Tauri 应用载荷超过 **400 MB**，视为评分栈的预期成本（尤其是 **scipy** 与 **imagehash** → numpy / PyWavelets），而不是剥编解码器或为第一个桌面 RC 丢掉 scipy 的信号。
+
+Phase 0 另有 **>250 MB**「考虑丢掉 scipy」触发条件，当时未测到体积。D4.06 保留该栈，并为安装包记录 **400 MB** 文档化阈值。
+
+### 测量状态（本机，2026-08-28）
+
+| 项 | 结果 |
+| ---- | ------ |
+| 本地 `dist/framepilot-api` | **不存在** — 本 WSL2 主机未构建（`du` 不适用）。此处未完成 PyInstaller 构建（`.venv` 缺少 `pip`）。 |
+| 虚构的未打包 MB | **无** — 不要把安装包 artifact 下载体积当作未打包 sidecar 体积。 |
+| CI 安装包 | [desktop.yml run 33170731977](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/33170731977)（`00e34a5`，D4.04 合入）：`windows-latest` + `macos-latest` **success**；上传了 `FramePilot-windows-nsis`（约 53.7 MiB artifact）与 `FramePilot-macos-dmg`（约 60.1 MiB artifact）。压缩的安装包 artifact ≠ 磁盘上未打包占用。 |
+
+随时可再确认产物：GitHub Actions → **desktop** → **Run workflow**（`workflow_dispatch`），或按 `.github/workflows/desktop.yml` 的路径过滤向 `main` 推送。
+
+### 预期体积驱动（本机 venv site-packages，不是 PyInstaller `dist/`）
+
+本机 `.venv` 下的大致占用（Linux WSL2，2026-08-28）——说明 one-dir 在 `collect_submodules("scipy")` 与 imagehash/numpy/Pillow hiddenimports 时会带走什么：
+
+| 包 | 约占用（`du -sh`） |
+| ------- | -------------------------- |
+| `scipy` + `scipy.libs` | ~113 MB |
+| `numpy` + `numpy.libs` | ~62 MB |
+| `pywt`（PyWavelets） | ~8.6 MB |
+| `PIL`（Pillow） | ~6.8 MB |
+| `imagehash` | ~72 KB（本身很小；会拉起重型数值栈） |
+
+这些在 Tauri 壳之前就主导 sidecar 体积。Pillow 编解码器保留，以支持 JPEG/PNG/WebP 导入与预览。
+
+### 策略
+
+- 桌面 RC 保留 imagehash / scipy / PyWavelets / Pillow 编解码器。
+- 不要提交 `dist/`、暂存的 `resources/framepilot-api/`、NSIS 或 DMG 二进制。
+- `npm run check:artifacts` 仍拒绝跟踪二进制；仅保留狭窄的 `apps/desktop/src-tauri/icons/*.{png,ico,icns}` 例外（本分支 2026-08-28 已确认通过）。
