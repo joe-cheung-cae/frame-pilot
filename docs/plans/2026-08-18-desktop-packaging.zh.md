@@ -262,7 +262,7 @@ Phase 4
 - [x] D4.01 把 sidecar 打进 Tauri resources
 - [x] D4.02 NSIS 与 DMG 配置
 - [-] D4.03 已迁移到 D0.00
-- [ ] D4.04 桌面 CI 矩阵
+- [x] D4.04 桌面 CI 矩阵
 - [ ] D4.05 签名手册
 - [ ] D4.06 体积核对
 

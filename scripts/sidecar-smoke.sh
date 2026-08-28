@@ -18,8 +18,12 @@ trap cleanup EXIT
 
 if [[ -x "$repo_root/dist/framepilot-api/framepilot-api" ]]; then
   sidecar=("$repo_root/dist/framepilot-api/framepilot-api")
+elif [[ -f "$repo_root/dist/framepilot-api/framepilot-api.exe" ]]; then
+  sidecar=("$repo_root/dist/framepilot-api/framepilot-api.exe")
 elif [[ -x "$repo_root/.venv/bin/python" ]]; then
   sidecar=("$repo_root/.venv/bin/python" -m app.sidecar_main)
+elif [[ -f "$repo_root/.venv/Scripts/python.exe" ]]; then
+  sidecar=("$repo_root/.venv/Scripts/python.exe" -m app.sidecar_main)
 else
   echo "Neither a PyInstaller sidecar nor .venv python is available" >&2
   exit 1
@@ -90,10 +94,13 @@ done
 wait "$sidecar_pid" > /dev/null 2>&1 || true
 sidecar_pid=""
 
-leftover="$(pgrep -P $$ || true)"
-if [[ -n "${leftover}" ]]; then
-  echo "Leftover child processes: $leftover" >&2
-  exit 1
+# pgrep is unreliable under Git Bash on Windows; skip leftover check when absent.
+if command -v pgrep > /dev/null 2>&1; then
+  leftover="$(pgrep -P $$ || true)"
+  if [[ -n "${leftover}" ]]; then
+    echo "Leftover child processes: $leftover" >&2
+    exit 1
+  fi
 fi
 
 echo "sidecar-smoke ok port=$port"
