@@ -319,22 +319,16 @@ def create_project_endpoint(payload: ProjectCreate, session: Session = Depends(g
 
 @router.get("/projects", response_model=list[ProjectRead])
 def list_projects_endpoint(session: Session = Depends(get_session)):
+    """List projects with a read-only query path (no stale-job failure writes).
+
+    Stale queued/running jobs are omitted from ``active_import_job`` here and are
+    failed promptly by project detail, jobs endpoints, mutations, and API startup.
+    """
     projects = list_projects(session)
     if not projects:
         return []
 
     project_ids = [project.id for project in projects]
-    active_jobs = list(
-        session.exec(
-            select(ProcessingJob)
-            .where(ProcessingJob.project_id.in_(project_ids))
-            .where(ProcessingJob.status.in_(["queued", "running"]))
-        ).all()
-    )
-    for job in active_jobs:
-        if job_is_stale(job):
-            fail_stale_job(session, job)
-
     active_import_by_project: dict[str, ProcessingJob] = {}
     for job in session.exec(
         select(ProcessingJob)
@@ -343,6 +337,9 @@ def list_projects_endpoint(session: Session = Depends(get_session)):
         .where(ProcessingJob.status.in_(["queued", "running"]))
         .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
     ).all():
+        # Read-only list path: skip stale jobs for display without writing.
+        if job_is_stale(job):
+            continue
         active_import_by_project.setdefault(job.project_id, job)
 
     return [
@@ -1034,17 +1031,50 @@ def run_export_job(export_id: str, mode: str, photo_dicts: list[dict], project_r
             session.add(record)
             session.commit()
             return
+
+        total = len(photo_dicts)
+        record.total_count = total
+        record.processed_count = 0
+        session.add(record)
+        session.commit()
+
+        last_progress_commit_at = 0.0
+        last_progress_committed = -1
+
+        def progress_callback(processed: int, total_items: int) -> None:
+            nonlocal last_progress_commit_at, last_progress_committed
+            record.processed_count = processed
+            record.total_count = total_items
+            now = time.monotonic()
+            should_commit = (
+                processed >= total_items
+                or processed - last_progress_committed >= 25
+                or now - last_progress_commit_at >= 0.25
+            )
+            if not should_commit:
+                return
+            session.add(record)
+            session.commit()
+            last_progress_commit_at = now
+            last_progress_committed = processed
+
         try:
             export_root = project_export_root(project)
             target = Path(record.output_path)
             if mode == "csv":
-                output_path = write_selection_csv(target, photo_dicts)
+                output_path = write_selection_csv(target, photo_dicts, progress_callback=progress_callback)
             elif mode == "folder":
-                output_path = copy_selected_files(target, photo_dicts, project_root=Path(project_root))
+                output_path = copy_selected_files(
+                    target, photo_dicts, project_root=Path(project_root), progress_callback=progress_callback
+                )
             else:
-                output_path = zip_selected_files(target, photo_dicts, project_root=Path(project_root))
+                output_path = zip_selected_files(
+                    target, photo_dicts, project_root=Path(project_root), progress_callback=progress_callback
+                )
             record.status = "complete"
             record.output_path = str(output_path)
+            record.processed_count = total
+            record.total_count = total
             record.error_message = None
             record.completed_at = utc_now()
             session.add(record)
@@ -1094,11 +1124,14 @@ def create_export_endpoint(
         export_root = project_export_root(project)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    selected_count = len(photo_dicts)
     record = ExportRecord(
         project_id=project_id,
         mode=payload.mode,
         status="running",
-        selected_count=len(photo_dicts),
+        selected_count=selected_count,
+        processed_count=0,
+        total_count=selected_count,
         statuses=json.dumps(payload.statuses),
         output_path="pending",
     )

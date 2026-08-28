@@ -1,4 +1,5 @@
 import hashlib
+import os
 from io import BytesIO
 from pathlib import Path
 
@@ -9,12 +10,12 @@ from sqlmodel import Session, select
 from app.db.session import get_engine
 from app.main import create_app
 from app.models.entities import Photo
-from app.services.importing import IMPORT_MAX_FILES_PER_REQUEST, unsupported_image_reason
+from app.services.importing import IMPORT_COPY_CHUNK_SIZE, IMPORT_MAX_FILES_PER_REQUEST, unsupported_image_reason
 
 
 def _jpeg(color=(120, 150, 90)) -> bytes:
     buffer = BytesIO()
-    Image.new("RGB", (48, 36), color=color).save(buffer, format="JPEG")
+    Image.new("RGB", (16, 12), color=color).save(buffer, format="JPEG", quality=40)
     return buffer.getvalue()
 
 
@@ -26,6 +27,13 @@ def _write_jpeg(path: Path, color=(120, 150, 90)) -> None:
 def _source_fingerprint(path: Path) -> tuple[int, int, str]:
     st = path.stat()
     return st.st_size, st.st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _open_fd_count() -> int:
+    fd_dir = Path("/proc/self/fd")
+    if fd_dir.is_dir():
+        return len(list(fd_dir.iterdir()))
+    return len(os.listdir("/dev/fd")) if Path("/dev/fd").is_dir() else 0
 
 
 def _client(tmp_path, monkeypatch) -> TestClient:
@@ -116,6 +124,147 @@ def test_import_from_paths_chunks_250_files_in_three_requests(tmp_path, monkeypa
     assert len(imported_names) == 250
     originals = Path(project["root_path"]) / "originals"
     assert len(list(originals.glob("*.jpg"))) == 250
+
+
+def test_import_from_paths_imports_2000_files_beyond_single_request_limit(tmp_path, monkeypatch):
+    """Chunked path-import of 2000 tiny JPEGs without 'Too many files' (#68 / legacy #4).
+
+    Asserts mid-job progress advances between chunks and peak open FDs stay bounded
+    (register path uses chunked copy + context-managed closes; opens must not scale with N).
+    """
+    monkeypatch.setattr("app.api.routes.run_import_derivative_job", lambda *args, **kwargs: None)
+    client = _client(tmp_path, monkeypatch)
+    project = client.post("/api/projects", json={"name": "Large path import"}).json()
+    folder = tmp_path / "card"
+    total = 2000
+    for index in range(total):
+        _write_jpeg(folder / f"frame-{index:04d}.jpg", (index % 200, 30, 90))
+
+    baseline_fds = _open_fd_count()
+    peak_fds = baseline_fds
+    concurrent_opens = 0
+    peak_concurrent_opens = 0
+    original_open = Path.open
+
+    def tracking_open(self, *args, **kwargs):
+        nonlocal concurrent_opens, peak_concurrent_opens
+        handle = original_open(self, *args, **kwargs)
+        concurrent_opens += 1
+        peak_concurrent_opens = max(peak_concurrent_opens, concurrent_opens)
+        close = handle.close
+
+        def tracked_close() -> None:
+            nonlocal concurrent_opens
+            if not getattr(handle, "_fp_tracked_closed", False):
+                handle._fp_tracked_closed = True  # type: ignore[attr-defined]
+                concurrent_opens = max(0, concurrent_opens - 1)
+            close()
+
+        handle.close = tracked_close  # type: ignore[method-assign]
+        return handle
+
+    monkeypatch.setattr(Path, "open", tracking_open)
+
+    remaining = [str(folder)]
+    job_id = None
+    imported_names: list[str] = []
+    request_count = 0
+    previous_processed = 0
+    progress_samples: list[int] = []
+    while remaining:
+        request_count += 1
+        payload = {
+            "paths": remaining,
+            "expected_total": total,
+            "finalize": False,
+        }
+        if job_id is not None:
+            payload["job_id"] = job_id
+        response = client.post(f"/api/projects/{project['id']}/imports/from-paths", json=payload)
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert "Too many files" not in response.text
+        assert "400" not in str(response.status_code)
+        assert len(body["imported"]) <= IMPORT_MAX_FILES_PER_REQUEST
+        imported_names.extend(item["filename"] for item in body["imported"])
+        job_id = body["job"]["id"]
+        remaining = body["remaining_paths"]
+        assert body["expanded_total"] == total
+        assert body["job"]["total_items"] == total
+        processed = body["job"]["processed_items"]
+        progress_samples.append(processed)
+        assert processed > previous_processed, (
+            f"progress must advance during chunks; was {previous_processed}, now {processed}"
+        )
+        previous_processed = processed
+        peak_fds = max(peak_fds, _open_fd_count())
+
+    finalize = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={
+            "paths": [],
+            "job_id": job_id,
+            "expected_total": total,
+            "finalize": True,
+        },
+    )
+    assert finalize.status_code == 201, finalize.text
+    assert finalize.json()["remaining_paths"] == []
+    assert request_count >= total // IMPORT_MAX_FILES_PER_REQUEST
+    assert request_count > 1
+    assert len(imported_names) == total
+    assert len(set(imported_names)) == total
+    assert len(progress_samples) >= 2
+    assert progress_samples[-1] == total
+    originals = Path(project["root_path"]) / "originals"
+    assert len(list(originals.glob("*.jpg"))) == total
+    # Temp disk: register writes straight into project originals; no orphan staging tree.
+    staging = tmp_path / "staging"
+    assert not staging.exists()
+    assert peak_concurrent_opens <= 4, (
+        f"open handles must stay O(1) via chunked copy ({IMPORT_COPY_CHUNK_SIZE} bytes); "
+        f"peak concurrent Path.open={peak_concurrent_opens}"
+    )
+    assert peak_fds - baseline_fds < 64, (
+        f"peak FD growth must stay bounded, not scale with N={total}; "
+        f"baseline={baseline_fds} peak={peak_fds}"
+    )
+    with Session(get_engine()) as session:
+        assert session.exec(select(Photo).where(Photo.project_id == project["id"])).all().__len__() == total
+
+
+def test_copy_file_to_path_uses_bounded_chunks_and_closes_handles(tmp_path, monkeypatch):
+    """Structural FD/temp bound: one destination open, chunked reads, handle closed (#68)."""
+    from app.services import importing
+
+    source = BytesIO(b"x" * (IMPORT_COPY_CHUNK_SIZE * 3 + 17))
+    destination = tmp_path / "copy.bin"
+    open_counts: list[int] = []
+    concurrent = 0
+    original_open = Path.open
+
+    def tracking_open(self, *args, **kwargs):
+        nonlocal concurrent
+        handle = original_open(self, *args, **kwargs)
+        concurrent += 1
+        open_counts.append(concurrent)
+        close = handle.close
+
+        def tracked_close() -> None:
+            nonlocal concurrent
+            if not getattr(handle, "_fp_tracked_closed", False):
+                handle._fp_tracked_closed = True  # type: ignore[attr-defined]
+                concurrent -= 1
+            close()
+
+        handle.close = tracked_close  # type: ignore[method-assign]
+        return handle
+
+    monkeypatch.setattr(Path, "open", tracking_open)
+    importing._copy_file_to_path(source, destination)
+    assert destination.read_bytes() == b"x" * (IMPORT_COPY_CHUNK_SIZE * 3 + 17)
+    assert max(open_counts) == 1
+    assert concurrent == 0
 
 
 def test_import_from_paths_rejects_relative_and_empty(tmp_path, monkeypatch):

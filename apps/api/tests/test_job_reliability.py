@@ -1,9 +1,11 @@
+import threading
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 from PIL import Image
+from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, select
 
 from app.api import routes
@@ -29,6 +31,107 @@ def _capture_background_tasks(monkeypatch) -> list[tuple[object, tuple, dict]]:
 
     monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
     return scheduled
+
+
+def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
+    current = job
+    for _ in range(40):
+        if current["status"] in {"complete", "complete_with_errors", "failed", "cancelled"}:
+            return current
+        response = client.get(f"/api/projects/{project_id}/jobs/{current['id']}")
+        assert response.status_code == 200
+        current = response.json()
+    return current
+
+
+def test_concurrent_import_and_status_polling_does_not_lock_database(tmp_path, monkeypatch):
+    """Stress WAL/busy_timeout: poll project/job endpoints while an import holds the writer."""
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    import_client = TestClient(create_app())
+    polling_client = TestClient(create_app())
+    project = import_client.post("/api/projects", json={"name": "Concurrent poll"}).json()
+
+    import_started = threading.Event()
+    release_import = threading.Event()
+    stop_polling = threading.Event()
+    import_result: dict[str, object] = {}
+    poll_errors: list[BaseException] = []
+    poll_statuses: list[int] = []
+    original_register_import_file = routes.register_import_file
+
+    def held_register_import_file(*args, **kwargs):
+        import_started.set()
+        if not release_import.wait(timeout=15):
+            raise RuntimeError("Timed out waiting to release held import")
+        return original_register_import_file(*args, **kwargs)
+
+    monkeypatch.setattr(routes, "register_import_file", held_register_import_file)
+
+    def post_import() -> None:
+        try:
+            import_result["response"] = import_client.post(
+                f"/api/projects/{project['id']}/imports",
+                files=[
+                    ("files", (f"frame-{index}.jpg", _jpeg_bytes((10 + index, 20, 30)), "image/jpeg"))
+                    for index in range(4)
+                ],
+            )
+        except Exception as error:  # pragma: no cover - surfaced by assertions below
+            import_result["error"] = error
+
+    def _record_lock_failure(response) -> None:
+        body = response.text.lower()
+        if response.status_code >= 500 or "database is locked" in body:
+            poll_errors.append(RuntimeError(f"{response.status_code}: {response.text}"))
+
+    def poll_status() -> None:
+        while not stop_polling.is_set():
+            try:
+                project_response = polling_client.get(f"/api/projects/{project['id']}")
+                jobs_response = polling_client.get(f"/api/projects/{project['id']}/jobs")
+                poll_statuses.extend([project_response.status_code, jobs_response.status_code])
+                _record_lock_failure(project_response)
+                _record_lock_failure(jobs_response)
+                if project_response.status_code == 200:
+                    job = project_response.json().get("active_import_job")
+                    if job and job.get("id"):
+                        job_response = polling_client.get(
+                            f"/api/projects/{project['id']}/jobs/{job['id']}"
+                        )
+                        poll_statuses.append(job_response.status_code)
+                        _record_lock_failure(job_response)
+            except OperationalError as error:
+                poll_errors.append(error)
+            except Exception as error:  # pragma: no cover - lock failures may wrap
+                if "database is locked" in str(error).lower():
+                    poll_errors.append(error)
+
+    import_thread = threading.Thread(target=post_import)
+    poll_thread = threading.Thread(target=poll_status)
+    import_thread.start()
+    try:
+        assert import_started.wait(timeout=10)
+        poll_thread.start()
+        # Hold the writer long enough for many concurrent polls against WAL readers.
+        assert not stop_polling.wait(timeout=2.0)
+    finally:
+        release_import.set()
+        import_thread.join(timeout=20)
+        stop_polling.set()
+        poll_thread.join(timeout=5)
+
+    assert not import_thread.is_alive()
+    assert "error" not in import_result, import_result.get("error")
+    assert poll_errors == [], poll_errors
+    assert len(poll_statuses) >= 20
+    assert all(status == 200 for status in poll_statuses)
+
+    response = import_result["response"]
+    assert response.status_code == 201
+    job = _wait_for_job(polling_client, project["id"], response.json()["job"])
+    assert job["status"] in {"complete", "complete_with_errors"}
+    assert "database is locked" not in (job.get("error_message") or "").lower()
+    assert job["processed_items"] + job["failed_items"] >= 1
 
 
 def test_import_derivative_worker_marks_job_failed_on_unexpected_exception(tmp_path, monkeypatch):

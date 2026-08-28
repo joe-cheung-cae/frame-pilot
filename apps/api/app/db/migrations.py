@@ -8,7 +8,7 @@ from sqlalchemy import inspect, text
 
 from app.db import session as db_session
 
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 
 class UnsupportedSchemaVersionError(RuntimeError):
@@ -86,9 +86,37 @@ def _migrate_to_2(engine) -> None:
         )
 
 
+def _migrate_to_3(engine) -> None:
+    """Add ExportRecord processed/total progress counters for running exports."""
+    db_session._ensure_export_record_columns(engine)
+    inspector = inspect(engine)
+    if not inspector.has_table("exportrecord"):
+        return
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                UPDATE exportrecord
+                SET total_count = selected_count
+                WHERE total_count = 0 AND selected_count > 0
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                UPDATE exportrecord
+                SET processed_count = selected_count
+                WHERE status = 'complete' AND processed_count = 0 AND selected_count > 0
+                """
+            )
+        )
+
+
 MIGRATIONS: dict[int, Callable] = {
     1: _migrate_to_1,
     2: _migrate_to_2,
+    3: _migrate_to_3,
 }
 
 

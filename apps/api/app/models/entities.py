@@ -113,6 +113,8 @@ class ExportRecord(SQLModel, table=True):
     mode: str
     status: str = "complete"
     selected_count: int = 0
+    processed_count: int = 0
+    total_count: int = 0
     statuses: str = "[]"
     output_path: str
     error_message: str | None = None

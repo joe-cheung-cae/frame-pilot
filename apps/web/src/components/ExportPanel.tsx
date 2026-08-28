@@ -367,7 +367,10 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                               : "text-muted"
                         }`}
                       >
-                        {formatExportRecordStatus(record.status)}
+                        {formatExportRecordStatus(record.status, {
+                          processed_count: record.processed_count,
+                          total_count: record.total_count,
+                        })}
                       </span>
                     </p>
                     <p className="text-muted">Statuses: {formatExportStatusSummary(record.statuses)}</p>

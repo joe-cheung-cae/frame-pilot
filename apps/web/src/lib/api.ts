@@ -132,6 +132,8 @@ export type ExportRecord = {
   mode: "csv" | "folder" | "zip";
   status: "running" | "complete" | "failed";
   selected_count: number;
+  processed_count: number;
+  total_count: number;
   statuses: string;
   output_path: string;
   error_message: string | null;

@@ -97,8 +97,14 @@ export function formatExportStatusSummary(rawStatuses: string): string {
   return selected.length ? selected.join(", ") : "No statuses";
 }
 
-export function formatExportRecordStatus(status: ExportRecord["status"]): string {
+export function formatExportRecordStatus(
+  status: ExportRecord["status"],
+  progress?: Pick<ExportRecord, "processed_count" | "total_count">,
+): string {
   if (status === "running") {
+    if (progress && progress.total_count > 0) {
+      return `Running (${progress.processed_count}/${progress.total_count})`;
+    }
     return "Running";
   }
 

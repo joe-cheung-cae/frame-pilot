@@ -148,6 +148,21 @@ test("formats export record statuses for history", () => {
   assert.equal(formatExportRecordStatus("failed"), "Failed");
 });
 
+test("formats running export progress as files written over total", () => {
+  assert.equal(
+    formatExportRecordStatus("running", { processed_count: 3, total_count: 12 }),
+    "Running (3/12)",
+  );
+  assert.equal(
+    formatExportRecordStatus("running", { processed_count: 0, total_count: 0 }),
+    "Running",
+  );
+  assert.equal(
+    formatExportRecordStatus("complete", { processed_count: 12, total_count: 12 }),
+    "Complete",
+  );
+});
+
 test("explains export recovery for failed records", () => {
   assert.equal(
     exportRecoveryMessage("failed"),

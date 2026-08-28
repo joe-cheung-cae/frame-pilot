@@ -60,7 +60,7 @@ function hasActiveReviewFilter(filter: string): boolean {
 }
 
 function fullProjectBatchHint(projectPhotoCount: number): string {
-  return `Load all photos before batch marking if you need the full project of ${photoCountLabel(projectPhotoCount)}.`;
+  return `Batch mark loads the full project of ${photoCountLabel(projectPhotoCount)} before applying. Use Load all photos for full keyboard review of every frame.`;
 }
 
 export function reviewBatchScopeSummary({

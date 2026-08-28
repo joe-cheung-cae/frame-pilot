@@ -196,7 +196,7 @@ test("explains group batch scope with partial loading", () => {
       projectPhotoCount: 900,
       visiblePhotoCount: 2,
     }),
-    "Applies only to loaded photos in Group 2 matching Maybe. Load all photos before batch marking if you need the full project of 900 photos.",
+    "Applies only to loaded photos in Group 2 matching Maybe. Batch mark loads the full project of 900 photos before applying. Use Load all photos for full keyboard review of every frame.",
   );
 });
 
@@ -239,7 +239,7 @@ test("explains empty batch scope with partial loading", () => {
       projectPhotoCount: 1200,
       visiblePhotoCount: 0,
     }),
-    "No loaded photos match the Pick filter. Load all photos before batch marking if you need the full project of 1200 photos.",
+    "No loaded photos match the Pick filter. Batch mark loads the full project of 1200 photos before applying. Use Load all photos for full keyboard review of every frame.",
   );
 });
 

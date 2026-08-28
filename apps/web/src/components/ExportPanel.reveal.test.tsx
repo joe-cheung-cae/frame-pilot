@@ -50,6 +50,8 @@ vi.mock("@tanstack/react-query", () => ({
           mode: "folder",
           status: "complete",
           selected_count: 2,
+          processed_count: 2,
+          total_count: 2,
           statuses: '["Pick"]',
           output_path: "/projects/shoot/exports/folders/selection-1",
           error_message: null,

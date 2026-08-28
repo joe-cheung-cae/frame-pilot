@@ -14,6 +14,8 @@ type ExportRecordMock = {
   mode: "csv" | "folder" | "zip";
   status: "running" | "complete" | "failed";
   selected_count: number;
+  processed_count: number;
+  total_count: number;
   statuses: string;
   output_path: string;
   error_message: string | null;
@@ -97,6 +99,8 @@ const csvLatest: ExportRecordMock = {
   mode: "csv",
   status: "complete",
   selected_count: 2,
+  processed_count: 2,
+  total_count: 2,
   statuses: '["Pick"]',
   output_path: "/projects/shoot/exports/csv/latest.csv",
   error_message: null,
@@ -110,6 +114,8 @@ const csvHistory: ExportRecordMock = {
   mode: "csv",
   status: "complete",
   selected_count: 2,
+  processed_count: 2,
+  total_count: 2,
   statuses: '["Pick"]',
   output_path: "/projects/shoot/exports/csv/selection.csv",
   error_message: null,
@@ -123,6 +129,8 @@ const zipHistory: ExportRecordMock = {
   mode: "zip",
   status: "complete",
   selected_count: 2,
+  processed_count: 2,
+  total_count: 2,
   statuses: '["Pick"]',
   output_path: "/projects/shoot/exports/zip/selection.zip",
   error_message: null,
@@ -136,6 +144,8 @@ const folderHistory: ExportRecordMock = {
   mode: "folder",
   status: "complete",
   selected_count: 2,
+  processed_count: 2,
+  total_count: 2,
   statuses: '["Pick"]',
   output_path: "/projects/shoot/exports/folders/selection-1",
   error_message: null,
@@ -166,6 +176,13 @@ describe("ImportPanel", () => {
     expect(screen.getAllByText("API offline").length).toBeGreaterThan(0);
   });
 
+  it("shows the empty import chooser when the project loads with no active import", () => {
+    queryMode.current = "success";
+    render(<ImportPanel projectId="project-1" />);
+    expect(screen.getByText("Choose image files")).toBeTruthy();
+    expect(screen.getByText(/Choose a folder|Choose folder/i)).toBeTruthy();
+  });
+
   it("keeps both browser file inputs including webkitdirectory", () => {
     const { container } = render(<ImportPanel projectId="project-1" />);
     const inputs = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
@@ -185,6 +202,37 @@ describe("ExportPanel", () => {
   it("shows project load errors", () => {
     render(<ExportPanel projectId="project-1" />);
     expect(screen.getAllByText("API offline").length).toBeGreaterThan(0);
+  });
+
+  it("shows an empty export history state", () => {
+    queryMode.current = "success";
+    mutationData.current = undefined;
+    exportRecords.current = [];
+    render(<ExportPanel projectId="project-1" />);
+    expect(screen.getByText("No exports yet.")).toBeTruthy();
+  });
+
+  it("shows fine-grained running export progress in history", () => {
+    queryMode.current = "success";
+    mutationData.current = undefined;
+    exportRecords.current = [
+      {
+        id: "export-running",
+        project_id: "project-1",
+        mode: "zip",
+        status: "running",
+        selected_count: 12,
+        processed_count: 3,
+        total_count: 12,
+        statuses: '["Pick"]',
+        output_path: "pending",
+        error_message: null,
+        completed_at: null,
+        created_at: "2026-08-21T00:00:00Z",
+      },
+    ];
+    render(<ExportPanel projectId="project-1" />);
+    expect(screen.getByText("Running (3/12)")).toBeTruthy();
   });
 
   it("keeps browser download hrefs when the desktop flag is unset", () => {

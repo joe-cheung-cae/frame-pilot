@@ -27,6 +27,9 @@ framepilot-api = "app.sidecar_main:main"
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+  "slow: opt-in heavy proofs (e.g. >4GB Zip64); skip unless FRAMEPILOT_LARGE_ZIP=1",
+]
 
 [tool.ruff]
 line-length = 120

@@ -74,7 +74,7 @@ Project responses include image totals and processing metadata:
 ```
 
 `last_processed_at` is `null` until the first processing job completes. v2 currently uses `copy` mode, which copies imported photos into the local project directory without modifying original source files.
-`active_import_job` is the newest non-stale queued or running import job for the project, or `null` when import derivative work is not active. The project list and dashboard use this lightweight field to route active-import projects back to import progress instead of processing or culling.
+`active_import_job` is the newest non-stale queued or running import job for the project, or `null` when import derivative work is not active. The project list and dashboard use this lightweight field to route active-import projects back to import progress instead of processing or culling. `GET /api/projects` is read-only: it omits stale jobs from `active_import_job` without writing. Stale job failure writes happen on project detail, jobs endpoints, mutations, and API startup instead.
 When `POST /api/projects` omits `root_path` or sends it blank, FramePilot uses the default managed project directory. The project creation UI exposes this as an optional local project data folder field. Custom `root_path` values must be a usable local directory under `{data_dir}/projects`, a `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` entry, or a folder registered with `POST /api/desktop/project-roots`. Invalid storage paths return `422` before project metadata is created.
 
 `GET` and `POST /api/desktop/project-roots` exist only when `FRAMEPILOT_DESKTOP=1`; otherwise they return `404`. `POST` accepts `{"path": "/absolute/folder"}` for an existing directory, rejects blocked system paths, filesystem anchors, the data directory, and parents of the data directory, and stores at most 50 resolved paths in `{data_dir}/desktop_project_roots.json`. `GET` returns `{"roots": [...]}`. The registry is file-backed and is not stored in Settings.
@@ -212,7 +212,7 @@ If the same project has a queued or running import job, the process endpoint ret
 ```
 
 Processing can start after the import job reaches a terminal state such as `complete`, `complete_with_errors`, `failed`, or `cancelled`.
-If an earlier queued or running processing job has not updated for more than 10 minutes, project and jobs endpoints mark that stale job as failed. Stale processing cleanup clears partial groups, removes photo group assignments, returns processed or in-progress photos to retryable `imported` state with the interruption reason, and resets the project processed count to zero. A later process request can then start a replacement job and rebuild groups from the imported photo set. API startup also marks leftover active jobs failed immediately after a process restart.
+If an earlier queued or running processing job has not updated for more than 10 minutes, project detail and jobs endpoints mark that stale job as failed. The project list endpoint does not write when it observes a stale job. Stale processing cleanup clears partial groups, removes photo group assignments, returns processed or in-progress photos to retryable `imported` state with the interruption reason, and resets the project processed count to zero. A later process request can then start a replacement job and rebuild groups from the imported photo set. API startup also marks leftover active jobs failed immediately after a process restart.
 
 `GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls the returned import job after upload/register returns, and the processing UI uses job history to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job has not updated for more than 10 minutes, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
 
@@ -270,7 +270,7 @@ If a whole processing job fails before individual photos complete, partial group
 
 The export UI uses this endpoint to calculate selected counts for large projects before submitting an export request.
 
-`PATCH /api/projects/{project_id}/photos/{photo_id}` and `PATCH /api/projects/{project_id}/photos/batch` update review status and star rating. Requests must include at least one of `user_status` or `star_rating`.
+`PATCH /api/projects/{project_id}/photos/{photo_id}` and `PATCH /api/projects/{project_id}/photos/batch` update review status and star rating. Requests must include at least one of `user_status` or `star_rating`. Batch actions in the culling workspace apply to the current filter/group among loaded photos; when the workspace is only partially loaded, batch mark loads the full project before applying so full-project batch remains available without requiring a separate "Load all" click first. Keyboard review still uses the currently loaded page until the user explicitly loads all photos.
 
 `GET /api/projects/{project_id}/groups` returns groups in stable creation order for group-by-group review. Optional `limit` and `offset` query parameters can page large group lists. The culling workspace requests an initial bounded page and exposes an explicit full-load action if the group list may continue. Each group includes a JSON `score_summary` string with the top photo id, best score, score gap, confidence label, recommendation counts, and a short deterministic explanation.
 
@@ -309,6 +309,8 @@ The response includes the number of exported photos and the local output path:
   "mode": "csv",
   "status": "complete",
   "selected_count": 12,
+  "processed_count": 12,
+  "total_count": 12,
   "statuses": "[\"Pick\", \"Maybe\"]",
   "output_path": ".../exports/csv/selection-export-id.csv",
   "error_message": null,
@@ -318,6 +320,8 @@ The response includes the number of exported photos and the local output path:
 ```
 
 Exports are written under mode-specific local project directories: `exports/csv/`, `exports/zip/`, and `exports/folders/`. Repeated exports use unique paths. Requests with no matching photos return `422` and do not write an export artifact. ZIP and folder exports fail if any selected local original copy is missing, or if the selected source path resolves outside the project's local `originals/` directory. Missing-file failures keep the missing path in the response detail and export history error message; project-originals containment failures use a path-free safety message. If artifact creation fails, the API returns `500`, removes partial output inside the project export directory when possible, and keeps a local export history record with `status` set to `failed` and `error_message` set.
+
+While an export is `running`, `processed_count` and `total_count` advance as files or CSV rows are written so clients can show fine-grained progress (for example `Running (3/12)`). On completion, both counts match `selected_count`.
 
 CSV exports include filename, project photo id, original path, project copy path, source identity, content hash, file size, file mtime, capture and camera metadata, user status, star rating, group id, AI recommendation, overall and technical scores, face and eye-open signals, image dimensions, recommendation explanation, processing state, and processing error.
 

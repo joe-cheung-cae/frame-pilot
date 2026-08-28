@@ -71,7 +71,7 @@ GET /api/assets/{project_id}/{thumbnails|previews}/{filename}
 ```
 
 `last_processed_at` 在第一次处理作业完成前为 `null`。v2 当前使用 `copy` 模式，将导入的照片复制到本地项目目录，且不修改原始源文件。
-`active_import_job` 是该项目最新的、非过期的排队或运行中导入作业；当导入衍生工作未在进行时为 `null`。项目列表和仪表板使用这个轻量字段，把处于活动导入的项目导回导入进度，而不是处理或筛选。
+`active_import_job` 是该项目最新的、非过期的排队或运行中导入作业；当导入衍生工作未在进行时为 `null`。项目列表和仪表板使用这个轻量字段，把处于活动导入的项目导回导入进度，而不是处理或筛选。`GET /api/projects` 为只读：它会从 `active_import_job` 中省略过期作业，但不会写入。过期作业的失败写入改由项目详情、作业端点、变更接口以及 API 启动处理。
 当 `POST /api/projects` 省略 `root_path` 或将其发送为空时，FramePilot 使用默认的托管项目目录。项目创建 UI 将其作为可选的本地项目数据文件夹字段暴露。自定义 `root_path` 必须是 `{data_dir}/projects` 下可用的本地目录、`FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` 条目，或通过 `POST /api/desktop/project-roots` 注册的文件夹。无效存储路径会在创建项目元数据之前返回 `422`。
 
 `GET` 和 `POST /api/desktop/project-roots` 仅在 `FRAMEPILOT_DESKTOP=1` 时存在；否则返回 `404`。`POST` 接受 `{"path": "/absolute/folder"}`，要求该目录已存在；会拒绝被拦截的系统路径、文件系统锚点、数据目录以及数据目录的父目录，并在 `{data_dir}/desktop_project_roots.json` 中最多存储 50 条解析后的路径。`GET` 返回 `{"roots": [...]}`。该注册表以文件为后端，不存储在 Settings 中。
@@ -209,7 +209,7 @@ HEIC 和 RAW 扩展名（如 `.heic`、`.dng`、`.arw`、`.cr3` 和 `.nef`）被
 ```
 
 导入作业到达 `complete`、`complete_with_errors`、`failed` 或 `cancelled` 等终态后，处理可以开始。
-如果更早的排队或运行中处理作业超过 10 分钟没有更新，项目和作业端点会将该过期作业标记为失败。过期处理清理会清除部分分组，移除照片分组分配，将已处理或进行中的照片恢复为带中断原因的可重试 `imported` 状态，并将项目已处理计数重置为零。之后的处理请求可以启动替换作业，并从已导入照片集重建分组。API 启动时也会在进程重启后立即将残留的活动作业标记为失败。
+如果更早的排队或运行中处理作业超过 10 分钟没有更新，项目详情和作业端点会将该过期作业标记为失败。项目列表端点在观察到过期作业时不会写入。过期处理清理会清除部分分组，移除照片分组分配，将已处理或进行中的照片恢复为带中断原因的可重试 `imported` 状态，并将项目已处理计数重置为零。之后的处理请求可以启动替换作业，并从已导入照片集重建分组。API 启动时也会在进程重启后立即将残留的活动作业标记为失败。
 
 `GET /api/projects/{project_id}/jobs` 按最新优先返回项目作业，包括 `import` 和 `processing` 作业。可选的 `limit` 和 `offset` 查询参数可以为大型作业历史分页。导入 UI 在上传/登记返回后轮询返回的导入作业；处理 UI 使用作业历史，在页面重新加载或导航后继续轮询排队或运行中的处理作业。如果排队或正在运行的导入作业超过 10 分钟没有更新，作业端点会将其标记为失败，并将 `current_step` 设为 `failed - stale`；这可以防止中断的本地导入永远保持活动，同时又不会重试或修改照片。
 
@@ -267,7 +267,7 @@ HEIC 和 RAW 扩展名（如 `.heic`、`.dng`、`.arw`、`.cr3` 和 `.nef`）被
 
 导出 UI 使用该端点，在提交导出请求前为大型项目计算所选计数。
 
-`PATCH /api/projects/{project_id}/photos/{photo_id}` 和 `PATCH /api/projects/{project_id}/photos/batch` 更新审阅状态和星级评分。请求必须至少包含 `user_status` 或 `star_rating` 之一。
+`PATCH /api/projects/{project_id}/photos/{photo_id}` 和 `PATCH /api/projects/{project_id}/photos/batch` 更新审阅状态和星级评分。请求必须至少包含 `user_status` 或 `star_rating` 之一。筛选工作区中的批量操作作用于当前已加载照片中的过滤/分组范围；当工作区仅部分加载时，批量标记会在应用前加载整个项目，因此无需先单独点击“加载全部”即可完成全项目批量。键盘审阅仍使用当前已加载分页，直到用户显式加载全部照片。
 
 `GET /api/projects/{project_id}/groups` 按稳定的创建顺序返回分组，供逐组审阅。可选的 `limit` 和 `offset` 查询参数可以为大型分组列表分页。筛选工作区请求初始有界页，并在分组列表可能继续时暴露显式的完整加载操作。每个分组包含一个 JSON `score_summary` 字符串，含顶部照片 id、最高分、分数差距、置信度标签、推荐计数，以及简短的确定性解释。
 
@@ -306,6 +306,8 @@ HEIC 和 RAW 扩展名（如 `.heic`、`.dng`、`.arw`、`.cr3` 和 `.nef`）被
   "mode": "csv",
   "status": "complete",
   "selected_count": 12,
+  "processed_count": 12,
+  "total_count": 12,
   "statuses": "[\"Pick\", \"Maybe\"]",
   "output_path": ".../exports/csv/selection-export-id.csv",
   "error_message": null,
@@ -315,6 +317,8 @@ HEIC 和 RAW 扩展名（如 `.heic`、`.dng`、`.arw`、`.cr3` 和 `.nef`）被
 ```
 
 导出写入按模式划分的本地项目目录：`exports/csv/`、`exports/zip/` 和 `exports/folders/`。重复导出会使用唯一路径。没有匹配照片的请求返回 `422`，并且不写入导出产物。如果任何所选本地原片副本缺失，或所选源路径解析到项目本地 `originals/` 目录之外，ZIP 和文件夹导出失败。缺失文件失败会在响应 detail 和导出历史错误消息中保留缺失路径；项目原片包含性失败使用不含路径的安全消息。如果产物创建失败，API 返回 `500`，在可能时删除项目导出目录内的部分输出，并保留一条本地导出历史记录，将 `status` 设为 `failed` 且设置 `error_message`。
+
+当导出处于 `running` 时，`processed_count` 与 `total_count` 会随着文件或 CSV 行写入而推进，便于客户端显示细粒度进度（例如 `Running (3/12)`）。完成后两个计数与 `selected_count` 一致。
 
 CSV 导出包含文件名、项目照片 id、原始路径、项目副本路径、源身份、内容哈希、文件大小、文件 mtime、拍摄和相机元数据、用户状态、星级评分、分组 id、AI 推荐、总体和技术分数、人脸和睁眼信号、图像尺寸、推荐解释、处理状态和处理错误。
 

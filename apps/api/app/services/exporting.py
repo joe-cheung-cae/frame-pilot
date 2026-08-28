@@ -1,11 +1,13 @@
 import csv
 import shutil
 import zipfile
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 
 STORED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+ExportProgressCallback = Callable[[int, int], None]
 
 
 def _unique_destination(directory: Path, filename: str) -> Path:
@@ -61,7 +63,22 @@ def csv_safe_cell(value: object) -> str:
     return text
 
 
-def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
+def _as_photo_list(photos: Iterable[dict]) -> list[dict]:
+    return list(photos) if not isinstance(photos, list) else photos
+
+
+def _report_progress(progress_callback: ExportProgressCallback | None, processed: int, total: int) -> None:
+    if progress_callback is not None:
+        progress_callback(processed, total)
+
+
+def write_selection_csv(
+    target: Path,
+    photos: Iterable[dict],
+    progress_callback: ExportProgressCallback | None = None,
+) -> Path:
+    photo_list: Sequence[dict] = _as_photo_list(photos)
+    total = len(photo_list)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
@@ -102,7 +119,7 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
             ],
         )
         writer.writeheader()
-        for photo in photos:
+        for index, photo in enumerate(photo_list, start=1):
             writer.writerow(
                 {
                     "filename": csv_safe_cell(photo.get("filename", "")),
@@ -141,14 +158,23 @@ def write_selection_csv(target: Path, photos: Iterable[dict]) -> Path:
                     "processing_error": csv_safe_cell(photo.get("processing_error") or ""),
                 }
             )
+            _report_progress(progress_callback, index, total)
     return target
 
 
-def copy_selected_files(target_dir: Path, photos: Iterable[dict], project_root: Path | None = None) -> Path:
+def copy_selected_files(
+    target_dir: Path,
+    photos: Iterable[dict],
+    project_root: Path | None = None,
+    progress_callback: ExportProgressCallback | None = None,
+) -> Path:
+    photo_list: Sequence[dict] = _as_photo_list(photos)
+    total = len(photo_list)
     target_dir.mkdir(parents=True, exist_ok=True)
-    for photo in photos:
+    for index, photo in enumerate(photo_list, start=1):
         source = _existing_original_path(photo, project_root)
         shutil.copy2(source, _unique_destination(target_dir, source.name))
+        _report_progress(progress_callback, index, total)
     return target_dir
 
 
@@ -158,15 +184,23 @@ def _zip_compression_for(path: Path) -> int:
     return zipfile.ZIP_DEFLATED
 
 
-def zip_selected_files(target_zip: Path, photos: Iterable[dict], project_root: Path | None = None) -> Path:
+def zip_selected_files(
+    target_zip: Path,
+    photos: Iterable[dict],
+    project_root: Path | None = None,
+    progress_callback: ExportProgressCallback | None = None,
+) -> Path:
+    photo_list: Sequence[dict] = _as_photo_list(photos)
+    total = len(photo_list)
     target_zip.parent.mkdir(parents=True, exist_ok=True)
     used_names: set[str] = set()
     with zipfile.ZipFile(target_zip, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as archive:
-        for photo in photos:
+        for index, photo in enumerate(photo_list, start=1):
             source = _existing_original_path(photo, project_root)
             archive.write(
                 source,
                 arcname=_unique_archive_name(used_names, source.name),
                 compress_type=_zip_compression_for(source),
             )
+            _report_progress(progress_callback, index, total)
     return target_zip
