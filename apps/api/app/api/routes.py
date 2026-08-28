@@ -1038,11 +1038,25 @@ def run_export_job(export_id: str, mode: str, photo_dicts: list[dict], project_r
         session.add(record)
         session.commit()
 
+        last_progress_commit_at = 0.0
+        last_progress_committed = -1
+
         def progress_callback(processed: int, total_items: int) -> None:
+            nonlocal last_progress_commit_at, last_progress_committed
             record.processed_count = processed
             record.total_count = total_items
+            now = time.monotonic()
+            should_commit = (
+                processed >= total_items
+                or processed - last_progress_committed >= 25
+                or now - last_progress_commit_at >= 0.25
+            )
+            if not should_commit:
+                return
             session.add(record)
             session.commit()
+            last_progress_commit_at = now
+            last_progress_committed = processed
 
         try:
             export_root = project_export_root(project)

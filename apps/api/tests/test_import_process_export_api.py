@@ -19,7 +19,7 @@ from app.db.session import get_engine
 from app.main import create_app
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project
 from app.services import importing
-from app.services.grouping import SimilarPhotoGroup
+from app.services.grouping import SimilarPhotoGroup, group_similar_photos
 from app.services.importing import (
     PREVIEW_LONG_EDGE,
     PREVIEW_WEBP_METHOD,
@@ -2138,6 +2138,18 @@ def test_incremental_import_preserves_untouched_groups_after_reprocess(tmp_path,
         assert after_import["ai_recommendation"] == before["ai_recommendation"]
         assert after_import["overall_score"] == before["overall_score"]
 
+    grouping_input_sizes: list[int] = []
+    real_group_similar = group_similar_photos
+
+    def tracking_group_similar(photos):
+        grouping_input_sizes.append(len(photos))
+        return real_group_similar(photos)
+
+    monkeypatch.setattr(
+        "app.services.processing.group_similar_photos",
+        tracking_group_similar,
+    )
+
     reprocess = client.post(f"/api/projects/{project['id']}/process")
     assert reprocess.status_code == 202
     reprocess_job = _wait_for_job(client, project["id"], reprocess.json())
@@ -2169,9 +2181,11 @@ def test_incremental_import_preserves_untouched_groups_after_reprocess(tmp_path,
     assert changed_seeded == []
     assert photos_after[new_photo_id]["group_id"] is not None
     assert photos_after[new_photo_id]["processing_state"] == "processed"
-    touched_ids = {new_photo_id}
-    assert len(touched_ids) == 1
-    assert len(touched_ids) <= max(1, len(original_ids) // 4)
+    assert grouping_input_sizes, "expected grouping to run for the imported delta"
+    assert grouping_input_sizes[0] <= max(2, len(original_ids) // 2), (
+        f"grouping rebuilt too many photos: {grouping_input_sizes[0]} (seeded={len(original_ids)})"
+    )
+    assert grouping_input_sizes[0] < len(photos_after)
 
 
 def test_group_list_returns_groups_in_creation_order(tmp_path, monkeypatch):
