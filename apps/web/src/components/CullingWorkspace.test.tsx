@@ -41,6 +41,7 @@ type PhotoFixture = {
   exposure_score: number;
   contrast_score: number;
   noise_score: number;
+  blur_score: number;
   aesthetic_score: number;
   face_presence: boolean;
   face_count: number;
@@ -103,6 +104,7 @@ function makePhoto(index: number, overrides: Partial<PhotoFixture> = {}): PhotoF
     exposure_score: 0.5,
     contrast_score: 0.5,
     noise_score: 0.1,
+    blur_score: 0.1,
     aesthetic_score: 0.4,
     face_presence: false,
     face_count: 0,
