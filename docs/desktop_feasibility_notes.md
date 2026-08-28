@@ -247,3 +247,19 @@ zsh:1: command not found: cargo
 ```
 
 Both exited **127**. `npm run verify` is the D4.01 gate (rust-free). GUI/`cargo test` stay `[~]` on this host. D4.01 tracker is `[x]` for build-config + verify. `APP_VERSION` stays `2.0.0-rc2`.
+
+## D4.02 NSIS and DMG config — 2026-08-28
+
+Branch `feature/d4-02-nsis-dmg`. Bundle config: `identifier` → `com.framepilot.app`; `productName` remains `FramePilot`; `bundle.targets` → `["nsis", "dmg"]`; D4.01 `bundle.resources` preserved; `windows.nsis` + `macOS.dmg` set without signing secrets or updater.
+
+Commands for remaining `cargo check` verification:
+
+```text
+$ rustc --version
+zsh:1: command not found: rustc
+
+$ cargo --version
+zsh:1: command not found: cargo
+```
+
+Both exited **127**. `npm run verify` is the D4.02 gate (rust-free). `cargo check` stays `[~]` on this host. D4.02 tracker is `[x]` for bundle-config + verify. `APP_VERSION` stays `2.0.0-rc2`.
