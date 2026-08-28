@@ -981,11 +981,11 @@ Do not steal P/M/X. Document accelerators on Help.
 
 **Phase 3 acceptance:**
 
-- [ ] Menu actions reach real routes
-- [ ] Keyboard culling still matches Help
-- [ ] Settings shows data dir
-- [ ] Desktop import does not require a browser file input
-- [ ] `npm run verify` green
+- [x] Menu actions reach real routes
+- [x] Keyboard culling still matches Help
+- [x] Settings shows data dir
+- [x] Desktop import does not require a browser file input
+- [x] `npm run verify` green — 2026-08-28T17:28:00+08:00 (rust-free; D3.01–D3.03 GUI remain `[~]`)
 
 ---
 

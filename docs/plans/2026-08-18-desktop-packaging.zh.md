@@ -981,11 +981,11 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 
 **Phase 3 验收：**
 
-- [ ] 菜单动作到达真实路由
-- [ ] 键盘筛选仍与 Help 一致
-- [ ] 设置显示数据目录
-- [ ] 桌面导入不要求浏览器文件输入
-- [ ] `npm run verify` 全绿
+- [x] 菜单动作到达真实路由
+- [x] 键盘筛选仍与 Help 一致
+- [x] 设置显示数据目录
+- [x] 桌面导入不要求浏览器文件输入
+- [x] `npm run verify` 全绿 — 2026-08-28T17:28:00+08:00（无 rust；D3.01–D3.03 GUI 仍为 `[~]`）
 
 ---
 
