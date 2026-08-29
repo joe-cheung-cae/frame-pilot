@@ -243,9 +243,6 @@ def prepare_interrupted_import_jobs_for_reclaim(
         session.add(job)
         session.commit()
         session.refresh(job)
-        if not photo_ids:
-            complete_import_job(session, job, imported_count=len(photos), skipped=[])
-            continue
         prepared.append((job.id, photo_ids))
     return prepared
 
