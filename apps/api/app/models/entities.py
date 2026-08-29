@@ -97,6 +97,10 @@ class ProcessingJob(SQLModel, table=True):
     error_message: str | None = None
     cancellation_requested: bool = False
     cancelled_at: datetime | None = None
+    checkpoint_photo_id: str | None = None
+    checkpoint_stage: str | None = None
+    interrupted_at: datetime | None = None
+    reclaim_count: int = 0
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -11,8 +12,41 @@ from sqlmodel import Session, select
 from app.models.entities import ExportRecord, ProcessingJob, Project, utc_now
 
 ACTIVE_JOB_STATUSES = frozenset({"queued", "running"})
-TERMINAL_JOB_STATUSES = frozenset({"complete", "complete_with_errors", "failed", "cancelled"})
+# "interrupted" is reclaimable (Phase 6); not active work and not a successful terminal state.
+TERMINAL_JOB_STATUSES = frozenset({"complete", "complete_with_errors", "failed", "cancelled", "interrupted"})
 STALE_JOB_AFTER = timedelta(minutes=10)
+
+
+@dataclass(frozen=True, slots=True)
+class JobCheckpoint:
+    """Durable work cursor for restart-safe reclaim (Phase 6 / J6.01)."""
+
+    photo_id: str | None = None
+    stage: str | None = None
+
+
+def read_job_checkpoint(job: ProcessingJob) -> JobCheckpoint:
+    return JobCheckpoint(photo_id=job.checkpoint_photo_id, stage=job.checkpoint_stage)
+
+
+def apply_job_checkpoint(
+    session: Session,
+    job: ProcessingJob,
+    *,
+    photo_id: str | None,
+    stage: str | None,
+    commit: bool = True,
+) -> ProcessingJob:
+    """Persist the last successfully completed photo/stage cursor on a job."""
+    now = utc_now()
+    job.checkpoint_photo_id = photo_id
+    job.checkpoint_stage = stage
+    job.updated_at = now
+    session.add(job)
+    if commit:
+        session.commit()
+        session.refresh(job)
+    return job
 
 
 def progress_percent(processed_items: int, failed_items: int, total_items: int) -> float:
