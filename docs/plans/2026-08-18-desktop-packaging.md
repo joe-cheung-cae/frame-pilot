@@ -269,7 +269,7 @@ Phase 4
 Phase 5
 
 - [x] D5.01 Desktop test matrix — `docs/desktop_testing.md` (+ zh); documents existing scripts; no new alias (2026-08-29)
-- [ ] D5.02 README and user docs
+- [x] D5.02 README and user docs — `docs/desktop_user_guide.md` (+ zh); README + architecture + desktop README updates (2026-08-29)
 - [ ] D5.03 Desktop performance notes
 - [ ] D5.04 Version bump to 2.1.0-desktop
 - [ ] D5.05 Known limitations

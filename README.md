@@ -44,6 +44,10 @@ The web app runs at `http://localhost:3000`. The local API runs at `http://127.0
 
 Backend data is written to `.framepilot-data` by default. Set `FRAMEPILOT_DATA_DIR` to use another local project data location.
 
+## Desktop app
+
+Installable Windows (NSIS) and macOS (DMG) builds start the UI and a local API sidecar for you. Prefer the [Desktop User Guide](docs/desktop_user_guide.md) for install, data directory, path import (copies not moves), and export reveal. Contributor day-to-day work can stay on `npm run dev` (web + API above). Desktop shell development uses `npm run dev:desktop` (requires Rust); see [apps/desktop/README.md](apps/desktop/README.md).
+
 Typical workflow:
 
 1. Create a project.
@@ -137,7 +141,7 @@ See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for groupi
 
 ## Desktop packaging
 
-CI may upload **unsigned** Windows NSIS and macOS DMG installers for internal testing. Expect SmartScreen / Gatekeeper warnings; do not treat unsigned packages as public releases. See [Desktop Code Signing Runbook](docs/desktop_signing.md). Missing certificates must not block the first desktop RC.
+CI may upload **unsigned** Windows NSIS and macOS DMG installers for internal testing. Expect SmartScreen / Gatekeeper warnings; do not treat unsigned packages as public releases. See [Desktop Code Signing Runbook](docs/desktop_signing.md) and the [Desktop User Guide](docs/desktop_user_guide.md). Missing certificates must not block the first desktop RC. Manual checks: [Desktop Testing Matrix](docs/desktop_testing.md).
 
 ## Privacy
 

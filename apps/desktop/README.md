@@ -12,7 +12,7 @@ Tauri 2 + Vite SPA that reuses `apps/web` components over HTTP to a local Python
 
 Requires a user-space Rust toolchain (`rustup`). If `cargo`/`rustc` are missing, the script prints a clear error and exits 1. Do not install brew/apt Rust from this tree.
 
-`build:desktop` / installers wait until Phase 4.
+Windows NSIS and macOS DMG installers are produced by `.github/workflows/desktop.yml` (unsigned for internal testing). End-user steps: [Desktop User Guide](../../docs/desktop_user_guide.md). Signing: [Desktop Code Signing Runbook](../../docs/desktop_signing.md). Manual matrix: [Desktop Testing Matrix](../../docs/desktop_testing.md).
 
 ## Data directory
 

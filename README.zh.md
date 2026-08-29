@@ -44,6 +44,10 @@ Web 应用运行在 `http://localhost:3000`。本地 API 运行在 `http://127.0
 
 后端数据默认写入 `.framepilot-data`。设置 `FRAMEPILOT_DATA_DIR` 可使用其他本地项目数据位置。
 
+## 桌面应用
+
+可安装的 Windows（NSIS）与 macOS（DMG）构建会为你启动 UI 与本地 API sidecar。安装、数据目录、路径导入（只复制不移动）与导出揭示见 [桌面用户指南](docs/desktop_user_guide.zh.md)。贡献者日常可继续用 `npm run dev`（上方的 web + API）。桌面壳开发用 `npm run dev:desktop`（需要 Rust）；见 [apps/desktop/README.md](apps/desktop/README.md)。
+
 典型工作流：
 
 1. 创建项目。
@@ -137,7 +141,7 @@ npm run perf:api -- --output /tmp/framepilot-perf-targets --counts 100 500 2000
 
 ## 桌面打包
 
-CI 可能上传**未签名**的 Windows NSIS 与 macOS DMG 安装包供内部测试。请预期 SmartScreen / Gatekeeper 警告；不要把未签名包当作公开发布。详见 [桌面代码签名手册](docs/desktop_signing.zh.md)。缺少证书不得阻塞第一个桌面 RC。
+CI 可能上传**未签名**的 Windows NSIS 与 macOS DMG 安装包供内部测试。请预期 SmartScreen / Gatekeeper 警告；不要把未签名包当作公开发布。详见 [桌面代码签名手册](docs/desktop_signing.zh.md) 与 [桌面用户指南](docs/desktop_user_guide.zh.md)。缺少证书不得阻塞第一个桌面 RC。手工检查见 [桌面测试矩阵](docs/desktop_testing.zh.md)。
 
 ## 隐私
 
