@@ -30,6 +30,22 @@ The smoke uses generated local JPEG images and default CSV, ZIP, and folder expo
 
 Use the command above for current-machine validation before relying on these timings. Hardware, Python version, filesystem speed, and image dimensions will change the absolute values.
 
+## Desktop path-import performance
+
+Desktop ships the same FastAPI sidecar used by `perf:api`. On hosts without a WebView (typical WSL agents without rustc ≥1.88), record **sidecar / API process RSS only** and mark UI pending per locked GUI decision 13.
+
+Command used for the row below (path-equivalent synthetic import + process + export inside the API process):
+
+```bash
+npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100
+```
+
+| Date | Host | Count | Status | Import s | Process s | Export s | Sidecar / API peak RSS MB | UI / WebView RSS |
+| ---- | ---- | ----: | ------ | -------: | --------: | -------: | ------------------------: | ---------------- |
+| 2026-08-29 | WSL2 Linux `TFSZD-zhangc` (no rustc/WebView on PATH) | 100 | complete | 1.691 | 0.502 | 0.106 | 120.24 | **pending** (no desktop GUI on this host) |
+
+Caveats: synthetic JPEGs; not camera diversity. This is not a packaged PyInstaller binary RSS measurement. Re-run on Windows/macOS with `npm run dev:desktop` or an installed build to fill the UI column. See also [Desktop Testing Matrix](desktop_testing.md) and [feasibility notes](desktop_feasibility_notes.md).
+
 ## Browser-Scale Culling Smoke
 
 Command:
