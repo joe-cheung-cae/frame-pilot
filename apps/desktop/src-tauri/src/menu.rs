@@ -172,6 +172,6 @@ mod tests {
 
     #[test]
     fn about_version_comes_from_package_metadata() {
-        assert_eq!(env!("CARGO_PKG_VERSION"), "2.0.0-rc2");
+        assert_eq!(env!("CARGO_PKG_VERSION"), "2.1.0-desktop");
     }
 }

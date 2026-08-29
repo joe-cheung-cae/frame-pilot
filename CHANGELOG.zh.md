@@ -1,0 +1,21 @@
+# 更新日志
+
+> 语言：[English](CHANGELOG.md) | **中文**
+
+此处列出 FramePilot 的重要版本。API 版本字符串来自 `apps/api/app/core/version.py`（`APP_VERSION`）。`apps/api/pyproject.toml` 中的 Python 包版本使用 PEP 440 本地形式 `2.1.0+desktop`，以便可编辑安装合法。
+
+## 2.1.0-desktop（RC）
+
+桌面打包轨道的发布候选。
+
+- Tauri 2 桌面壳 + 本机回环 Python sidecar（终端用户无需自跑 uvicorn）
+- 原生文件夹/文件选择与路径导入（复制到项目 `originals/`；永不修改原图）
+- 经 CI 产出 Windows NSIS 与 macOS DMG（内部测试可为**未签名**；见 [docs/desktop_signing.zh.md](docs/desktop_signing.zh.md)）
+- `docs/` 下的桌面用户指南、测试矩阵与性能说明
+- 贡献者 web 工作流（`npm run dev`）不变
+
+在配置证书之前，不要把本 RC 当作已签名的商店级公开发布。
+
+## 2.0.0-rc2
+
+本地 web MVP-plus 基础：基于任务的导入/处理、筛选工作区、CSV/ZIP/文件夹导出，以及 Tier B 真实世界验证证据。桌面打包推迟到 2.1.0-desktop 轨道。
