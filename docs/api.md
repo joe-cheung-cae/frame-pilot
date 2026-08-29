@@ -155,7 +155,7 @@ The response contains accepted photo records, synchronously skipped files, impor
 
 The import endpoint is upload/register-bound: it returns after supported files are copied into the project, file identity metadata is recorded, photo rows are created or safely reused, and an import job is created. Expensive derivative generation, metadata extraction, scoring, perceptual hashing, and embedding generation continue in a FastAPI in-process background task that opens a fresh database session. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the import job reaches `complete`, `complete_with_errors`, `failed`, or `cancelled`, then reload photos before assuming previews or scores are ready.
 
-This background path improves request responsiveness and visible progress, but it is not durable across API process exits. A durable local worker would be needed before interrupted derivative jobs can resume automatically after a backend restart.
+This background path improves request responsiveness and visible progress. By default it is not durable across API process exits: leftover active jobs are marked failed on the next startup so the user can retry. With `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1`, leftover active import/processing jobs are marked `interrupted` and reclaimed in-process (or via `npm run worker` / `python -m app.worker`). Export jobs still fail-and-cleanup on restart. See [Phase 6 plan](plans/2026-08-29-phase6-durable-jobs.md).
 
 Import job statuses are:
 
@@ -163,6 +163,7 @@ Import job statuses are:
 - `complete_with_errors`: at least one file imported or was safely reused, and at least one file was skipped or failed during derivative generation.
 - `failed`: every selected file was skipped or every accepted file failed derivative generation.
 - `cancelled`: the user requested cooperative cancellation and the local background worker stopped at a safe checkpoint.
+- `interrupted`: reclaimable leftover after an API/sidecar restart when startup reclaim is enabled; not a successful terminal state and not active work.
 
 If every file is skipped during synchronous validation, the endpoint returns `422` and the failed import job remains visible through `GET /api/projects/{project_id}/jobs`. Importing new photos invalidates previous groups and AI recommendations, so processing should be run again after the import job reaches a terminal state. Re-importing a file with the same uploaded filename and SHA-256 content hash reuses the existing project photo record and existing generated thumbnail/preview when they are still present; this does not create a duplicate record or reset user review status.
 Multipart responses include `remaining_paths: []` and `expanded_total` set to the number of files in that request so browser clients can ignore those fields.
@@ -212,15 +213,17 @@ If the same project has a queued or running import job, the process endpoint ret
 ```
 
 Processing can start after the import job reaches a terminal state such as `complete`, `complete_with_errors`, `failed`, or `cancelled`.
-If an earlier queued or running processing job has not updated for more than 10 minutes, project detail and jobs endpoints mark that stale job as failed. The project list endpoint does not write when it observes a stale job. Stale processing cleanup clears partial groups, removes photo group assignments, returns processed or in-progress photos to retryable `imported` state with the interruption reason, and resets the project processed count to zero. A later process request can then start a replacement job and rebuild groups from the imported photo set. API startup also marks leftover active jobs failed immediately after a process restart.
+Stale detection for queued or running jobs prefers a worker lease when `heartbeat_at` is set (stale after 2 minutes without heartbeat); otherwise it uses `updated_at` (stale after 10 minutes). Project detail and jobs endpoints mark stale jobs failed. The project list endpoint does not write when it observes a stale job. Stale processing cleanup clears partial groups, removes photo group assignments, returns processed or in-progress photos to retryable `imported` state with the interruption reason, and resets the project processed count to zero. A later process request can then start a replacement job and rebuild groups from the imported photo set.
 
-`GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls the returned import job after upload/register returns, and the processing UI uses job history to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job has not updated for more than 10 minutes, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
+API startup default: mark leftover active jobs failed immediately so a restart cannot leave the workspace blocked for the full stale window. With `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1`, leftover active import/processing jobs are marked `interrupted` (`current_step` `interrupted - restart`, `interrupted_at` set) and scheduled for in-process reclaim instead; exports still fail-and-cleanup. Reclaim does not run on `GET /api/projects`.
+
+`GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls the returned import job after upload/register returns, and the processing UI uses job history to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job goes stale, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
 
 `POST /api/projects/{project_id}/jobs/{job_id}/cancel` requests cooperative cancellation for a queued or running import job. It sets `cancellation_requested` and returns the updated job with `202 Accepted`; terminal import jobs return as a safe no-op with `200 OK`. This endpoint does not kill the API process, delete original files, delete copied originals, or remove generated derivatives. The background worker checks the request before each photo and after each photo-level derivative/scoring/hash pass, then marks the job `cancelled` with `cancelled_at` and `completed_at` once it reaches a safe checkpoint. Already completed photo derivatives remain cached, while unprocessed photos stay retryable.
 
 `POST /api/projects/{project_id}/jobs/{job_id}/retry` retries failed, `complete_with_errors`, or `cancelled` import jobs. It creates a new local import job and reruns derivative/scoring/hash/embedding work for project photos whose generated thumbnail or preview is missing, or whose import state is still `processing` or `failed`. It does not re-register uploaded files, duplicate photo records, reset `user_status`, reset `star_rating`, delete generated derivatives, delete copied originals, or modify source photos. Existing valid thumbnail and preview files are reused; missing derivatives are regenerated from the local copied original when possible. If some photos recover and others cannot be rebuilt, the retry job finishes as `complete_with_errors` and records failed items on the affected photos. If another import job is already queued or running, retry returns `409`.
 
-A job includes:
+A job (`JobRead`) includes:
 
 ```json
 {
@@ -236,11 +239,19 @@ A job includes:
   "error_message": null,
   "cancellation_requested": false,
   "cancelled_at": null,
+  "checkpoint_photo_id": null,
+  "checkpoint_stage": null,
+  "interrupted_at": null,
+  "reclaim_count": 0,
+  "worker_id": null,
+  "heartbeat_at": null,
   "started_at": "2026-06-02T12:00:00Z",
   "completed_at": null,
   "retryable": false
 }
 ```
+
+Optional observability fields: `checkpoint_photo_id` / `checkpoint_stage` track the last safe per-photo or stage progress; `interrupted_at` and `reclaim_count` appear when startup reclaim marks and resumes work; `worker_id` / `heartbeat_at` are the local lease (refreshed while a worker owns the job).
 
 A completed job means grouping, ranking, and recommendation explanations have been rebuilt for the current imported photo set.
 If the project is already fully processed and unchanged, a new processing job completes with `current_step` set to `complete - no changes` and leaves existing groups untouched.

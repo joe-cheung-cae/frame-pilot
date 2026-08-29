@@ -35,7 +35,7 @@ Phase 6 — durable local job reclaim (post `2.1.0-desktop`)
 - [x] J6.05 Local SQLite-polled worker entrypoint
 - [x] J6.06 Lease / heartbeat
 - [x] J6.07 Desktop sidecar quit alignment
-- [ ] J6.08 Docs close-out
+- [x] J6.08 Docs close-out
 
 ---
 
@@ -183,13 +183,13 @@ Phase 6 — durable local job reclaim (post `2.1.0-desktop`)
 
 ## 5. Phase 6 Definition of Done
 
-- [ ] Checkpoint fields exist and are covered by tests
-- [ ] Fail-and-retry remains default **or** reclaim is default only after explicit flip commit with green tests
-- [ ] With reclaim flag on, interrupted **import** can finish after API restart without re-uploading
-- [ ] With reclaim flag on, interrupted **processing** recovers without leaving corrupt groups as complete
-- [ ] Originals never modified
-- [ ] No cloud/queue dependency
-- [ ] Bilingual docs describe the new behavior and remaining limits
+- [x] Checkpoint fields exist and are covered by tests
+- [x] Fail-and-retry remains default **or** reclaim is default only after explicit flip commit with green tests
+- [x] With reclaim flag on, interrupted **import** can finish after API restart without re-uploading
+- [x] With reclaim flag on, interrupted **processing** recovers without leaving corrupt groups as complete
+- [x] Originals never modified
+- [x] No cloud/queue dependency
+- [x] Bilingual docs describe the new behavior and remaining limits
 - [ ] `npm run verify` green on the Phase 6 branch tip
 
 ---

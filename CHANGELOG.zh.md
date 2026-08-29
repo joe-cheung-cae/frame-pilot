@@ -4,6 +4,15 @@
 
 此处列出 FramePilot 的重要版本。API 版本字符串来自 `apps/api/app/core/version.py`（`APP_VERSION`）。`apps/api/pyproject.toml` 中的 Python 包版本使用 PEP 440 本地形式 `2.1.0+desktop`，以便可编辑安装合法。
 
+## 未发布
+
+### 第六阶段 — 持久本地作业回收（可选）
+
+- 通过 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` 可选启动回收（默认仍为失败并重试）
+- `JobRead` 上的检查点/租约字段；可回收残留使用状态 `interrupted`
+- 本地 worker 入口：`npm run worker` / `python -m app.worker`
+- 桌面退出文案与回收 vs 失败并重试对齐
+
 ## 2.1.0-desktop（RC）
 
 桌面打包轨道的发布候选。
