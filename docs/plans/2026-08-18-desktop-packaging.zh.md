@@ -272,7 +272,7 @@ Phase 5
 - [x] D5.02 README 与用户文档 — `docs/desktop_user_guide.md`（+ zh）；README + 架构 + 桌面 README 更新（2026-08-29）
 - [x] D5.03 桌面性能说明 — WSL2 上 100 张 `perf:api` sidecar RSS 120.24 MB；UI pending（2026-08-29）
 - [x] D5.04 版本升到 2.1.0-desktop — `APP_VERSION`/`package.json`/`Tauri` = `2.1.0-desktop`；`pyproject.toml` = `2.1.0+desktop`（PEP 440）；双语 CHANGELOG；未打 git tag（2026-08-29）
-- [ ] D5.05 已知限制
+- [x] D5.05 已知限制 — `docs/v2_known_limitations.md`（+ zh）Desktop 2.1 节；记录 D3.06 托盘延期（2026-08-29）
 
 ---
 

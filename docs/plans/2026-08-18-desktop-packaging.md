@@ -272,7 +272,7 @@ Phase 5
 - [x] D5.02 README and user docs — `docs/desktop_user_guide.md` (+ zh); README + architecture + desktop README updates (2026-08-29)
 - [x] D5.03 Desktop performance notes — 100-photo `perf:api` sidecar RSS 120.24 MB on WSL2; UI pending (2026-08-29)
 - [x] D5.04 Version bump to 2.1.0-desktop — `APP_VERSION`/`package.json`/`Tauri` = `2.1.0-desktop`; `pyproject.toml` = `2.1.0+desktop` (PEP 440); bilingual CHANGELOG; no git tag (2026-08-29)
-- [ ] D5.05 Known limitations
+- [x] D5.05 Known limitations — Desktop 2.1 section in `docs/v2_known_limitations.md` (+ zh); records D3.06 tray deferral (2026-08-29)
 
 ---
 
