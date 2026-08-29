@@ -304,11 +304,18 @@ Together these dominate sidecar size long before the Tauri shell. Pillow codecs 
 - Do not commit `dist/`, staged `resources/framepilot-api/`, NSIS, or DMG binaries.
 - `npm run check:artifacts` still rejects tracked binaries; only the narrow `apps/desktop/src-tauri/icons/*.{png,ico,icns}` exception remains (confirmed green on this branch, 2026-08-28).
 
-## D5.03 Desktop path-import performance — 2026-08-29
+## D5.03 Desktop sidecar / API performance (multipart) — 2026-08-29
 
 Host: WSL2 Linux (`TFSZD-zhangc`). No `rustc`/`cargo` on PATH; desktop WebView UI RSS not measured.
 
-Ran `npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100` → status `complete`, import 1.691 s, process 0.502 s, export 0.106 s, API peak RSS **120.24 MB**. Recorded in `docs/v2_performance_baseline.md` (Desktop path-import performance). UI column stays **pending** until a GUI host re-runs with `dev:desktop` or an installed build.
+Ran `npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100` → status `complete`, import 1.691 s, process 0.502 s, export 0.106 s, API peak RSS **120.24 MB**. This is multipart `POST .../import` evidence (same FastAPI process as the desktop sidecar), **not** `from-paths` path-import. Recorded in `docs/v2_performance_baseline.md` (Desktop sidecar / API performance). UI column stays **pending** until a GUI host re-runs with `dev:desktop` or an installed build. Path-import RSS follow-up: [#97](https://github.com/joe-cheung-cae/frame-pilot/issues/97); labeling clarify: [#96](https://github.com/joe-cheung-cae/frame-pilot/issues/96).
+
+
+## D5.03 Desktop path-import performance (`from-paths`) — 2026-08-29
+
+Host: WSL2 Linux (`TFSZD-zhangc`). No `rustc`/`cargo` on PATH; desktop WebView UI RSS not measured.
+
+Ran `npm run perf:api -- --output /tmp/framepilot-desktop-from-paths-100 --count 100 --import-mode from-paths` → status `complete`, import 1.622 s, process 0.534 s, export 0.131 s, API peak RSS **119.77 MB**. This is true `POST .../imports/from-paths` evidence. Recorded in `docs/v2_performance_baseline.md`. UI column stays **pending**. Closes [#97](https://github.com/joe-cheung-cae/frame-pilot/issues/97).
 
 ## Phase 5 close-out — 2026-08-29
 

@@ -255,11 +255,18 @@ Phase 0 另有 **>250 MB**「考虑丢掉 scipy」触发条件，当时未测到
 - 不要提交 `dist/`、暂存的 `resources/framepilot-api/`、NSIS 或 DMG 二进制。
 - `npm run check:artifacts` 仍拒绝跟踪二进制；仅保留狭窄的 `apps/desktop/src-tauri/icons/*.{png,ico,icns}` 例外（本分支 2026-08-28 已确认通过）。
 
-## D5.03 桌面路径导入性能 — 2026-08-29
+## D5.03 桌面 sidecar / API 性能（multipart）— 2026-08-29
 
 主机：WSL2 Linux（`TFSZD-zhangc`）。PATH 上无 `rustc`/`cargo`；未测桌面 WebView UI RSS。
 
-运行 `npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100` → 状态 `complete`，导入 1.691 s，处理 0.502 s，导出 0.106 s，API 峰值 RSS **120.24 MB**。已记入 `docs/v2_performance_baseline.zh.md`（桌面路径导入性能）。在有 GUI 的主机用 `dev:desktop` 或安装包重测之前，UI 列保持 **pending**。
+运行 `npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100` → 状态 `complete`，导入 1.691 s，处理 0.502 s，导出 0.106 s，API 峰值 RSS **120.24 MB**。此为 multipart `POST .../import` 证据（与桌面 sidecar 同一 FastAPI 进程），**不是** `from-paths` 路径导入。已记入 `docs/v2_performance_baseline.zh.md`（桌面 sidecar / API 性能）。在有 GUI 的主机用 `dev:desktop` 或安装包重测之前，UI 列保持 **pending**。路径导入 RSS 跟进：[#97](https://github.com/joe-cheung-cae/frame-pilot/issues/97)；标注澄清：[#96](https://github.com/joe-cheung-cae/frame-pilot/issues/96)。
+
+
+## D5.03 桌面路径导入性能（`from-paths`）— 2026-08-29
+
+主机：WSL2 Linux（`TFSZD-zhangc`）。PATH 上无 `rustc`/`cargo`；未测桌面 WebView UI RSS。
+
+运行 `npm run perf:api -- --output /tmp/framepilot-desktop-from-paths-100 --count 100 --import-mode from-paths` → 状态 `complete`，导入 1.622 s，处理 0.534 s，导出 0.131 s，API 峰值 RSS **119.77 MB**。此为真正的 `POST .../imports/from-paths` 证据。已记入 `docs/v2_performance_baseline.zh.md`。UI 列仍为 **pending**。关闭 [#97](https://github.com/joe-cheung-cae/frame-pilot/issues/97)。
 
 ## Phase 5 收尾 — 2026-08-29
 

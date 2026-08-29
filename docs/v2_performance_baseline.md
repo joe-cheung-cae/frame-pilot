@@ -30,11 +30,13 @@ The smoke uses generated local JPEG images and default CSV, ZIP, and folder expo
 
 Use the command above for current-machine validation before relying on these timings. Hardware, Python version, filesystem speed, and image dimensions will change the absolute values.
 
-## Desktop path-import performance
+## Desktop sidecar / API performance (multipart import)
 
-Desktop ships the same FastAPI sidecar used by `perf:api`. On hosts without a WebView (typical WSL agents without rustc ≥1.88), record **sidecar / API process RSS only** and mark UI pending per locked GUI decision 13.
+Desktop ships the same FastAPI sidecar exercised by `perf:api`. The smoke below uses multipart `POST /api/projects/{id}/import` (upload path), **not** desktop filesystem `POST .../imports/from-paths`. Treat timings and RSS as **API/sidecar** evidence only. A separate **from-paths** measurement is recorded in the next section ([#97](https://github.com/joe-cheung-cae/frame-pilot/issues/97)).
 
-Command used for the row below (path-equivalent synthetic import + process + export inside the API process):
+On hosts without a WebView (typical WSL agents without rustc ≥1.88), record **sidecar / API process RSS only** and mark UI pending per locked GUI decision 13.
+
+Command used for the row below (synthetic multipart import + process + export inside the API process):
 
 ```bash
 npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100
@@ -44,7 +46,22 @@ npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100
 | ---- | ---- | ----: | ------ | -------: | --------: | -------: | ------------------------: | ---------------- |
 | 2026-08-29 | WSL2 Linux `TFSZD-zhangc` (no rustc/WebView on PATH) | 100 | complete | 1.691 | 0.502 | 0.106 | 120.24 | **pending** (no desktop GUI on this host) |
 
-Caveats: synthetic JPEGs; not camera diversity. This is not a packaged PyInstaller binary RSS measurement. Re-run on Windows/macOS with `npm run dev:desktop` or an installed build to fill the UI column. See also [Desktop Testing Matrix](desktop_testing.md) and [feasibility notes](desktop_feasibility_notes.md).
+Caveats: synthetic JPEGs; not camera diversity; **not** `from-paths` path-import. This is not a packaged PyInstaller binary RSS measurement. Re-run on Windows/macOS with `npm run dev:desktop` or an installed build to fill the UI column. See also [Desktop Testing Matrix](desktop_testing.md) and [feasibility notes](desktop_feasibility_notes.md). Clarification tracked in [#96](https://github.com/joe-cheung-cae/frame-pilot/issues/96).
+
+## Desktop path-import performance (`from-paths`)
+
+Desktop path import uses `POST /api/projects/{id}/imports/from-paths` (filesystem copy into `{root_path}/originals`, sources untouched). Measure with:
+
+```bash
+npm run perf:api -- --output /tmp/framepilot-desktop-from-paths-100 --count 100 --import-mode from-paths
+```
+
+| Date | Host | Count | Status | Import s | Process s | Export s | Sidecar / API peak RSS MB | UI / WebView RSS |
+| ---- | ---- | ----: | ------ | -------: | --------: | -------: | ------------------------: | ---------------- |
+| 2026-08-29 | WSL2 Linux `TFSZD-zhangc` (no rustc/WebView on PATH) | 100 | complete | 1.622 | 0.534 | 0.131 | 119.77 | **pending** (no desktop GUI on this host) |
+
+Caveats: synthetic JPEGs; not camera diversity; not a packaged PyInstaller binary RSS. UI/WebView RSS still pending on GUI hosts. See [#97](https://github.com/joe-cheung-cae/frame-pilot/issues/97).
+
 
 ## Browser-Scale Culling Smoke
 

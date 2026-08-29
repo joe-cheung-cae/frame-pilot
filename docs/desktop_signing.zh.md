@@ -83,3 +83,15 @@ Authenticode 对 Windows 安装包（以及可选的应用内二进制）签名�
 - `.github/workflows/desktop.yml` — 未签名 Windows/macOS 安装包 CI
 - `apps/desktop/src-tauri/tauri.conf.json` — `identifier`、NSIS 与 DMG 打包配置
 - `docs/plans/2026-08-18-desktop-packaging.zh.md` — D4.05 任务定义
+
+## 公开发布清单（Phase 5 跟进）
+
+在将桌面构建标为 **公开发布**（非内部 RC）之前：
+
+- [ ] CI（`desktop` workflow）启用 Windows Authenticode 签名
+- [ ] CI 启用 macOS Developer ID + 公证
+- [ ] GitHub Release 同时发布安装包与 `SHA256SUMS.txt`（或等价物）
+- [ ] [桌面用户指南](desktop_user_guide.zh.md) 中的出处步骤仍然准确
+
+来自 Phase 5 安全评审：[#98](https://github.com/joe-cheung-cae/frame-pilot/issues/98)。
+

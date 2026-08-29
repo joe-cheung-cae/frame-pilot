@@ -29,7 +29,7 @@ Manual and command-driven checks for FramePilot desktop (`2.1.0-desktop` track).
 | `npm run dev:desktop` | Tauri + Vite + sidecar (needs Rust) |
 | `npm run test:desktop:smoke` | HTTP smoke: sidecar health + `/api/projects` (`tests/desktop/smoke.sh`) |
 | `npm run generate:synthetic -- --output <dir> --count <n>` | Synthetic JPEGs for path-import rows |
-| `npm run perf:api -- --output <dir> --counts 100 500 2000` | Optional API-scale import/process smoke |
+| `npm run perf:api -- --output <dir> --counts 100 500 2000` | Optional API-scale multipart import/process smoke (not `from-paths`) |
 | `npm run packaging:sidecar` | PyInstaller one-dir sidecar |
 | `npm run test:sidecar` | Sidecar ready-line smoke |
 | `npm run verify` | Rust-free full verify |
@@ -57,7 +57,8 @@ No extra npm alias is required for this matrix; use the scripts above directly.
 | Row | Command / action | Pass criteria | Automates? |
 | --- | ---------------- | ------------- | ---------- |
 | 100 synthetic path import | `npm run generate:synthetic -- --output /tmp/fp-synth-100 --count 100` then path-import via desktop (**Choose a folder**) or `POST .../imports/from-paths` (chunk ≤100, same `job_id`, `finalize` on last slice) | Job reaches `complete` (or `complete_with_errors` only for unsupported skips); copies under `{root_path}/originals`; source size/mtime/bytes unchanged | Partial (API tests cover path-import immutability; GUI picker may be `[~]`) |
-| Optional 500 | `npm run perf:api -- --output /tmp/fp-perf --counts 500` | Documented timing/RSS in performance notes when run; no crash | Yes (API) |
+| 100 from-paths RSS | `npm run perf:api -- --output /tmp/fp-from-paths-100 --count 100 --import-mode from-paths` | Documented in performance baseline; no crash; originals unchanged | Yes (API) |
+| Optional 500 | `npm run perf:api -- --output /tmp/fp-perf --counts 500` | Documented timing/RSS in performance notes when run; no crash. Multipart `/import` (scale) or add `--import-mode from-paths` | Yes (API) |
 | Optional 2000 | `npm run perf:api -- --output /tmp/fp-perf --counts 2000` | Same; GUI review of 2000 is **not** required by default | Yes (API) |
 | Full cull workflow | Follow [tests/desktop/workflow.md](../tests/desktop/workflow.md) | Import → process → keyboard cull → CSV/ZIP/folder export + reveal | Manual / API pytest for path-import→export |
 | Install / uninstall | Install CI Windows NSIS or macOS DMG; launch once; uninstall | App binary removed; **data directory may remain** (document for users) — see app-support paths in [apps/desktop/README.md](../apps/desktop/README.md) | Manual |

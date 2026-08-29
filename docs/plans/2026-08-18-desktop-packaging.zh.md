@@ -270,7 +270,7 @@ Phase 5
 
 - [x] D5.01 桌面测试矩阵 — `docs/desktop_testing.md`（+ zh）；文档化现有脚本；无新别名（2026-08-29）
 - [x] D5.02 README 与用户文档 — `docs/desktop_user_guide.md`（+ zh）；README + 架构 + 桌面 README 更新（2026-08-29）
-- [x] D5.03 桌面性能说明 — WSL2 上 100 张 `perf:api` sidecar RSS 120.24 MB；UI pending（2026-08-29）
+- [x] D5.03 桌面性能说明 — multipart `perf:api` RSS 120.24 MB（#96）**以及** `from-paths` RSS 119.77 MB（#97）于 WSL2；UI pending（2026-08-29）
 - [x] D5.04 版本升到 2.1.0-desktop — `APP_VERSION`/`package.json`/`Tauri` = `2.1.0-desktop`；`pyproject.toml` = `2.1.0+desktop`（PEP 440）；双语 CHANGELOG；未打 git tag（2026-08-29）
 - [x] D5.05 已知限制 — `docs/v2_known_limitations.md`（+ zh）Desktop 2.1 节；记录 D3.06 托盘延期（2026-08-29）
 
@@ -1098,7 +1098,7 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 **Depends on:** D2.08  
 **Files:** 可行性说明或 `docs/v2_performance_baseline.md`
 
-一次 100 张照片的路径导入 + 处理，记录 sidecar 与 UI 的 RSS（若有 GUI）；否则仅 sidecar，并标明 UI 待测。
+一次 100 张导入 + 处理，记录 sidecar 与 UI 的 RSS（若有 GUI）；否则仅 sidecar，并标明 UI 待测。multipart 证据已在 #96 澄清；真正的 `from-paths` RSS 已在 #97 记录（WSL2 峰值 119.77 MB，UI pending）。
 
 **Tests:** none（文档）。
 
@@ -1133,7 +1133,7 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 - [x] 原生文件夹选择器与拖放导入 — Phase 2；部分主机 live GUI 可仍为 `[~]`（见可行性笔记）
 - [x] 核心工作流与 v2 一致：导入、处理、键盘筛选、CSV/ZIP/文件夹导出 — D2.08 + 共享 UI
 - [x] 原图永不被修改 — 不可变测试 + 用户指南
-- [x] 500 张照片的 API 级路径导入不崩溃；若测过则记录 500 GUI — API 经 `perf:api` / 既有 smoke；收尾主机 **未测 500 GUI**（性能基线 / 测试矩阵已记 pending）
+- [x] 500 张照片的 API 级导入不崩溃；若测过则记录 500 GUI — API 经 multipart `perf:api` / 既有 smoke（非 `from-paths`）；收尾主机 **未测 500 GUI**（性能基线 / 测试矩阵已记 pending）
 - [x] 用户 + 开发者文档存在 — D5.01–D5.02（`desktop_testing`、`desktop_user_guide`、README、架构）
 - [x] CI 构建双平台安装包；签名仍可待定 — D4.04 + D4.05 签名手册
 - [x] 回环绑定 + Host/Origin 检查已就位 — Phase 0
