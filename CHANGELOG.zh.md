@@ -2,7 +2,7 @@
 
 > 语言：[English](CHANGELOG.md) | **中文**
 
-此处列出 FramePilot 的重要版本。API 版本字符串来自 `apps/api/app/core/version.py`（`APP_VERSION`）。
+此处列出 FramePilot 的重要版本。API 版本字符串来自 `apps/api/app/core/version.py`（`APP_VERSION`）。`apps/api/pyproject.toml` 中的 Python 包版本使用 PEP 440 本地形式 `2.1.0+desktop`，以便可编辑安装合法。
 
 ## 2.1.0-desktop（RC）
 

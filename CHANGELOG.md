@@ -2,7 +2,7 @@
 
 > Language: **English** | [中文](CHANGELOG.zh.md)
 
-All notable FramePilot releases are listed here. Version strings for the API come from `apps/api/app/core/version.py` (`APP_VERSION`).
+All notable FramePilot releases are listed here. Version strings for the API come from `apps/api/app/core/version.py` (`APP_VERSION`). The Python package version in `apps/api/pyproject.toml` uses the PEP 440 local form `2.1.0+desktop` so editable installs stay valid.
 
 ## 2.1.0-desktop (RC)
 
