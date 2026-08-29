@@ -190,7 +190,7 @@ Phase 6 — durable local job reclaim (post `2.1.0-desktop`)
 - [x] Originals never modified
 - [x] No cloud/queue dependency
 - [x] Bilingual docs describe the new behavior and remaining limits
-- [ ] `npm run verify` green on the Phase 6 branch tip
+- [x] `npm run verify` green on the Phase 6 branch tip
 
 ---
 
