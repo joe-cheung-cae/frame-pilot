@@ -132,6 +132,10 @@ SQLite 启动时会对加性列和索引应用幂等兼容性迁移。现有迁�
 
 后续 schema 变更应遵循 [迁移计划](v2_migration_plan.zh.md) 中的规则。
 
+## 桌面壳
+
+可安装桌面应用是 Tauri 2 窗口加本机回环 Python sidecar。它通过 HTTP 复用共享筛选 UI，且永不修改原图。见 [桌面用户指南](desktop_user_guide.zh.md)、[桌面测试矩阵](desktop_testing.zh.md) 与 [桌面打包计划](plans/2026-08-18-desktop-packaging.zh.md)。
+
 ## 延后的架构
 
 在核心本地工作流稳定之前延后：
@@ -140,6 +144,5 @@ SQLite 启动时会对加性列和索引应用幂等兼容性迁移。现有迁�
 - RAW 内嵌预览提取
 - HEIC 预览支持
 - XMP sidecar 导出
-- 桌面打包
 - 可选的本地模型注册表
 - 独立 worker 进程或外部队列

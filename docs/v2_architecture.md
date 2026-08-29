@@ -132,6 +132,10 @@ SQLite startup applies idempotent compatibility migrations for additive columns 
 
 Further schema changes should follow the rules in [Migration Plan](v2_migration_plan.md).
 
+## Desktop shell
+
+The installable desktop app is a Tauri 2 window plus a localhost Python sidecar. It reuses the shared culling UI over HTTP and never modifies originals. See [Desktop User Guide](desktop_user_guide.md), [Desktop Testing Matrix](desktop_testing.md), and [Desktop Packaging Plan](plans/2026-08-18-desktop-packaging.md).
+
 ## Deferred Architecture
 
 Deferred until after the core local workflow is stable:
@@ -140,6 +144,5 @@ Deferred until after the core local workflow is stable:
 - RAW embedded preview extraction
 - HEIC preview support
 - XMP sidecar export
-- desktop packaging
 - optional local model registry
 - separate worker process or external queue

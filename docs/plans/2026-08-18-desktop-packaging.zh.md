@@ -269,7 +269,7 @@ Phase 4
 Phase 5
 
 - [x] D5.01 桌面测试矩阵 — `docs/desktop_testing.md`（+ zh）；文档化现有脚本；无新别名（2026-08-29）
-- [ ] D5.02 README 与用户文档
+- [x] D5.02 README 与用户文档 — `docs/desktop_user_guide.md`（+ zh）；README + 架构 + 桌面 README 更新（2026-08-29）
 - [ ] D5.03 桌面性能说明
 - [ ] D5.04 版本升到 2.1.0-desktop
 - [ ] D5.05 已知限制
