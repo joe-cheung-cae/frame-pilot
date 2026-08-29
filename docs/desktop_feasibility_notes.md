@@ -303,3 +303,9 @@ Together these dominate sidecar size long before the Tauri shell. Pillow codecs 
 - Keep imagehash / scipy / PyWavelets / Pillow codecs for desktop RC.
 - Do not commit `dist/`, staged `resources/framepilot-api/`, NSIS, or DMG binaries.
 - `npm run check:artifacts` still rejects tracked binaries; only the narrow `apps/desktop/src-tauri/icons/*.{png,ico,icns}` exception remains (confirmed green on this branch, 2026-08-28).
+
+## D5.03 Desktop path-import performance — 2026-08-29
+
+Host: WSL2 Linux (`TFSZD-zhangc`). No `rustc`/`cargo` on PATH; desktop WebView UI RSS not measured.
+
+Ran `npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100` → status `complete`, import 1.691 s, process 0.502 s, export 0.106 s, API peak RSS **120.24 MB**. Recorded in `docs/v2_performance_baseline.md` (Desktop path-import performance). UI column stays **pending** until a GUI host re-runs with `dev:desktop` or an installed build.

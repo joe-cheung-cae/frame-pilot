@@ -254,3 +254,9 @@ Phase 0 另有 **>250 MB**「考虑丢掉 scipy」触发条件，当时未测到
 - 桌面 RC 保留 imagehash / scipy / PyWavelets / Pillow 编解码器。
 - 不要提交 `dist/`、暂存的 `resources/framepilot-api/`、NSIS 或 DMG 二进制。
 - `npm run check:artifacts` 仍拒绝跟踪二进制；仅保留狭窄的 `apps/desktop/src-tauri/icons/*.{png,ico,icns}` 例外（本分支 2026-08-28 已确认通过）。
+
+## D5.03 桌面路径导入性能 — 2026-08-29
+
+主机：WSL2 Linux（`TFSZD-zhangc`）。PATH 上无 `rustc`/`cargo`；未测桌面 WebView UI RSS。
+
+运行 `npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100` → 状态 `complete`，导入 1.691 s，处理 0.502 s，导出 0.106 s，API 峰值 RSS **120.24 MB**。已记入 `docs/v2_performance_baseline.zh.md`（桌面路径导入性能）。在有 GUI 的主机用 `dev:desktop` 或安装包重测之前，UI 列保持 **pending**。
