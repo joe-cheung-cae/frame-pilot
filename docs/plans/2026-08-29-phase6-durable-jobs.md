@@ -30,7 +30,7 @@ Phase 6 — durable local job reclaim (post `2.1.0-desktop`)
 
 - [x] J6.01 Checkpoint fields and helpers
 - [x] J6.02 Feature-flagged reclaimable interrupt on startup
-- [ ] J6.03 In-process reclaim for interrupted import jobs
+- [x] J6.03 In-process reclaim for interrupted import jobs
 - [ ] J6.04 In-process reclaim for interrupted processing jobs
 - [ ] J6.05 Local SQLite-polled worker entrypoint
 - [ ] J6.06 Lease / heartbeat

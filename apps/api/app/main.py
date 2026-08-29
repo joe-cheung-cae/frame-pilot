@@ -1,3 +1,4 @@
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -11,6 +12,7 @@ from app.core.config import get_settings, reset_settings_cache
 from app.core.origins import allowed_origins, host_is_allowed
 from app.core.version import APP_VERSION, health_payload
 from app.db.session import get_engine, init_db
+from app.services.importing import prepare_interrupted_import_jobs_for_reclaim, run_import_derivative_job
 from app.services.jobs import reconcile_active_jobs_on_startup
 
 _db_ready = False
@@ -19,6 +21,17 @@ _db_ready = False
 def reset_db_ready_flag() -> None:
     global _db_ready
     _db_ready = False
+
+
+def _schedule_import_reclaim(targets: list[tuple[str, list[str]]]) -> None:
+    for job_id, photo_ids in targets:
+        thread = threading.Thread(
+            target=run_import_derivative_job,
+            args=(job_id, photo_ids, []),
+            daemon=True,
+            name=f"framepilot-reclaim-import-{job_id[:8]}",
+        )
+        thread.start()
 
 
 def ensure_db_ready() -> None:
@@ -33,9 +46,21 @@ def ensure_db_ready() -> None:
     _db_ready = True
 
 
+def start_reclaimable_import_jobs() -> list[tuple[str, list[str]]]:
+    """Prepare and schedule interrupted import reclaim work (Phase 6 / J6.03)."""
+    if not get_settings().job_reclaim_on_startup:
+        return []
+    with Session(get_engine()) as session:
+        targets = prepare_interrupted_import_jobs_for_reclaim(session)
+    if targets:
+        _schedule_import_reclaim(targets)
+    return targets
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     ensure_db_ready()
+    start_reclaimable_import_jobs()
     yield
 
 

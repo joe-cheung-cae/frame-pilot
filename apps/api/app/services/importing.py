@@ -22,6 +22,7 @@ from app.image.scoring import compute_quality_scores_for_image
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.services.jobs import (
     TERMINAL_JOB_STATUSES,
+    apply_job_checkpoint,
     as_utc,
     job_is_stale,
     mark_job_failed,
@@ -195,6 +196,58 @@ def create_import_retry_job(session: Session, project: Project, photo_ids: list[
     session.commit()
     session.refresh(job)
     return job
+
+
+def prepare_interrupted_import_jobs_for_reclaim(
+    session: Session,
+    *,
+    limit: int = 1,
+) -> list[tuple[str, list[str]]]:
+    """Reactivate interrupted import jobs for in-process reclaim (Phase 6 / J6.03).
+
+    Returns ``(job_id, photo_ids)`` pairs ready for ``run_import_derivative_job``.
+    At most ``limit`` jobs are prepared so only one reclaim runs at a time by default.
+    """
+    jobs = list(
+        session.exec(
+            select(ProcessingJob)
+            .where(ProcessingJob.job_type == "import")
+            .where(ProcessingJob.status == "interrupted")
+            .order_by(ProcessingJob.interrupted_at, ProcessingJob.created_at, ProcessingJob.id)
+        ).all()
+    )
+    prepared: list[tuple[str, list[str]]] = []
+    for job in jobs:
+        if len(prepared) >= limit:
+            break
+        photos = list(
+            session.exec(
+                select(Photo).where(Photo.project_id == job.project_id).order_by(Photo.created_at, Photo.id)
+            ).all()
+        )
+        photo_ids = [photo.id for photo in photos if photo_needs_import_retry(photo)]
+        now = utc_now()
+        job.status = "running"
+        job.current_step = "reclaim_derivative_generation"
+        job.error_message = None
+        job.interrupted_at = None
+        job.completed_at = None
+        job.cancellation_requested = False
+        job.reclaim_count = int(job.reclaim_count or 0) + 1
+        job.total_items = len(photo_ids)
+        job.processed_items = 0
+        job.failed_items = 0
+        job.progress_percent = progress_percent(0, 0, len(photo_ids))
+        job.started_at = job.started_at or now
+        job.updated_at = now
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+        if not photo_ids:
+            complete_import_job(session, job, imported_count=len(photos), skipped=[])
+            continue
+        prepared.append((job.id, photo_ids))
+    return prepared
 
 
 def update_import_job(
@@ -996,6 +1049,12 @@ def run_import_derivative_job(
                         failed_count,
                         force=True,
                     )
+                    apply_job_checkpoint(
+                        session,
+                        job,
+                        photo_id=photo.id,
+                        stage="derivative_generation",
+                    )
                     if _import_job_cancellation_requested(session, job):
                         _cancel_import_job(session, job, processed_count, failed_count)
                         return
@@ -1025,6 +1084,12 @@ def run_import_derivative_job(
                         processed_count,
                         failed_count,
                         force=True,
+                    )
+                    apply_job_checkpoint(
+                        session,
+                        job,
+                        photo_id=photo.id,
+                        stage="derivative_generation",
                     )
                     if _import_job_cancellation_requested(session, job):
                         _cancel_import_job(session, job, processed_count, failed_count)
