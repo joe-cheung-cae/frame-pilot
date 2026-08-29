@@ -30,11 +30,13 @@ npm run perf:api -- --output /tmp/framepilot-perf-targets --counts 100 500 2000
 
 在依赖这些耗时之前，请用上面的命令在当前机器上验证。硬件、Python 版本、文件系统速度和图像尺寸都会改变绝对值。
 
-## 桌面路径导入性能
+## 桌面 sidecar / API 性能（multipart 导入）
 
-桌面交付的 FastAPI sidecar 与 `perf:api` 相同。在无 WebView 的主机上（常见无 rustc ≥1.88 的 WSL agent），只记录 **sidecar / API 进程 RSS**，并将 UI 标为 pending（锁定 GUI 决策 13）。
+桌面交付的 FastAPI sidecar 由 `perf:api` 驱动。下方冒烟使用 multipart `POST /api/projects/{id}/import`（上传路径），**不是**桌面文件系统 `POST .../imports/from-paths`。耗时与 RSS 仅作 **API/sidecar** 证据。真正的路径导入 RSS 仍为 **pending**（[#97](https://github.com/joe-cheung-cae/frame-pilot/issues/97)）。
 
-下方行所用命令（API 进程内的合成路径等价导入 + 处理 + 导出）：
+在无 WebView 的主机上（常见无 rustc ≥1.88 的 WSL agent），只记录 **sidecar / API 进程 RSS**，并将 UI 标为 pending（锁定 GUI 决策 13）。
+
+下方行所用命令（API 进程内的合成 multipart 导入 + 处理 + 导出）：
 
 ```bash
 npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100
@@ -44,7 +46,7 @@ npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100
 | ---- | ---- | ---: | ---- | -----: | -----: | -----: | ------------------------: | ---------------- |
 | 2026-08-29 | WSL2 Linux `TFSZD-zhangc`（PATH 上无 rustc/WebView） | 100 | complete | 1.691 | 0.502 | 0.106 | 120.24 | **pending**（本机无桌面 GUI） |
 
-注意：合成 JPEG；非相机多样性。这不是打包后的 PyInstaller 二进制 RSS。在 Windows/macOS 上用 `npm run dev:desktop` 或安装包补全 UI 列。另见 [桌面测试矩阵](desktop_testing.zh.md) 与 [可行性笔记](desktop_feasibility_notes.zh.md)。
+注意：合成 JPEG；非相机多样性；**不是** `from-paths` 路径导入。这不是打包后的 PyInstaller 二进制 RSS。在 Windows/macOS 上用 `npm run dev:desktop` 或安装包补全 UI 列。另见 [桌面测试矩阵](desktop_testing.zh.md) 与 [可行性笔记](desktop_feasibility_notes.zh.md)。澄清跟踪 [#96](https://github.com/joe-cheung-cae/frame-pilot/issues/96)。
 
 ## 浏览器规模筛选 smoke
 

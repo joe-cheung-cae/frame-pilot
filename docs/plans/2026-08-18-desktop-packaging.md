@@ -270,7 +270,7 @@ Phase 5
 
 - [x] D5.01 Desktop test matrix — `docs/desktop_testing.md` (+ zh); documents existing scripts; no new alias (2026-08-29)
 - [x] D5.02 README and user docs — `docs/desktop_user_guide.md` (+ zh); README + architecture + desktop README updates (2026-08-29)
-- [x] D5.03 Desktop performance notes — 100-photo `perf:api` sidecar RSS 120.24 MB on WSL2; UI pending (2026-08-29)
+- [x] D5.03 Desktop performance notes — 100-photo multipart `perf:api` sidecar RSS 120.24 MB on WSL2 (not `from-paths`; see #96 / #97); UI pending (2026-08-29)
 - [x] D5.04 Version bump to 2.1.0-desktop — `APP_VERSION`/`package.json`/`Tauri` = `2.1.0-desktop`; `pyproject.toml` = `2.1.0+desktop` (PEP 440); bilingual CHANGELOG; no git tag (2026-08-29)
 - [x] D5.05 Known limitations — Desktop 2.1 section in `docs/v2_known_limitations.md` (+ zh); records D3.06 tray deferral (2026-08-29)
 
@@ -1098,7 +1098,7 @@ Cover: install, first launch, data location, copies not moves, reveal export fol
 **Depends on:** D2.08  
 **Files:** feasibility notes or `docs/v2_performance_baseline.md`
 
-One 100-photo path-import + process RSS for sidecar and UI if GUI exists; otherwise sidecar-only and mark UI pending.
+One 100-photo import + process RSS for sidecar and UI if GUI exists; otherwise sidecar-only and mark UI pending. Phase 5 evidence used multipart `perf:api` (`POST .../import`); true `from-paths` RSS tracked in #97 after docs clarify #96.
 
 **Tests:** none (documentation).
 
@@ -1133,7 +1133,7 @@ List: jobs not durable across sidecar kill; HEIC/RAW skipped; auto-update deferr
 - [x] Native folder picker and drag-drop import — Phase 2; live GUI may remain `[~]` on some hosts (see feasibility notes)
 - [x] Core workflow matches v2: import, process, keyboard cull, CSV/ZIP/folder export — D2.08 + shared UI
 - [x] Originals never modified — immutability tests + user guide
-- [x] 500-photo API-level path import does not crash; 500 GUI documented if measured — API via `perf:api` / existing smokes; **500 GUI not measured** on WSL close-out host (documented pending in performance baseline / testing matrix)
+- [x] 500-photo API-level import does not crash; 500 GUI documented if measured — API via multipart `perf:api` / existing smokes (not `from-paths`); **500 GUI not measured** on WSL close-out host (documented pending in performance baseline / testing matrix)
 - [x] User + developer docs exist — D5.01–D5.02 (`desktop_testing`, `desktop_user_guide`, README, architecture)
 - [x] CI builds both platform installers; signing may still be pending — D4.04 + D4.05 signing runbook
 - [x] Loopback bind + Host/Origin checks in place — Phase 0

@@ -29,7 +29,7 @@ FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。�
 | `npm run dev:desktop` | Tauri + Vite + sidecar（需 Rust） |
 | `npm run test:desktop:smoke` | HTTP 冒烟：sidecar health + `/api/projects` |
 | `npm run generate:synthetic -- --output <dir> --count <n>` | 合成 JPEG，供路径导入行 |
-| `npm run perf:api -- --output <dir> --counts 100 500 2000` | 可选 API 规模导入/处理冒烟 |
+| `npm run perf:api -- --output <dir> --counts 100 500 2000` | 可选 API 规模 multipart 导入/处理冒烟（非 `from-paths`） |
 | `npm run packaging:sidecar` | PyInstaller one-dir sidecar |
 | `npm run test:sidecar` | Sidecar ready-line 冒烟 |
 | `npm run verify` | 无 Rust 全量校验 |
@@ -57,7 +57,7 @@ FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。�
 | 行 | 命令 / 动作 | 通过标准 | 可自动化？ |
 | -- | ----------- | -------- | ---------- |
 | 100 张合成路径导入 | `npm run generate:synthetic -- --output /tmp/fp-synth-100 --count 100`，再经桌面「选择文件夹」或 `POST .../imports/from-paths`（每片 ≤100，同一 `job_id`，最后一片 `finalize`） | 任务 `complete`（或仅因不支持格式 `complete_with_errors`）；`{root_path}/originals` 有副本；源 size/mtime/字节不变 | 部分（API 覆盖不可变；GUI 选择器可为 `[~]`） |
-| 可选 500 | `npm run perf:api -- --output /tmp/fp-perf --counts 500` | 跑过后写入性能说明；不崩溃 | 是（API） |
+| 可选 500 | `npm run perf:api -- --output /tmp/fp-perf --counts 500` | 跑过后写入性能说明；不崩溃。仅 multipart `/import` — 非 `from-paths`（#97） | 是（API） |
 | 可选 2000 | `npm run perf:api -- --output /tmp/fp-perf --counts 2000` | 同上；默认**不要求** 2000 GUI 审片 | 是（API） |
 | 完整筛选工作流 | 按 [tests/desktop/workflow.md](../tests/desktop/workflow.md) | 导入 → 处理 → 键盘筛选 → CSV/ZIP/文件夹导出 + reveal | 手工 / API pytest |
 | 安装 / 卸载 | 安装 CI 的 Windows NSIS 或 macOS DMG；启动一次；卸载 | 应用二进制已移除；**数据目录可保留**（需告知用户）— 路径见 [apps/desktop/README.md](../apps/desktop/README.md) | 手工 |
