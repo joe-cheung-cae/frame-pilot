@@ -14,6 +14,7 @@ from app.core.version import APP_VERSION, health_payload
 from app.db.session import get_engine, init_db
 from app.services.importing import prepare_interrupted_import_jobs_for_reclaim, run_import_derivative_job
 from app.services.jobs import reconcile_active_jobs_on_startup
+from app.services.processing import prepare_interrupted_processing_jobs_for_reclaim, run_processing_job
 
 _db_ready = False
 
@@ -34,6 +35,17 @@ def _schedule_import_reclaim(targets: list[tuple[str, list[str]]]) -> None:
         thread.start()
 
 
+def _schedule_processing_reclaim(job_ids: list[str]) -> None:
+    for job_id in job_ids:
+        thread = threading.Thread(
+            target=run_processing_job,
+            args=(job_id,),
+            daemon=True,
+            name=f"framepilot-reclaim-process-{job_id[:8]}",
+        )
+        thread.start()
+
+
 def ensure_db_ready() -> None:
     """Initialize schema and reconcile leftover active jobs once per process/settings reset."""
     global _db_ready
@@ -47,20 +59,36 @@ def ensure_db_ready() -> None:
 
 
 def start_reclaimable_import_jobs() -> list[tuple[str, list[str]]]:
-    """Prepare and schedule interrupted import reclaim work (Phase 6 / J6.03)."""
+    """Backward-compatible alias for import-only reclaim scheduling."""
+    result = start_reclaimable_jobs()
+    return result["import"]
+
+
+def start_reclaimable_jobs() -> dict[str, list]:
+    """Prepare and schedule interrupted import/processing reclaim (Phase 6 / J6.03–J6.04).
+
+    Prefers import reclaim in the same startup pass so derivative work finishes before
+    grouping rebuild. Only one processing reclaim job is prepared when no import reclaim
+    targets exist.
+    """
     if not get_settings().job_reclaim_on_startup:
-        return []
+        return {"import": [], "processing": []}
     with Session(get_engine()) as session:
-        targets = prepare_interrupted_import_jobs_for_reclaim(session)
-    if targets:
-        _schedule_import_reclaim(targets)
-    return targets
+        import_targets = prepare_interrupted_import_jobs_for_reclaim(session)
+        processing_ids: list[str] = []
+        if not import_targets:
+            processing_ids = prepare_interrupted_processing_jobs_for_reclaim(session)
+    if import_targets:
+        _schedule_import_reclaim(import_targets)
+    if processing_ids:
+        _schedule_processing_reclaim(processing_ids)
+    return {"import": import_targets, "processing": processing_ids}
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     ensure_db_ready()
-    start_reclaimable_import_jobs()
+    start_reclaimable_jobs()
     yield
 
 

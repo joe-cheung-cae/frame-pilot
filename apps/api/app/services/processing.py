@@ -211,6 +211,44 @@ def create_processing_job(session: Session, project: Project) -> ProcessingJob:
     return job
 
 
+def prepare_interrupted_processing_jobs_for_reclaim(
+    session: Session,
+    *,
+    limit: int = 1,
+) -> list[str]:
+    """Clear partial groups and reactivate interrupted processing jobs (Phase 6 / J6.04)."""
+    jobs = list(
+        session.exec(
+            select(ProcessingJob)
+            .where(ProcessingJob.job_type == "processing")
+            .where(ProcessingJob.status == "interrupted")
+            .order_by(ProcessingJob.interrupted_at, ProcessingJob.created_at, ProcessingJob.id)
+        ).all()
+    )
+    prepared: list[str] = []
+    for job in jobs:
+        if len(prepared) >= limit:
+            break
+        reason = "Interrupted processing was reclaimed after API restart; rebuilding local groups"
+        reset_project_after_processing_failure(session, job.project_id, reason)
+        now = utc_now()
+        job.status = "queued"
+        job.current_step = "reclaim_queued"
+        job.error_message = None
+        job.interrupted_at = None
+        job.completed_at = None
+        job.reclaim_count = int(job.reclaim_count or 0) + 1
+        job.processed_items = 0
+        job.failed_items = 0
+        job.progress_percent = 0.0
+        job.updated_at = now
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+        prepared.append(job.id)
+    return prepared
+
+
 def run_processing_job(job_id: str) -> None:
     with Session(get_engine()) as session:
         job = session.get(ProcessingJob, job_id)
