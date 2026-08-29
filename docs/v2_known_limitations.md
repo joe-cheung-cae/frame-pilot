@@ -24,7 +24,9 @@ HEIC and RAW formats such as DNG, ARW, CR3, and NEF are deferred. v2.0 may recog
 
 ## Background Job Durability
 
-Import and processing work uses FastAPI `BackgroundTasks` in the local API process. Jobs have visible progress, stale detection, and retry paths, but they are not durable across API process exits. If the API process stops during work, polling later marks stale queued or running jobs as failed so the user can retry when possible.
+Import and processing work uses FastAPI `BackgroundTasks` in the local API process. Jobs have visible progress, stale detection, and retry paths, but they are **not durable by default** across API process exits. If the API process stops during work, polling later marks stale queued or running jobs as failed so the user can retry when possible.
+
+**Opt-in reclaim (Phase 6):** set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` to mark leftover active import/processing jobs as `interrupted` on startup and automatically resume import derivatives (and clear/rebuild interrupted processing) in-process. A local worker entrypoint is also available via `npm run worker` / `python -m app.worker`. Default behavior without the flag remains fail-and-retry. Export jobs still fail-and-cleanup on restart. See [Phase 6 plan](plans/2026-08-29-phase6-durable-jobs.md).
 
 Processing is intentionally blocked while the same project has an active import derivative job. Direct process requests return `409 Conflict`, and the project list, dashboard, processing page, and culling workspace send users back to import progress until the import job reaches a terminal state.
 
