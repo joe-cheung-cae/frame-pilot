@@ -58,7 +58,10 @@ def test_claim_next_queued_processing_job_orders_by_created_at(tmp_path, monkeyp
         session.add(newer)
         session.commit()
         session.refresh(older)
-        assert claim_next_queued_processing_job(session) == older.id
+        assert claim_next_queued_processing_job(session, worker_id="worker-order") == older.id
+        session.refresh(older)
+        assert older.worker_id == "worker-order"
+        assert older.heartbeat_at is not None
 
 
 def test_run_worker_once_reclaims_interrupted_import_when_flag_on(tmp_path, monkeypatch):

@@ -101,6 +101,8 @@ class ProcessingJob(SQLModel, table=True):
     checkpoint_stage: str | None = None
     interrupted_at: datetime | None = None
     reclaim_count: int = 0
+    worker_id: str | None = None
+    heartbeat_at: datetime | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)

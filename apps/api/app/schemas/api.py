@@ -46,6 +46,8 @@ class JobRead(BaseModel):
     checkpoint_stage: str | None = None
     interrupted_at: datetime | None = None
     reclaim_count: int = 0
+    worker_id: str | None = None
+    heartbeat_at: datetime | None = None
     started_at: datetime | None
     completed_at: datetime | None
     retryable: bool = False

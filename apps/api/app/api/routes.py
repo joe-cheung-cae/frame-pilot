@@ -165,6 +165,8 @@ def _job_read(job: ProcessingJob) -> JobRead:
         checkpoint_stage=job.checkpoint_stage,
         interrupted_at=job.interrupted_at,
         reclaim_count=job.reclaim_count,
+        worker_id=job.worker_id,
+        heartbeat_at=job.heartbeat_at,
         started_at=job.started_at,
         completed_at=job.completed_at,
         retryable=job.retryable,

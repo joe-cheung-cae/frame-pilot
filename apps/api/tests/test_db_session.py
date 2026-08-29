@@ -159,6 +159,47 @@ def test_run_migrations_upgrades_legacy_database_without_schema_meta(tmp_path):
     assert "error_message" in columns
     project_columns = {column["name"] for column in inspect(engine).get_columns("project")}
     assert "schema_version" in project_columns
+    # create_all may not have created processingjob on this minimal legacy DB; ensure helper path
+    # still lands lease columns when the table exists after a fuller migrate.
+    if inspect(engine).has_table("processingjob"):
+        job_columns = {column["name"] for column in inspect(engine).get_columns("processingjob")}
+        assert "worker_id" in job_columns
+        assert "heartbeat_at" in job_columns
+
+
+def test_migrate_to_4_adds_job_lease_columns(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'lease-upgrade.db'}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE processingjob (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    project_id VARCHAR NOT NULL,
+                    job_type VARCHAR NOT NULL DEFAULT 'processing',
+                    status VARCHAR NOT NULL,
+                    current_step VARCHAR NOT NULL,
+                    total_items INTEGER NOT NULL,
+                    processed_items INTEGER NOT NULL,
+                    failed_items INTEGER NOT NULL DEFAULT 0,
+                    progress_percent FLOAT NOT NULL DEFAULT 0,
+                    error_message VARCHAR,
+                    cancellation_requested BOOLEAN NOT NULL DEFAULT 0,
+                    cancelled_at DATETIME,
+                    started_at DATETIME,
+                    completed_at DATETIME,
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL
+                )
+                """
+            )
+        )
+    set_schema_version(engine, 3)
+    assert run_migrations(engine) == CURRENT_SCHEMA_VERSION
+    job_columns = {column["name"] for column in inspect(engine).get_columns("processingjob")}
+    assert "checkpoint_photo_id" in job_columns
+    assert "worker_id" in job_columns
+    assert "heartbeat_at" in job_columns
 
 
 def test_run_migrations_rejects_future_schema_version(tmp_path):

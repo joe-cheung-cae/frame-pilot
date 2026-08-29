@@ -17,6 +17,7 @@ import argparse
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 
 from sqlmodel import Session, select
@@ -25,6 +26,7 @@ from app.core.config import get_settings, reset_settings_cache
 from app.db.session import get_engine, init_db
 from app.models.entities import ProcessingJob
 from app.services.importing import prepare_interrupted_import_jobs_for_reclaim, run_import_derivative_job
+from app.services.jobs import acquire_job_lease
 from app.services.processing import prepare_interrupted_processing_jobs_for_reclaim, run_processing_job
 
 WORKER_LOCK_NAME = "framepilot-worker.lock"
@@ -78,7 +80,7 @@ def worker_lock_path(data_dir: Path | None = None) -> Path:
     return Path(root) / WORKER_LOCK_NAME
 
 
-def reclaim_interrupted_jobs(session: Session) -> dict[str, list]:
+def reclaim_interrupted_jobs(session: Session, *, worker_id: str) -> dict[str, list]:
     """Reclaim interrupted import/processing work (same policy as API lifespan)."""
     if not get_settings().job_reclaim_on_startup:
         return {"import": [], "processing": []}
@@ -87,28 +89,38 @@ def reclaim_interrupted_jobs(session: Session) -> dict[str, list]:
     if not import_targets:
         processing_ids = prepare_interrupted_processing_jobs_for_reclaim(session)
     for job_id, photo_ids in import_targets:
+        job = session.get(ProcessingJob, job_id)
+        if job is not None:
+            acquire_job_lease(session, job, worker_id=worker_id)
         run_import_derivative_job(job_id, photo_ids, [])
     for job_id in processing_ids:
+        job = session.get(ProcessingJob, job_id)
+        if job is not None:
+            acquire_job_lease(session, job, worker_id=worker_id)
         run_processing_job(job_id)
     return {"import": import_targets, "processing": processing_ids}
 
 
-def claim_next_queued_processing_job(session: Session) -> str | None:
+def claim_next_queued_processing_job(session: Session, *, worker_id: str) -> str | None:
     job = session.exec(
         select(ProcessingJob)
         .where(ProcessingJob.job_type == "processing")
         .where(ProcessingJob.status == "queued")
         .order_by(ProcessingJob.created_at, ProcessingJob.id)
     ).first()
-    return None if job is None else job.id
+    if job is None:
+        return None
+    acquire_job_lease(session, job, worker_id=worker_id)
+    return job.id
 
 
-def run_worker_once(session: Session) -> bool:
+def run_worker_once(session: Session, *, worker_id: str | None = None) -> bool:
     """Run one unit of work. Returns True when work was performed."""
-    reclaimed = reclaim_interrupted_jobs(session)
+    owner = worker_id or f"worker-{uuid.uuid4().hex[:12]}"
+    reclaimed = reclaim_interrupted_jobs(session, worker_id=owner)
     if reclaimed["import"] or reclaimed["processing"]:
         return True
-    job_id = claim_next_queued_processing_job(session)
+    job_id = claim_next_queued_processing_job(session, worker_id=owner)
     if job_id is None:
         return False
     run_processing_job(job_id)
@@ -120,12 +132,13 @@ def run_worker_loop(*, poll_seconds: float = 1.0, max_iterations: int | None = N
     init_db()
     lock = WorkerLock(worker_lock_path())
     lock.acquire()
+    worker_id = f"worker-{os.getpid()}-{uuid.uuid4().hex[:8]}"
     iterations = 0
     try:
         while max_iterations is None or iterations < max_iterations:
             iterations += 1
             with Session(get_engine()) as session:
-                worked = run_worker_once(session)
+                worked = run_worker_once(session, worker_id=worker_id)
             if max_iterations is not None and iterations >= max_iterations:
                 break
             if not worked:

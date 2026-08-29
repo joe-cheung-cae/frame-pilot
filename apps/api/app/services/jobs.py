@@ -15,6 +15,8 @@ ACTIVE_JOB_STATUSES = frozenset({"queued", "running"})
 # "interrupted" is reclaimable (Phase 6); not active work and not a successful terminal state.
 TERMINAL_JOB_STATUSES = frozenset({"complete", "complete_with_errors", "failed", "cancelled", "interrupted"})
 STALE_JOB_AFTER = timedelta(minutes=10)
+# When a worker lease heartbeat is present, prefer this shorter expiry over updated_at.
+JOB_LEASE_STALE_AFTER = timedelta(minutes=2)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +51,62 @@ def apply_job_checkpoint(
     return job
 
 
+def acquire_job_lease(
+    session: Session,
+    job: ProcessingJob,
+    *,
+    worker_id: str,
+    commit: bool = True,
+) -> ProcessingJob:
+    """Claim a local worker lease on an active job (Phase 6 / J6.06)."""
+    now = utc_now()
+    job.worker_id = worker_id
+    job.heartbeat_at = now
+    job.updated_at = now
+    session.add(job)
+    if commit:
+        session.commit()
+        session.refresh(job)
+    return job
+
+
+def heartbeat_job_lease(
+    session: Session,
+    job: ProcessingJob,
+    *,
+    worker_id: str,
+    commit: bool = True,
+) -> ProcessingJob:
+    """Refresh lease heartbeat when the same worker still owns the job."""
+    if job.worker_id not in {None, worker_id}:
+        return job
+    now = utc_now()
+    job.worker_id = worker_id
+    job.heartbeat_at = now
+    job.updated_at = now
+    session.add(job)
+    if commit:
+        session.commit()
+        session.refresh(job)
+    return job
+
+
+def clear_job_lease(
+    session: Session,
+    job: ProcessingJob,
+    *,
+    commit: bool = True,
+) -> ProcessingJob:
+    job.worker_id = None
+    job.heartbeat_at = None
+    job.updated_at = utc_now()
+    session.add(job)
+    if commit:
+        session.commit()
+        session.refresh(job)
+    return job
+
+
 def progress_percent(processed_items: int, failed_items: int, total_items: int) -> float:
     if total_items <= 0:
         return 100.0
@@ -71,6 +129,9 @@ def job_is_stale(job: ProcessingJob, now: datetime | None = None) -> bool:
     if job.status not in ACTIVE_JOB_STATUSES:
         return False
     current_time = as_utc(now or utc_now())
+    # Prefer lease heartbeat expiry when a worker has claimed the job.
+    if job.heartbeat_at is not None:
+        return current_time - as_utc(job.heartbeat_at) >= JOB_LEASE_STALE_AFTER
     return current_time - as_utc(job.updated_at) >= STALE_JOB_AFTER
 
 
@@ -87,6 +148,8 @@ def mark_job_failed(
     job.error_message = reason
     job.failed_items = remaining_failed_items(job)
     job.progress_percent = progress_percent(job.processed_items, job.failed_items, job.total_items)
+    job.worker_id = None
+    job.heartbeat_at = None
     job.completed_at = now
     job.updated_at = now
     session.add(job)
@@ -158,6 +221,8 @@ def mark_job_interrupted_for_reclaim(session: Session, job: ProcessingJob) -> Pr
     job.current_step = "interrupted - restart"
     job.error_message = "API process restarted while this job was still active; waiting for local reclaim"
     job.interrupted_at = now
+    job.worker_id = None
+    job.heartbeat_at = None
     job.completed_at = None
     job.updated_at = now
     session.add(job)

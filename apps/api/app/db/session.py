@@ -172,6 +172,10 @@ def _ensure_processing_job_columns(engine) -> None:
         statements.append("ALTER TABLE processingjob ADD COLUMN interrupted_at DATETIME")
     if "reclaim_count" not in existing:
         statements.append("ALTER TABLE processingjob ADD COLUMN reclaim_count INTEGER NOT NULL DEFAULT 0")
+    if "worker_id" not in existing:
+        statements.append("ALTER TABLE processingjob ADD COLUMN worker_id VARCHAR")
+    if "heartbeat_at" not in existing:
+        statements.append("ALTER TABLE processingjob ADD COLUMN heartbeat_at DATETIME")
     if "started_at" not in existing:
         statements.append("ALTER TABLE processingjob ADD COLUMN started_at DATETIME")
     if "completed_at" not in existing:

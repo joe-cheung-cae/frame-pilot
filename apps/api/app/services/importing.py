@@ -288,6 +288,8 @@ def complete_import_job(
     job.failed_items = skipped_count
     job.progress_percent = 100.0
     job.error_message = _skipped_files_message(skipped)
+    job.worker_id = None
+    job.heartbeat_at = None
     job.completed_at = now
     job.updated_at = now
     session.add(job)

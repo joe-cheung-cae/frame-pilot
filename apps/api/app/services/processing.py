@@ -176,6 +176,8 @@ def _complete_unchanged_job(session: Session, job: ProcessingJob, total_items: i
     job.failed_items = 0
     job.progress_percent = 100.0
     job.error_message = None
+    job.worker_id = None
+    job.heartbeat_at = None
     job.completed_at = now
     job.updated_at = now
     session.add(job)
@@ -429,6 +431,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         job.progress_percent = 100.0
         if failed_photos:
             job.error_message = _failed_photo_count_message(len(failed_photos))
+        job.worker_id = None
+        job.heartbeat_at = None
         job.completed_at = utc_now()
         project.processed_images = len(preserved_ids) + len(group_inputs)
         project.last_processed_at = job.completed_at
@@ -443,6 +447,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         job.error_message = failure_reason
         job.failed_items = max(0, job.total_items - job.processed_items) if job.total_items else 1
         job.progress_percent = progress_percent(job.processed_items, job.failed_items, job.total_items)
+        job.worker_id = None
+        job.heartbeat_at = None
         job.completed_at = utc_now()
 
     job.updated_at = utc_now()
