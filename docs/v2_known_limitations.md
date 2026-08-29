@@ -79,3 +79,19 @@ The app assumes single-user local SQLite access. It is not designed for multi-us
 ## Unsupported Scenarios
 
 v2.0 does not support cloud libraries, shared team projects, automatic original deletion, remote AI processing, large bundled AI models, online galleries, Lightroom replacement editing, or mobile-first workflows.
+
+## Desktop 2.1
+
+The installable desktop app (`2.1.0-desktop`) shares the same local API and culling UI with extra shell constraints:
+
+- Import and processing jobs are **not durable** across sidecar kill or app quit; stale jobs are marked failed on the next launch so the user can retry.
+- HEIC and RAW remain skipped with local messages (same as v2.0 web).
+- **Auto-update is deferred**; users install new builds manually.
+- CI installers may be **unsigned** until certificates exist; see [Desktop Code Signing Runbook](desktop_signing.md).
+- **WSL may not run the GUI** (needs rustc ≥1.88 and a display); HTTP/API smoke still works. See [Desktop Testing Matrix](desktop_testing.md).
+- Storage is **copy mode only** (no reference-in-place of camera cards).
+- There is **no detached preview** window outside the main shell.
+- There are **no concurrency knobs** for import/process workers beyond the existing local job model.
+- Optional **system tray is deferred** (D3.06); no tray-related `fs:` / `shell:` capabilities were added.
+
+End-user steps: [Desktop User Guide](desktop_user_guide.md).
