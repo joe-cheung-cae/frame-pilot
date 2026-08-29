@@ -379,7 +379,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--width", default=96, type=int, help="Synthetic image width in pixels.")
     parser.add_argument("--height", default=72, type=int, help="Synthetic image height in pixels.")
-    parser.add_argument("--import-batch-size", default=100, type=int, help="Files per multipart upload or from-paths request.")
+    parser.add_argument(
+        "--import-batch-size",
+        default=100,
+        type=int,
+        help="Files per multipart upload or from-paths request.",
+    )
     parser.add_argument(
         "--import-mode",
         default="multipart",
