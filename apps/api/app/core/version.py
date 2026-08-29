@@ -1,4 +1,4 @@
-APP_VERSION = "2.0.0-rc2"
+APP_VERSION = "2.1.0-desktop"
 SERVICE_NAME = "framepilot-api"
 
 

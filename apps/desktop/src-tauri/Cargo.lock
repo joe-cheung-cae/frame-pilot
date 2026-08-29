@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "framepilot-desktop"
-version = "2.0.0-rc2"
+version = "2.1.0-desktop"
 dependencies = [
  "serde",
  "serde_json",

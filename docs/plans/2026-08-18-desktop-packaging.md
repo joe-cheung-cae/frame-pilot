@@ -271,7 +271,7 @@ Phase 5
 - [x] D5.01 Desktop test matrix — `docs/desktop_testing.md` (+ zh); documents existing scripts; no new alias (2026-08-29)
 - [x] D5.02 README and user docs — `docs/desktop_user_guide.md` (+ zh); README + architecture + desktop README updates (2026-08-29)
 - [x] D5.03 Desktop performance notes — 100-photo `perf:api` sidecar RSS 120.24 MB on WSL2; UI pending (2026-08-29)
-- [ ] D5.04 Version bump to 2.1.0-desktop
+- [x] D5.04 Version bump to 2.1.0-desktop — `APP_VERSION` + package versions + bilingual CHANGELOG; no git tag (2026-08-29)
 - [ ] D5.05 Known limitations
 
 ---

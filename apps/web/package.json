@@ -1,6 +1,6 @@
 {
   "name": "@framepilot/web",
-  "version": "2.0.0-rc2",
+  "version": "2.1.0-desktop",
   "private": true,
   "license": "MIT",
   "scripts": {
