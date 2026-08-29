@@ -86,7 +86,7 @@ v2.0 does not support cloud libraries, shared team projects, automatic original 
 
 The installable desktop app (`2.1.0-desktop`) shares the same local API and culling UI with extra shell constraints:
 
-- Import and processing jobs are **not durable** across sidecar kill or app quit; stale jobs are marked failed on the next launch so the user can retry.
+- Import and processing jobs are **not durable by default** across sidecar kill or app quit; stale jobs are marked failed on the next launch so the user can retry. With `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1`, leftover import/processing jobs are marked `interrupted` and can be reclaimed on the next launch (exports still fail-and-cleanup).
 - HEIC and RAW remain skipped with local messages (same as v2.0 web).
 - **Auto-update is deferred**; users install new builds manually.
 - CI installers may be **unsigned** until certificates exist; see [Desktop Code Signing Runbook](desktop_signing.md).

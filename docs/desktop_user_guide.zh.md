@@ -61,7 +61,7 @@ FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，
 
 ## 有任务时退出
 
-活跃**导入**时关闭，可选继续工作 / 退出并取消导入 / 仍要退出。取消走同一 job cancel API，再停止 sidecar。活跃**处理**任务无法取消；仍要退出会停止 sidecar，下次启动将过期任务标为失败。细节见 [apps/desktop/README.md](../apps/desktop/README.md)。
+活跃**导入**时关闭，可选继续工作 / 退出并取消导入 / 仍要退出。取消走同一 job cancel API，再停止 sidecar。活跃**处理**任务无法取消；仍要退出会停止 sidecar。默认下次启动将残留任务标为失败以便手动重试；设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` 时可改为中断并回收。细节见 [apps/desktop/README.md](../apps/desktop/README.md)。
 
 ---
 
