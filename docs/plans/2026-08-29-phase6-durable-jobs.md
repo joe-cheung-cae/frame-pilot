@@ -29,7 +29,7 @@ For Goal Mode: implement **one task id at a time**. Do not start the next task u
 Phase 6 — durable local job reclaim (post `2.1.0-desktop`)
 
 - [x] J6.01 Checkpoint fields and helpers
-- [ ] J6.02 Feature-flagged reclaimable interrupt on startup
+- [x] J6.02 Feature-flagged reclaimable interrupt on startup
 - [ ] J6.03 In-process reclaim for interrupted import jobs
 - [ ] J6.04 In-process reclaim for interrupted processing jobs
 - [ ] J6.05 Local SQLite-polled worker entrypoint

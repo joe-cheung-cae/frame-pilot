@@ -7,9 +7,19 @@ from pydantic import BaseModel, Field
 from app.core.local_paths import normalize_user_path
 
 
+def env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 class Settings(BaseModel):
     data_dir: Path
     project_root_allowlist: list[Path] = Field(default_factory=list)
+    # Phase 6 / J6.02: when true, leftover active jobs become status=interrupted for reclaim.
+    # Default false preserves fail-and-retry startup behavior.
+    job_reclaim_on_startup: bool = False
 
     @property
     def database_url(self) -> str:
@@ -31,7 +41,11 @@ def get_settings() -> Settings:
         except ValueError:
             continue
         allowlist.append(Path(cleaned).expanduser().resolve())
-    return Settings(data_dir=data_dir, project_root_allowlist=allowlist)
+    return Settings(
+        data_dir=data_dir,
+        project_root_allowlist=allowlist,
+        job_reclaim_on_startup=env_flag("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP"),
+    )
 
 
 def reset_settings_cache() -> None:

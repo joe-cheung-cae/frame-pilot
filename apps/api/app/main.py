@@ -7,11 +7,11 @@ from sqlmodel import Session
 
 from app.api.meta import router as meta_router
 from app.api.routes import router
-from app.core.config import reset_settings_cache
+from app.core.config import get_settings, reset_settings_cache
 from app.core.origins import allowed_origins, host_is_allowed
 from app.core.version import APP_VERSION, health_payload
 from app.db.session import get_engine, init_db
-from app.services.jobs import fail_active_jobs_on_startup
+from app.services.jobs import reconcile_active_jobs_on_startup
 
 _db_ready = False
 
@@ -22,13 +22,14 @@ def reset_db_ready_flag() -> None:
 
 
 def ensure_db_ready() -> None:
-    """Initialize schema and fail leftover active jobs once per process/settings reset."""
+    """Initialize schema and reconcile leftover active jobs once per process/settings reset."""
     global _db_ready
     if _db_ready:
         return
     init_db()
     with Session(get_engine()) as session:
-        fail_active_jobs_on_startup(session)
+        reclaim = get_settings().job_reclaim_on_startup
+        reconcile_active_jobs_on_startup(session, reclaim=reclaim)
     _db_ready = True
 
 

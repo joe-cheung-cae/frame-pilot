@@ -147,6 +147,51 @@ def fail_active_jobs_on_startup(session: Session) -> int:
             reason = f"API process restarted while this {job.job_type} job was still active"
             mark_job_failed(session, job, reason, current_step="failed - restart")
 
+    export_failures = _fail_running_exports_on_startup(session)
+    return len(active_jobs) + export_failures
+
+
+def mark_job_interrupted_for_reclaim(session: Session, job: ProcessingJob) -> ProcessingJob:
+    """Mark an active job interrupted so a later reclaim pass can resume it (Phase 6 / J6.02)."""
+    now = utc_now()
+    job.status = "interrupted"
+    job.current_step = "interrupted - restart"
+    job.error_message = "API process restarted while this job was still active; waiting for local reclaim"
+    job.interrupted_at = now
+    job.completed_at = None
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def interrupt_active_jobs_for_reclaim_on_startup(session: Session) -> int:
+    """Leave import/processing work reclaimable; still fail running exports (Phase 6 decision)."""
+    active_jobs = list(
+        session.exec(select(ProcessingJob).where(ProcessingJob.status.in_(list(ACTIVE_JOB_STATUSES)))).all()
+    )
+    interrupted = 0
+    for job in active_jobs:
+        if job.job_type in {"import", "processing"}:
+            mark_job_interrupted_for_reclaim(session, job)
+            interrupted += 1
+        else:
+            reason = f"API process restarted while this {job.job_type} job was still active"
+            mark_job_failed(session, job, reason, current_step="failed - restart")
+            interrupted += 1
+
+    export_failures = _fail_running_exports_on_startup(session)
+    return interrupted + export_failures
+
+
+def reconcile_active_jobs_on_startup(session: Session, *, reclaim: bool) -> int:
+    if reclaim:
+        return interrupt_active_jobs_for_reclaim_on_startup(session)
+    return fail_active_jobs_on_startup(session)
+
+
+def _fail_running_exports_on_startup(session: Session) -> int:
     running_exports = list(session.exec(select(ExportRecord).where(ExportRecord.status == "running")).all())
     for record in running_exports:
         project = session.get(Project, record.project_id)
@@ -177,5 +222,4 @@ def fail_active_jobs_on_startup(session: Session) -> int:
         session.add(record)
     if running_exports:
         session.commit()
-
-    return len(active_jobs) + len(running_exports)
+    return len(running_exports)

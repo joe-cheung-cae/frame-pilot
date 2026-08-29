@@ -108,7 +108,12 @@ class ProcessingJob(SQLModel, table=True):
 
     @property
     def retryable(self) -> bool:
-        return self.job_type == "import" and self.status in {"failed", "complete_with_errors", "cancelled"}
+        return self.job_type == "import" and self.status in {
+            "failed",
+            "complete_with_errors",
+            "cancelled",
+            "interrupted",
+        }
 
 
 class ExportRecord(SQLModel, table=True):
