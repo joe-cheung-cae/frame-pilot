@@ -1128,16 +1128,18 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 
 **Phase 5 / 产品 DoD：**
 
-- [ ] Windows 与 macOS 安装包存在（CI 产物）
-- [ ] 应用启动管理 Python sidecar，用户无需自己跑 uvicorn
-- [ ] 原生文件夹选择器与拖放导入
-- [ ] 核心工作流与 v2 一致：导入、处理、键盘筛选、CSV/ZIP/文件夹导出
-- [ ] 原图永不被修改
-- [ ] 500 张照片的 API 级路径导入不崩溃；若测过则记录 500 GUI
-- [ ] 用户 + 开发者文档存在
-- [ ] CI 构建双平台安装包；签名仍可待定
-- [ ] 回环绑定 + Host/Origin 检查已就位
-- [ ] 自定义项目根仅经 D2.00 注册
+- [x] Windows 与 macOS 安装包存在（CI 产物）— [desktop.yml run 33170731977](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/33170731977)（可经 Actions → desktop 再确认）
+- [x] 应用启动管理 Python sidecar，用户无需自己跑 uvicorn — Phase 1 sidecar 生命周期已在 `main`
+- [x] 原生文件夹选择器与拖放导入 — Phase 2；部分主机 live GUI 可仍为 `[~]`（见可行性笔记）
+- [x] 核心工作流与 v2 一致：导入、处理、键盘筛选、CSV/ZIP/文件夹导出 — D2.08 + 共享 UI
+- [x] 原图永不被修改 — 不可变测试 + 用户指南
+- [x] 500 张照片的 API 级路径导入不崩溃；若测过则记录 500 GUI — API 经 `perf:api` / 既有 smoke；收尾主机 **未测 500 GUI**（性能基线 / 测试矩阵已记 pending）
+- [x] 用户 + 开发者文档存在 — D5.01–D5.02（`desktop_testing`、`desktop_user_guide`、README、架构）
+- [x] CI 构建双平台安装包；签名仍可待定 — D4.04 + D4.05 签名手册
+- [x] 回环绑定 + Host/Origin 检查已就位 — Phase 0
+- [x] 自定义项目根仅经 D2.00 注册 — Phase 2
+
+Phase 5 Dev 合入（2026-08-29）：#85 D5.01、#87 D5.02、#89 D5.03、#91 D5.04、#93 D5.05。研究/设计：#80、#83。总议题 #78。
 
 ---
 

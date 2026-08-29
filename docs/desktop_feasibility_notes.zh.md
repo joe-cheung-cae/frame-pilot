@@ -260,3 +260,7 @@ Phase 0 另有 **>250 MB**「考虑丢掉 scipy」触发条件，当时未测到
 主机：WSL2 Linux（`TFSZD-zhangc`）。PATH 上无 `rustc`/`cargo`；未测桌面 WebView UI RSS。
 
 运行 `npm run perf:api -- --output /tmp/framepilot-desktop-perf-100 --count 100` → 状态 `complete`，导入 1.691 s，处理 0.502 s，导出 0.106 s，API 峰值 RSS **120.24 MB**。已记入 `docs/v2_performance_baseline.zh.md`（桌面路径导入性能）。在有 GUI 的主机用 `dev:desktop` 或安装包重测之前，UI 列保持 **pending**。
+
+## Phase 5 收尾 — 2026-08-29
+
+总议题 [#78](https://github.com/joe-cheung-cae/frame-pilot/issues/78)。关卡：研究 #80、设计 #83（已接受）、Dev #85 / #87 / #89 / #91 / #93。D5.05 合入后 tip：`a0b45e2`。打包计划 Phase 5 DoD 已按证据勾选；仍诚实保留：证书前未签名安装包、D3.01–D3.03 GUI `[~]`、WSL 类主机上 WebView RSS / 500 GUI pending。产品 `APP_VERSION` 为 `2.1.0-desktop`（Phase 5 未打 git tag）。

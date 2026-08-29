@@ -1128,16 +1128,18 @@ List: jobs not durable across sidecar kill; HEIC/RAW skipped; auto-update deferr
 
 **Phase 5 / product DoD:**
 
-- [ ] Windows and macOS installers exist (CI artifacts)
-- [ ] App start manages Python sidecar without the user running uvicorn
-- [ ] Native folder picker and drag-drop import
-- [ ] Core workflow matches v2: import, process, keyboard cull, CSV/ZIP/folder export
-- [ ] Originals never modified
-- [ ] 500-photo API-level path import does not crash; 500 GUI documented if measured
-- [ ] User + developer docs exist
-- [ ] CI builds both platform installers; signing may still be pending
-- [ ] Loopback bind + Host/Origin checks in place
-- [ ] Custom project roots only via D2.00 registration
+- [x] Windows and macOS installers exist (CI artifacts) — [desktop.yml run 33170731977](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/33170731977) (re-confirm via Actions → desktop)
+- [x] App start manages Python sidecar without the user running uvicorn — Phase 1 sidecar lifecycle on `main`
+- [x] Native folder picker and drag-drop import — Phase 2; live GUI may remain `[~]` on some hosts (see feasibility notes)
+- [x] Core workflow matches v2: import, process, keyboard cull, CSV/ZIP/folder export — D2.08 + shared UI
+- [x] Originals never modified — immutability tests + user guide
+- [x] 500-photo API-level path import does not crash; 500 GUI documented if measured — API via `perf:api` / existing smokes; **500 GUI not measured** on WSL close-out host (documented pending in performance baseline / testing matrix)
+- [x] User + developer docs exist — D5.01–D5.02 (`desktop_testing`, `desktop_user_guide`, README, architecture)
+- [x] CI builds both platform installers; signing may still be pending — D4.04 + D4.05 signing runbook
+- [x] Loopback bind + Host/Origin checks in place — Phase 0
+- [x] Custom project roots only via D2.00 registration — Phase 2
+
+Phase 5 Dev merges (2026-08-29): #85 D5.01, #87 D5.02, #89 D5.03, #91 D5.04, #93 D5.05. Research/design: #80, #83. Umbrella #78.
 
 ---
 
