@@ -21,6 +21,9 @@ DEFAULT_EXPORT_MODES = ("csv", "zip", "folder")
 IMPORT_TOTAL_STAGE_NAMES = {"import_endpoint_total", "import_file_total"}
 
 
+IMPORT_MODES = ("multipart", "from-paths")
+
+
 @dataclass(frozen=True)
 class PerformanceSmokeConfig:
     output_dir: Path
@@ -29,6 +32,7 @@ class PerformanceSmokeConfig:
     height: int = 72
     import_batch_size: int = 100
     export_modes: tuple[str, ...] = DEFAULT_EXPORT_MODES
+    import_mode: str = "multipart"
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,7 @@ class PerformanceSmokeSuiteConfig:
     height: int = 72
     import_batch_size: int = 100
     export_modes: tuple[str, ...] = DEFAULT_EXPORT_MODES
+    import_mode: str = "multipart"
 
 
 def _max_rss_mb() -> float:
@@ -166,9 +171,71 @@ def _export_selected_photos(client: TestClient, project_id: str, photo_ids: list
     return exports
 
 
+
+def _import_via_from_paths(
+    client: TestClient,
+    project_id: str,
+    source_dir: Path,
+    *,
+    expected_total: int,
+) -> tuple[int, list[dict], list[dict]]:
+    """Import synthetic files through the desktop path-import API."""
+    remaining = [str(source_dir.resolve())]
+    job_id: str | None = None
+    imported_count = 0
+    import_jobs: list[dict] = []
+    import_timing_batches: list[dict] = []
+
+    while remaining:
+        payload: dict = {
+            "paths": remaining,
+            "expected_total": expected_total,
+            "finalize": False,
+        }
+        if job_id is not None:
+            payload["job_id"] = job_id
+        response = client.post(f"/api/projects/{project_id}/imports/from-paths", json=payload)
+        response.raise_for_status()
+        import_result = response.json()
+        imported_count += len(import_result["imported"])
+        job = import_result["job"]
+        job_id = job["id"]
+        if not import_jobs or import_jobs[-1]["id"] != job_id:
+            import_jobs.append(job)
+        else:
+            import_jobs[-1] = job
+        if import_result.get("timing"):
+            import_timing_batches.append(import_result["timing"])
+        remaining = list(import_result.get("remaining_paths") or [])
+
+    if job_id is None:
+        raise RuntimeError("from-paths import produced no job")
+
+    finalize_response = client.post(
+        f"/api/projects/{project_id}/imports/from-paths",
+        json={
+            "paths": [],
+            "job_id": job_id,
+            "expected_total": expected_total,
+            "finalize": True,
+        },
+    )
+    finalize_response.raise_for_status()
+    finalize_result = finalize_response.json()
+    if finalize_result.get("job") is not None:
+        import_jobs[-1] = finalize_result["job"]
+    if finalize_result.get("timing"):
+        import_timing_batches.append(finalize_result["timing"])
+
+    return imported_count, import_jobs, import_timing_batches
+
+
+
 def run_performance_smoke(config: PerformanceSmokeConfig) -> dict:
     if config.count <= 0:
         raise ValueError("count must be greater than zero")
+    if config.import_mode not in IMPORT_MODES:
+        raise ValueError(f"import_mode must be one of {', '.join(IMPORT_MODES)}")
     invalid_export_modes = sorted(set(config.export_modes) - set(DEFAULT_EXPORT_MODES))
     if invalid_export_modes:
         raise ValueError(f"export_modes must be one or more of {', '.join(DEFAULT_EXPORT_MODES)}")
@@ -195,22 +262,30 @@ def run_performance_smoke(config: PerformanceSmokeConfig) -> dict:
         project = client.post("/api/projects", json={"name": f"Performance smoke {config.count}"}).json()
 
         started = time.monotonic()
-        imported_count = 0
-        import_jobs: list[dict] = []
-        import_timing_batches = []
-        for batch in _chunked(paths, config.import_batch_size):
-            with ExitStack() as stack:
-                response = client.post(
-                    f"/api/projects/{project['id']}/import",
-                    params={"include_timing": "true"},
-                    files=_upload_files(batch, stack),
-                )
-            response.raise_for_status()
-            import_result = response.json()
-            imported_count += len(import_result["imported"])
-            import_jobs.append(import_result["job"])
-            if import_result.get("timing"):
-                import_timing_batches.append(import_result["timing"])
+        if config.import_mode == "from-paths":
+            imported_count, import_jobs, import_timing_batches = _import_via_from_paths(
+                client,
+                project["id"],
+                source_dir,
+                expected_total=config.count,
+            )
+        else:
+            imported_count = 0
+            import_jobs = []
+            import_timing_batches = []
+            for batch in _chunked(paths, config.import_batch_size):
+                with ExitStack() as stack:
+                    response = client.post(
+                        f"/api/projects/{project['id']}/import",
+                        params={"include_timing": "true"},
+                        files=_upload_files(batch, stack),
+                    )
+                response.raise_for_status()
+                import_result = response.json()
+                imported_count += len(import_result["imported"])
+                import_jobs.append(import_result["job"])
+                if import_result.get("timing"):
+                    import_timing_batches.append(import_result["timing"])
         timings["import_seconds"] = round(time.monotonic() - started, 3)
 
         started = time.monotonic()
@@ -240,6 +315,7 @@ def run_performance_smoke(config: PerformanceSmokeConfig) -> dict:
 
         return {
             "count": config.count,
+            "import_mode": config.import_mode,
             "exports": exports,
             "failed_items": job["failed_items"],
             "group_count": len(groups),
@@ -277,6 +353,7 @@ def run_performance_smoke_suite(config: PerformanceSmokeSuiteConfig) -> dict:
                 height=config.height,
                 import_batch_size=config.import_batch_size,
                 export_modes=config.export_modes,
+                import_mode=config.import_mode,
             )
         )
         results.append(result)
@@ -302,7 +379,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--width", default=96, type=int, help="Synthetic image width in pixels.")
     parser.add_argument("--height", default=72, type=int, help="Synthetic image height in pixels.")
-    parser.add_argument("--import-batch-size", default=100, type=int, help="Files to upload per import request.")
+    parser.add_argument("--import-batch-size", default=100, type=int, help="Files per multipart upload or from-paths request.")
+    parser.add_argument(
+        "--import-mode",
+        default="multipart",
+        choices=IMPORT_MODES,
+        help="multipart uses POST .../import uploads; from-paths uses desktop POST .../imports/from-paths.",
+    )
     parser.add_argument(
         "--export-modes",
         nargs="+",
@@ -326,6 +409,7 @@ def main(argv: list[str] | None = None) -> int:
                     height=args.height,
                     import_batch_size=args.import_batch_size,
                     export_modes=tuple(args.export_modes),
+                    import_mode=args.import_mode,
                 )
             )
         else:
@@ -337,6 +421,7 @@ def main(argv: list[str] | None = None) -> int:
                     height=args.height,
                     import_batch_size=args.import_batch_size,
                     export_modes=tuple(args.export_modes),
+                    import_mode=args.import_mode,
                 )
             )
     print(json.dumps(result, indent=2, sort_keys=True))

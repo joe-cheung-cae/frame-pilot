@@ -57,7 +57,8 @@ No extra npm alias is required for this matrix; use the scripts above directly.
 | Row | Command / action | Pass criteria | Automates? |
 | --- | ---------------- | ------------- | ---------- |
 | 100 synthetic path import | `npm run generate:synthetic -- --output /tmp/fp-synth-100 --count 100` then path-import via desktop (**Choose a folder**) or `POST .../imports/from-paths` (chunk ≤100, same `job_id`, `finalize` on last slice) | Job reaches `complete` (or `complete_with_errors` only for unsupported skips); copies under `{root_path}/originals`; source size/mtime/bytes unchanged | Partial (API tests cover path-import immutability; GUI picker may be `[~]`) |
-| Optional 500 | `npm run perf:api -- --output /tmp/fp-perf --counts 500` | Documented timing/RSS in performance notes when run; no crash. Multipart `/import` only — not `from-paths` (#97) | Yes (API) |
+| 100 from-paths RSS | `npm run perf:api -- --output /tmp/fp-from-paths-100 --count 100 --import-mode from-paths` | Documented in performance baseline; no crash; originals unchanged | Yes (API) |
+| Optional 500 | `npm run perf:api -- --output /tmp/fp-perf --counts 500` | Documented timing/RSS in performance notes when run; no crash. Multipart `/import` (scale) or add `--import-mode from-paths` | Yes (API) |
 | Optional 2000 | `npm run perf:api -- --output /tmp/fp-perf --counts 2000` | Same; GUI review of 2000 is **not** required by default | Yes (API) |
 | Full cull workflow | Follow [tests/desktop/workflow.md](../tests/desktop/workflow.md) | Import → process → keyboard cull → CSV/ZIP/folder export + reveal | Manual / API pytest for path-import→export |
 | Install / uninstall | Install CI Windows NSIS or macOS DMG; launch once; uninstall | App binary removed; **data directory may remain** (document for users) — see app-support paths in [apps/desktop/README.md](../apps/desktop/README.md) | Manual |

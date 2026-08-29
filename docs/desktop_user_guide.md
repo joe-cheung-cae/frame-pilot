@@ -77,6 +77,21 @@ Playwright and most contributor docs assume the Next.js web app. The desktop she
 
 ---
 
+
+## Public release provenance (signed builds)
+
+Internal RC installers may be **unsigned**. Before any **public** desktop release:
+
+1. Follow [Desktop Code Signing Runbook](desktop_signing.md) (Authenticode + macOS notarization) with CI-only secrets.
+2. Publish installers only from maintainer-controlled GitHub Releases (or Actions artifacts linked from that release).
+3. Publish **SHA-256 checksums** next to each artifact (for example `SHA256SUMS.txt`) and verify after download:
+   - Linux/macOS: `shasum -a 256 <installer>`
+   - Windows (PowerShell): `Get-FileHash .\installer.exe -Algorithm SHA256`
+4. Confirm the download URL and org/repo match this project; do not install from third-party mirrors.
+5. Sidecar `GET /api/meta` and log `data_dir=` lines remain local loopback / same-user visibility — expected for a local-first app; they are not a public network API.
+
+This closes the Phase 5 security-review ops checklist ([#98](https://github.com/joe-cheung-cae/frame-pilot/issues/98)). Certificate provisioning itself remains an org secrets task documented in the signing runbook.
+
 ## Privacy and safety
 
 - No cloud upload of originals or previews.

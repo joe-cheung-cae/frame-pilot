@@ -270,7 +270,7 @@ Phase 5
 
 - [x] D5.01 Desktop test matrix — `docs/desktop_testing.md` (+ zh); documents existing scripts; no new alias (2026-08-29)
 - [x] D5.02 README and user docs — `docs/desktop_user_guide.md` (+ zh); README + architecture + desktop README updates (2026-08-29)
-- [x] D5.03 Desktop performance notes — 100-photo multipart `perf:api` sidecar RSS 120.24 MB on WSL2 (not `from-paths`; see #96 / #97); UI pending (2026-08-29)
+- [x] D5.03 Desktop performance notes — multipart `perf:api` RSS 120.24 MB (#96) **and** `from-paths` RSS 119.77 MB (#97) on WSL2; UI pending (2026-08-29)
 - [x] D5.04 Version bump to 2.1.0-desktop — `APP_VERSION`/`package.json`/`Tauri` = `2.1.0-desktop`; `pyproject.toml` = `2.1.0+desktop` (PEP 440); bilingual CHANGELOG; no git tag (2026-08-29)
 - [x] D5.05 Known limitations — Desktop 2.1 section in `docs/v2_known_limitations.md` (+ zh); records D3.06 tray deferral (2026-08-29)
 
@@ -1098,7 +1098,7 @@ Cover: install, first launch, data location, copies not moves, reveal export fol
 **Depends on:** D2.08  
 **Files:** feasibility notes or `docs/v2_performance_baseline.md`
 
-One 100-photo import + process RSS for sidecar and UI if GUI exists; otherwise sidecar-only and mark UI pending. Phase 5 evidence used multipart `perf:api` (`POST .../import`); true `from-paths` RSS tracked in #97 after docs clarify #96.
+One 100-photo import + process RSS for sidecar and UI if GUI exists; otherwise sidecar-only and mark UI pending. Multipart evidence clarified in #96; true `from-paths` RSS recorded in #97 (119.77 MB peak on WSL2, UI pending).
 
 **Tests:** none (documentation).
 

@@ -77,6 +77,21 @@ Playwright 与多数贡献者文档假设 Next.js web 应用。桌面壳通过 H
 
 ---
 
+
+## 公开发布出处（签名构建）
+
+内部 RC 安装包可为 **未签名**。在任何 **公开** 桌面发布之前：
+
+1. 按 [桌面代码签名手册](desktop_signing.zh.md) 完成 Authenticode + macOS 公证（密钥仅存 CI）。
+2. 只从维护者控制的 GitHub Releases（或该 Release 链接的 Actions 产物）发布安装包。
+3. 为每个产物发布 **SHA-256 校验和**（例如 `SHA256SUMS.txt`），下载后核验：
+   - Linux/macOS：`shasum -a 256 <installer>`
+   - Windows（PowerShell）：`Get-FileHash .\installer.exe -Algorithm SHA256`
+4. 确认下载 URL 与 org/repo 属于本项目；不要从第三方镜像安装。
+5. Sidecar 的 `GET /api/meta` 与日志中的 `data_dir=` 仍是本机回环 / 同用户可见——符合 local-first；不是公开网络 API。
+
+这关闭 Phase 5 安全评审运维清单（[#98](https://github.com/joe-cheung-cae/frame-pilot/issues/98)）。证书本身的组织密钥配置仍见签名手册。
+
 ## 隐私与安全
 
 - 不把原图或预览上传到云端。

@@ -104,3 +104,13 @@ Phase 5 主要是在 Phase 0–4 之上的 **文档 / 版本 / 发布簿记**。
 | [#96](https://github.com/joe-cheung-cae/frame-pilot/issues/96) | Bug | 澄清 D5.03 证据为 multipart `perf:api`，非 `from-paths` |
 | [#97](https://github.com/joe-cheung-cae/frame-pilot/issues/97) | Feature | 测量桌面 `from-paths` 路径导入 sidecar RSS |
 | [#98](https://github.com/joe-cheung-cae/frame-pilot/issues/98) | Task | 公开签名发布加固（Phase 5 安全评审运维项） |
+
+
+## 处理状态
+
+| Issue | 状态 | 处理 |
+| ----- | ---- | ---- |
+| [#96](https://github.com/joe-cheung-cae/frame-pilot/issues/96) | 已解决 | 文档澄清 multipart 与 `from-paths` |
+| [#97](https://github.com/joe-cheung-cae/frame-pilot/issues/97) | 已解决 | `perf:api --import-mode from-paths` + 100 张 RSS 行 |
+| [#98](https://github.com/joe-cheung-cae/frame-pilot/issues/98) | 已解决（文档） | 公开出处 + 签名清单；证书仍属组织密钥 |
+

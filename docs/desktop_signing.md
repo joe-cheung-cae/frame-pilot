@@ -83,3 +83,15 @@ The first desktop release candidate may ship or be validated with **unsigned** i
 - `.github/workflows/desktop.yml` — unsigned Windows/macOS installer CI
 - `apps/desktop/src-tauri/tauri.conf.json` — `identifier`, NSIS, and DMG bundle config
 - `docs/plans/2026-08-18-desktop-packaging.md` — D4.05 task definition
+
+## Public release checklist (Phase 5 follow-up)
+
+Before marking a desktop build as a **public** release (not internal RC):
+
+- [ ] Windows Authenticode signing enabled in CI (`desktop` workflow)
+- [ ] macOS Developer ID + notarization enabled in CI
+- [ ] GitHub Release publishes installers **and** `SHA256SUMS.txt` (or equivalent)
+- [ ] [Desktop User Guide](desktop_user_guide.md) provenance steps still accurate
+
+Tracked from Phase 5 security review: [#98](https://github.com/joe-cheung-cae/frame-pilot/issues/98).
+

@@ -270,7 +270,7 @@ Phase 5
 
 - [x] D5.01 桌面测试矩阵 — `docs/desktop_testing.md`（+ zh）；文档化现有脚本；无新别名（2026-08-29）
 - [x] D5.02 README 与用户文档 — `docs/desktop_user_guide.md`（+ zh）；README + 架构 + 桌面 README 更新（2026-08-29）
-- [x] D5.03 桌面性能说明 — WSL2 上 100 张 multipart `perf:api` sidecar RSS 120.24 MB（非 `from-paths`；见 #96 / #97）；UI pending（2026-08-29）
+- [x] D5.03 桌面性能说明 — multipart `perf:api` RSS 120.24 MB（#96）**以及** `from-paths` RSS 119.77 MB（#97）于 WSL2；UI pending（2026-08-29）
 - [x] D5.04 版本升到 2.1.0-desktop — `APP_VERSION`/`package.json`/`Tauri` = `2.1.0-desktop`；`pyproject.toml` = `2.1.0+desktop`（PEP 440）；双语 CHANGELOG；未打 git tag（2026-08-29）
 - [x] D5.05 已知限制 — `docs/v2_known_limitations.md`（+ zh）Desktop 2.1 节；记录 D3.06 托盘延期（2026-08-29）
 
@@ -1098,7 +1098,7 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 **Depends on:** D2.08  
 **Files:** 可行性说明或 `docs/v2_performance_baseline.md`
 
-一次 100 张导入 + 处理，记录 sidecar 与 UI 的 RSS（若有 GUI）；否则仅 sidecar，并标明 UI 待测。Phase 5 证据使用 multipart `perf:api`（`POST .../import`）；真正的 `from-paths` RSS 在文档澄清 #96 之后由 #97 跟踪。
+一次 100 张导入 + 处理，记录 sidecar 与 UI 的 RSS（若有 GUI）；否则仅 sidecar，并标明 UI 待测。multipart 证据已在 #96 澄清；真正的 `from-paths` RSS 已在 #97 记录（WSL2 峰值 119.77 MB，UI pending）。
 
 **Tests:** none（文档）。
 
