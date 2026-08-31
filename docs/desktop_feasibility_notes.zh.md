@@ -471,3 +471,52 @@ Sidecar：`/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --po
 WebView `OPTIONS`+`GET /api/meta` **200**。状态栏保持 **Sidecar connected** \| **No project** \| **No active job**。屏幕录像：`/opt/cursor/artifacts/d3-03-settings-data-dir.mp4`。截图：`/opt/cursor/artifacts/d3-03-settings-data-dir.png`、`/opt/cursor/artifacts/d3-03-open-data-folder-thunar.png`。
 
 `docs/plans/2026-08-18-desktop-packaging.zh.md` §5.1 的 D3.03 已记为带日期的 `[x]`。D3.04 视觉仍为 `[~]`。D3.06 托盘仍为 `[-]`。
+
+## D3.04 系统主题视觉 GUI 收口 — 2026-08-31
+
+议题 [#115](https://github.com/joe-cheung-cae/frame-pilot/issues/115)。主机：Linux Cursor cloud（`uname` `Linux cursor 6.12.94+ x86_64`），TigerVNC 显示器 `:1`（1920×1200，XFCE）。主题实现已在 `main` @ `487c776`（`apps/desktop/src/styles.css` 在 `html[data-shell="desktop"]` 的 `prefers-color-scheme: dark` 下交换 `--fp-*`；`apps/web/src/app/globals.css` 保持 `color-scheme: light`）。本次 **没有** 重写主题，**没有** 升版本，也 **没有** 关闭 D3.05–D3.07、Phase 4/5/6，或 D3.06 托盘。
+
+本机工具链起点为 `rustc 1.83.0` / `cargo 1.83.0`。用户空间 rustup 安装了 `stable`（无 apt/brew Rust）：
+
+```text
+$ rustup toolchain install stable --profile minimal
+$ rustup default stable
+$ rustc --version
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+$ cargo --version
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+```
+
+Linux WebView 编译/运行使用 `libwebkit2gtk-4.1` **2.52.3**（`pkg-config --modversion webkit2gtk-4.1`）。未使用 `cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --lib`（与 D0.07/D3.01–D3.03 相同的 lockfile 变动：cargo 想加入 `tauri-plugin-dialog` / `tauri-plugin-opener` 及相关 crate）。不含 `--locked` 的等效运行：
+
+```text
+$ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+...
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+```
+
+编译后已还原 `Cargo.lock`，本次收口不提交 lockfile 变动。`npm --prefix apps/web run test:unit` 通过（node unit 257 项含 `desktopTheme.test.ts`，加上 vitest 45 项）。
+
+`npm run install:all` 后 `npm run dev:desktop`（`npx tauri dev`）编译了 `target/debug/framepilot-desktop` 并打开了已映射的 X11 窗口。libEGL 打印了 `DRI3 error: Could not get DRI3 device` / `Ensure your X server supports DRI3`；WebView 仍完成渲染。
+
+系统深色使用 XFCE `Adwaita-dark` 以及 `gtk-application-prefer-dark-theme=true`（WebKitGTK 将其映射为 `prefers-color-scheme: dark`）。系统浅色使用 `WhiteSur-Light` 以及 `gtk-application-prefer-dark-theme=false`。WebView 已打开时现场切换 GTK **不会** 立即换肤；每种主题都是在该系统设置下重新启动 `npm run dev:desktop` 后验证的。
+
+```text
+$ date -u
+2026-08-31T13:32:55Z
+$ xwininfo -id 0x1c00003
+xwininfo: Window id: 0x1c00003 "FramePilot"
+  Width: 1200
+  Height: 800
+  Map State: IsViewable
+```
+
+| 运行 | 系统 | 桌面 WebView 采样 RGB | 对应 |
+| ---- | ---- | --------------------- | ---- |
+| 深色 | `Adwaita-dark`，prefer-dark **true** | 顶栏/状态栏 `(28, 31, 30)` luma 30；画布 `(18, 18, 18)` luma 18 | `styles.css` 深色块中的 `--fp-surface` / `--fp-mist` |
+| 浅色 | `WhiteSur-Light`，prefer-dark **false** | 顶栏/状态栏 `(255, 255, 255)` luma 255；画布 `(245, 247, 248)` luma 246.5 | `globals.css` `:root` 中的 `--fp-surface` / `--fp-mist` |
+| 浏览器 | 系统仍为深色；Chrome 外壳 `(60, 60, 60)` | 页面画布 `(245, 247, 248)` luma 246.5，地址 `http://127.0.0.1:3000/` | 浏览器 shell 保持仅浅色 |
+
+深色 sidecar：`/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 45611 --data-dir /workspace/.framepilot-desktop-dev`。`GET http://127.0.0.1:45611/health` → `200` `{"status":"ok","version":"2.1.0-desktop","service":"framepilot-api"}`。浅色 sidecar 端口 `44941`（`GET /health` 200，相同 JSON）。深色再启动 sidecar 端口 `43027`（`GET /health` 200，`GET /api/projects` 200 `[]`）。浏览器 `GET http://127.0.0.1:3000/` **200**，当时 `gsettings` `color-scheme` 为 `prefer-dark`。状态栏保持 **Sidecar connected** \| **No project** \| **No active job**。屏幕录像：`/opt/cursor/artifacts/d3-04-system-theme.mp4`。截图：`/opt/cursor/artifacts/d3-04-desktop-dark.png`、`/opt/cursor/artifacts/d3-04-desktop-light.png`、`/opt/cursor/artifacts/d3-04-browser-system-dark.png`、`/opt/cursor/artifacts/d3-04-desktop-and-browser-dark-system.png`。
+
+`docs/plans/2026-08-18-desktop-packaging.zh.md` §5.1 的 D3.04 视觉 GUI 已记为带日期的 `[x]`。D3.06 托盘仍为 `[-]`。
