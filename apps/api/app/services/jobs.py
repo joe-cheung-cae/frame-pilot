@@ -193,6 +193,53 @@ def job_is_stale(job: ProcessingJob, now: datetime | None = None) -> bool:
     return current_time - as_utc(job.updated_at) >= STALE_JOB_AFTER
 
 
+def job_lease_is_stale(job: ProcessingJob, now: datetime | None = None) -> bool:
+    """Whether a job's worker lease heartbeat has expired, independent of ``status``.
+
+    ``job_is_stale`` only ever looks at ``ACTIVE_JOB_STATUSES`` (queued/running), so an
+    ``interrupted`` row that was claimed (worker_id/heartbeat_at set by
+    ``claim_job_atomic``) but never finished flipping to a working status - e.g. the
+    reclaimer process crashed between the claim and the follow-up commit - is invisible
+    to every staleness sweep forever. This helper checks the lease alone so callers that
+    reclaim ``interrupted`` jobs can recognize and release an abandoned lease on such a
+    row (#104 residual fix 1).
+    """
+    if job.worker_id is None:
+        return False
+    if job.heartbeat_at is None:
+        return True
+    current_time = as_utc(now or utc_now())
+    return current_time - as_utc(job.heartbeat_at) >= JOB_LEASE_STALE_AFTER
+
+
+def release_stale_interrupted_lease(session: Session, job: ProcessingJob) -> ProcessingJob:
+    """Clear an abandoned worker lease on an ``interrupted`` job so it can be reclaimed.
+
+    ``claim_job_atomic``'s guarded ``UPDATE`` only matches rows that are unleased or
+    already leased by the calling worker id. Without this, a job stuck with a foreign,
+    expired ``worker_id`` (see ``job_lease_is_stale``) could never be claimed by a new
+    reclaimer and would stay ``status=interrupted`` permanently. Clearing is itself a
+    guarded ``UPDATE`` keyed on the exact ``worker_id`` observed on ``job``, so two
+    concurrent releasers racing the same abandoned lease cannot both "win" (#104
+    residual fix 1). No-op (and no commit) when the lease is not actually stale.
+    """
+    if job.status != "interrupted" or not job_lease_is_stale(job):
+        return job
+    stale_worker_id = job.worker_id
+    table = ProcessingJob.__table__
+    statement = (
+        update(table)
+        .where(table.c.id == job.id)
+        .where(table.c.status == "interrupted")
+        .where(table.c.worker_id == stale_worker_id)
+        .values(worker_id=None, heartbeat_at=None, updated_at=utc_now())
+    )
+    session.execute(statement)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
 def mark_job_failed(
     session: Session,
     job: ProcessingJob,

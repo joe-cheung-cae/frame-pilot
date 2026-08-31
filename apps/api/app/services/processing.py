@@ -15,6 +15,7 @@ from app.services.jobs import (
     mark_job_failed,
     progress_percent,
     refresh_job_lease_heartbeat,
+    release_stale_interrupted_lease,
 )
 from app.services.ranking import RankedPhoto, rank_group
 
@@ -230,6 +231,12 @@ def prepare_interrupted_processing_jobs_for_reclaim(
     'interrupted'`` before it is mutated, so a concurrent reclaimer (e.g. the API's
     lifespan reclaim thread racing a separately running ``python -m app.worker``) cannot
     also reactivate the same row (#104 fix 2).
+
+    A row can also be left ``interrupted`` with a foreign, abandoned ``worker_id`` if a
+    previous reclaimer crashed after claiming it but before finishing the reclaim; such a
+    row is released (via ``release_stale_interrupted_lease``) once its lease heartbeat has
+    expired, so a later reclaimer with a new worker id is not permanently locked out
+    (#104 residual fix 1).
     """
     jobs = list(
         session.exec(
@@ -243,6 +250,7 @@ def prepare_interrupted_processing_jobs_for_reclaim(
     for job in jobs:
         if len(prepared) >= limit:
             break
+        job = release_stale_interrupted_lease(session, job)
         owner = worker_id or f"reclaim-{uuid.uuid4().hex[:12]}"
         if not claim_job_atomic(
             session,
@@ -404,7 +412,18 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         _save_job(session, job, "grouping photos", len(preserved_photos), len(failed_photos))
         failed_photo_ids = {failed.id for failed in failed_photos}
         photo_map = {photo.id: photo for photo in candidate_photos if photo.id not in failed_photo_ids}
+        # group_similar_photos is a single CPU-bound call over the whole batch with no
+        # per-item progress callback; on large projects it can run past the lease
+        # staleness window with no intervening save, so a concurrent stale sweep could
+        # fail_stale this job out from under a worker that is still actively running.
+        # Refresh the lease immediately before and after the call instead of relying on
+        # the next _save_job, which only fires once grouping has already finished
+        # (#104 residual fix 2).
+        refresh_job_lease_heartbeat(session, job)
+        session.commit()
         grouped_photos = group_similar_photos(group_inputs)
+        refresh_job_lease_heartbeat(session, job)
+        session.commit()
         next_sequence = max(
             (group.sequence for group in existing_groups.values() if group.id in preserved_group_ids),
             default=0,

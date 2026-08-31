@@ -30,6 +30,7 @@ from app.services.jobs import (
     mark_job_failed,
     progress_percent,
     refresh_job_lease_heartbeat,
+    release_stale_interrupted_lease,
 )
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -239,6 +240,12 @@ def prepare_interrupted_import_jobs_for_reclaim(
     lifespan reclaim thread racing a separately running ``python -m app.worker``) cannot
     also reactivate the same row (#104 fix 2). A job whose cancel was requested before
     the restart is finalized as cancelled rather than resumed (#104 fix 3).
+
+    A row can also be left ``interrupted`` with a foreign, abandoned ``worker_id`` if a
+    previous reclaimer crashed after claiming it but before finishing the reclaim; such a
+    row is released (via ``release_stale_interrupted_lease``) once its lease heartbeat has
+    expired, so a later reclaimer with a new worker id is not permanently locked out
+    (#104 residual fix 1).
     """
     jobs = list(
         session.exec(
@@ -252,6 +259,7 @@ def prepare_interrupted_import_jobs_for_reclaim(
     for job in jobs:
         if len(prepared) >= limit:
             break
+        job = release_stale_interrupted_lease(session, job)
         owner = worker_id or f"reclaim-{uuid.uuid4().hex[:12]}"
         if not claim_job_atomic(
             session,
