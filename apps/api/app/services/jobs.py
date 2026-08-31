@@ -294,9 +294,17 @@ def fail_stale_jobs_for_project(session: Session, project_id: str) -> None:
 
 
 def fail_active_jobs_on_startup(session: Session) -> int:
-    """Mark any queued/running jobs and exports as failed after an API process restart."""
+    """Mark leftover queued/running/interrupted jobs and exports as failed on API restart.
+
+    Interrupted rows are included alongside queued/running ones: without reclaim, an
+    ``interrupted`` job left over from an earlier reclaim-enabled run (or a partial
+    startup) would never resolve on its own. It stays in ``BLOCKING_JOB_STATUSES``
+    forever, which blocks new imports/processing on the project (409) with no way to
+    cancel it. Finalizing it here as failed unblocks the project the same way a
+    queued/running job does.
+    """
     active_jobs = list(
-        session.exec(select(ProcessingJob).where(ProcessingJob.status.in_(list(ACTIVE_JOB_STATUSES)))).all()
+        session.exec(select(ProcessingJob).where(ProcessingJob.status.in_(list(BLOCKING_JOB_STATUSES)))).all()
     )
     for job in active_jobs:
         if job.job_type == "processing":

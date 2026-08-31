@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from io import BytesIO
 
 from fastapi.testclient import TestClient
+from PIL import Image
 from sqlmodel import Session, select
 
 from app.core.config import reset_settings_cache
@@ -12,10 +14,17 @@ from app.db.session import get_engine
 from app.main import create_app, ensure_db_ready, reset_db_ready_flag
 from app.models.entities import Photo, ProcessingJob
 from app.services.jobs import (
+    BLOCKING_JOB_STATUSES,
     fail_active_jobs_on_startup,
     interrupt_active_jobs_for_reclaim_on_startup,
     reconcile_active_jobs_on_startup,
 )
+
+
+def _jpeg_bytes(color: tuple[int, int, int] = (10, 20, 30)) -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (32, 24), color=color).save(buffer, format="JPEG")
+    return buffer.getvalue()
 
 
 def test_default_startup_still_fails_active_jobs(tmp_path, monkeypatch):
@@ -205,3 +214,99 @@ def test_fail_path_helper_still_available(tmp_path, monkeypatch):
         session.add(job)
         session.commit()
         assert fail_active_jobs_on_startup(session) == 1
+
+
+def test_reclaim_disabled_fails_leftover_interrupted_import_and_unblocks_project(tmp_path, monkeypatch):
+    """Bugbot residual: an ``interrupted`` row left behind (e.g. by an earlier
+    reclaim-enabled run) must not survive startup once reclaim is off, or the
+    project stays blocked (409 imports) forever with no way to cancel it.
+    """
+    monkeypatch.delenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", raising=False)
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    reset_settings_cache()
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Leftover interrupted import"}).json()
+
+    with Session(get_engine()) as session:
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="interrupted",
+            current_step="interrupted - restart",
+            interrupted_at=datetime.now(UTC),
+            total_items=1,
+        )
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(tmp_path / "leftover.jpg"),
+            filename="leftover.jpg",
+            processing_state="processing",
+        )
+        session.add(job)
+        session.add(photo)
+        session.commit()
+        job_id = job.id
+        photo_id = photo.id
+
+    # Confirm the leftover interrupted row still blocks new work before reconciliation.
+    blocked = client.post(
+        f"/api/projects/{project['id']}/imports",
+        files=[("files", ("blocked.jpg", _jpeg_bytes(), "image/jpeg"))],
+    )
+    assert blocked.status_code == 409
+
+    reset_db_ready_flag()
+    ensure_db_ready()
+
+    with Session(get_engine()) as session:
+        job = session.get(ProcessingJob, job_id)
+        photo = session.get(Photo, photo_id)
+        assert job is not None
+        assert job.status == "failed"
+        assert job.current_step == "failed - restart"
+        assert photo is not None
+        assert photo.processing_state in {"failed", "imported"}
+        blocking = session.exec(
+            select(ProcessingJob).where(ProcessingJob.status.in_(list(BLOCKING_JOB_STATUSES)))
+        ).all()
+        assert blocking == []
+
+    # The project is unblocked: a new import request now succeeds instead of 409.
+    unblocked = client.post(
+        f"/api/projects/{project['id']}/imports",
+        files=[("files", ("unblocked.jpg", _jpeg_bytes(), "image/jpeg"))],
+    )
+    assert unblocked.status_code == 201
+
+
+def test_reclaim_disabled_fails_leftover_interrupted_processing_job(tmp_path, monkeypatch):
+    monkeypatch.delenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", raising=False)
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    reset_settings_cache()
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Leftover interrupted processing"}).json()
+
+    with Session(get_engine()) as session:
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="interrupted",
+            current_step="interrupted - restart",
+            interrupted_at=datetime.now(UTC),
+        )
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    reset_db_ready_flag()
+    ensure_db_ready()
+
+    with Session(get_engine()) as session:
+        job = session.get(ProcessingJob, job_id)
+        assert job is not None
+        assert job.status == "failed"
+        assert job.current_step == "failed - restart"
+        blocking = session.exec(
+            select(ProcessingJob).where(ProcessingJob.status.in_(list(BLOCKING_JOB_STATUSES)))
+        ).all()
+        assert blocking == []
