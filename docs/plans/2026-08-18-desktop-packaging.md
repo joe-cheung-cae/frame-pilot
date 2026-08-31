@@ -250,7 +250,7 @@ Phase 2
 Phase 3
 
 - [x] D3.01 Native menu bar — GUI close-out 2026-08-31T12:04:55Z: rustc 1.98.0 / cargo 1.98.0; `cargo test --lib` **41 passed**; live `npm run dev:desktop` File/Edit/View/Project/Help clicks reached real routes (New→Create Project, Import/Export/Process/Culling, Help→Keyboard Shortcuts, Ctrl+N). Implementation already on `main`; this run did not rewrite the menu. See `docs/desktop_feasibility_notes.md`. `npm run test:web` green 2026-08-23.
-- [~] D3.02 Status bar — `npm run test:web` green 2026-08-26; GUI/`cargo test` unverified (`rustc` 1.85 cannot compile current Tauri lockfile). See `docs/desktop_feasibility_notes.md`.
+- [x] D3.02 Status bar — GUI close-out 2026-08-31T12:40:37Z: rustc 1.98.0 / cargo 1.98.0; `cargo test --lib` **41 passed**; live `npm run dev:desktop` window title `FramePilot` (1200×800); status bar `Sidecar connected` | `D302 Status` | `No active job` (idle was `No project`). Implementation already on `main` (`usePathname` / `firstActiveJob`); this run did not rewrite the status bar. See `docs/desktop_feasibility_notes.md`. `npm run test:web` green 2026-08-26.
 - [~] D3.03 Settings data directory (`GET /api/meta`) — API + Settings tests on `main`; GUI/`cargo test` unverified (same rustc 1.85 block as D3.01). See `docs/desktop_feasibility_notes.md`.
 - [x] D3.04 System theme follow — CSS `[x]`. Visual GUI `[~]` 2026-08-28 (same rustc/cargo block as D3.01). See `docs/desktop_feasibility_notes.md`.
 - [x] D3.05 Empty and error copy
@@ -985,7 +985,7 @@ Do not steal P/M/X. Document accelerators on Help.
 - [x] Keyboard culling still matches Help
 - [x] Settings shows data dir
 - [x] Desktop import does not require a browser file input
-- [x] `npm run verify` green — 2026-08-28T17:28:00+08:00 (rust-free; D3.01 GUI `[x]` 2026-08-31; D3.02–D3.03 GUI remain `[~]`)
+- [x] `npm run verify` green — 2026-08-28T17:28:00+08:00 (rust-free; D3.01 GUI `[x]` 2026-08-31; D3.02 GUI `[x]` 2026-08-31; D3.03 GUI remains `[~]`)
 
 ---
 

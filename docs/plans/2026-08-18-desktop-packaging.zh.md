@@ -250,7 +250,7 @@ Phase 2
 Phase 3
 
 - [x] D3.01 原生菜单栏 — GUI 收口 2026-08-31T12:04:55Z：rustc 1.98.0 / cargo 1.98.0；`cargo test --lib` **41 passed**；现场 `npm run dev:desktop` 点击 File/Edit/View/Project/Help 到达真实路由（New→Create Project、Import/Export/Process/Culling、Help→Keyboard Shortcuts、Ctrl+N）。实现已在 `main`；本次没有重写菜单。见 `docs/desktop_feasibility_notes.zh.md`。`npm run test:web` 于 2026-08-23 通过。
-- [~] D3.02 状态栏 — `npm run test:web` 于 2026-08-26 通过；GUI/`cargo test` 未验证（与 D3.01 相同的 rustc 1.85 阻碍）。见 `docs/desktop_feasibility_notes.zh.md`。
+- [x] D3.02 状态栏 — GUI 收口 2026-08-31T12:40:37Z：rustc 1.98.0 / cargo 1.98.0；`cargo test --lib` **41 passed**；现场 `npm run dev:desktop` 窗口标题 `FramePilot`（1200×800）；状态栏 `Sidecar connected` | `D302 Status` | `No active job`（空闲时为 `No project`）。实现已在 `main`（`usePathname` / `firstActiveJob`）；本次没有重写状态栏。见 `docs/desktop_feasibility_notes.zh.md`。`npm run test:web` 于 2026-08-26 通过。
 - [~] D3.03 设置中的数据目录（`GET /api/meta`） — API + Settings 测试已在 `main`；GUI/`cargo test` 未验证（与 D3.01 相同阻碍）。见 `docs/desktop_feasibility_notes.zh.md`。
 - [x] D3.04 跟随系统主题 — CSS `[x]`。视觉 GUI `[~]` 2026-08-28（与 D3.01 相同的 rustc/cargo 阻碍）。见 `docs/desktop_feasibility_notes.zh.md`。
 - [x] D3.05 空状态与错误文案
@@ -985,7 +985,7 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 - [x] 键盘筛选仍与 Help 一致
 - [x] 设置显示数据目录
 - [x] 桌面导入不要求浏览器文件输入
-- [x] `npm run verify` 全绿 — 2026-08-28T17:28:00+08:00（无 rust；D3.01 GUI `[x]` 2026-08-31；D3.02–D3.03 GUI 仍为 `[~]`）
+- [x] `npm run verify` 全绿 — 2026-08-28T17:28:00+08:00（无 rust；D3.01 GUI `[x]` 2026-08-31；D3.02 GUI `[x]` 2026-08-31；D3.03 GUI 仍为 `[~]`）
 
 ---
 

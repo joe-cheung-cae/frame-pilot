@@ -421,3 +421,52 @@ Sidecar: `/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --por
 `GET /api/projects` after the run → `200` one project `{"id":"b52ef58da93c4d19b4cd4408e2296e2f","name":"D301 Menu",...}`. Screen recording: `/opt/cursor/artifacts/d3-01-native-menu-bar.mp4`.
 
 D3.01 in `docs/plans/2026-08-18-desktop-packaging.md` §5.1 is dated `[x]`. D3.02–D3.03 GUI and D3.04 visual stay `[~]`. D3.06 tray stays `[-]`.
+
+## D3.02 Status bar GUI close-out — 2026-08-31
+
+Issue [#111](https://github.com/joe-cheung-cae/frame-pilot/issues/111). Host: Linux Cursor cloud (`uname` `Linux cursor 6.12.94+ x86_64`), TigerVNC display `:1` (1920×1200, XFCE). Status bar implementation was already on `main` @ `3f54c38` (`StatusBar.tsx` gated by `isDesktopShell()`, `Shell` passes `usePathname()`, `statusBarModel.ts` uses `firstActiveJob`). This run did **not** rewrite the status bar, did **not** bump version, and did **not** close D3.03 GUI, D3.04 visual, D3.05–D3.07, Phase 4/5/6, or D3.06 tray.
+
+Toolchain on this host started as `rustc 1.83.0` / `cargo 1.83.0`. User-space rustup installed `stable` (no apt/brew Rust):
+
+```text
+$ rustup toolchain install stable --profile minimal
+$ rustup default stable
+$ rustc --version
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+$ cargo --version
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+```
+
+Linux WebView compile/runtime used `libwebkit2gtk-4.1` **2.52.3** (`pkg-config --modversion webkit2gtk-4.1`). `cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --lib` was not used (same lockfile churn as D0.07/D3.01: cargo wanted to add `tauri-plugin-dialog` / `tauri-plugin-opener` and related crates). Equivalent run without `--locked`:
+
+```text
+$ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+...
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+```
+
+`Cargo.lock` was restored after that compile so this close-out does not commit lockfile churn. `npm --prefix apps/web run test:unit` was green (node unit + vitest).
+
+`npm run install:all` then `npm run dev:desktop` (`npx tauri dev`) compiled `target/debug/framepilot-desktop` and opened a mapped X11 window. libEGL printed `DRI3 error: Could not get DRI3 device` / `Ensure your X server supports DRI3`; the WebView still rendered.
+
+```text
+$ date -u
+2026-08-31T12:40:37Z
+$ xwininfo -id 0x1a00003
+xwininfo: Window id: 0x1a00003 "FramePilot"
+  Width: 1200
+  Height: 800
+  Map State: IsViewable
+```
+
+Sidecar: `/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 37137 --data-dir /workspace/.framepilot-desktop-dev`. `GET http://127.0.0.1:37137/health` → `200` `{"status":"ok","version":"2.1.0-desktop","service":"framepilot-api"}`. Live status bar (sidecar / project / active job):
+
+| Step | Status bar |
+| ---- | ---------- |
+| Home (idle) | **Sidecar connected** \| **No project** \| **No active job** |
+| Create project `D302 Status` | **Sidecar connected** \| **D302 Status** \| **No active job** |
+| After `POST .../imports/from-paths` **201** (1 JPEG) | **Sidecar connected** \| **D302 Status** \| **No active job** |
+
+`POST /api/projects` **201** id `bcc1aea5bae74daca20d8a91f1eab4cb` name `D302 Status`. Import job `5b12f61477004704b6ea950885114e4b` `job_type=import` `status=complete` `1/1` `100%` (`started_at` 12:39:37.715Z, `completed_at` 12:39:37.978Z, ~0.26 s). The 1-file import finished before a running `Import · … · N%` footer could be photographed; the job field stayed visible as **No active job** after complete. WebView `OPTIONS`+`GET /api/health` 200, `GET /api/projects/{id}` 200, and jobs poll `GET .../jobs?limit=10`. Screen recording: `/opt/cursor/artifacts/d3-02-status-bar.mp4`. Idle / project screenshots: `/opt/cursor/artifacts/d3-02-status-bar-idle.png`, `/opt/cursor/artifacts/d3-02-status-bar-project.png`.
+
+D3.02 in `docs/plans/2026-08-18-desktop-packaging.md` §5.1 is dated `[x]`. D3.03 GUI and D3.04 visual stay `[~]`. D3.06 tray stays `[-]`.
