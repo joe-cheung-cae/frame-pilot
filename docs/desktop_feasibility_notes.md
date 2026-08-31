@@ -320,3 +320,46 @@ Ran `npm run perf:api -- --output /tmp/framepilot-desktop-from-paths-100 --count
 ## Phase 5 close-out — 2026-08-29
 
 Umbrella [#78](https://github.com/joe-cheung-cae/frame-pilot/issues/78). Gates: research #80, design #83 (accepted), Dev #85 / #87 / #89 / #91 / #93. Tip at close-out branch: after D5.05 merge `a0b45e2`. Phase 5 DoD boxes ticked in packaging plan § Phase 5 with evidence; remaining honest gaps: unsigned installers until certs, D3.01–D3.03 GUI `[~]`, WebView RSS / 500 GUI pending on WSL-class hosts. Product `APP_VERSION` is `2.1.0-desktop` (no git tag in Phase 5).
+
+## D0.07 GUI close-out — 2026-08-31
+
+Issue [#107](https://github.com/joe-cheung-cae/frame-pilot/issues/107). Host: Linux Cursor cloud (`uname` `Linux cursor 6.12.94+ x86_64`), TigerVNC display `:1` (1920×1200, XFCE). Implementation already on `main` @ `9c71195`; this run did **not** rewrite sidecar spawn, CSP, or window code and did **not** bump version.
+
+Toolchain on this host started as `rustc 1.83.0` / `cargo 1.83.0`. User-space rustup installed `stable` (no apt/brew Rust):
+
+```text
+$ rustup toolchain install stable --profile minimal
+$ rustup default stable
+$ rustc --version
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+$ cargo --version
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+```
+
+Linux WebView compile/runtime used `libwebkit2gtk-4.1` **2.52.3** (`pkg-config --modversion webkit2gtk-4.1`). `cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --lib` refused to run (`cannot update the lock file ... because --locked was passed`; cargo wanted to add `tauri-plugin-dialog` / `tauri-plugin-opener` and related crates). Equivalent run without `--locked`:
+
+```text
+$ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+...
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+```
+
+`Cargo.lock` was restored after that compile so this close-out does not commit lockfile churn.
+
+`npm run install:all` then `npm run dev:desktop` (`npx tauri dev`) compiled `target/debug/framepilot-desktop` and opened a mapped X11 window. libEGL printed `DRI3 error: Could not get DRI3 device` / `Ensure your X server supports DRI3`; the WebView still rendered.
+
+```text
+$ date -u
+2026-08-31T11:38:02Z
+$ xwininfo -id 0x1c00003
+xwininfo: Window id: 0x1c00003 "FramePilot"
+  Width: 1200
+  Height: 800
+  Map State: IsViewable
+$ xdotool getwindowname 29360131
+FramePilot
+```
+
+Sidecar: `/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 34325 --data-dir /workspace/.framepilot-desktop-dev`. `GET http://127.0.0.1:34325/health` → `200` `{"status":"ok","version":"2.1.0-desktop","service":"framepilot-api"}`. `GET /api/projects` → `200` `[]`. `sidecar.log` shows WebView `OPTIONS` then `GET /api/projects` 200 and `OPTIONS`+`GET /api/health` 200. Status bar in the live window: **Sidecar connected** | No project | No active job. A live click opened the Create Project dialog (name/folder fields; Create and Import stayed disabled until a name is entered).
+
+D0.07 in `docs/plans/2026-08-18-desktop-packaging.md` §5.1 is dated `[x]`. This does **not** close D3.01–D3.04 visual rows, D3.05–D3.07, Phase 4/5/6, or D3.06 tray.

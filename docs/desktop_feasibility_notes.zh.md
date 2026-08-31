@@ -271,3 +271,46 @@ Phase 0 另有 **>250 MB**「考虑丢掉 scipy」触发条件，当时未测到
 ## Phase 5 收尾 — 2026-08-29
 
 总议题 [#78](https://github.com/joe-cheung-cae/frame-pilot/issues/78)。关卡：研究 #80、设计 #83（已接受）、Dev #85 / #87 / #89 / #91 / #93。D5.05 合入后 tip：`a0b45e2`。打包计划 Phase 5 DoD 已按证据勾选；仍诚实保留：证书前未签名安装包、D3.01–D3.03 GUI `[~]`、WSL 类主机上 WebView RSS / 500 GUI pending。产品 `APP_VERSION` 为 `2.1.0-desktop`（Phase 5 未打 git tag）。
+
+## D0.07 GUI 收口 — 2026-08-31
+
+议题 [#107](https://github.com/joe-cheung-cae/frame-pilot/issues/107)。主机：Linux Cursor cloud（`uname` `Linux cursor 6.12.94+ x86_64`），TigerVNC 显示器 `:1`（1920×1200，XFCE）。实现已在 `main` @ `9c71195`；本次 **没有** 重写 sidecar spawn、CSP 或窗口代码，也 **没有** 升版本。
+
+本机工具链起点为 `rustc 1.83.0` / `cargo 1.83.0`。用户空间 rustup 安装了 `stable`（无 apt/brew Rust）：
+
+```text
+$ rustup toolchain install stable --profile minimal
+$ rustup default stable
+$ rustc --version
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+$ cargo --version
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+```
+
+Linux WebView 编译/运行使用 `libwebkit2gtk-4.1` **2.52.3**（`pkg-config --modversion webkit2gtk-4.1`）。`cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --lib` 拒绝运行（`cannot update the lock file ... because --locked was passed`；cargo 想加入 `tauri-plugin-dialog` / `tauri-plugin-opener` 及相关 crate）。不含 `--locked` 的等效运行：
+
+```text
+$ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+...
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+```
+
+编译后已还原 `Cargo.lock`，本次收口不提交 lockfile 变动。
+
+`npm run install:all` 后 `npm run dev:desktop`（`npx tauri dev`）编译了 `target/debug/framepilot-desktop` 并打开了已映射的 X11 窗口。libEGL 打印了 `DRI3 error: Could not get DRI3 device` / `Ensure your X server supports DRI3`；WebView 仍完成渲染。
+
+```text
+$ date -u
+2026-08-31T11:38:02Z
+$ xwininfo -id 0x1c00003
+xwininfo: Window id: 0x1c00003 "FramePilot"
+  Width: 1200
+  Height: 800
+  Map State: IsViewable
+$ xdotool getwindowname 29360131
+FramePilot
+```
+
+Sidecar：`/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 34325 --data-dir /workspace/.framepilot-desktop-dev`。`GET http://127.0.0.1:34325/health` → `200` `{"status":"ok","version":"2.1.0-desktop","service":"framepilot-api"}`。`GET /api/projects` → `200` `[]`。`sidecar.log` 显示 WebView `OPTIONS` 随后 `GET /api/projects` 200，以及 `OPTIONS`+`GET /api/health` 200。现场窗口状态栏：**Sidecar connected** | No project | No active job。现场点击打开了 Create Project 对话框（名称/文件夹字段；未输入名称前 Create and Import 保持禁用）。
+
+`docs/plans/2026-08-18-desktop-packaging.zh.md` §5.1 的 D0.07 已记为带日期的 `[x]`。这 **不** 关闭 D3.01–D3.04 视觉行、D3.05–D3.07、Phase 4/5/6，或 D3.06 托盘。
