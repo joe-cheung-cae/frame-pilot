@@ -216,7 +216,7 @@ Phase 0 — closed `上线` 2026-08-19 on `refactor` (GO; Phase 1 not started)
 - [x] D0.05 PyInstaller spec and sidecar smoke
 - [x] D0.06 Next static export spike (docs)
 - [x] D0.07a Tauri artifact/gitignore hygiene
-- [~] D0.07 Minimal Tauri shell with sidecar health — Phase 0 (2026-08-19T08:26:40Z) `cargo --version` / `rustc --version`: `zsh:1: command not found: cargo` / `zsh:1: command not found: rustc` (exit 127). Box stays `[~]` as the Phase 0 close-out. Phase 1 later installed user-space rustup and opened a FramePilot window (see D1.08). Compile-blocked was not the Electron trigger; sidecar was spawned. See `docs/desktop_feasibility_notes.md`.
+- [x] D0.07 Minimal Tauri shell with sidecar health — GUI close-out 2026-08-31T11:38:02Z: rustc 1.98.0 / cargo 1.98.0; `cargo test --lib` **41 passed**; `npm run dev:desktop` opened window title `FramePilot` (1200×800); sidecar `127.0.0.1:34325` `GET /health` 200 `version`/`service`; WebView `OPTIONS`+`GET /api/projects` 200; status bar `Sidecar connected`. Phase 0 2026-08-19 was `[~]` (`cargo`/`rustc` not found). See `docs/desktop_feasibility_notes.md`.
 - [x] D0.08 Baselines
 - [x] D0.09 Go / no-go
 

@@ -216,7 +216,7 @@ Phase 0 — 已于 2026-08-19 在 `refactor` 上 `上线` 关闭（GO；Phase 1 
 - [x] D0.05 PyInstaller spec 与 sidecar smoke
 - [x] D0.06 Next static export 试探（文档）
 - [x] D0.07a Tauri artifact / gitignore 卫生
-- [~] D0.07 最小 Tauri 壳与 sidecar 健康检查 — Phase 0 (2026-08-19T08:26:40Z) `cargo --version` / `rustc --version`: `zsh:1: command not found: cargo` / `zsh:1: command not found: rustc` (exit 127)。Phase 0 收尾时该框保持 `[~]`。Phase 1 后来安装了用户空间 rustup 并打开了 FramePilot 窗口（见 D1.08）。编译受阻并不是切换 Electron 的触发条件；sidecar 已被拉起。见 `docs/desktop_feasibility_notes.md`。
+- [x] D0.07 最小 Tauri 壳与 sidecar 健康检查 — GUI 收口 2026-08-31T11:38:02Z：rustc 1.98.0 / cargo 1.98.0；`cargo test --lib` **41 passed**；`npm run dev:desktop` 打开窗口标题 `FramePilot`（1200×800）；sidecar `127.0.0.1:34325` `GET /health` 200 含 `version`/`service`；WebView `OPTIONS`+`GET /api/projects` 200；状态栏 `Sidecar connected`。Phase 0 2026-08-19 曾为 `[~]`（`cargo`/`rustc` 未找到）。见 `docs/desktop_feasibility_notes.zh.md`。
 - [x] D0.08 基线
 - [x] D0.09 Go / no-go
 
