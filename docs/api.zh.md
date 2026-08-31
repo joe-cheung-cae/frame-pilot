@@ -214,9 +214,11 @@ HEIC 和 RAW 扩展名（如 `.heic`、`.dng`、`.arw`、`.cr3` 和 `.nef`）被
 
 API 启动默认：立即将残留活动作业标为失败，以免重启后工作区在整个过期窗口内被阻塞。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` 时，残留的活动导入/处理作业标为 `interrupted`（`current_step` 为 `interrupted - restart`，写入 `interrupted_at`），并安排进程内回收；导出仍失败并清理。回收不在 `GET /api/projects` 上执行。
 
+作业处于 `interrupted` 期间，活动作业守卫会将其视为进行中的工作：对同一项目发起新的导入或处理请求会返回 `409`（或复用现有作业行），而不会与待处理的回收发生竞争；并且该作业在回收或取消请求将其终结为终态之前不可 `retryable`。如果重启前已请求取消，回收会将该作业终结为 `cancelled` 而不是续跑。回收的认领是原子的（单条带条件的 `UPDATE`），因此进程内回收线程与单独运行的 `python -m app.worker` 不会同时执行同一个作业。
+
 `GET /api/projects/{project_id}/jobs` 按最新优先返回项目作业，包括 `import` 和 `processing` 作业。可选的 `limit` 和 `offset` 查询参数可以为大型作业历史分页。导入 UI 在上传/登记返回后轮询返回的导入作业；处理 UI 使用作业历史，在页面重新加载或导航后继续轮询排队或运行中的处理作业。如果排队或正在运行的导入作业过期，作业端点会将其标记为失败，并将 `current_step` 设为 `failed - stale`；这可以防止中断的本地导入永远保持活动，同时又不会重试或修改照片。
 
-`POST /api/projects/{project_id}/jobs/{job_id}/cancel` 为排队或正在运行的导入作业请求协作式取消。它设置 `cancellation_requested`，并以 `202 Accepted` 返回更新后的作业；终态导入作业作为安全空操作以 `200 OK` 返回。该端点不会杀死 API 进程、删除原始文件、删除已复制的原片，或移除已生成的衍生文件。后台工作器在每张照片之前以及每次照片级衍生/评分/哈希处理后检查该请求，到达安全检查点后将作业标记为 `cancelled`，并记录 `cancelled_at` 和 `completed_at`。已经完成的照片衍生文件保持缓存，未处理的照片保持可重试。
+`POST /api/projects/{project_id}/jobs/{job_id}/cancel` 为排队或正在运行的导入作业请求协作式取消。它设置 `cancellation_requested`，并以 `202 Accepted` 返回更新后的作业；终态导入作业作为安全空操作以 `200 OK` 返回。该端点不会杀死 API 进程、删除原始文件、删除已复制的原片，或移除已生成的衍生文件。后台工作器在每张照片之前以及每次照片级衍生/评分/哈希处理后检查该请求，到达安全检查点后将作业标记为 `cancelled`，并记录 `cancelled_at` 和 `completed_at`。已经完成的照片衍生文件保持缓存，未处理的照片保持可重试。取消一个 `interrupted` 的导入作业（当前没有工作器在执行它）会立即将其终结为 `cancelled`，同样以 `200 OK` 返回。
 
 `POST /api/projects/{project_id}/jobs/{job_id}/retry` 重试失败、`complete_with_errors` 或 `cancelled` 的导入作业。它创建新的本地导入作业，并对生成的缩略图或预览缺失、或导入状态仍为 `processing` 或 `failed` 的项目照片重新运行衍生/评分/哈希/嵌入工作。它不会重新登记已上传的文件、创建重复的照片记录、重置 `user_status`、重置 `star_rating`、删除已生成的衍生文件、删除已复制的原片，或修改源照片。现有有效的缩略图和预览文件会被复用；缺失的衍生文件会尽可能从本地已复制的原片重新生成。如果部分照片恢复而其他照片无法重建，重试作业以 `complete_with_errors` 完成，并在受影响的照片上记录失败项。如果另一个导入作业已经排队或正在运行，重试返回 `409`。
 

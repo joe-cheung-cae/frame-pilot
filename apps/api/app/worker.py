@@ -26,7 +26,7 @@ from app.core.config import get_settings, reset_settings_cache
 from app.db.session import get_engine, init_db
 from app.models.entities import ProcessingJob
 from app.services.importing import prepare_interrupted_import_jobs_for_reclaim, run_import_derivative_job
-from app.services.jobs import acquire_job_lease
+from app.services.jobs import claim_job_atomic
 from app.services.processing import prepare_interrupted_processing_jobs_for_reclaim, run_processing_job
 
 WORKER_LOCK_NAME = "framepilot-worker.lock"
@@ -81,37 +81,48 @@ def worker_lock_path(data_dir: Path | None = None) -> Path:
 
 
 def reclaim_interrupted_jobs(session: Session, *, worker_id: str) -> dict[str, list]:
-    """Reclaim interrupted import/processing work (same policy as API lifespan)."""
+    """Reclaim interrupted import/processing work (same policy as API lifespan).
+
+    ``worker_id`` is threaded through to ``prepare_interrupted_*_for_reclaim`` (atomic
+    claim) and then to the ``run_*`` execution call for the same job, so a job claimed by
+    this worker cannot also be picked up and re-executed by a concurrent reclaimer, e.g.
+    the API process's own lifespan reclaim thread (#104 fix 2).
+    """
     if not get_settings().job_reclaim_on_startup:
         return {"import": [], "processing": []}
-    import_targets = prepare_interrupted_import_jobs_for_reclaim(session)
+    import_targets = prepare_interrupted_import_jobs_for_reclaim(session, worker_id=worker_id)
     processing_ids: list[str] = []
     if not import_targets:
-        processing_ids = prepare_interrupted_processing_jobs_for_reclaim(session)
+        processing_ids = prepare_interrupted_processing_jobs_for_reclaim(session, worker_id=worker_id)
     for job_id, photo_ids in import_targets:
-        job = session.get(ProcessingJob, job_id)
-        if job is not None:
-            acquire_job_lease(session, job, worker_id=worker_id)
-        run_import_derivative_job(job_id, photo_ids, [])
+        run_import_derivative_job(job_id, photo_ids, [], worker_id=worker_id)
     for job_id in processing_ids:
-        job = session.get(ProcessingJob, job_id)
-        if job is not None:
-            acquire_job_lease(session, job, worker_id=worker_id)
-        run_processing_job(job_id)
+        run_processing_job(job_id, worker_id=worker_id)
     return {"import": import_targets, "processing": processing_ids}
 
 
 def claim_next_queued_processing_job(session: Session, *, worker_id: str) -> str | None:
-    job = session.exec(
+    """Atomically claim the oldest queued processing job for this worker.
+
+    Uses a guarded ``UPDATE`` per candidate (rather than select-then-write) so a
+    concurrent executor - e.g. the API's own BackgroundTasks path for a job it just
+    created - cannot claim and run the same row (#104 fix 2).
+    """
+    candidates = session.exec(
         select(ProcessingJob)
         .where(ProcessingJob.job_type == "processing")
         .where(ProcessingJob.status == "queued")
         .order_by(ProcessingJob.created_at, ProcessingJob.id)
-    ).first()
-    if job is None:
-        return None
-    acquire_job_lease(session, job, worker_id=worker_id)
-    return job.id
+    ).all()
+    for candidate in candidates:
+        if claim_job_atomic(
+            session,
+            candidate.id,
+            worker_id=worker_id,
+            from_statuses=frozenset({"queued"}),
+        ):
+            return candidate.id
+    return None
 
 
 def run_worker_once(session: Session, *, worker_id: str | None = None) -> bool:
@@ -123,7 +134,7 @@ def run_worker_once(session: Session, *, worker_id: str | None = None) -> bool:
     job_id = claim_next_queued_processing_job(session, worker_id=owner)
     if job_id is None:
         return False
-    run_processing_job(job_id)
+    run_processing_job(job_id, worker_id=owner)
     return True
 
 

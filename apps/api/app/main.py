@@ -1,4 +1,5 @@
 import threading
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -24,22 +25,24 @@ def reset_db_ready_flag() -> None:
     _db_ready = False
 
 
-def _schedule_import_reclaim(targets: list[tuple[str, list[str]]]) -> None:
+def _schedule_import_reclaim(targets: list[tuple[str, list[str]]], *, worker_id: str) -> None:
     for job_id, photo_ids in targets:
         thread = threading.Thread(
             target=run_import_derivative_job,
             args=(job_id, photo_ids, []),
+            kwargs={"worker_id": worker_id},
             daemon=True,
             name=f"framepilot-reclaim-import-{job_id[:8]}",
         )
         thread.start()
 
 
-def _schedule_processing_reclaim(job_ids: list[str]) -> None:
+def _schedule_processing_reclaim(job_ids: list[str], *, worker_id: str) -> None:
     for job_id in job_ids:
         thread = threading.Thread(
             target=run_processing_job,
             args=(job_id,),
+            kwargs={"worker_id": worker_id},
             daemon=True,
             name=f"framepilot-reclaim-process-{job_id[:8]}",
         )
@@ -70,18 +73,24 @@ def start_reclaimable_jobs() -> dict[str, list]:
     Prefers import reclaim in the same startup pass so derivative work finishes before
     grouping rebuild. Only one processing reclaim job is prepared when no import reclaim
     targets exist.
+
+    A worker id is generated once per lifespan reclaim pass and threaded through the
+    atomic ``prepare_interrupted_*_for_reclaim`` claim and into the scheduled ``run_*``
+    call for the same job, so a job claimed here cannot also be picked up and re-executed
+    by a concurrently running ``python -m app.worker`` process (#104 fix 2).
     """
     if not get_settings().job_reclaim_on_startup:
         return {"import": [], "processing": []}
+    owner = f"api-reclaim-{uuid.uuid4().hex[:12]}"
     with Session(get_engine()) as session:
-        import_targets = prepare_interrupted_import_jobs_for_reclaim(session)
+        import_targets = prepare_interrupted_import_jobs_for_reclaim(session, worker_id=owner)
         processing_ids: list[str] = []
         if not import_targets:
-            processing_ids = prepare_interrupted_processing_jobs_for_reclaim(session)
+            processing_ids = prepare_interrupted_processing_jobs_for_reclaim(session, worker_id=owner)
     if import_targets:
-        _schedule_import_reclaim(import_targets)
+        _schedule_import_reclaim(import_targets, worker_id=owner)
     if processing_ids:
-        _schedule_processing_reclaim(processing_ids)
+        _schedule_processing_reclaim(processing_ids, worker_id=owner)
     return {"import": import_targets, "processing": processing_ids}
 
 

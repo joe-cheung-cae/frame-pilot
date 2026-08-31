@@ -110,11 +110,14 @@ class ProcessingJob(SQLModel, table=True):
 
     @property
     def retryable(self) -> bool:
+        # "interrupted" is deliberately excluded: reclaim can still resume this exact
+        # row, and a manual retry racing that resume would create two executors for the
+        # same job (#104 fix 6). It becomes retryable again once reclaim (or a cancel
+        # request) finalizes it to a terminal status.
         return self.job_type == "import" and self.status in {
             "failed",
             "complete_with_errors",
             "cancelled",
-            "interrupted",
         }
 
 

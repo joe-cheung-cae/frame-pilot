@@ -127,10 +127,10 @@ def test_reclaim_completes_interrupted_import_without_reupload(tmp_path, monkeyp
         job_id = db_job.id
         photo_ids = [photo.id for photo in photos]
 
-        prepared = prepare_interrupted_import_jobs_for_reclaim(session)
+        prepared = prepare_interrupted_import_jobs_for_reclaim(session, worker_id="reclaim-test-worker")
         assert prepared == [(job_id, photo_ids)]
 
-    run_import_derivative_job(job_id, photo_ids, [])
+    run_import_derivative_job(job_id, photo_ids, [], worker_id="reclaim-test-worker")
 
     with Session(get_engine()) as session:
         finished = session.get(ProcessingJob, job_id)

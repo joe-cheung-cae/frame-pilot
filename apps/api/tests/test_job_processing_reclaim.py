@@ -131,10 +131,10 @@ def test_reclaim_reruns_interrupted_processing_job(tmp_path, monkeypatch):
         session.commit()
         photo_id = photo.id
 
-        prepared = prepare_interrupted_processing_jobs_for_reclaim(session)
+        prepared = prepare_interrupted_processing_jobs_for_reclaim(session, worker_id="reclaim-test-worker")
         assert prepared == [job_id]
 
-    run_processing_job(job_id)
+    run_processing_job(job_id, worker_id="reclaim-test-worker")
 
     with Session(get_engine()) as session:
         finished = session.get(ProcessingJob, job_id)

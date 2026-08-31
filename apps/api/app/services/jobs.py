@@ -7,13 +7,16 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from sqlmodel import Session, select
+from sqlmodel import Session, or_, select, update
 
 from app.models.entities import ExportRecord, ProcessingJob, Project, utc_now
 
 ACTIVE_JOB_STATUSES = frozenset({"queued", "running"})
 # "interrupted" is reclaimable (Phase 6); not active work and not a successful terminal state.
 TERMINAL_JOB_STATUSES = frozenset({"complete", "complete_with_errors", "failed", "cancelled", "interrupted"})
+# Workflow guards (new import/process acceptance) must treat "interrupted" as in-flight too,
+# so a fresh import/process cannot race a pending reclaim of the same project (#104 fix 5).
+BLOCKING_JOB_STATUSES = ACTIVE_JOB_STATUSES | frozenset({"interrupted"})
 STALE_JOB_AFTER = timedelta(minutes=10)
 # When a worker lease heartbeat is present, prefer this shorter expiry over updated_at.
 JOB_LEASE_STALE_AFTER = timedelta(minutes=2)
@@ -105,6 +108,61 @@ def clear_job_lease(
         session.commit()
         session.refresh(job)
     return job
+
+
+def refresh_job_lease_heartbeat(session: Session, job: ProcessingJob) -> None:
+    """Bump the lease heartbeat alongside routine progress writes (Phase 6 / #104 fix 1).
+
+    ``acquire_job_lease`` previously set ``heartbeat_at`` once; long-running jobs with a
+    lease would then look stale after ``JOB_LEASE_STALE_AFTER`` even while still making
+    progress. Call this from every progress-update touchpoint (import stage callbacks,
+    processing stage saves) so a still-executing owner keeps its lease fresh. No-op when
+    the job has no lease (``worker_id`` unset); does not commit — callers control commit
+    timing to match their existing throttling behavior.
+    """
+    if job.worker_id is None:
+        return
+    now = utc_now()
+    job.heartbeat_at = now
+    job.updated_at = now
+    session.add(job)
+
+
+def claim_job_atomic(
+    session: Session,
+    job_id: str,
+    *,
+    worker_id: str,
+    from_statuses: frozenset[str],
+    to_status: str | None = None,
+) -> bool:
+    """Atomically claim a job's lease with a single guarded ``UPDATE`` (Phase 6 / #104 fix 2).
+
+    A read-then-write claim (select a row, then write it back) lets two executors -
+    e.g. the API's in-process reclaim thread and a separately running ``python -m
+    app.worker`` - both believe they own the same row before either commits. Folding the
+    status/ownership check into the ``UPDATE ... WHERE`` clause makes the claim atomic
+    from SQLite's perspective: only one caller's statement can match and update the row,
+    and the caller must check the resulting row count to know whether it actually won.
+
+    Returns ``True`` (and commits) only when exactly one row matched: the job was in
+    ``from_statuses`` and unleased or already leased by this same ``worker_id``.
+    """
+    now = utc_now()
+    values: dict[str, object] = {"worker_id": worker_id, "heartbeat_at": now, "updated_at": now}
+    if to_status is not None:
+        values["status"] = to_status
+    table = ProcessingJob.__table__
+    statement = (
+        update(table)
+        .where(table.c.id == job_id)
+        .where(table.c.status.in_(list(from_statuses)))
+        .where(or_(table.c.worker_id.is_(None), table.c.worker_id == worker_id))
+        .values(**values)
+    )
+    result = session.execute(statement)
+    session.commit()
+    return result.rowcount == 1
 
 
 def progress_percent(processed_items: int, failed_items: int, total_items: int) -> float:

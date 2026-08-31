@@ -116,7 +116,9 @@ def test_reclaim_flag_marks_jobs_interrupted_without_photo_reset(tmp_path, monke
         assert import_job.interrupted_at is not None
         assert import_job.completed_at is None
         assert import_job.checkpoint_photo_id == "photo-keep"
-        assert import_job.retryable is True
+        # Interrupted imports are not retryable while reclaim can still resume this row
+        # (#104 fix 6); retry becomes available again once reclaim/cancel finalizes it.
+        assert import_job.retryable is False
         assert processing_job is not None
         assert processing_job.status == "interrupted"
         assert processing_job.current_step == "interrupted - restart"

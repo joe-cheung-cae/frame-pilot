@@ -1,4 +1,5 @@
 import json
+import uuid
 from pathlib import Path
 
 from sqlmodel import Session, select
@@ -9,9 +10,11 @@ from app.services.grouping import group_similar_photos
 from app.services.importing import ensure_photo_derivatives
 from app.services.jobs import (
     TERMINAL_JOB_STATUSES,
+    claim_job_atomic,
     job_is_stale,
     mark_job_failed,
     progress_percent,
+    refresh_job_lease_heartbeat,
 )
 from app.services.ranking import RankedPhoto, rank_group
 
@@ -35,6 +38,8 @@ def _save_job(
         job.failed_items = failed_items
     job.progress_percent = progress_percent(job.processed_items, job.failed_items, job.total_items)
     job.updated_at = utc_now()
+    # Keep a held lease fresh so long processing runs do not look stale mid-flight (#104 fix 1).
+    refresh_job_lease_heartbeat(session, job)
     session.add(job)
     session.commit()
     session.refresh(job)
@@ -217,8 +222,15 @@ def prepare_interrupted_processing_jobs_for_reclaim(
     session: Session,
     *,
     limit: int = 1,
+    worker_id: str | None = None,
 ) -> list[str]:
-    """Clear partial groups and reactivate interrupted processing jobs (Phase 6 / J6.04)."""
+    """Clear partial groups and reactivate interrupted processing jobs (Phase 6 / J6.04).
+
+    Each candidate row is claimed with a single atomic ``UPDATE ... WHERE status =
+    'interrupted'`` before it is mutated, so a concurrent reclaimer (e.g. the API's
+    lifespan reclaim thread racing a separately running ``python -m app.worker``) cannot
+    also reactivate the same row (#104 fix 2).
+    """
     jobs = list(
         session.exec(
             select(ProcessingJob)
@@ -231,6 +243,17 @@ def prepare_interrupted_processing_jobs_for_reclaim(
     for job in jobs:
         if len(prepared) >= limit:
             break
+        owner = worker_id or f"reclaim-{uuid.uuid4().hex[:12]}"
+        if not claim_job_atomic(
+            session,
+            job.id,
+            worker_id=owner,
+            from_statuses=frozenset({"interrupted"}),
+        ):
+            # Already claimed by a concurrent reclaimer between our read and this write.
+            continue
+        session.refresh(job)
+
         reason = "Interrupted processing was reclaimed after API restart; rebuilding local groups"
         reset_project_after_processing_failure(session, job.project_id, reason)
         now = utc_now()
@@ -251,11 +274,27 @@ def prepare_interrupted_processing_jobs_for_reclaim(
     return prepared
 
 
-def run_processing_job(job_id: str) -> None:
+def run_processing_job(job_id: str, *, worker_id: str | None = None) -> None:
     with Session(get_engine()) as session:
         job = session.get(ProcessingJob, job_id)
         if job is None:
             return
+        # Atomic claim: refuse to run if another executor (e.g. a separately running
+        # ``python -m app.worker`` racing the API's own reclaim thread or BackgroundTasks)
+        # already holds this job's lease, so the same job never runs twice at once
+        # (#104 fix 2). Callers that already claimed this job (prepare_*_for_reclaim,
+        # the worker's own queue claim) pass their existing ``worker_id`` explicitly;
+        # do not fall back to the job's current lease owner, or an unrelated caller could
+        # silently "inherit" someone else's foreign lease just by reading the row.
+        owner = worker_id or f"job-runner-{uuid.uuid4().hex[:12]}"
+        if not claim_job_atomic(
+            session,
+            job_id,
+            worker_id=owner,
+            from_statuses=frozenset({"queued", "running"}),
+        ):
+            return
+        session.refresh(job)
         try:
             project = session.get(Project, job.project_id)
             if project is None:
