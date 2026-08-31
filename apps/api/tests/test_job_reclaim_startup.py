@@ -27,12 +27,13 @@ def _jpeg_bytes(color: tuple[int, int, int] = (10, 20, 30)) -> bytes:
     return buffer.getvalue()
 
 
-def test_default_startup_still_fails_active_jobs(tmp_path, monkeypatch):
-    monkeypatch.delenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", raising=False)
+def test_explicit_flag_off_still_fails_active_jobs(tmp_path, monkeypatch):
+    """Phase 6.1 (#105): explicit opt-out keeps the legacy fail-and-retry behavior."""
+    monkeypatch.setenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "0")
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     reset_settings_cache()
     client = TestClient(create_app())
-    project = client.post("/api/projects", json={"name": "Default fail"}).json()
+    project = client.post("/api/projects", json={"name": "Explicit fail"}).json()
 
     with Session(get_engine()) as session:
         job = ProcessingJob(
@@ -68,6 +69,51 @@ def test_default_startup_still_fails_active_jobs(tmp_path, monkeypatch):
         assert photo is not None
         # Fail path resets interrupted import photos for manual retry.
         assert photo.processing_state in {"failed", "imported"}
+
+
+def test_unset_flag_now_defaults_to_reclaiming_active_jobs(tmp_path, monkeypatch):
+    """Phase 6.1 (#105): with the env var unset, startup reclaims instead of failing."""
+    monkeypatch.delenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", raising=False)
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    reset_settings_cache()
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Default reclaim"}).json()
+
+    with Session(get_engine()) as session:
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="running",
+            current_step="derivative_generation",
+            checkpoint_photo_id="photo-1",
+            checkpoint_stage="derivative_generation",
+            updated_at=datetime.now(UTC),
+        )
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(tmp_path / "a.jpg"),
+            filename="a.jpg",
+            processing_state="processing",
+        )
+        session.add(job)
+        session.add(photo)
+        session.commit()
+        job_id = job.id
+        photo_id = photo.id
+
+    reset_db_ready_flag()
+    ensure_db_ready()
+
+    with Session(get_engine()) as session:
+        job = session.get(ProcessingJob, job_id)
+        photo = session.get(Photo, photo_id)
+        assert job is not None
+        assert job.status == "interrupted"
+        assert job.current_step == "interrupted - restart"
+        assert job.interrupted_at is not None
+        # Unlike the fail path, reclaim does not reset the in-flight photo.
+        assert photo is not None
+        assert photo.processing_state == "processing"
 
 
 def test_reclaim_flag_marks_jobs_interrupted_without_photo_reset(tmp_path, monkeypatch):
@@ -221,7 +267,7 @@ def test_reclaim_disabled_fails_leftover_interrupted_import_and_unblocks_project
     reclaim-enabled run) must not survive startup once reclaim is off, or the
     project stays blocked (409 imports) forever with no way to cancel it.
     """
-    monkeypatch.delenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", raising=False)
+    monkeypatch.setenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "0")
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     reset_settings_cache()
     client = TestClient(create_app())
@@ -280,7 +326,7 @@ def test_reclaim_disabled_fails_leftover_interrupted_import_and_unblocks_project
 
 
 def test_reclaim_disabled_fails_leftover_interrupted_processing_job(tmp_path, monkeypatch):
-    monkeypatch.delenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", raising=False)
+    monkeypatch.setenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "0")
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     reset_settings_cache()
     client = TestClient(create_app())

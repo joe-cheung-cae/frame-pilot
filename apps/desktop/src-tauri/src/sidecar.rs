@@ -213,14 +213,17 @@ pub fn job_status_is_terminal(status: &str) -> bool {
 }
 
 fn job_reclaim_on_startup_enabled() -> bool {
-    matches!(
-        std::env::var("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP")
-            .unwrap_or_default()
-            .trim()
-            .to_ascii_lowercase()
-            .as_str(),
-        "1" | "true" | "yes" | "on"
-    )
+    // Phase 6.1 (#105): reclaim defaults to on; unset means on, matching the API's
+    // `env_flag("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", default=True)`. When the variable
+    // is set, only recognized truthy values keep reclaim on; anything else (including
+    // "0"/"false"/"no"/"off") falls back to fail-and-retry.
+    match std::env::var("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP") {
+        Err(_) => true,
+        Ok(raw) => matches!(
+            raw.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
+    }
 }
 
 pub fn quit_dialog_script(kind: CloseJobKind) -> String {
@@ -232,9 +235,9 @@ pub fn quit_dialog_script_with_reclaim(kind: CloseJobKind, reclaim_on_startup: b
         CloseJobKind::Import => (
             "Import is still running",
             if reclaim_on_startup {
-                "You can keep working, quit and cancel the import, or quit anyway. Cancelled imports stay retryable. Quit anyway SIGTERMs the sidecar; the next launch can interrupt and reclaim leftover import work when reclaim is enabled. Original photos are not modified."
+                "You can keep working, quit and cancel the import, or quit anyway. Cancelled imports stay retryable. Quit anyway SIGTERMs the sidecar; the next launch can interrupt and reclaim leftover import work. Original photos are not modified."
             } else {
-                "You can keep working, quit and cancel the import, or quit anyway. Cancelled imports stay retryable and original photos are not modified. Quit anyway SIGTERMs the sidecar; the next launch marks leftover jobs failed by default (set FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1 to reclaim instead)."
+                "You can keep working, quit and cancel the import, or quit anyway. Cancelled imports stay retryable and original photos are not modified. Quit anyway SIGTERMs the sidecar; the next launch marks leftover jobs failed for manual retry (FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled)."
             },
             r#"<button type=\"button\" data-choice=cancel_and_quit>Quit and cancel import</button>"#,
         ),
@@ -243,7 +246,7 @@ pub fn quit_dialog_script_with_reclaim(kind: CloseJobKind, reclaim_on_startup: b
             if reclaim_on_startup {
                 "This job cannot be cancelled. You can keep working or quit anyway. Quit anyway SIGTERMs the sidecar; the next launch can interrupt and reclaim leftover processing (partial groups are cleared before rebuild). Original photos stay unchanged."
             } else {
-                "This job cannot be cancelled. You can keep working or quit anyway. Quit anyway SIGTERMs the sidecar; the next launch marks the job failed by default and keeps original photos unchanged (set FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1 to reclaim instead)."
+                "This job cannot be cancelled. You can keep working or quit anyway. Quit anyway SIGTERMs the sidecar; the next launch marks the job failed and keeps original photos unchanged (FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled)."
             },
             "",
         ),
@@ -1191,12 +1194,26 @@ mod tests {
     fn quit_dialog_script_mentions_reclaim_when_enabled() {
         let processing = quit_dialog_script_with_reclaim(CloseJobKind::Processing, true);
         assert!(processing.contains("interrupt and reclaim"));
-        assert!(!processing.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1"));
-        let processing_default = quit_dialog_script_with_reclaim(CloseJobKind::Processing, false);
-        assert!(processing_default.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1"));
-        assert!(processing_default.contains("marks the job failed by default"));
-        let import_default = quit_dialog_script_with_reclaim(CloseJobKind::Import, false);
-        assert!(import_default.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1"));
+        assert!(!processing.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP"));
+        let processing_disabled = quit_dialog_script_with_reclaim(CloseJobKind::Processing, false);
+        assert!(processing_disabled.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled"));
+        assert!(processing_disabled.contains("marks the job failed"));
+        let import_disabled = quit_dialog_script_with_reclaim(CloseJobKind::Import, false);
+        assert!(import_disabled.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled"));
+    }
+
+    #[test]
+    fn job_reclaim_on_startup_enabled_defaults_to_true_when_unset() {
+        // Phase 6.1 (#105): mirrors the API's `env_flag(..., default=True)`.
+        std::env::remove_var("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP");
+        assert!(job_reclaim_on_startup_enabled());
+        std::env::set_var("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "0");
+        assert!(!job_reclaim_on_startup_enabled());
+        std::env::set_var("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "false");
+        assert!(!job_reclaim_on_startup_enabled());
+        std::env::set_var("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "1");
+        assert!(job_reclaim_on_startup_enabled());
+        std::env::remove_var("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP");
     }
 
     fn assert_javascript_parses(script: &str) {

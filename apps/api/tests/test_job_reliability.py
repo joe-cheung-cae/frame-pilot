@@ -170,6 +170,9 @@ def test_import_derivative_worker_marks_job_failed_on_unexpected_exception(tmp_p
 
 
 def test_startup_marks_preexisting_active_jobs_failed(tmp_path, monkeypatch):
+    # Phase 6.1 (#105): reclaim defaults to on; explicitly disable it to exercise the
+    # legacy fail-and-retry startup sweep this test covers.
+    monkeypatch.setenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "0")
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
     project = client.post("/api/projects", json={"name": "Restart sweep"}).json()
@@ -392,6 +395,9 @@ def test_cancel_then_retry_leaves_no_photo_processing_and_job_is_cancelled(tmp_p
 
 
 def test_killed_import_worker_is_failed_retryable_and_photos_leave_processing(tmp_path, monkeypatch):
+    # Phase 6.1 (#105): reclaim defaults to on; explicitly disable it to exercise the
+    # legacy fail-and-retry startup sweep this test covers.
+    monkeypatch.setenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "0")
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     scheduled_tasks = _capture_background_tasks(monkeypatch)
     client = TestClient(create_app())
@@ -461,6 +467,9 @@ def test_killed_import_worker_is_failed_retryable_and_photos_leave_processing(tm
 
 
 def test_processing_job_has_no_cancel_route_and_startup_sweep_resets_photos(tmp_path, monkeypatch):
+    # Phase 6.1 (#105): reclaim defaults to on; explicitly disable it to exercise the
+    # legacy fail-and-retry startup sweep this test covers.
+    monkeypatch.setenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "0")
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
     project = client.post("/api/projects", json={"name": "Processing interrupt"}).json()

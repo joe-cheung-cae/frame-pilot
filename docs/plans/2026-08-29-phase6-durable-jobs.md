@@ -207,3 +207,9 @@ Targeted while iterating:
 ```bash
 .venv/bin/pytest apps/api/tests/test_job_checkpoint.py apps/api/tests/test_job_reliability.py -q
 ```
+
+---
+
+## 7. Phase 6.1 — default flip (2026-08-31, [#105](https://github.com/joe-cheung-cae/frame-pilot/issues/105))
+
+Locked decision 2 above ("default remains fail-and-retry until reclaim is proven") is now superseded: `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults to **on** (`env_flag(..., default=True)`; `Settings.job_reclaim_on_startup: bool = True`). Set the variable to `0`/`false`/`no`/`off` to opt back into fail-and-retry. All other Phase 6 decisions (1, 3–8) are unchanged. See `docs/architecture.md`, `docs/api.md`, and `docs/v2_known_limitations.md` for the updated default-on wording.

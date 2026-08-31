@@ -6,9 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 6.1 — job reclaim on by default
+
+- `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` now defaults to **on**; set it to `0`/`false`/`no`/`off` to opt back into fail-and-retry startup behavior
+- Desktop quit copy updated to reflect reclaim as the default, with wording for the explicit opt-out case
+
 ### Phase 6 — durable local job reclaim (opt-in)
 
-- Optional startup reclaim via `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` (default remains fail-and-retry)
+- Optional startup reclaim via `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` (default was fail-and-retry; flipped in Phase 6.1 above)
 - Job checkpoint / lease fields on `JobRead`; status `interrupted` for reclaimable leftovers
 - Local worker entrypoint: `npm run worker` / `python -m app.worker`
 - Desktop quit copy aligned with reclaim vs fail-and-retry
