@@ -19,6 +19,12 @@ from app.services.jobs import (
 )
 from app.services.ranking import RankedPhoto, rank_group
 
+# Regenerating derivatives for many missing photos in a single pass with no
+# intervening heartbeat refresh can run past JOB_LEASE_STALE_AFTER on large batches, so a
+# concurrent stale sweep could fail_stale a job that is still actively regenerating files
+# (Bugbot residual fix after #104 / 6b580a8).
+DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL = 5
+
 
 def _failed_photo_count_message(count: int) -> str:
     noun = "photo" if count == 1 else "photos"
@@ -374,7 +380,7 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         _save_job(session, job, "validating generated files", len(preserved_photos))
         derivative_failed_photos = []
         derivative_failed_ids = set()
-        for photo in work_photos:
+        for index, photo in enumerate(work_photos, start=1):
             missing_derivatives = _missing_derivative_paths(photo)
             if not missing_derivatives:
                 continue
@@ -392,6 +398,13 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
                     "Processing skipped this photo because its generated files could not be rebuilt from the local "
                     "copied original. Reimport the photo to rebuild local derived files.",
                 )
+            # Keep the lease fresh every few photos so this loop cannot outlast
+            # JOB_LEASE_STALE_AFTER without a heartbeat, even when most/all of
+            # work_photos need regeneration (Bugbot residual fix after #104 / 6b580a8).
+            if index % DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL == 0:
+                refresh_job_lease_heartbeat(session, job)
+                session.commit()
+        refresh_job_lease_heartbeat(session, job)
         session.commit()
 
         _save_job(session, job, "validating similarity data", len(preserved_photos), len(derivative_failed_photos))
