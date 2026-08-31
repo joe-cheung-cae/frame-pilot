@@ -363,3 +363,61 @@ FramePilot
 Sidecar: `/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 34325 --data-dir /workspace/.framepilot-desktop-dev`. `GET http://127.0.0.1:34325/health` → `200` `{"status":"ok","version":"2.1.0-desktop","service":"framepilot-api"}`. `GET /api/projects` → `200` `[]`. `sidecar.log` shows WebView `OPTIONS` then `GET /api/projects` 200 and `OPTIONS`+`GET /api/health` 200. Status bar in the live window: **Sidecar connected** | No project | No active job. A live click opened the Create Project dialog (name/folder fields; Create and Import stayed disabled until a name is entered).
 
 D0.07 in `docs/plans/2026-08-18-desktop-packaging.md` §5.1 is dated `[x]`. This does **not** close D3.01–D3.04 visual rows, D3.05–D3.07, Phase 4/5/6, or D3.06 tray.
+
+## D3.01 Native menu bar GUI close-out — 2026-08-31
+
+Issue [#109](https://github.com/joe-cheung-cae/frame-pilot/issues/109). Host: Linux Cursor cloud (`uname` `Linux cursor 6.12.94+ x86_64`), TigerVNC display `:1` (1920×1200, XFCE). Native menu implementation was already on `main` @ `9ca7cee` (`menu.rs`, `lib.rs` set_menu/on_menu_event, `App.tsx` listener, `menuRoutes.ts`). This run did **not** rewrite the menu, did **not** bump version, and did **not** close D3.02–D3.04 visual, D3.05–D3.07, Phase 4/5/6, or D3.06 tray.
+
+Toolchain on this host started as `rustc 1.83.0` / `cargo 1.83.0`. User-space rustup installed `stable` (no apt/brew Rust):
+
+```text
+$ rustup toolchain install stable --profile minimal
+$ rustup default stable
+$ rustc --version
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+$ cargo --version
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+```
+
+Linux WebView compile/runtime used `libwebkit2gtk-4.1` **2.52.3** (`pkg-config --modversion webkit2gtk-4.1`). `cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --lib` was not used (same lockfile churn as D0.07: cargo wanted to add `tauri-plugin-dialog` / `tauri-plugin-opener` and related crates). Equivalent run without `--locked`:
+
+```text
+$ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+...
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s
+```
+
+`Cargo.lock` was restored after that compile so this close-out does not commit lockfile churn. `npm --prefix apps/web run test:unit` was green (node unit + vitest).
+
+`npm run install:all` then `npm run dev:desktop` (`npx tauri dev`) compiled `target/debug/framepilot-desktop` and opened a mapped X11 window. libEGL printed `DRI3 error: Could not get DRI3 device` / `Ensure your X server supports DRI3`; the WebView still rendered.
+
+```text
+$ date -u
+2026-08-31T12:04:55Z
+$ xwininfo -id 0x1a00003
+xwininfo: Window id: 0x1a00003 "FramePilot"
+  Width: 1200
+  Height: 800
+  Map State: IsViewable
+```
+
+Sidecar: `/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 33359 --data-dir /workspace/.framepilot-desktop-dev`. `GET http://127.0.0.1:33359/health` → `200` `{"status":"ok","version":"2.1.0-desktop","service":"framepilot-api"}`. Live native menu clicks (File/Edit/View/Project/Help) plus Ctrl+N:
+
+| Action | Result |
+| ------ | ------ |
+| File > New | heading **Create Project** (`/projects/new`) |
+| Create project `D301 Menu` | `POST /api/projects` **201** id `b52ef58da93c4d19b4cd4408e2296e2f`; heading **Import Images** |
+| File > Export | heading **Export Selection**; WebView `GET .../exports` |
+| Project > Process | heading **Processing Status**; WebView `GET .../jobs?limit=50` |
+| Project > Culling | heading **No Photos Imported**; WebView `GET .../photos` and `.../groups` |
+| File > Import | heading **Import Images** |
+| Help > Shortcuts | heading **Keyboard Shortcuts** (CmdOrCtrl+N/W/Q listed) |
+| View > Fullscreen | window toggled fullscreen then restored |
+| Edit dropdown | OS defaults Undo/Redo/Cut/Copy/Paste/Select All (no route change) |
+| Help > About | native dialog **FramePilot 2.1.0-desktop** |
+| File > Open data folder | native opener (no in-app route) |
+| Ctrl+N | heading **Create Project** again |
+
+`GET /api/projects` after the run → `200` one project `{"id":"b52ef58da93c4d19b4cd4408e2296e2f","name":"D301 Menu",...}`. Screen recording: `/opt/cursor/artifacts/d3-01-native-menu-bar.mp4`.
+
+D3.01 in `docs/plans/2026-08-18-desktop-packaging.md` §5.1 is dated `[x]`. D3.02–D3.03 GUI and D3.04 visual stay `[~]`. D3.06 tray stays `[-]`.
