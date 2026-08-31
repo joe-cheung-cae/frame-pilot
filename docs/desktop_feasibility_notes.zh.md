@@ -372,3 +372,52 @@ Sidecar：`/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --po
 运行后 `GET /api/projects` → `200` 一个项目 `{"id":"b52ef58da93c4d19b4cd4408e2296e2f","name":"D301 Menu",...}`。屏幕录像：`/opt/cursor/artifacts/d3-01-native-menu-bar.mp4`。
 
 `docs/plans/2026-08-18-desktop-packaging.zh.md` §5.1 的 D3.01 已记为带日期的 `[x]`。D3.02–D3.03 GUI 与 D3.04 视觉仍为 `[~]`。D3.06 托盘仍为 `[-]`。
+
+## D3.02 状态栏 GUI 收口 — 2026-08-31
+
+议题 [#111](https://github.com/joe-cheung-cae/frame-pilot/issues/111)。主机：Linux Cursor cloud（`uname` `Linux cursor 6.12.94+ x86_64`），TigerVNC 显示器 `:1`（1920×1200，XFCE）。状态栏实现已在 `main` @ `3f54c38`（`StatusBar.tsx` 由 `isDesktopShell()` 门控，`Shell` 传入 `usePathname()`，`statusBarModel.ts` 使用 `firstActiveJob`）。本次 **没有** 重写状态栏，**没有** 升版本，也 **没有** 关闭 D3.03 GUI、D3.04 视觉、D3.05–D3.07、Phase 4/5/6，或 D3.06 托盘。
+
+本机工具链起点为 `rustc 1.83.0` / `cargo 1.83.0`。用户空间 rustup 安装了 `stable`（无 apt/brew Rust）：
+
+```text
+$ rustup toolchain install stable --profile minimal
+$ rustup default stable
+$ rustc --version
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+$ cargo --version
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+```
+
+Linux WebView 编译/运行使用 `libwebkit2gtk-4.1` **2.52.3**（`pkg-config --modversion webkit2gtk-4.1`）。未使用 `cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --lib`（与 D0.07/D3.01 相同的 lockfile 变动：cargo 想加入 `tauri-plugin-dialog` / `tauri-plugin-opener` 及相关 crate）。不含 `--locked` 的等效运行：
+
+```text
+$ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+...
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+```
+
+编译后已还原 `Cargo.lock`，本次收口不提交 lockfile 变动。`npm --prefix apps/web run test:unit` 通过（node unit + vitest）。
+
+`npm run install:all` 后 `npm run dev:desktop`（`npx tauri dev`）编译了 `target/debug/framepilot-desktop` 并打开了已映射的 X11 窗口。libEGL 打印了 `DRI3 error: Could not get DRI3 device` / `Ensure your X server supports DRI3`；WebView 仍完成渲染。
+
+```text
+$ date -u
+2026-08-31T12:40:37Z
+$ xwininfo -id 0x1a00003
+xwininfo: Window id: 0x1a00003 "FramePilot"
+  Width: 1200
+  Height: 800
+  Map State: IsViewable
+```
+
+Sidecar：`/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 37137 --data-dir /workspace/.framepilot-desktop-dev`。`GET http://127.0.0.1:37137/health` → `200` `{"status":"ok","version":"2.1.0-desktop","service":"framepilot-api"}`。现场状态栏（sidecar / 项目 / 当前 job）：
+
+| 步骤 | 状态栏 |
+| ---- | ------ |
+| 首页（空闲） | **Sidecar connected** \| **No project** \| **No active job** |
+| 创建项目 `D302 Status` | **Sidecar connected** \| **D302 Status** \| **No active job** |
+| `POST .../imports/from-paths` **201**（1 张 JPEG）之后 | **Sidecar connected** \| **D302 Status** \| **No active job** |
+
+`POST /api/projects` **201** id `bcc1aea5bae74daca20d8a91f1eab4cb` name `D302 Status`。导入 job `5b12f61477004704b6ea950885114e4b` `job_type=import` `status=complete` `1/1` `100%`（`started_at` 12:39:37.715Z，`completed_at` 12:39:37.978Z，约 0.26 秒）。单文件导入结束太快，未能拍到运行中的 `Import · … · N%` 页脚；完成后 job 字段仍显示为 **No active job**。WebView `OPTIONS`+`GET /api/health` 200、`GET /api/projects/{id}` 200，以及 jobs 轮询 `GET .../jobs?limit=10`。屏幕录像：`/opt/cursor/artifacts/d3-02-status-bar.mp4`。空闲 / 项目截图：`/opt/cursor/artifacts/d3-02-status-bar-idle.png`、`/opt/cursor/artifacts/d3-02-status-bar-project.png`。
+
+`docs/plans/2026-08-18-desktop-packaging.zh.md` §5.1 的 D3.02 已记为带日期的 `[x]`。D3.03 GUI 与 D3.04 视觉仍为 `[~]`。D3.06 托盘仍为 `[-]`。
