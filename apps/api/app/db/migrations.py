@@ -8,7 +8,7 @@ from sqlalchemy import inspect, text
 
 from app.db import session as db_session
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 
 class UnsupportedSchemaVersionError(RuntimeError):
@@ -113,10 +113,16 @@ def _migrate_to_3(engine) -> None:
         )
 
 
+def _migrate_to_4(engine) -> None:
+    """Add Phase 6 durable job checkpoint and lease columns on ProcessingJob."""
+    db_session._ensure_processing_job_columns(engine)
+
+
 MIGRATIONS: dict[int, Callable] = {
     1: _migrate_to_1,
     2: _migrate_to_2,
     3: _migrate_to_3,
+    4: _migrate_to_4,
 }
 
 

@@ -47,6 +47,7 @@ from app.services.importing import (
     update_import_job,
 )
 from app.services.jobs import (
+    BLOCKING_JOB_STATUSES,
     STALE_JOB_AFTER,
     as_utc,
     fail_stale_job,
@@ -119,21 +120,25 @@ def _get_export(session: Session, project_id: str, export_id: str) -> ExportReco
 
 
 def _get_active_processing_job(session: Session, project_id: str) -> ProcessingJob | None:
+    # "interrupted" is treated as in-flight so a new process request cannot race a
+    # pending reclaim of this project (#104 fix 5).
     return session.exec(
         select(ProcessingJob)
         .where(ProcessingJob.project_id == project_id)
         .where(ProcessingJob.job_type == "processing")
-        .where(ProcessingJob.status.in_(["queued", "running"]))
+        .where(ProcessingJob.status.in_(list(BLOCKING_JOB_STATUSES)))
         .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
     ).first()
 
 
 def _get_active_import_job(session: Session, project_id: str) -> ProcessingJob | None:
+    # "interrupted" is treated as in-flight so a new import request cannot race a
+    # pending reclaim of this project (#104 fix 5).
     return session.exec(
         select(ProcessingJob)
         .where(ProcessingJob.project_id == project_id)
         .where(ProcessingJob.job_type == "import")
-        .where(ProcessingJob.status.in_(["queued", "running"]))
+        .where(ProcessingJob.status.in_(list(BLOCKING_JOB_STATUSES)))
         .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
     ).first()
 
@@ -161,6 +166,12 @@ def _job_read(job: ProcessingJob) -> JobRead:
         error_message=job.error_message,
         cancellation_requested=job.cancellation_requested,
         cancelled_at=job.cancelled_at,
+        checkpoint_photo_id=job.checkpoint_photo_id,
+        checkpoint_stage=job.checkpoint_stage,
+        interrupted_at=job.interrupted_at,
+        reclaim_count=job.reclaim_count,
+        worker_id=job.worker_id,
+        heartbeat_at=job.heartbeat_at,
         started_at=job.started_at,
         completed_at=job.completed_at,
         retryable=job.retryable,
@@ -334,7 +345,7 @@ def list_projects_endpoint(session: Session = Depends(get_session)):
         select(ProcessingJob)
         .where(ProcessingJob.project_id.in_(project_ids))
         .where(ProcessingJob.job_type == "import")
-        .where(ProcessingJob.status.in_(["queued", "running"]))
+        .where(ProcessingJob.status.in_(list(BLOCKING_JOB_STATUSES)))
         .order_by(ProcessingJob.created_at.desc(), ProcessingJob.id.desc())
     ).all():
         # Read-only list path: skip stale jobs for display without writing.
@@ -797,8 +808,12 @@ def cancel_job_endpoint(
     if job.status in {"complete", "complete_with_errors", "failed", "cancelled"}:
         response.status_code = status.HTTP_200_OK
         return job
-    response.status_code = status.HTTP_202_ACCEPTED
-    return request_import_job_cancellation(session, job)
+    # "interrupted" imports finalize synchronously (no in-flight worker to cooperatively
+    # cancel), so report 200 rather than the async-style 202 (#104 fix 4).
+    was_interrupted = job.status == "interrupted"
+    result = request_import_job_cancellation(session, job)
+    response.status_code = status.HTTP_200_OK if was_interrupted else status.HTTP_202_ACCEPTED
+    return result
 
 
 @router.post("/projects/{project_id}/jobs/{job_id}/retry", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)

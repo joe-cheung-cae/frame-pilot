@@ -29,6 +29,7 @@
     "test:e2e:real-browser:large:trace": "FRAMEPILOT_IMPORT_TIMING=1 FRAMEPILOT_BROWSER_PERF_TRACE=1 FRAMEPILOT_BROWSER_PERF_COUNT=500 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT_BROWSER_PERF_HEIGHT=2000 FRAMEPILOT_BROWSER_PERF_QUALITY=88 npm run test:e2e:real-browser",
     "generate:synthetic": ".venv/bin/python -m app.devtools.synthetic_dataset",
     "perf:api": ".venv/bin/python -m app.devtools.performance_smoke",
+    "worker": ".venv/bin/python -m app.worker",
     "install:all": "bash scripts/install-all.sh",
     "build": "npm --prefix apps/web run build",
     "check:artifacts": "bash scripts/check-release-artifacts.sh",

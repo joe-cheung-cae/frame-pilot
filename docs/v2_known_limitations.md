@@ -24,7 +24,9 @@ HEIC and RAW formats such as DNG, ARW, CR3, and NEF are deferred. v2.0 may recog
 
 ## Background Job Durability
 
-Import and processing work uses FastAPI `BackgroundTasks` in the local API process. Jobs have visible progress, stale detection, and retry paths, but they are not durable across API process exits. If the API process stops during work, polling later marks stale queued or running jobs as failed so the user can retry when possible.
+Import and processing work uses FastAPI `BackgroundTasks` in the local API process (or the optional local worker entrypoint). Jobs have visible progress, stale detection (lease heartbeat 2 minutes when set, otherwise `updated_at` 10 minutes), and retry paths, but they are **not durable by default** across API process exits. If the API process stops during work, the next startup marks leftover active jobs failed so the user can retry when possible.
+
+**Opt-in reclaim (Phase 6 delivered):** set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` to mark leftover active import/processing jobs as `interrupted` on startup and automatically resume import derivatives (and clear/rebuild interrupted processing) in-process. A local worker entrypoint is also available via `npm run worker` / `python -m app.worker`. Default behavior without the flag remains fail-and-retry. Export jobs still fail-and-cleanup on restart. See [Phase 6 plan](plans/2026-08-29-phase6-durable-jobs.md).
 
 Processing is intentionally blocked while the same project has an active import derivative job. Direct process requests return `409 Conflict`, and the project list, dashboard, processing page, and culling workspace send users back to import progress until the import job reaches a terminal state.
 
@@ -34,11 +36,11 @@ If a processing job becomes stale after committing partial groups, cleanup clear
 
 Import cancellation is cooperative. A cancel request persists a flag and the background worker checks it at safe checkpoints. Cancellation is not a hard process kill, may not stop immediately, keeps completed derivatives, leaves unprocessed photos retryable, and never modifies or deletes source originals.
 
-Desktop close with an active import can POST that same cancel route, wait up to 10 seconds, then SIGTERM the sidecar. Close with an active processing job cannot cancel it (`POST .../cancel` returns 422); quit-anyway SIGTERMs the sidecar and the next launch marks the job `failed` via the startup sweep. A hard kill is not labelled `cancelled`. Processing jobs still have no cancel route.
+Desktop close with an active import can POST that same cancel route, wait up to 10 seconds, then SIGTERM the sidecar. Close with an active processing job cannot cancel it (`POST .../cancel` returns 422); quit-anyway SIGTERMs the sidecar. By default the next launch marks leftover jobs `failed` via the startup sweep; with `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` they can be marked `interrupted` and reclaimed instead. A hard kill is not labelled `cancelled`. Processing jobs still have no cancel route.
 
 ## Retry Semantics
 
-Import retry is for failed, `complete_with_errors`, stale-failed, and cancelled import jobs. Retry creates a new import job, preserves existing Photo IDs, `user_status`, and `star_rating`, reuses valid derivatives, and regenerates missing derivatives from the local copied original when possible. Retry does not make jobs durable across API restarts and does not re-register a new external source folder.
+Import retry is for failed, `complete_with_errors`, stale-failed, and cancelled import jobs. Retry creates a new import job, preserves existing Photo IDs, `user_status`, and `star_rating`, reuses valid derivatives, and regenerates missing derivatives from the local copied original when possible. Retry does not introduce an external queue or re-register a new external source folder; with startup reclaim enabled, interrupted imports can also finish in-process after restart.
 
 ## Performance Caveats
 
@@ -84,7 +86,7 @@ v2.0 does not support cloud libraries, shared team projects, automatic original 
 
 The installable desktop app (`2.1.0-desktop`) shares the same local API and culling UI with extra shell constraints:
 
-- Import and processing jobs are **not durable** across sidecar kill or app quit; stale jobs are marked failed on the next launch so the user can retry.
+- Import and processing jobs are **not durable by default** across sidecar kill or app quit; stale jobs are marked failed on the next launch so the user can retry. With `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1`, leftover import/processing jobs are marked `interrupted` and can be reclaimed on the next launch (exports still fail-and-cleanup).
 - HEIC and RAW remain skipped with local messages (same as v2.0 web).
 - **Auto-update is deferred**; users install new builds manually.
 - CI installers may be **unsigned** until certificates exist; see [Desktop Code Signing Runbook](desktop_signing.md).

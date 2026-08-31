@@ -208,20 +208,43 @@ pub fn close_choice_from_handshake(payload: Option<&str>) -> CloseChoice {
 pub fn job_status_is_terminal(status: &str) -> bool {
     matches!(
         status,
-        "complete" | "complete_with_errors" | "failed" | "cancelled"
+        "complete" | "complete_with_errors" | "failed" | "cancelled" | "interrupted"
+    )
+}
+
+fn job_reclaim_on_startup_enabled() -> bool {
+    matches!(
+        std::env::var("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP")
+            .unwrap_or_default()
+            .trim()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
     )
 }
 
 pub fn quit_dialog_script(kind: CloseJobKind) -> String {
+    quit_dialog_script_with_reclaim(kind, job_reclaim_on_startup_enabled())
+}
+
+pub fn quit_dialog_script_with_reclaim(kind: CloseJobKind, reclaim_on_startup: bool) -> String {
     let (title, body, extra_button) = match kind {
         CloseJobKind::Import => (
             "Import is still running",
-            "You can keep working, quit and cancel the import, or quit anyway. Cancelled imports stay retryable and original photos are not modified.",
+            if reclaim_on_startup {
+                "You can keep working, quit and cancel the import, or quit anyway. Cancelled imports stay retryable. Quit anyway SIGTERMs the sidecar; the next launch can interrupt and reclaim leftover import work when reclaim is enabled. Original photos are not modified."
+            } else {
+                "You can keep working, quit and cancel the import, or quit anyway. Cancelled imports stay retryable and original photos are not modified. Quit anyway SIGTERMs the sidecar; the next launch marks leftover jobs failed by default (set FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1 to reclaim instead)."
+            },
             r#"<button type=\"button\" data-choice=cancel_and_quit>Quit and cancel import</button>"#,
         ),
         CloseJobKind::Processing => (
             "Grouping and ranking is still running",
-            "This job cannot be cancelled. You can keep working or quit anyway. The next launch marks the job failed and keeps original photos unchanged.",
+            if reclaim_on_startup {
+                "This job cannot be cancelled. You can keep working or quit anyway. Quit anyway SIGTERMs the sidecar; the next launch can interrupt and reclaim leftover processing (partial groups are cleared before rebuild). Original photos stay unchanged."
+            } else {
+                "This job cannot be cancelled. You can keep working or quit anyway. Quit anyway SIGTERMs the sidecar; the next launch marks the job failed by default and keeps original photos unchanged (set FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1 to reclaim instead)."
+            },
             "",
         ),
         CloseJobKind::None => return String::new(),
@@ -1148,6 +1171,7 @@ mod tests {
         assert_eq!(parse_quit_choice("stay"), Some(CloseChoice::Stay));
         assert!(job_status_is_terminal("cancelled"));
         assert!(job_status_is_terminal("failed"));
+        assert!(job_status_is_terminal("interrupted"));
         assert!(!job_status_is_terminal("running"));
     }
 
@@ -1161,6 +1185,18 @@ mod tests {
         assert!(!processing_script.contains("Quit and cancel"));
         assert!(processing_script.contains("cannot be cancelled"));
         assert!(processing_script.contains("Quit anyway"));
+    }
+
+    #[test]
+    fn quit_dialog_script_mentions_reclaim_when_enabled() {
+        let processing = quit_dialog_script_with_reclaim(CloseJobKind::Processing, true);
+        assert!(processing.contains("interrupt and reclaim"));
+        assert!(!processing.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1"));
+        let processing_default = quit_dialog_script_with_reclaim(CloseJobKind::Processing, false);
+        assert!(processing_default.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1"));
+        assert!(processing_default.contains("marks the job failed by default"));
+        let import_default = quit_dialog_script_with_reclaim(CloseJobKind::Import, false);
+        assert!(import_default.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1"));
     }
 
     fn assert_javascript_parses(script: &str) {

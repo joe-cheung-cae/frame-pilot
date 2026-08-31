@@ -4,6 +4,7 @@ import math
 import os
 import stat
 import time
+import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -22,10 +23,14 @@ from app.image.scoring import compute_quality_scores_for_image
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.services.jobs import (
     TERMINAL_JOB_STATUSES,
+    apply_job_checkpoint,
     as_utc,
+    claim_job_atomic,
     job_is_stale,
     mark_job_failed,
     progress_percent,
+    refresh_job_lease_heartbeat,
+    release_stale_interrupted_lease,
 )
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -197,6 +202,105 @@ def create_import_retry_job(session: Session, project: Project, photo_ids: list[
     return job
 
 
+def _finalize_cancelled_reclaim_import(session: Session, job: ProcessingJob) -> ProcessingJob:
+    """Finalize an interrupted import as cancelled instead of resuming it (#104 fix 3).
+
+    A pending cancel intent must win over reclaim: if cancellation was requested before
+    the API restarted, resuming the job would silently ignore the user's cancel request.
+    """
+    now = utc_now()
+    job.status = "cancelled"
+    job.current_step = "cancelled"
+    job.error_message = "Import job was cancelled before it could be reclaimed"
+    job.cancelled_at = now
+    job.completed_at = now
+    job.interrupted_at = None
+    job.worker_id = None
+    job.heartbeat_at = None
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def prepare_interrupted_import_jobs_for_reclaim(
+    session: Session,
+    *,
+    limit: int = 1,
+    worker_id: str | None = None,
+) -> list[tuple[str, list[str]]]:
+    """Reactivate interrupted import jobs for in-process reclaim (Phase 6 / J6.03).
+
+    Returns ``(job_id, photo_ids)`` pairs ready for ``run_import_derivative_job``.
+    At most ``limit`` jobs are prepared so only one reclaim runs at a time by default.
+
+    Each candidate row is claimed with a single atomic ``UPDATE ... WHERE status =
+    'interrupted'`` before it is mutated, so a concurrent reclaimer (e.g. the API's
+    lifespan reclaim thread racing a separately running ``python -m app.worker``) cannot
+    also reactivate the same row (#104 fix 2). A job whose cancel was requested before
+    the restart is finalized as cancelled rather than resumed (#104 fix 3).
+
+    A row can also be left ``interrupted`` with a foreign, abandoned ``worker_id`` if a
+    previous reclaimer crashed after claiming it but before finishing the reclaim; such a
+    row is released (via ``release_stale_interrupted_lease``) once its lease heartbeat has
+    expired, so a later reclaimer with a new worker id is not permanently locked out
+    (#104 residual fix 1).
+    """
+    jobs = list(
+        session.exec(
+            select(ProcessingJob)
+            .where(ProcessingJob.job_type == "import")
+            .where(ProcessingJob.status == "interrupted")
+            .order_by(ProcessingJob.interrupted_at, ProcessingJob.created_at, ProcessingJob.id)
+        ).all()
+    )
+    prepared: list[tuple[str, list[str]]] = []
+    for job in jobs:
+        if len(prepared) >= limit:
+            break
+        job = release_stale_interrupted_lease(session, job)
+        owner = worker_id or f"reclaim-{uuid.uuid4().hex[:12]}"
+        if not claim_job_atomic(
+            session,
+            job.id,
+            worker_id=owner,
+            from_statuses=frozenset({"interrupted"}),
+        ):
+            # Already claimed by a concurrent reclaimer between our read and this write.
+            continue
+        session.refresh(job)
+
+        if job.cancellation_requested:
+            _finalize_cancelled_reclaim_import(session, job)
+            continue
+
+        photos = list(
+            session.exec(
+                select(Photo).where(Photo.project_id == job.project_id).order_by(Photo.created_at, Photo.id)
+            ).all()
+        )
+        photo_ids = [photo.id for photo in photos if photo_needs_import_retry(photo)]
+        now = utc_now()
+        job.status = "running"
+        job.current_step = "reclaim_derivative_generation"
+        job.error_message = None
+        job.interrupted_at = None
+        job.completed_at = None
+        job.reclaim_count = int(job.reclaim_count or 0) + 1
+        job.total_items = len(photo_ids)
+        job.processed_items = 0
+        job.failed_items = 0
+        job.progress_percent = progress_percent(0, 0, len(photo_ids))
+        job.started_at = job.started_at or now
+        job.updated_at = now
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+        prepared.append((job.id, photo_ids))
+    return prepared
+
+
 def update_import_job(
     session: Session,
     job: ProcessingJob,
@@ -214,6 +318,8 @@ def update_import_job(
         job.failed_items = failed_items
     job.progress_percent = progress_percent(job.processed_items, job.failed_items, job.total_items)
     job.updated_at = now
+    # Keep a held lease fresh so long imports do not look stale mid-flight (#104 fix 1).
+    refresh_job_lease_heartbeat(session, job)
     session.add(job)
     if should_commit:
         session.commit()
@@ -238,6 +344,8 @@ def complete_import_job(
     job.failed_items = skipped_count
     job.progress_percent = 100.0
     job.error_message = _skipped_files_message(skipped)
+    job.worker_id = None
+    job.heartbeat_at = None
     job.completed_at = now
     job.updated_at = now
     session.add(job)
@@ -256,8 +364,38 @@ def fail_stale_import_job(session: Session, job: ProcessingJob) -> ProcessingJob
     return fail_stale_job(session, job)
 
 
+def _cancel_interrupted_import_job(session: Session, job: ProcessingJob) -> ProcessingJob:
+    """Cancel an interrupted import immediately (#104 fix 4).
+
+    ``interrupted`` sits in ``TERMINAL_JOB_STATUSES`` so stale sweeps and staleness
+    checks leave it alone, but that previously made cancellation a silent no-op that
+    still returned success without persisting anything. There is no in-flight worker to
+    cooperatively honor a cancel flag here, so finalize the job directly instead of
+    waiting for a reclaim pass that may never run.
+    """
+    now = utc_now()
+    job.status = "cancelled"
+    job.current_step = "cancelled"
+    job.cancellation_requested = True
+    job.cancelled_at = now
+    job.completed_at = now
+    job.interrupted_at = None
+    job.error_message = "Import job was cancelled while waiting for local reclaim"
+    job.worker_id = None
+    job.heartbeat_at = None
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
 def request_import_job_cancellation(session: Session, job: ProcessingJob) -> ProcessingJob:
-    if job.job_type != "import" or job.status in TERMINAL_JOB_STATUSES:
+    if job.job_type != "import":
+        return job
+    if job.status == "interrupted":
+        return _cancel_interrupted_import_job(session, job)
+    if job.status in TERMINAL_JOB_STATUSES:
         return job
     now = utc_now()
     job.cancellation_requested = True
@@ -937,12 +1075,29 @@ def run_import_derivative_job(
     job_id: str,
     photo_ids: list[str],
     initial_skipped: list[dict[str, str]] | None = None,
+    *,
+    worker_id: str | None = None,
 ) -> None:
     skipped = list(initial_skipped or [])
     with Session(get_engine()) as session:
         job = session.get(ProcessingJob, job_id)
         if job is None:
             return
+        # Atomic claim: refuse to run if another executor (e.g. a separately running
+        # ``python -m app.worker`` racing the API's own reclaim thread) already holds
+        # this job's lease, so the same job never runs twice at once (#104 fix 2).
+        # Callers that already claimed this job (prepare_*_for_reclaim) pass their
+        # existing ``worker_id`` explicitly; do not fall back to the job's current lease
+        # owner, or an unrelated caller could silently "inherit" a foreign lease.
+        owner = worker_id or f"job-runner-{uuid.uuid4().hex[:12]}"
+        if not claim_job_atomic(
+            session,
+            job_id,
+            worker_id=owner,
+            from_statuses=frozenset({"queued", "running"}),
+        ):
+            return
+        session.refresh(job)
         try:
             project = session.get(Project, job.project_id)
             if project is None:
@@ -996,6 +1151,12 @@ def run_import_derivative_job(
                         failed_count,
                         force=True,
                     )
+                    apply_job_checkpoint(
+                        session,
+                        job,
+                        photo_id=photo.id,
+                        stage="derivative_generation",
+                    )
                     if _import_job_cancellation_requested(session, job):
                         _cancel_import_job(session, job, processed_count, failed_count)
                         return
@@ -1025,6 +1186,12 @@ def run_import_derivative_job(
                         processed_count,
                         failed_count,
                         force=True,
+                    )
+                    apply_job_checkpoint(
+                        session,
+                        job,
+                        photo_id=photo.id,
+                        stage="derivative_generation",
                     )
                     if _import_job_cancellation_requested(session, job):
                         _cancel_import_job(session, job, processed_count, failed_count)

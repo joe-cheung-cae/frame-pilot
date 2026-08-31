@@ -1,4 +1,5 @@
 import json
+import uuid
 from pathlib import Path
 
 from sqlmodel import Session, select
@@ -9,11 +10,20 @@ from app.services.grouping import group_similar_photos
 from app.services.importing import ensure_photo_derivatives
 from app.services.jobs import (
     TERMINAL_JOB_STATUSES,
+    claim_job_atomic,
     job_is_stale,
     mark_job_failed,
     progress_percent,
+    refresh_job_lease_heartbeat,
+    release_stale_interrupted_lease,
 )
 from app.services.ranking import RankedPhoto, rank_group
+
+# Regenerating derivatives for many missing photos in a single pass with no
+# intervening heartbeat refresh can run past JOB_LEASE_STALE_AFTER on large batches, so a
+# concurrent stale sweep could fail_stale a job that is still actively regenerating files
+# (Bugbot residual fix after #104 / 6b580a8).
+DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL = 5
 
 
 def _failed_photo_count_message(count: int) -> str:
@@ -35,6 +45,8 @@ def _save_job(
         job.failed_items = failed_items
     job.progress_percent = progress_percent(job.processed_items, job.failed_items, job.total_items)
     job.updated_at = utc_now()
+    # Keep a held lease fresh so long processing runs do not look stale mid-flight (#104 fix 1).
+    refresh_job_lease_heartbeat(session, job)
     session.add(job)
     session.commit()
     session.refresh(job)
@@ -176,6 +188,8 @@ def _complete_unchanged_job(session: Session, job: ProcessingJob, total_items: i
     job.failed_items = 0
     job.progress_percent = 100.0
     job.error_message = None
+    job.worker_id = None
+    job.heartbeat_at = None
     job.completed_at = now
     job.updated_at = now
     session.add(job)
@@ -211,11 +225,90 @@ def create_processing_job(session: Session, project: Project) -> ProcessingJob:
     return job
 
 
-def run_processing_job(job_id: str) -> None:
+def prepare_interrupted_processing_jobs_for_reclaim(
+    session: Session,
+    *,
+    limit: int = 1,
+    worker_id: str | None = None,
+) -> list[str]:
+    """Clear partial groups and reactivate interrupted processing jobs (Phase 6 / J6.04).
+
+    Each candidate row is claimed with a single atomic ``UPDATE ... WHERE status =
+    'interrupted'`` before it is mutated, so a concurrent reclaimer (e.g. the API's
+    lifespan reclaim thread racing a separately running ``python -m app.worker``) cannot
+    also reactivate the same row (#104 fix 2).
+
+    A row can also be left ``interrupted`` with a foreign, abandoned ``worker_id`` if a
+    previous reclaimer crashed after claiming it but before finishing the reclaim; such a
+    row is released (via ``release_stale_interrupted_lease``) once its lease heartbeat has
+    expired, so a later reclaimer with a new worker id is not permanently locked out
+    (#104 residual fix 1).
+    """
+    jobs = list(
+        session.exec(
+            select(ProcessingJob)
+            .where(ProcessingJob.job_type == "processing")
+            .where(ProcessingJob.status == "interrupted")
+            .order_by(ProcessingJob.interrupted_at, ProcessingJob.created_at, ProcessingJob.id)
+        ).all()
+    )
+    prepared: list[str] = []
+    for job in jobs:
+        if len(prepared) >= limit:
+            break
+        job = release_stale_interrupted_lease(session, job)
+        owner = worker_id or f"reclaim-{uuid.uuid4().hex[:12]}"
+        if not claim_job_atomic(
+            session,
+            job.id,
+            worker_id=owner,
+            from_statuses=frozenset({"interrupted"}),
+        ):
+            # Already claimed by a concurrent reclaimer between our read and this write.
+            continue
+        session.refresh(job)
+
+        reason = "Interrupted processing was reclaimed after API restart; rebuilding local groups"
+        reset_project_after_processing_failure(session, job.project_id, reason)
+        now = utc_now()
+        job.status = "queued"
+        job.current_step = "reclaim_queued"
+        job.error_message = None
+        job.interrupted_at = None
+        job.completed_at = None
+        job.reclaim_count = int(job.reclaim_count or 0) + 1
+        job.processed_items = 0
+        job.failed_items = 0
+        job.progress_percent = 0.0
+        job.updated_at = now
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+        prepared.append(job.id)
+    return prepared
+
+
+def run_processing_job(job_id: str, *, worker_id: str | None = None) -> None:
     with Session(get_engine()) as session:
         job = session.get(ProcessingJob, job_id)
         if job is None:
             return
+        # Atomic claim: refuse to run if another executor (e.g. a separately running
+        # ``python -m app.worker`` racing the API's own reclaim thread or BackgroundTasks)
+        # already holds this job's lease, so the same job never runs twice at once
+        # (#104 fix 2). Callers that already claimed this job (prepare_*_for_reclaim,
+        # the worker's own queue claim) pass their existing ``worker_id`` explicitly;
+        # do not fall back to the job's current lease owner, or an unrelated caller could
+        # silently "inherit" someone else's foreign lease just by reading the row.
+        owner = worker_id or f"job-runner-{uuid.uuid4().hex[:12]}"
+        if not claim_job_atomic(
+            session,
+            job_id,
+            worker_id=owner,
+            from_statuses=frozenset({"queued", "running"}),
+        ):
+            return
+        session.refresh(job)
         try:
             project = session.get(Project, job.project_id)
             if project is None:
@@ -287,7 +380,7 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         _save_job(session, job, "validating generated files", len(preserved_photos))
         derivative_failed_photos = []
         derivative_failed_ids = set()
-        for photo in work_photos:
+        for index, photo in enumerate(work_photos, start=1):
             missing_derivatives = _missing_derivative_paths(photo)
             if not missing_derivatives:
                 continue
@@ -305,6 +398,13 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
                     "Processing skipped this photo because its generated files could not be rebuilt from the local "
                     "copied original. Reimport the photo to rebuild local derived files.",
                 )
+            # Keep the lease fresh every few photos so this loop cannot outlast
+            # JOB_LEASE_STALE_AFTER without a heartbeat, even when most/all of
+            # work_photos need regeneration (Bugbot residual fix after #104 / 6b580a8).
+            if index % DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL == 0:
+                refresh_job_lease_heartbeat(session, job)
+                session.commit()
+        refresh_job_lease_heartbeat(session, job)
         session.commit()
 
         _save_job(session, job, "validating similarity data", len(preserved_photos), len(derivative_failed_photos))
@@ -325,7 +425,18 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         _save_job(session, job, "grouping photos", len(preserved_photos), len(failed_photos))
         failed_photo_ids = {failed.id for failed in failed_photos}
         photo_map = {photo.id: photo for photo in candidate_photos if photo.id not in failed_photo_ids}
+        # group_similar_photos is a single CPU-bound call over the whole batch with no
+        # per-item progress callback; on large projects it can run past the lease
+        # staleness window with no intervening save, so a concurrent stale sweep could
+        # fail_stale this job out from under a worker that is still actively running.
+        # Refresh the lease immediately before and after the call instead of relying on
+        # the next _save_job, which only fires once grouping has already finished
+        # (#104 residual fix 2).
+        refresh_job_lease_heartbeat(session, job)
+        session.commit()
         grouped_photos = group_similar_photos(group_inputs)
+        refresh_job_lease_heartbeat(session, job)
+        session.commit()
         next_sequence = max(
             (group.sequence for group in existing_groups.values() if group.id in preserved_group_ids),
             default=0,
@@ -391,6 +502,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         job.progress_percent = 100.0
         if failed_photos:
             job.error_message = _failed_photo_count_message(len(failed_photos))
+        job.worker_id = None
+        job.heartbeat_at = None
         job.completed_at = utc_now()
         project.processed_images = len(preserved_ids) + len(group_inputs)
         project.last_processed_at = job.completed_at
@@ -405,6 +518,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         job.error_message = failure_reason
         job.failed_items = max(0, job.total_items - job.processed_items) if job.total_items else 1
         job.progress_percent = progress_percent(job.processed_items, job.failed_items, job.total_items)
+        job.worker_id = None
+        job.heartbeat_at = None
         job.completed_at = utc_now()
 
     job.updated_at = utc_now()
