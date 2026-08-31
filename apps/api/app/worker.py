@@ -4,9 +4,10 @@ Run with the editable API install::
 
     .venv/bin/python -m app.worker
 
-This process acquires a single-machine lock under the data directory, optionally
-reclaims interrupted jobs when ``FRAMEPILOT_JOB_RECLAIM_ON_STARTUP`` is enabled,
-then executes ``queued`` processing jobs. The FastAPI ``BackgroundTasks`` path
+This process acquires a single-machine lock under the data directory, reclaims
+interrupted jobs (``FRAMEPILOT_JOB_RECLAIM_ON_STARTUP`` defaults to on; set it to
+``0``/``false``/``no``/``off`` to opt back into fail-and-retry), then executes
+``queued`` processing jobs. The FastAPI ``BackgroundTasks`` path
 remains the default until an explicit cutover; this entrypoint is for local
 durable reclaim and future enqueue/cutover work.
 """

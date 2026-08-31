@@ -30,6 +30,6 @@ Override with absolute `FRAMEPILOT_DATA_DIR`. Sidecar stderr is appended to `{da
 
 Closing the window with an active import shows Keep working / Quit and cancel import / Quit anyway. Cancel reuses `POST /api/projects/{id}/jobs/{job_id}/cancel`, waits up to 10s, then SIGTERM. Processing jobs cannot be cancelled; that dialog omits Quit and cancel. Quit anyway SIGTERMs the sidecar and kills it after 5s.
 
-On the next launch, leftover active jobs are marked **failed** by default (manual retry). With `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` in the environment (inherited by the sidecar when set), leftover import/processing jobs become `interrupted` and can be reclaimed automatically. Original photos are never modified. See [Phase 6 plan](../../docs/plans/2026-08-29-phase6-durable-jobs.md).
+On the next launch, leftover import/processing jobs become `interrupted` by default and are reclaimed automatically (Phase 6.1, [#105](https://github.com/joe-cheung-cae/frame-pilot/issues/105)). Set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` in the environment (inherited by the sidecar when set) to instead mark leftover active jobs **failed** for manual retry. Original photos are never modified. See [Phase 6 plan](../../docs/plans/2026-08-29-phase6-durable-jobs.md).
 
 HTTP smoke: `npm run test:desktop:smoke` from the repo root. WebView render of the dialog is not part of that smoke.

@@ -6,9 +6,14 @@
 
 ## 未发布
 
+### 第 6.1 阶段 — 作业回收默认开启
+
+- `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 现在默认**开启**；设为 `0`/`false`/`no`/`off` 可退回失败并重试的启动行为
+- 桌面退出文案更新，反映回收为默认行为，并为显式关闭的场景提供文案
+
 ### 第六阶段 — 持久本地作业回收（可选）
 
-- 通过 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` 可选启动回收（默认仍为失败并重试）
+- 通过 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` 可选启动回收（默认曾为失败并重试；已在上方第 6.1 阶段翻转）
 - `JobRead` 上的检查点/租约字段；可回收残留使用状态 `interrupted`
 - 本地 worker 入口：`npm run worker` / `python -m app.worker`
 - 桌面退出文案与回收 vs 失败并重试对齐

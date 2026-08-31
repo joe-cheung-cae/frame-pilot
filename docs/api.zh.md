@@ -152,7 +152,7 @@ GET /api/assets/{project_id}/{thumbnails|previews}/{filename}
 
 导入端点以上传/登记为界：它在受支持的文件已复制到项目、文件身份元数据已记录、照片行已创建或安全复用、并且已创建导入作业之后返回。昂贵的衍生生成、元数据提取、评分、感知哈希和嵌入生成会继续在 FastAPI 进程内后台任务中进行，该任务打开新的数据库会话。轮询 `GET /api/projects/{project_id}/jobs/{job_id}`，直到导入作业到达 `complete`、`complete_with_errors`、`failed` 或 `cancelled`，然后重新加载照片，再假定预览或分数已就绪。
 
-这条后台路径改善了请求响应性和可见进度。默认情况下它不能在 API 进程退出后持久存活：下次启动会把残留的活动作业标为失败，以便用户重试。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` 后，残留的活动导入/处理作业会标为 `interrupted`，并在进程内回收（或通过 `npm run worker` / `python -m app.worker`）。导出作业在重启时仍失败并清理。详见[第六阶段计划](plans/2026-08-29-phase6-durable-jobs.zh.md)。
+这条后台路径改善了请求响应性和可见进度。启动回收默认开启（第 6.1 阶段，[#105](https://github.com/joe-cheung-cae/frame-pilot/issues/105)）：残留的活动导入/处理作业会标为 `interrupted`，并在进程内回收（或通过 `npm run worker` / `python -m app.worker`），而不是直接失败。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0`（或 `false`/`no`/`off`）可退回旧行为：下次启动会把残留的活动作业标为失败，以便用户重试。无论该标志如何，导出作业在重启时仍失败并清理。详见[第六阶段计划](plans/2026-08-29-phase6-durable-jobs.zh.md)。
 
 导入作业状态为：
 
@@ -160,7 +160,7 @@ GET /api/assets/{project_id}/{thumbnails|previews}/{filename}
 - `complete_with_errors`：至少一个文件已导入或被安全复用，并且至少一个文件在衍生生成期间被跳过或失败。
 - `failed`：每个所选文件都被跳过，或每个被接受的文件在衍生生成中都失败。
 - `cancelled`：用户请求了协作式取消，本地后台工作器在安全检查点停止。
-- `interrupted`：在启用启动回收时，API/sidecar 重启后留下的可回收残留；不是成功终态，也不是活动工作。
+- `interrupted`：API/sidecar 重启后留下的可回收残留（除非显式关闭了启动回收）；不是成功终态，也不是活动工作。
 
 如果同步校验期间每个文件都被跳过，端点返回 `422`，失败的导入作业仍可通过 `GET /api/projects/{project_id}/jobs` 看到。导入新照片会使先前的分组和 AI 推荐失效，因此应在导入作业到达终态后再重新运行处理。以相同的上传文件名和 SHA-256 内容哈希再次导入文件时，若现有项目照片记录以及已生成的缩略图/预览仍然存在，则复用它们；这不会创建重复记录，也不会重置用户审阅状态。
 multipart 响应包含 `remaining_paths: []`，并将 `expanded_total` 设为该请求中的文件数，以便浏览器客户端可以忽略这些字段。
@@ -212,7 +212,7 @@ HEIC 和 RAW 扩展名（如 `.heic`、`.dng`、`.arw`、`.cr3` 和 `.nef`）被
 导入作业到达 `complete`、`complete_with_errors`、`failed` 或 `cancelled` 等终态后，处理可以开始。
 排队或运行中作业的过期检测：若设置了 `heartbeat_at`，优先使用工作器租约（超过 2 分钟无心跳视为过期）；否则使用 `updated_at`（超过 10 分钟视为过期）。项目详情和作业端点会将过期作业标记为失败。项目列表端点在观察到过期作业时不会写入。过期处理清理会清除部分分组，移除照片分组分配，将已处理或进行中的照片恢复为带中断原因的可重试 `imported` 状态，并将项目已处理计数重置为零。之后的处理请求可以启动替换作业，并从已导入照片集重建分组。
 
-API 启动默认：立即将残留活动作业标为失败，以免重启后工作区在整个过期窗口内被阻塞。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=1` 时，残留的活动导入/处理作业标为 `interrupted`（`current_step` 为 `interrupted - restart`，写入 `interrupted_at`），并安排进程内回收；导出仍失败并清理。回收不在 `GET /api/projects` 上执行。
+API 启动默认行为：残留的活动导入/处理作业标为 `interrupted`（`current_step` 为 `interrupted - restart`，写入 `interrupted_at`），并安排进程内回收，以免重启后工作区在整个过期窗口内被阻塞。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可改为立即将残留活动作业标为失败。无论哪种方式，导出仍失败并清理。回收不在 `GET /api/projects` 上执行。
 
 作业处于 `interrupted` 期间，活动作业守卫会将其视为进行中的工作：对同一项目发起新的导入或处理请求会返回 `409`（或复用现有作业行），而不会与待处理的回收发生竞争；并且该作业在回收或取消请求将其终结为终态之前不可 `retryable`。如果重启前已请求取消，回收会将该作业终结为 `cancelled` 而不是续跑。回收的认领是原子的（单条带条件的 `UPDATE`），因此进程内回收线程与单独运行的 `python -m app.worker` 不会同时执行同一个作业。
 

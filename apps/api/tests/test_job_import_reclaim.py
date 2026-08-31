@@ -149,7 +149,8 @@ def test_reclaim_completes_interrupted_import_without_reupload(tmp_path, monkeyp
 
 
 def test_start_reclaimable_import_jobs_noops_when_flag_off(tmp_path, monkeypatch):
-    monkeypatch.delenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", raising=False)
+    # Phase 6.1 (#105): reclaim defaults to on; explicitly disable it here.
+    monkeypatch.setenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "0")
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     reset_settings_cache()
     client = TestClient(create_app())
@@ -166,6 +167,32 @@ def test_start_reclaimable_import_jobs_noops_when_flag_off(tmp_path, monkeypatch
         )
         session.commit()
     assert start_reclaimable_import_jobs() == []
+
+
+def test_start_reclaimable_import_jobs_runs_by_default_when_flag_unset(tmp_path, monkeypatch):
+    """Phase 6.1 (#105): with the env var unset, reclaim scheduling now runs by default."""
+    monkeypatch.delenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", raising=False)
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    reset_settings_cache()
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Default reclaim scheduling"}).json()
+    with Session(get_engine()) as session:
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="import",
+            status="interrupted",
+            current_step="interrupted - restart",
+            interrupted_at=datetime.now(UTC),
+            total_items=0,
+        )
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    # The returned targets prove reclaim scheduling ran (flag defaults to on); the
+    # scheduled background thread's own completion is covered by other reclaim tests.
+    scheduled = start_reclaimable_import_jobs()
+    assert scheduled == [(job_id, [])]
 
 
 def test_lifespan_reclaim_finishes_interrupted_import(tmp_path, monkeypatch):

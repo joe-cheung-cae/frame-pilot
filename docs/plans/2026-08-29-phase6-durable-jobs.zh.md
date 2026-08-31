@@ -177,3 +177,9 @@ npm run verify
 ```bash
 .venv/bin/pytest apps/api/tests/test_job_checkpoint.py apps/api/tests/test_job_reliability.py -q
 ```
+
+---
+
+## 7. 第 6.1 阶段 — 默认值翻转（2026-08-31，[#105](https://github.com/joe-cheung-cae/frame-pilot/issues/105)）
+
+上方锁定决策 2（“默认仍为失败并重试，直至回收路径被证明”）现已被取代：`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认**开启**（`env_flag(..., default=True)`；`Settings.job_reclaim_on_startup: bool = True`）。将该变量设为 `0`/`false`/`no`/`off` 可退回失败并重试。第六阶段其余决策（1、3–8）不变。更新后的默认开启文案见 `docs/architecture.md`、`docs/api.md` 与 `docs/v2_known_limitations.md`。

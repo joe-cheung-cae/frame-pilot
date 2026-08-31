@@ -18,8 +18,9 @@ class Settings(BaseModel):
     data_dir: Path
     project_root_allowlist: list[Path] = Field(default_factory=list)
     # Phase 6 / J6.02: when true, leftover active jobs become status=interrupted for reclaim.
-    # Default false preserves fail-and-retry startup behavior.
-    job_reclaim_on_startup: bool = False
+    # Phase 6.1 (#105): default true; set FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0/false/no/off
+    # to opt back into the legacy fail-and-retry startup behavior.
+    job_reclaim_on_startup: bool = True
 
     @property
     def database_url(self) -> str:
@@ -44,7 +45,7 @@ def get_settings() -> Settings:
     return Settings(
         data_dir=data_dir,
         project_root_allowlist=allowlist,
-        job_reclaim_on_startup=env_flag("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP"),
+        job_reclaim_on_startup=env_flag("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", default=True),
     )
 
 
