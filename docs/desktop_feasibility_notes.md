@@ -520,3 +520,52 @@ Sidecar: `/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --por
 WebView `OPTIONS`+`GET /api/meta` **200**. Status bar stayed **Sidecar connected** | **No project** | **No active job**. Screen recording: `/opt/cursor/artifacts/d3-03-settings-data-dir.mp4`. Screenshots: `/opt/cursor/artifacts/d3-03-settings-data-dir.png`, `/opt/cursor/artifacts/d3-03-open-data-folder-thunar.png`.
 
 D3.03 in `docs/plans/2026-08-18-desktop-packaging.md` §5.1 is dated `[x]`. D3.04 visual stays `[~]`. D3.06 tray stays `[-]`.
+
+## D3.04 System theme visual GUI close-out — 2026-08-31
+
+Issue [#115](https://github.com/joe-cheung-cae/frame-pilot/issues/115). Host: Linux Cursor cloud (`uname` `Linux cursor 6.12.94+ x86_64`), TigerVNC display `:1` (1920×1200, XFCE). Theme implementation was already on `main` @ `487c776` (`apps/desktop/src/styles.css` swaps `--fp-*` under `prefers-color-scheme: dark` for `html[data-shell="desktop"]`; `apps/web/src/app/globals.css` stays `color-scheme: light`). This run did **not** rewrite the theme, did **not** bump version, and did **not** close D3.05–D3.07, Phase 4/5/6, or D3.06 tray.
+
+Toolchain on this host started as `rustc 1.83.0` / `cargo 1.83.0`. User-space rustup installed `stable` (no apt/brew Rust):
+
+```text
+$ rustup toolchain install stable --profile minimal
+$ rustup default stable
+$ rustc --version
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+$ cargo --version
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+```
+
+Linux WebView compile/runtime used `libwebkit2gtk-4.1` **2.52.3** (`pkg-config --modversion webkit2gtk-4.1`). `cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --lib` was not used (same lockfile churn as D0.07/D3.01–D3.03: cargo wanted to add `tauri-plugin-dialog` / `tauri-plugin-opener` and related crates). Equivalent run without `--locked`:
+
+```text
+$ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+...
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+```
+
+`Cargo.lock` was restored after that compile so this close-out does not commit lockfile churn. `npm --prefix apps/web run test:unit` was green (node unit 257 passed including `desktopTheme.test.ts`, plus vitest 45 passed).
+
+`npm run install:all` then `npm run dev:desktop` (`npx tauri dev`) compiled `target/debug/framepilot-desktop` and opened a mapped X11 window. libEGL printed `DRI3 error: Could not get DRI3 device` / `Ensure your X server supports DRI3`; the WebView still rendered.
+
+System dark used XFCE `Adwaita-dark` plus `gtk-application-prefer-dark-theme=true` (WebKitGTK maps that to `prefers-color-scheme: dark`). System light used `WhiteSur-Light` plus `gtk-application-prefer-dark-theme=false`. Live GTK toggle while the WebView was open did **not** restyle; each theme was verified by relaunching `npm run dev:desktop` under that system setting.
+
+```text
+$ date -u
+2026-08-31T13:32:55Z
+$ xwininfo -id 0x1c00003
+xwininfo: Window id: 0x1c00003 "FramePilot"
+  Width: 1200
+  Height: 800
+  Map State: IsViewable
+```
+
+| Run | System | Desktop WebView sampled RGB | Matches |
+| --- | ------ | --------------------------- | ------- |
+| Dark | `Adwaita-dark`, prefer-dark **true** | header/status `(28, 31, 30)` luma 30; canvas `(18, 18, 18)` luma 18 | `--fp-surface` / `--fp-mist` in `styles.css` dark block |
+| Light | `WhiteSur-Light`, prefer-dark **false** | header/status `(255, 255, 255)` luma 255; canvas `(245, 247, 248)` luma 246.5 | `--fp-surface` / `--fp-mist` in `globals.css` `:root` |
+| Browser | system still dark; Chrome chrome `(60, 60, 60)` | page canvas `(245, 247, 248)` luma 246.5 at `http://127.0.0.1:3000/` | browser shell stays light-only |
+
+Dark sidecar: `/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 45611 --data-dir /workspace/.framepilot-desktop-dev`. `GET http://127.0.0.1:45611/health` → `200` `{"status":"ok","version":"2.1.0-desktop","service":"framepilot-api"}`. Light sidecar on port `44941` (`GET /health` 200, same JSON). Dark relaunch sidecar on port `43027` (`GET /health` 200, `GET /api/projects` 200 `[]`). Browser `GET http://127.0.0.1:3000/` **200** while `gsettings` `color-scheme` was `prefer-dark`. Status bar stayed **Sidecar connected** | **No project** | **No active job**. Screen recording: `/opt/cursor/artifacts/d3-04-system-theme.mp4`. Screenshots: `/opt/cursor/artifacts/d3-04-desktop-dark.png`, `/opt/cursor/artifacts/d3-04-desktop-light.png`, `/opt/cursor/artifacts/d3-04-browser-system-dark.png`, `/opt/cursor/artifacts/d3-04-desktop-and-browser-dark-system.png`.
+
+D3.04 Visual GUI in `docs/plans/2026-08-18-desktop-packaging.md` §5.1 is dated `[x]`. D3.06 tray stays `[-]`.
