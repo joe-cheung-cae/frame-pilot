@@ -314,3 +314,61 @@ FramePilot
 Sidecar：`/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 34325 --data-dir /workspace/.framepilot-desktop-dev`。`GET http://127.0.0.1:34325/health` → `200` `{"status":"ok","version":"2.1.0-desktop","service":"framepilot-api"}`。`GET /api/projects` → `200` `[]`。`sidecar.log` 显示 WebView `OPTIONS` 随后 `GET /api/projects` 200，以及 `OPTIONS`+`GET /api/health` 200。现场窗口状态栏：**Sidecar connected** | No project | No active job。现场点击打开了 Create Project 对话框（名称/文件夹字段；未输入名称前 Create and Import 保持禁用）。
 
 `docs/plans/2026-08-18-desktop-packaging.zh.md` §5.1 的 D0.07 已记为带日期的 `[x]`。这 **不** 关闭 D3.01–D3.04 视觉行、D3.05–D3.07、Phase 4/5/6，或 D3.06 托盘。
+
+## D3.01 原生菜单栏 GUI 收口 — 2026-08-31
+
+议题 [#109](https://github.com/joe-cheung-cae/frame-pilot/issues/109)。主机：Linux Cursor cloud（`uname` `Linux cursor 6.12.94+ x86_64`），TigerVNC 显示器 `:1`（1920×1200，XFCE）。原生菜单实现已在 `main` @ `9ca7cee`（`menu.rs`、`lib.rs` set_menu/on_menu_event、`App.tsx` listener、`menuRoutes.ts`）。本次 **没有** 重写菜单，**没有** 升版本，也 **没有** 关闭 D3.02–D3.04 视觉、D3.05–D3.07、Phase 4/5/6，或 D3.06 托盘。
+
+本机工具链起点为 `rustc 1.83.0` / `cargo 1.83.0`。用户空间 rustup 安装了 `stable`（无 apt/brew Rust）：
+
+```text
+$ rustup toolchain install stable --profile minimal
+$ rustup default stable
+$ rustc --version
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+$ cargo --version
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+```
+
+Linux WebView 编译/运行使用 `libwebkit2gtk-4.1` **2.52.3**（`pkg-config --modversion webkit2gtk-4.1`）。未使用 `cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --lib`（与 D0.07 相同的 lockfile 变动：cargo 想加入 `tauri-plugin-dialog` / `tauri-plugin-opener` 及相关 crate）。不含 `--locked` 的等效运行：
+
+```text
+$ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+...
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s
+```
+
+编译后已还原 `Cargo.lock`，本次收口不提交 lockfile 变动。`npm --prefix apps/web run test:unit` 通过（node unit + vitest）。
+
+`npm run install:all` 后 `npm run dev:desktop`（`npx tauri dev`）编译了 `target/debug/framepilot-desktop` 并打开了已映射的 X11 窗口。libEGL 打印了 `DRI3 error: Could not get DRI3 device` / `Ensure your X server supports DRI3`；WebView 仍完成渲染。
+
+```text
+$ date -u
+2026-08-31T12:04:55Z
+$ xwininfo -id 0x1a00003
+xwininfo: Window id: 0x1a00003 "FramePilot"
+  Width: 1200
+  Height: 800
+  Map State: IsViewable
+```
+
+Sidecar：`/workspace/.venv/bin/python -m app.sidecar_main --host 127.0.0.1 --port 33359 --data-dir /workspace/.framepilot-desktop-dev`。`GET http://127.0.0.1:33359/health` → `200` `{"status":"ok","version":"2.1.0-desktop","service":"framepilot-api"}`。现场原生菜单点击（File/Edit/View/Project/Help）以及 Ctrl+N：
+
+| 动作 | 结果 |
+| ---- | ---- |
+| File > New | 标题 **Create Project**（`/projects/new`） |
+| 创建项目 `D301 Menu` | `POST /api/projects` **201** id `b52ef58da93c4d19b4cd4408e2296e2f`；标题 **Import Images** |
+| File > Export | 标题 **Export Selection**；WebView `GET .../exports` |
+| Project > Process | 标题 **Processing Status**；WebView `GET .../jobs?limit=50` |
+| Project > Culling | 标题 **No Photos Imported**；WebView `GET .../photos` 与 `.../groups` |
+| File > Import | 标题 **Import Images** |
+| Help > Shortcuts | 标题 **Keyboard Shortcuts**（列出 CmdOrCtrl+N/W/Q） |
+| View > Fullscreen | 窗口进入全屏后恢复 |
+| Edit 下拉 | 操作系统默认 Undo/Redo/Cut/Copy/Paste/Select All（不改路由） |
+| Help > About | 原生对话框 **FramePilot 2.1.0-desktop** |
+| File > Open data folder | 原生 opener（无应用内路由） |
+| Ctrl+N | 再次到达 **Create Project** |
+
+运行后 `GET /api/projects` → `200` 一个项目 `{"id":"b52ef58da93c4d19b4cd4408e2296e2f","name":"D301 Menu",...}`。屏幕录像：`/opt/cursor/artifacts/d3-01-native-menu-bar.mp4`。
+
+`docs/plans/2026-08-18-desktop-packaging.zh.md` §5.1 的 D3.01 已记为带日期的 `[x]`。D3.02–D3.03 GUI 与 D3.04 视觉仍为 `[~]`。D3.06 托盘仍为 `[-]`。
