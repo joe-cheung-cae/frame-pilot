@@ -6,6 +6,8 @@ export default defineConfig({
   expect: {
     timeout: 5_000,
   },
+  forbidOnly: Boolean(process.env.CI),
+  workers: process.env.CI ? 1 : undefined,
   use: {
     baseURL: "http://127.0.0.1:3100",
     trace: "on-first-retry",

@@ -11,6 +11,8 @@ All notable FramePilot releases are listed here. Version strings for the API com
 - `.github/workflows/verify.yml` runs an independent job on pull requests and `main`: `npm run test:e2e` (Playwright mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`)
 - Large real-browser (`test:e2e:real-browser:large`, 500/1000/2000) stays opt-in and is not part of the default gate
 - The E2E job does not launch a packaged NSIS/DMG GUI or add code signing / notarization
+- Mocked culling E2E now asserts first-page load (`0/500 loaded reviewed` plus `500 of 501 loaded`) before Load all photos
+- Playwright uses one worker in CI so real-local-smoke and real-browser smokes do not share the E2E API data dir in parallel
 
 ### CI — frozen sidecar `/health` gate
 
