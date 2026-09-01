@@ -10,6 +10,7 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 - `.github/workflows/verify.yml` runs an independent job on pull requests and `main`: `npm run packaging:sidecar` then `npm run test:sidecar` (frozen `GET /health` with `PYTHONPATH` unset)
 - `.github/workflows/desktop.yml` runs the same smoke after PyInstaller and still does not launch the packaged GUI or sign installers
+- `scripts/sidecar-smoke.sh` leftover check only flags leftover sidecar/uvicorn processes (Linux `pgrep -P $$` includes pgrep itself)
 
 ### Phase 6.1 — job reclaim on by default
 

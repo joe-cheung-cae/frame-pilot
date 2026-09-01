@@ -10,6 +10,7 @@
 
 - `.github/workflows/verify.yml` 在 pull request 与 `main` 上跑独立作业：先 `npm run packaging:sidecar`，再 `npm run test:sidecar`（冻结 `GET /health`，且 `unset PYTHONPATH`）
 - `.github/workflows/desktop.yml` 在 PyInstaller 之后跑同一冒烟，仍不启动打包 GUI、也不签名安装包
+- `scripts/sidecar-smoke.sh` 的残留进程检查只标记 sidecar/uvicorn（Linux 上 `pgrep -P $$` 会把自己也列进去）
 
 ### 第 6.1 阶段 — 作业回收默认开启
 
