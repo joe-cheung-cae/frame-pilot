@@ -168,3 +168,14 @@ def test_sidecar_smoke_unsets_pythonpath_for_frozen_binary():
     if_frozen_index = text.index('if [[ "$use_frozen" -eq 1 ]]; then')
     else_index = text.index("else", if_frozen_index)
     assert if_frozen_index < unset_index < else_index < export_index
+
+
+def test_sidecar_smoke_leftover_check_ignores_pgrep():
+    source = Path(__file__).resolve().parents[3] / "scripts" / "sidecar-smoke.sh"
+    text = source.read_text(encoding="utf-8")
+    leftover_start = text.index("Leftover child processes")
+    leftover_block = text[text.rindex("if command -v pgrep", 0, leftover_start) : leftover_start]
+    assert "pgrep -P $$ -a" in leftover_block
+    assert "framepilot-api" in leftover_block
+    assert "sidecar_main" in leftover_block
+    assert leftover_block.count('leftover="$(pgrep -P $$ || true)"') == 0
