@@ -4,10 +4,13 @@
 #   - workflow_dispatch: manual rebuilds without a merge.
 #   - push to main with path filters: after merge, installers appear when
 #     desktop/API/packaging/desktop workflow paths change. Docs-only merges
-#     skip this job. PRs keep using verify.yml only (rust-free, minutes not
-#     30+). Never attach photos or project data to artifacts.
+#     skip this job. PRs use verify.yml (rust-free lint/test job, plus an
+#     independent frozen-sidecar /health job). Never attach photos or
+#     project data to artifacts.
 #
-# Unsigned builds only (signing is D4.05). verify.yml stays untouched.
+# Unsigned builds only (signing is D4.05). After PyInstaller, run
+# npm run test:sidecar (GET /health with PYTHONPATH unset). Do not launch
+# the packaged NSIS/DMG GUI.
 
 name: desktop
 
@@ -64,7 +67,11 @@ jobs:
 
       - name: Build PyInstaller sidecar
         shell: bash
-        run: bash packaging/pyinstaller/build.sh
+        run: npm run packaging:sidecar
+
+      - name: Smoke frozen sidecar /health without PYTHONPATH
+        shell: bash
+        run: npm run test:sidecar
 
       - name: Stage sidecar into Tauri resources
         shell: bash

@@ -65,6 +65,8 @@ npm run verify
 这会运行 API lint、web lint、TypeScript 检查、后端测试、前端单元测试和前端生产构建。
 它还会运行 `npm run check:artifacts`，若 Git 跟踪了生成或私人发布产物则失败。
 
+GitHub Actions（`.github/workflows/verify.yml`）会跑 `npm run verify`，以及独立的冻结 sidecar 作业：先 `npm run packaging:sidecar`，再 `npm run test:sidecar`，确保 `GET /health` 在没有 `PYTHONPATH` 时通过。该作业不安装 Rust、不签名、不启动 GUI。
+
 在给 rc2 发布候选打标签之前，运行打标签前门槛：
 
 ```bash

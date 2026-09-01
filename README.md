@@ -65,6 +65,8 @@ npm run verify
 This runs API lint, web lint, TypeScript checks, backend tests, frontend unit tests, and a frontend production build.
 It also runs `npm run check:artifacts` to fail if generated or private release artifacts are tracked by Git.
 
+GitHub Actions (`.github/workflows/verify.yml`) runs `npm run verify` and a separate frozen-sidecar job: `npm run packaging:sidecar` then `npm run test:sidecar` so `GET /health` must pass without `PYTHONPATH`. That job does not install Rust, sign, or launch a GUI.
+
 Before tagging an rc2 release candidate, run the pre-tag gate:
 
 ```bash

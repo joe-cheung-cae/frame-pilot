@@ -6,6 +6,11 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### CI — frozen sidecar `/health` gate
+
+- `.github/workflows/verify.yml` runs an independent job on pull requests and `main`: `npm run packaging:sidecar` then `npm run test:sidecar` (frozen `GET /health` with `PYTHONPATH` unset)
+- `.github/workflows/desktop.yml` runs the same smoke after PyInstaller and still does not launch the packaged GUI or sign installers
+
 ### Phase 6.1 — job reclaim on by default
 
 - `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` now defaults to **on**; set it to `0`/`false`/`no`/`off` to opt back into fail-and-retry startup behavior
