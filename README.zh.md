@@ -65,7 +65,7 @@ npm run verify
 这会运行 API lint、web lint、TypeScript 检查、后端测试、前端单元测试和前端生产构建。
 它还会运行 `npm run check:artifacts`，若 Git 跟踪了生成或私人发布产物则失败。
 
-GitHub Actions（`.github/workflows/verify.yml`）会跑 `npm run verify`、独立的 Playwright 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`），以及独立的冻结 sidecar 作业：先 `npm run packaging:sidecar`，再 `npm run test:sidecar`，确保 `GET /health` 在没有 `PYTHONPATH` 时通过。这些作业不安装 Rust、不签名、不启动打包 GUI，也不跑 `test:e2e:real-browser:large`。
+GitHub Actions（`.github/workflows/verify.yml`）会跑 `npm run verify`、独立的 Playwright 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 100 张真实浏览器作业（`npm run test:e2e:real-browser`），以及独立的冻结 sidecar 作业：先 `npm run packaging:sidecar`，再 `npm run test:sidecar`，确保 `GET /health` 在没有 `PYTHONPATH` 时通过。这些作业不安装 Rust、不签名、不启动打包 GUI，也不跑 `test:e2e:real-browser:large`。
 
 在给 rc2 发布候选打标签之前，运行打标签前门槛：
 
@@ -87,7 +87,7 @@ CI 已在 pull request 与 `main` 上跑浏览器 E2E。当你改动项目创建
 npm run test:e2e
 ```
 
-运行真实浏览器-后端验证 smoke：
+CI 也会在 pull request 与 `main` 上跑 100 张真实浏览器-后端 smoke。本地可用同一命令验证该工作流：
 
 ```bash
 npm run test:e2e:real-browser
