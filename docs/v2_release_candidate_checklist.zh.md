@@ -66,7 +66,7 @@ npm run test:e2e:real-browser
 npm run test:e2e:real-browser:large
 ```
 
-`npm run check:pretag` 包含 `npm run verify`、已跟踪产物检查，以及 rc2 验证决策门槛。在 `docs/v2_rc2_validation_decision.zh.md` 记录已完成的验证证据或明确的发布负责人豁免之前，预期它会失败。
+`npm run check:pretag` 包含 `npm run verify`、已跟踪产物检查，以及 rc2 验证决策门槛。2026-08-17 的决策已关闭该门槛；`scripts/check-validation-decision.sh` 在当前 main 上为绿。`npm run verify` 现已包含 `check:validation-decision`，因此若决策文件在没有完成证据或明确豁免的情况下重新打开，默认 PR+main CI 作业会失败。workflow YAML 不需要单独的 `check:pretag` 作业。`npm run check:pretag` 仍是发布时间命令。
 
 在可行时运行完整浏览器 E2E，尤其是前端工作流变更之后：
 

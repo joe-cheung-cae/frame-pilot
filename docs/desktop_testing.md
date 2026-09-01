@@ -4,7 +4,7 @@
 
 Manual and command-driven checks for FramePilot desktop (`2.1.0-desktop` track). Local-first: never modify or delete original camera files. Prefer project copies under `{root_path}/originals`.
 
-`npm run verify` is the rust-free CI gate (lint, typecheck, tests, artifacts). It does **not** open a WebView or run `cargo`/`tauri`. GitHub Actions (`.github/workflows/verify.yml`) also runs an independent **Playwright E2E** job (`npm run test:e2e`: mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), an independent **100-photo real-browser** job (`npm run test:e2e:real-browser`; not `test:e2e:real-browser:large`), and an independent **frozen sidecar `/health`** job: `npm run packaging:sidecar` then `npm run test:sidecar`. Frozen smoke unsets `PYTHONPATH` (same as packaged Tauri spawn). `.github/workflows/desktop.yml` runs the same smoke after PyInstaller and does **not** launch the packaged GUI. GUI rows need a host with rustc ≥1.88 (and a display). Mark unverified GUI rows `[~]` with date and host notes — never invent pass results.
+`npm run verify` is the rust-free CI gate (lint, typecheck, tests, artifacts, validation-decision). It does **not** open a WebView or run `cargo`/`tauri`. GitHub Actions (`.github/workflows/verify.yml`) also runs an independent **Playwright E2E** job (`npm run test:e2e`: mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), an independent **100-photo real-browser** job (`npm run test:e2e:real-browser`; not `test:e2e:real-browser:large`), and an independent **frozen sidecar `/health`** job: `npm run packaging:sidecar` then `npm run test:sidecar`. Frozen smoke unsets `PYTHONPATH` (same as packaged Tauri spawn). `.github/workflows/desktop.yml` runs the same smoke after PyInstaller and does **not** launch the packaged GUI. Workflow YAML does not need a separate `check:pretag` job; `npm run verify` already includes `check:validation-decision`. GUI rows need a host with rustc ≥1.88 (and a display). Mark unverified GUI rows `[~]` with date and host notes — never invent pass results.
 
 **Related:** [Desktop shell README](../apps/desktop/README.md) · [Signing runbook](desktop_signing.md) · [Phase 2 workflow checklist](../tests/desktop/workflow.md) · [Phase 5 design](plans/2026-08-29-phase5-docs-design.md)
 
@@ -34,7 +34,7 @@ Manual and command-driven checks for FramePilot desktop (`2.1.0-desktop` track).
 | `npm run test:sidecar` | Sidecar ready-line smoke; frozen binary unsets `PYTHONPATH` |
 | `npm run test:e2e` | Playwright mocked E2E plus real-local-smoke (CI default gate; not large real-browser) |
 | `npm run test:e2e:real-browser` | 100 generated JPEGs through Chromium + real backend (CI default gate; not large) |
-| `npm run verify` | Rust-free full verify |
+| `npm run verify` | Rust-free full verify (includes artifacts + validation-decision) |
 
 No extra npm alias is required for this matrix; use the scripts above directly.
 

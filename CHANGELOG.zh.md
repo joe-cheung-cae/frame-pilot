@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### CI — 验证决策默认门禁
+
+- `npm run verify` 现已包含 `npm run check:validation-decision`（`scripts/check-validation-decision.sh` / `docs/v2_rc2_validation_decision.md`）
+- 在 `main` @ `1b6c15b1ca4faca4366a7b9a9d105b1b7c1d4961` 上核对：决策文件已完成且笔记存在，该子集不会误红
+- GitHub Actions workflow YAML 未改；该检查随现有 `verify` 作业一起跑。不需要单独的 `check:pretag` 作业
+- `npm run check:pretag` 仍是发布时间命令（`verify` 加上同一验证决策检查）
+- 大规模真实浏览器（`test:e2e:real-browser:large`）仍为可选，不纳入默认门禁
+
 ### CI — Playwright E2E 门槛
 
 - `.github/workflows/verify.yml` 在 pull request 与 `main` 上跑独立作业：`npm run test:e2e`（Playwright mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）

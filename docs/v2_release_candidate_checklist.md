@@ -66,7 +66,7 @@ npm run test:e2e:real-browser
 npm run test:e2e:real-browser:large
 ```
 
-`npm run check:pretag` includes `npm run verify`, the tracked artifact check, and the rc2 validation-decision gate. It is expected to fail until `docs/v2_rc2_validation_decision.md` records completed validation evidence or an explicit release-owner waiver.
+`npm run check:pretag` includes `npm run verify`, the tracked artifact check, and the rc2 validation-decision gate. The 2026-08-17 decision closed that gate; `scripts/check-validation-decision.sh` is green on current main. `npm run verify` now includes `check:validation-decision`, so the default PR+main CI job fails if the decision file is reopened without completed evidence or an explicit waiver. Workflow YAML does not need a separate `check:pretag` job. `npm run check:pretag` remains the release-time command.
 
 Run full browser E2E when feasible, especially after frontend workflow changes:
 

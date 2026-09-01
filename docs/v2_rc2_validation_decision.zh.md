@@ -46,7 +46,7 @@ trace、SQLite 数据库、缩略图、预览或本地缓存文件当作已跟�
 
 验证结论：pass with notes。
 
-发布决策影响：真实世界算法门槛现已有完成的 Tier B 证据。人脸/睁眼不匹配仍作为已记录的实验性限制。仅在待打标签的提交上 `npm run check:pretag` 通过后，才打 `v2.0.0` 标签。
+发布决策影响：真实世界算法门槛现已有完成的 Tier B 证据。人脸/睁眼不匹配仍作为已记录的实验性限制。仅在待打标签的提交上 `npm run check:pretag` 通过后，才打 `v2.0.0` 标签。`npm run verify` 包含 `check:validation-decision`，因此默认 PR+main 门禁已运行该子集；GitHub Actions workflow YAML 不需要单独的 `check:pretag` 作业。
 
 ## 豁免记录
 
@@ -62,9 +62,9 @@ trace、SQLite 数据库、缩略图、预览或本地缓存文件当作已跟�
 
 ## 打标签前必须确认
 
-- 待打标签的提交上 `npm run verify` 通过。
+- 待打标签的提交上 `npm run verify` 通过。其中包含 `npm run check:validation-decision`。
 - 待打标签的提交上 `npm run check:artifacts` 通过。
-- 待打标签的提交上 `npm run check:pretag` 通过。
+- 待打标签的提交上 `npm run check:pretag` 通过。这是发布时间命令（`verify` 加上同一验证决策检查）。
 - `git status --short` 只包含有意的发布变更。
 - 未跟踪生成/私人照片、项目数据、导出、ZIP、trace、SQLite 数据库、缓存目录、virtualenv 或 `node_modules` 文件。
 - README.zh.md 和发布文档不声称已实现 RAW、HEIC、XMP、云工作流、持久化任务或专业人脸/眼睛检测。

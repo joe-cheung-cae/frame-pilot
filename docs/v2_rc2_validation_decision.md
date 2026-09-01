@@ -47,7 +47,7 @@ Summary metrics:
 
 Validation verdict: pass with notes.
 
-Release decision impact: The real-world algorithm gate now has completed Tier B evidence. Face/eye-open mismatches remain documented experimental limitations. Tag `v2.0.0` only after `npm run check:pretag` passes on the commit to be tagged.
+Release decision impact: The real-world algorithm gate now has completed Tier B evidence. Face/eye-open mismatches remain documented experimental limitations. Tag `v2.0.0` only after `npm run check:pretag` passes on the commit to be tagged. `npm run verify` includes `check:validation-decision`, so the default PR+main gate already runs this subset; GitHub Actions workflow YAML does not need a separate `check:pretag` job.
 
 ## Waiver Record
 
@@ -63,9 +63,9 @@ Historical rc2 note (2026-06-05): Chao Zhang waived this gate so `v2.0.0-rc2` co
 
 ## Required Pre-Tag Confirmation
 
-- `npm run verify` passes from the commit to be tagged.
+- `npm run verify` passes from the commit to be tagged. This includes `npm run check:validation-decision`.
 - `npm run check:artifacts` passes from the commit to be tagged.
-- `npm run check:pretag` passes from the commit to be tagged.
+- `npm run check:pretag` passes from the commit to be tagged. This is the release-time command (`verify` plus the same validation-decision check).
 - `git status --short` contains only intentional release changes.
 - No generated/private photos, project data, exports, ZIP files, traces, SQLite databases, cache folders, virtualenvs, or `node_modules` files are tracked.
 - README and release docs do not claim RAW, HEIC, XMP, cloud workflows, durable jobs, or professional face/eye detection are implemented.

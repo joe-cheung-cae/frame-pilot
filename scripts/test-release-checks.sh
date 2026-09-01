@@ -405,4 +405,23 @@ expect_success \
     END { exit found ? 0 : 1 }
   ' '$repo_root/.github/workflows/desktop.yml'"
 
+expect_success \
+  "repository validation decision is closed" \
+  bash scripts/check-validation-decision.sh
+
+expect_success \
+  "verify includes check:validation-decision" \
+  bash -c "node -e '
+    const p = require(\"./package.json\");
+    if (!/check:validation-decision/.test(p.scripts.verify)) process.exit(1);
+  '"
+
+expect_success \
+  "check:pretag still runs verify then validation-decision" \
+  bash -c "node -e '
+    const p = require(\"./package.json\");
+    const s = p.scripts[\"check:pretag\"] || \"\";
+    if (!s.includes(\"verify\") || !s.includes(\"check:validation-decision\")) process.exit(1);
+  '"
+
 echo "Release check script tests passed."

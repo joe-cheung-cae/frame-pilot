@@ -63,17 +63,20 @@ npm run verify
 ```
 
 这会运行 API lint、web lint、TypeScript 检查、后端测试、前端单元测试和前端生产构建。
-它还会运行 `npm run check:artifacts`，若 Git 跟踪了生成或私人发布产物则失败。
+它还会运行 `npm run check:artifacts`，若 Git 跟踪了生成或私人发布产物则失败；
+并运行 `npm run check:validation-decision`，这样默认 PR+main 门禁会在
+`docs/v2_rc2_validation_decision.md` 中的发布负责人决策仍为待处理、豁免字段不全、或缺少笔记文件时失败。
+该子集在当前 main 上为绿，不需要单独的 GitHub Actions 作业。
 
-GitHub Actions（`.github/workflows/verify.yml`）会跑 `npm run verify`、独立的 Playwright 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 100 张真实浏览器作业（`npm run test:e2e:real-browser`），以及独立的冻结 sidecar 作业：先 `npm run packaging:sidecar`，再 `npm run test:sidecar`，确保 `GET /health` 在没有 `PYTHONPATH` 时通过。这些作业不安装 Rust、不签名、不启动打包 GUI，也不跑 `test:e2e:real-browser:large`。
+GitHub Actions（`.github/workflows/verify.yml`）会跑 `npm run verify`、独立的 Playwright 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 100 张真实浏览器作业（`npm run test:e2e:real-browser`），以及独立的冻结 sidecar 作业：先 `npm run packaging:sidecar`，再 `npm run test:sidecar`，确保 `GET /health` 在没有 `PYTHONPATH` 时通过。这些作业不安装 Rust、不签名、不启动打包 GUI，也不跑 `test:e2e:real-browser:large`。workflow YAML 不需要单独的 `check:pretag` 作业；`npm run verify` 已包含验证决策检查。
 
-在给 rc2 发布候选打标签之前，运行打标签前门槛：
+在给发布候选打标签之前，运行打标签前门槛：
 
 ```bash
 npm run check:pretag
 ```
 
-这包括 `npm run verify` 以及 `docs/v2_rc2_validation_decision.zh.md` 中的验证决策门槛。
+这是发布时间命令：`npm run verify` 加上 `npm run check:validation-decision`（后半段已包含在 `verify` 中）。
 
 更短的仅测试路径：
 
