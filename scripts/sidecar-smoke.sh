@@ -16,10 +16,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
+use_frozen=0
 if [[ -x "$repo_root/dist/framepilot-api/framepilot-api" ]]; then
   sidecar=("$repo_root/dist/framepilot-api/framepilot-api")
+  use_frozen=1
 elif [[ -f "$repo_root/dist/framepilot-api/framepilot-api.exe" ]]; then
   sidecar=("$repo_root/dist/framepilot-api/framepilot-api.exe")
+  use_frozen=1
 elif [[ -x "$repo_root/.venv/bin/python" ]]; then
   sidecar=("$repo_root/.venv/bin/python" -m app.sidecar_main)
 elif [[ -f "$repo_root/.venv/Scripts/python.exe" ]]; then
@@ -29,7 +32,12 @@ else
   exit 1
 fi
 
-export PYTHONPATH="$repo_root/apps/api${PYTHONPATH:+:$PYTHONPATH}"
+if [[ "$use_frozen" -eq 1 ]]; then
+  # Match packaged Tauri spawn: do not let a parent PYTHONPATH shadow bundled imports.
+  unset PYTHONPATH
+else
+  export PYTHONPATH="$repo_root/apps/api${PYTHONPATH:+:$PYTHONPATH}"
+fi
 
 stdout_log="$data_dir/stdout.log"
 stderr_log="$data_dir/stderr.log"

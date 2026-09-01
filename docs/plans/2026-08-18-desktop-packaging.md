@@ -471,13 +471,13 @@ POST /api/projects/{project_id}/imports/from-paths
 **Implement:**
 
 - one-dir build named `framepilot-api`.
-- Hiddenimports: `app.main`, `app.sidecar_main`, `uvicorn.loops.auto`, `uvicorn.protocols.http.auto`, `uvicorn.protocols.websockets.auto`, `uvicorn.lifespan.on`, `uvicorn.lifespan.off`, `httptools`, `sqlalchemy.dialects.sqlite`, `PIL.JpegImagePlugin`, `PIL.PngImagePlugin`, `PIL.WebPImagePlugin`, `imagehash`, `numpy`, scipy submodules pulled by imagehash.
+- Hiddenimports: `app.main`, `app.sidecar_main`, `uvicorn.loops.auto`, `uvicorn.loops.asyncio`, `uvicorn.protocols.http.auto`, `uvicorn.protocols.http.httptools_impl`, `uvicorn.protocols.websockets.auto`, `uvicorn.lifespan.on`, `uvicorn.lifespan.off`, `httptools`, `sqlalchemy.dialects.sqlite`, `PIL.JpegImagePlugin`, `PIL.PngImagePlugin`, `PIL.WebPImagePlugin`, `imagehash`, `numpy`, scipy submodules pulled by imagehash.
 - Pass the FastAPI object, not `"app.main:app"`.
-- Windows: document `--loop asyncio` if uvloop is absent.
+- Windows: document `--loop asyncio` if uvloop is absent. `sidecar_main.serve` forces `loop="asyncio"` on Windows.
 - `build.sh` must fail if `/health` is not OK after start.
 - Do not commit `dist/` (`dist/` and `build/` are already gitignored).
 
-**Tests:** `bash scripts/sidecar-smoke.sh` — tmp `--data-dir`, `--port 0`, parse ready line, curl `/health` for `version`, SIGTERM, exit within 5s, no leftover children.
+**Tests:** `bash scripts/sidecar-smoke.sh` — tmp `--data-dir`, `--port 0`, parse ready line, curl `/health` for `version`, SIGTERM, exit within 5s, no leftover children. Frozen-binary smoke must not export `PYTHONPATH` (production spawn `env_remove("PYTHONPATH")`); venv smoke still sets `PYTHONPATH` for `python -m app.sidecar_main`.
 
 **Commit:** `desktop: add PyInstaller sidecar spec and smoke`
 
