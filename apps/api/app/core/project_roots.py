@@ -58,6 +58,28 @@ def _is_data_dir_or_parent(path: Path, data_dir: Path) -> bool:
         return False
 
 
+def _is_home_directory(path: Path) -> bool:
+    try:
+        return path == Path.home().expanduser().resolve()
+    except OSError:
+        return False
+
+
+def is_blocked_allowlist_root(cleaned: str, resolved: Path, data_dir: Path) -> bool:
+    """Return True if an env allowlist entry is too wide to accept.
+
+    Uses the same blocked-name, filesystem-anchor, drive-root, and data-dir
+    helpers as register_root, and also rejects the current home directory.
+    """
+    if _is_blocked_input(cleaned):
+        return True
+    if _is_blocked_resolved(resolved):
+        return True
+    if _is_data_dir_or_parent(resolved, data_dir):
+        return True
+    return _is_home_directory(resolved)
+
+
 def _load_root_strings() -> list[str]:
     registry = _registry_path()
     if not registry.is_file():

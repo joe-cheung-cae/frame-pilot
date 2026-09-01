@@ -31,6 +31,9 @@ class Settings(BaseModel):
 def get_settings() -> Settings:
     data_dir = Path(os.getenv("FRAMEPILOT_DATA_DIR", ".framepilot-data")).resolve()
     data_dir.mkdir(parents=True, exist_ok=True)
+    # Lazy import: project_roots imports get_settings at module level.
+    from app.core.project_roots import is_blocked_allowlist_root
+
     allowlist_raw = os.getenv("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST", "")
     allowlist: list[Path] = []
     for item in allowlist_raw.split(os.pathsep):
@@ -41,7 +44,13 @@ def get_settings() -> Settings:
             cleaned = normalize_user_path(stripped)
         except ValueError:
             continue
-        allowlist.append(Path(cleaned).expanduser().resolve())
+        try:
+            resolved = Path(cleaned).expanduser().resolve()
+        except OSError:
+            continue
+        if is_blocked_allowlist_root(cleaned, resolved, data_dir):
+            continue
+        allowlist.append(resolved)
     return Settings(
         data_dir=data_dir,
         project_root_allowlist=allowlist,
