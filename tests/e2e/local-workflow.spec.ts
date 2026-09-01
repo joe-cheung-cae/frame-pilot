@@ -1180,14 +1180,18 @@ test("loads the full culling photo list only on request", async ({ page }) => {
   await page.goto(`/projects/${project.id}/cull`);
 
   await expect(page.getByRole("heading", { name: "large-frame-001.jpg" })).toBeVisible();
-  await expect(page.getByText("0/501 loaded reviewed")).toBeVisible();
+  await expect(page.getByText("0/500 loaded reviewed")).toBeVisible();
+  await expect(page.getByText("500 of 501 loaded")).toBeVisible();
   expect(requestedOffsets[0]).toBe(0);
+  expect(requestedOffsets.includes(500)).toBe(false);
+
   const loadAllPhotos = page.getByRole("button", { name: "Load all photos" });
-  if (await loadAllPhotos.isVisible()) {
-    await loadAllPhotos.click();
-    await expect.poll(() => requestedOffsets.includes(500)).toBe(true);
-  }
+  await expect(loadAllPhotos).toBeVisible();
+  await loadAllPhotos.click();
+  await expect.poll(() => requestedOffsets.includes(500)).toBe(true);
+
   await expect(page.getByText("0/501 loaded reviewed")).toBeVisible();
+  await expect(page.getByText("500 of 501 loaded")).toHaveCount(0);
 });
 
 test("validates the culling workspace with 2,000 seeded photos", async ({ page }) => {
