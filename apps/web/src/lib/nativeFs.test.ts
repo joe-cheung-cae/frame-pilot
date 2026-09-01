@@ -77,7 +77,7 @@ test("apps/web source does not import Tauri plugins", () => {
   assert.deepEqual(offenders, []);
 });
 
-test("desktop capabilities grant dialog and opener without fs or shell", () => {
+test("desktop capabilities grant dialog and reveal-scoped opener without fs or shell", () => {
   const capabilities = JSON.parse(fs.readFileSync(capabilitiesPath, "utf8")) as { permissions?: unknown[] };
   const permissions = (capabilities.permissions ?? []).map((permission) =>
     typeof permission === "string" ? permission : JSON.stringify(permission),
@@ -86,10 +86,10 @@ test("desktop capabilities grant dialog and opener without fs or shell", () => {
     permissions.some((permission) => permission === "dialog:default" || permission.startsWith("dialog:")),
     "expected a dialog permission",
   );
-  assert.ok(
-    permissions.some((permission) => permission === "opener:default" || permission.startsWith("opener:")),
-    "expected an opener permission",
+  const openerPermissions = permissions.filter(
+    (permission) => permission === "opener:default" || permission.startsWith("opener:"),
   );
+  assert.deepEqual(openerPermissions, ["opener:allow-reveal-item-in-dir"]);
   assert.equal(
     permissions.filter((permission) => /(^|[\s",])fs:/.test(permission) || permission.startsWith("fs:")).length,
     0,
@@ -98,4 +98,26 @@ test("desktop capabilities grant dialog and opener without fs or shell", () => {
     permissions.filter((permission) => /(^|[\s",])shell:/.test(permission) || permission.startsWith("shell:")).length,
     0,
   );
+});
+
+test("desktop frontend opener usage is revealItemInDir only", () => {
+  const desktopSrc = path.resolve(appsRoot, "desktop/src");
+  const openerImport = /(?:from|import)\s+["']@tauri-apps\/plugin-opener["']|require\(["']@tauri-apps\/plugin-opener/;
+  const namedOpenerImport = /import\s*\{([^}]+)\}\s*from\s*["']@tauri-apps\/plugin-opener["']/;
+  const offenders: string[] = [];
+  for (const filePath of listSourceFiles(desktopSrc)) {
+    const source = fs.readFileSync(filePath, "utf8");
+    if (!openerImport.test(source)) {
+      continue;
+    }
+    const match = source.match(namedOpenerImport);
+    const names = (match?.[1] ?? "")
+      .split(",")
+      .map((part) => part.trim().split(/\s+as\s+/)[0]?.trim())
+      .filter((name): name is string => Boolean(name));
+    if (names.length !== 1 || names[0] !== "revealItemInDir") {
+      offenders.push(filePath);
+    }
+  }
+  assert.deepEqual(offenders, []);
 });

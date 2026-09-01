@@ -311,7 +311,7 @@ LOCKED DECISIONS (do not re-litigate):
 - Tauri 2 + Python sidecar. Dual shell. apps/web stays Next.js. No output: export.
 - HTTP to 127.0.0.1 for photos. Tauri IPC only for dialogs, paths, reveal.
 - nativeFs: apps/web/src/lib/nativeFs.ts getNativeFs() returns null; desktop implementation aliased by RESOLVED path like navigation.next. Next must not import @tauri-apps/plugin-*.
-- Capabilities: dialog + opener only. No fs:. No shell:.
+- Capabilities: dialog + reveal-scoped opener (`opener:allow-reveal-item-in-dir`, not `opener:default`). No fs:. No shell:.
 - Never set FRAMEPILOT_PROJECT_ROOT_ALLOWLIST to $HOME, /, or a drive root. D2.00 registry in {data_dir}/desktop_project_roots.json, cap 50, not inside Settings. Endpoints 404 unless FRAMEPILOT_DESKTOP=1.
 - Do not change test_create_project_rejects_root_outside_allowlist assertions or allowlist error strings.
 - Path import client loops remaining_paths; max 100 expanded files per request; finalize true only on last slice.
@@ -474,7 +474,7 @@ LOCKED DECISIONS (do not re-litigate):
 - Tauri 2 + Python sidecar. Dual shell. apps/web stays Next.js. No output: export.
 - HTTP to 127.0.0.1 for photos. Tauri IPC only for dialogs, paths, reveal, and now menus/theme as needed.
 - nativeFs: apps/web/src/lib/nativeFs.ts getNativeFs() returns null; desktop implementation is aliased. Next must not import @tauri-apps/plugin-*.
-- Capabilities stay dialog + opener (+ window-state). No fs:. No shell:. Add tray permission only if D3.06 is actually implemented.
+- Capabilities stay dialog + reveal-scoped opener (`opener:allow-reveal-item-in-dir`, not `opener:default`) (+ window-state). No fs:. No shell:. Add tray permission only if D3.06 is actually implemented.
 - Never set FRAMEPILOT_PROJECT_ROOT_ALLOWLIST to $HOME, /, or a drive root.
 - When isDesktopShell() is false, both ImportPanel file inputs keep current DOM position, labels, and disabled semantics.
 - Desktop reveals export output_path; browser keeps <a href=exportDownloadUrl>.
