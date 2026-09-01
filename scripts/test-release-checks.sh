@@ -357,4 +357,24 @@ expect_failure \
   "apps/desktop/other.png" \
   bash -c "cd '$artifact_repo' && bash '$repo_root/scripts/check-release-artifacts.sh'"
 
+expect_success \
+  "verify.yml builds the frozen sidecar then runs test:sidecar" \
+  bash -c "awk '
+    /packaging:sidecar/ { saw_build = 1 }
+    /test:sidecar/ { if (saw_build) found = 1 }
+    END { exit found ? 0 : 1 }
+  ' '$repo_root/.github/workflows/verify.yml'"
+
+expect_success \
+  "verify.yml keeps frozen sidecar /health as an independent job" \
+  bash -c "grep -q '^  sidecar-health:' '$repo_root/.github/workflows/verify.yml'"
+
+expect_success \
+  "desktop.yml smokes frozen sidecar /health after PyInstaller" \
+  bash -c "awk '
+    /packaging:sidecar/ { saw_build = 1 }
+    /test:sidecar/ { if (saw_build) found = 1 }
+    END { exit found ? 0 : 1 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
 echo "Release check script tests passed."

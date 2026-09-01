@@ -4,7 +4,7 @@
 
 Manual and command-driven checks for FramePilot desktop (`2.1.0-desktop` track). Local-first: never modify or delete original camera files. Prefer project copies under `{root_path}/originals`.
 
-`npm run verify` is the rust-free CI gate (lint, typecheck, tests, artifacts). It does **not** open a WebView or run `cargo`/`tauri`. GUI rows need a host with rustc ≥1.88 (and a display). Mark unverified GUI rows `[~]` with date and host notes — never invent pass results.
+`npm run verify` is the rust-free CI gate (lint, typecheck, tests, artifacts). It does **not** open a WebView or run `cargo`/`tauri`. GitHub Actions (`.github/workflows/verify.yml`) also runs an independent **frozen sidecar `/health`** job: `npm run packaging:sidecar` then `npm run test:sidecar`. Frozen smoke unsets `PYTHONPATH` (same as packaged Tauri spawn). `.github/workflows/desktop.yml` runs the same smoke after PyInstaller and does **not** launch the packaged GUI. GUI rows need a host with rustc ≥1.88 (and a display). Mark unverified GUI rows `[~]` with date and host notes — never invent pass results.
 
 **Related:** [Desktop shell README](../apps/desktop/README.md) · [Signing runbook](desktop_signing.md) · [Phase 2 workflow checklist](../tests/desktop/workflow.md) · [Phase 5 design](plans/2026-08-29-phase5-docs-design.md)
 
@@ -30,8 +30,8 @@ Manual and command-driven checks for FramePilot desktop (`2.1.0-desktop` track).
 | `npm run test:desktop:smoke` | HTTP smoke: sidecar health + `/api/projects` (`tests/desktop/smoke.sh`) |
 | `npm run generate:synthetic -- --output <dir> --count <n>` | Synthetic JPEGs for path-import rows |
 | `npm run perf:api -- --output <dir> --counts 100 500 2000` | Optional API-scale multipart import/process smoke (not `from-paths`) |
-| `npm run packaging:sidecar` | PyInstaller one-dir sidecar |
-| `npm run test:sidecar` | Sidecar ready-line smoke |
+| `npm run packaging:sidecar` | PyInstaller one-dir sidecar (CI frozen `/health` job builds this first) |
+| `npm run test:sidecar` | Sidecar ready-line smoke; frozen binary unsets `PYTHONPATH` |
 | `npm run verify` | Rust-free full verify |
 
 No extra npm alias is required for this matrix; use the scripts above directly.
@@ -45,6 +45,7 @@ No extra npm alias is required for this matrix; use the scripts above directly.
 | Start (dev) | `npm run dev:desktop` | Window title `FramePilot`; sidecar on loopback; `GET /health` → 200 with `version` + `service` | Manual GUI |
 | Start (installed) | Launch NSIS/DMG build from CI or local `tauri build` | Same as above without running uvicorn yourself | Manual |
 | HTTP smoke | `npm run test:desktop:smoke` | Exit 0 | Yes |
+| Frozen sidecar `/health` | `npm run packaging:sidecar` then `npm run test:sidecar` | Exit 0; frozen `GET /health` with `PYTHONPATH` unset | Yes (CI) |
 | Quit clean | Close window with no active import/processing job | Sidecar exits; no orphan uvicorn on that port | Manual GUI |
 | Quit + import | Close during an active import | Dialogs per [apps/desktop/README.md](../apps/desktop/README.md) (Keep working / cancel import / Quit anyway); source originals unchanged | Manual GUI |
 | Sidecar crash | Kill sidecar while UI is open | UI shows failure / unreachable API; restarting the app recovers or documents retry; originals untouched | Manual |

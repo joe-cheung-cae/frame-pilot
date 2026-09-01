@@ -6,6 +6,11 @@
 
 ## 未发布
 
+### CI — 冻结 sidecar `/health` 门槛
+
+- `.github/workflows/verify.yml` 在 pull request 与 `main` 上跑独立作业：先 `npm run packaging:sidecar`，再 `npm run test:sidecar`（冻结 `GET /health`，且 `unset PYTHONPATH`）
+- `.github/workflows/desktop.yml` 在 PyInstaller 之后跑同一冒烟，仍不启动打包 GUI、也不签名安装包
+
 ### 第 6.1 阶段 — 作业回收默认开启
 
 - `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 现在默认**开启**；设为 `0`/`false`/`no`/`off` 可退回失败并重试的启动行为
