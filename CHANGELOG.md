@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### CI — validation-decision default gate
+
+- `npm run verify` now includes `npm run check:validation-decision` (`scripts/check-validation-decision.sh` / `docs/v2_rc2_validation_decision.md`)
+- Checked on `main` @ `1b6c15b1ca4faca4366a7b9a9d105b1b7c1d4961`: the decision file is completed with existing notes, so this subset does not false-red
+- GitHub Actions workflow YAML is unchanged; the check rides along with the existing `verify` job. No separate `check:pretag` job is required
+- `npm run check:pretag` remains the release-time command (`verify` plus the same validation-decision check)
+- Large real-browser (`test:e2e:real-browser:large`) stays opt-in and is not part of the default gate
+
 ### CI — Playwright E2E gate
 
 - `.github/workflows/verify.yml` runs an independent job on pull requests and `main`: `npm run test:e2e` (Playwright mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`)

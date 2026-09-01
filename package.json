@@ -17,7 +17,7 @@
     "typecheck": "npm --prefix apps/web run typecheck",
     "typecheck:desktop": "npm --prefix apps/desktop run typecheck",
     "lint:desktop": "npm --prefix apps/desktop run lint",
-    "verify": "npm run lint && npm run typecheck && npm run typecheck:desktop && npm run test && npm run check:artifacts",
+    "verify": "npm run lint && npm run typecheck && npm run typecheck:desktop && npm run test && npm run check:artifacts && npm run check:validation-decision",
     "test": "npm run test:api && npm run test:web && npm run test:scripts",
     "test:api": ".venv/bin/pytest apps/api/tests",
     "test:web": "npm --prefix apps/web run test:unit && npm --prefix apps/web run build",

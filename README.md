@@ -63,17 +63,20 @@ npm run verify
 ```
 
 This runs API lint, web lint, TypeScript checks, backend tests, frontend unit tests, and a frontend production build.
-It also runs `npm run check:artifacts` to fail if generated or private release artifacts are tracked by Git.
+It also runs `npm run check:artifacts` to fail if generated or private release artifacts are tracked by Git,
+and `npm run check:validation-decision` so the default PR+main gate fails if the release-owner decision
+in `docs/v2_rc2_validation_decision.md` is pending, waived without required fields, or missing its notes file.
+That subset is green on current main; it does not need a separate GitHub Actions job.
 
-GitHub Actions (`.github/workflows/verify.yml`) runs `npm run verify`, an independent Playwright job (`npm run test:e2e`: mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), an independent 100-photo real-browser job (`npm run test:e2e:real-browser`), and a separate frozen-sidecar job: `npm run packaging:sidecar` then `npm run test:sidecar` so `GET /health` must pass without `PYTHONPATH`. Those jobs do not install Rust, sign, launch a packaged GUI, or run `test:e2e:real-browser:large`.
+GitHub Actions (`.github/workflows/verify.yml`) runs `npm run verify`, an independent Playwright job (`npm run test:e2e`: mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), an independent 100-photo real-browser job (`npm run test:e2e:real-browser`), and a separate frozen-sidecar job: `npm run packaging:sidecar` then `npm run test:sidecar` so `GET /health` must pass without `PYTHONPATH`. Those jobs do not install Rust, sign, launch a packaged GUI, or run `test:e2e:real-browser:large`. Workflow YAML does not need a dedicated `check:pretag` job; `npm run verify` already includes the validation-decision check.
 
-Before tagging an rc2 release candidate, run the pre-tag gate:
+Before tagging a release candidate, run the pre-tag gate:
 
 ```bash
 npm run check:pretag
 ```
 
-This includes `npm run verify` and the validation-decision gate in `docs/v2_rc2_validation_decision.md`.
+This is the release-time command: `npm run verify` plus `npm run check:validation-decision` (the second half is already inside `verify`).
 
 For the shorter test-only path:
 

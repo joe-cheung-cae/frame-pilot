@@ -74,7 +74,17 @@ Use the narrowest relevant checks while developing, then run the repository gate
 npm run verify
 ```
 
+`npm run verify` includes `npm run check:validation-decision` so the default PR+main gate fails if `docs/v2_rc2_validation_decision.md` is pending, incompletely waived, or missing its notes file. That check is green on current main. GitHub Actions workflow YAML does not need a separate `check:pretag` job.
+
 GitHub Actions (`.github/workflows/verify.yml`) runs `npm run test:e2e` on pull requests and `main` (mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`) and an independent `npm run test:e2e:real-browser` job (100 generated JPEGs, Chromium). That gate does not include `test:e2e:real-browser:large`. Run `npm run test:e2e` locally when frontend workflow changes affect project creation, import, processing, culling, or export flows. Run `npm run test:e2e:real-browser` locally for the 100-photo real browser-backend smoke.
+
+The release-time command remains:
+
+```bash
+npm run check:pretag
+```
+
+That is `npm run verify` plus `npm run check:validation-decision` (the second half is already inside `verify`).
 
 ## Test Data Rules
 
