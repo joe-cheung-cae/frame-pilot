@@ -2,6 +2,9 @@
 # One-dir sidecar named framepilot-api.
 # Windows packaged builds should use --loop asyncio when uvloop is absent
 # (sidecar_main already selects asyncio on Windows).
+# Include uvicorn.loops.asyncio and uvicorn.protocols.http.httptools_impl
+# explicitly: Config loads them by string, and auto HTTP uses httptools_impl
+# when httptools is present.
 
 from pathlib import Path
 
@@ -14,7 +17,9 @@ hiddenimports = [
     "app.main",
     "app.sidecar_main",
     "uvicorn.loops.auto",
+    "uvicorn.loops.asyncio",
     "uvicorn.protocols.http.auto",
+    "uvicorn.protocols.http.httptools_impl",
     "uvicorn.protocols.websockets.auto",
     "uvicorn.lifespan.on",
     "uvicorn.lifespan.off",

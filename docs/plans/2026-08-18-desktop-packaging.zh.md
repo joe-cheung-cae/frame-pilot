@@ -471,13 +471,13 @@ POST /api/projects/{project_id}/imports/from-paths
 **Implement:**
 
 - 名为 `framepilot-api` 的 one-dir 构建。
-- Hiddenimports：`app.main`、`app.sidecar_main`、`uvicorn.loops.auto`、`uvicorn.protocols.http.auto`、`uvicorn.protocols.websockets.auto`、`uvicorn.lifespan.on`、`uvicorn.lifespan.off`、`httptools`、`sqlalchemy.dialects.sqlite`、`PIL.JpegImagePlugin`、`PIL.PngImagePlugin`、`PIL.WebPImagePlugin`、`imagehash`、`numpy`，以及 imagehash 拉入的 scipy 子模块。
+- Hiddenimports：`app.main`、`app.sidecar_main`、`uvicorn.loops.auto`、`uvicorn.loops.asyncio`、`uvicorn.protocols.http.auto`、`uvicorn.protocols.http.httptools_impl`、`uvicorn.protocols.websockets.auto`、`uvicorn.lifespan.on`、`uvicorn.lifespan.off`、`httptools`、`sqlalchemy.dialects.sqlite`、`PIL.JpegImagePlugin`、`PIL.PngImagePlugin`、`PIL.WebPImagePlugin`、`imagehash`、`numpy`，以及 imagehash 拉入的 scipy 子模块。
 - 传递 FastAPI 对象，而不是 `"app.main:app"`。
-- Windows：若没有 uvloop，文档说明 `--loop asyncio`。
+- Windows：若没有 uvloop，文档说明 `--loop asyncio`。`sidecar_main.serve` 在 Windows 上强制 `loop="asyncio"`。
 - 启动后 `/health` 不是 OK 则 `build.sh` 必须失败。
 - 不要提交 `dist/`（`dist/` 与 `build/` 已经在 gitignore 中）。
 
-**Tests:** `bash scripts/sidecar-smoke.sh` — 临时 `--data-dir`、`--port 0`、解析 ready 行、curl `/health` 取 `version`、SIGTERM、5 秒内退出、无残留子进程。
+**Tests:** `bash scripts/sidecar-smoke.sh` — 临时 `--data-dir`、`--port 0`、解析 ready 行、curl `/health` 取 `version`、SIGTERM、5 秒内退出、无残留子进程。冻结二进制 smoke 不得 export `PYTHONPATH`（生产 spawn 会 `env_remove("PYTHONPATH")`）；venv smoke 仍会为 `python -m app.sidecar_main` 设置 `PYTHONPATH`。
 
 **Commit:** `desktop: add PyInstaller sidecar spec and smoke`
 
