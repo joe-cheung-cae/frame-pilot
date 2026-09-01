@@ -65,7 +65,7 @@ npm run verify
 This runs API lint, web lint, TypeScript checks, backend tests, frontend unit tests, and a frontend production build.
 It also runs `npm run check:artifacts` to fail if generated or private release artifacts are tracked by Git.
 
-GitHub Actions (`.github/workflows/verify.yml`) runs `npm run verify` and a separate frozen-sidecar job: `npm run packaging:sidecar` then `npm run test:sidecar` so `GET /health` must pass without `PYTHONPATH`. That job does not install Rust, sign, or launch a GUI.
+GitHub Actions (`.github/workflows/verify.yml`) runs `npm run verify`, an independent Playwright job (`npm run test:e2e`: mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), and a separate frozen-sidecar job: `npm run packaging:sidecar` then `npm run test:sidecar` so `GET /health` must pass without `PYTHONPATH`. Those jobs do not install Rust, sign, launch a packaged GUI, or run `test:e2e:real-browser:large`.
 
 Before tagging an rc2 release candidate, run the pre-tag gate:
 
@@ -81,7 +81,7 @@ For the shorter test-only path:
 npm run test
 ```
 
-Run browser E2E coverage separately:
+CI already runs browser E2E on pull requests and `main`. Run the same coverage locally when you change project creation, import, processing, culling, or export flows:
 
 ```bash
 npm run test:e2e
@@ -93,7 +93,7 @@ Run the real browser-backend validation smoke:
 npm run test:e2e:real-browser
 ```
 
-The default real browser-backend smoke uses 100 generated JPEGs so normal local validation stays practical. Larger runs are opt-in:
+The default real browser-backend smoke uses 100 generated JPEGs so normal local validation stays practical. Larger runs are opt-in and are **not** part of the default CI gate:
 
 ```bash
 npm run test:e2e:real-browser:large

@@ -74,7 +74,7 @@ npm run perf:api -- --output /tmp/framepilot-perf-targets --counts 100 500 2000
 npm run verify
 ```
 
-当前端工作流变更影响项目创建、导入、处理、筛选或导出流程时，运行 `npm run test:e2e`。
+GitHub Actions（`.github/workflows/verify.yml`）在 pull request 与 `main` 上跑 `npm run test:e2e`（mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）。该门禁不含 `test:e2e:real-browser:large`。当前端工作流变更影响项目创建、导入、处理、筛选或导出流程时，本地运行 `npm run test:e2e`。
 
 ## 测试数据规则
 

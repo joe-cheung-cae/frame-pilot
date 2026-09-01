@@ -6,6 +6,12 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### CI — Playwright E2E gate
+
+- `.github/workflows/verify.yml` runs an independent job on pull requests and `main`: `npm run test:e2e` (Playwright mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`)
+- Large real-browser (`test:e2e:real-browser:large`, 500/1000/2000) stays opt-in and is not part of the default gate
+- The E2E job does not launch a packaged NSIS/DMG GUI or add code signing / notarization
+
 ### CI — frozen sidecar `/health` gate
 
 - `.github/workflows/verify.yml` runs an independent job on pull requests and `main`: `npm run packaging:sidecar` then `npm run test:sidecar` (frozen `GET /health` with `PYTHONPATH` unset)

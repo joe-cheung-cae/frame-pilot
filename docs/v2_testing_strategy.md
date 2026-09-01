@@ -74,7 +74,7 @@ Use the narrowest relevant checks while developing, then run the repository gate
 npm run verify
 ```
 
-Run `npm run test:e2e` when frontend workflow changes affect project creation, import, processing, culling, or export flows.
+GitHub Actions (`.github/workflows/verify.yml`) runs `npm run test:e2e` on pull requests and `main` (mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`). That gate does not include `test:e2e:real-browser:large`. Run `npm run test:e2e` locally when frontend workflow changes affect project creation, import, processing, culling, or export flows.
 
 ## Test Data Rules
 

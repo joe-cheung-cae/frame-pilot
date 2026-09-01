@@ -370,6 +370,24 @@ expect_success \
   bash -c "grep -q '^  sidecar-health:' '$repo_root/.github/workflows/verify.yml'"
 
 expect_success \
+  "verify.yml runs npm run test:e2e as an independent job" \
+  bash -c "awk '
+    /^  e2e:/ { in_e2e = 1 }
+    in_e2e && /^  [a-z]/ && !/^  e2e:/ { in_e2e = 0 }
+    in_e2e && /playwright install/ { saw_install = 1 }
+    in_e2e && /npm run test:e2e[[:space:]]*$/ { if (saw_install) found = 1 }
+    END { exit found ? 0 : 1 }
+  ' '$repo_root/.github/workflows/verify.yml'"
+
+expect_success \
+  "verify.yml default gate does not run large real-browser E2E" \
+  bash -c "awk '
+    /run:.*test:e2e:real-browser:large/ { found = 1 }
+    /FRAMEPILOT_BROWSER_PERF_COUNT/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/.github/workflows/verify.yml'"
+
+expect_success \
   "desktop.yml smokes frozen sidecar /health after PyInstaller" \
   bash -c "awk '
     /packaging:sidecar/ { saw_build = 1 }
