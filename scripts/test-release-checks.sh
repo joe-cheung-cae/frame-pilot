@@ -398,6 +398,24 @@ expect_success \
   ' '$repo_root/.github/workflows/verify.yml'"
 
 expect_success \
+  "verify.yml runs npm run test:desktop:smoke as an independent job" \
+  bash -c "awk '
+    /^  desktop-smoke:/ { in_job = 1 }
+    in_job && /^  [a-z]/ && !/^  desktop-smoke:/ { in_job = 0 }
+    in_job && /npm run test:desktop:smoke[[:space:]]*$/ { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' '$repo_root/.github/workflows/verify.yml'"
+
+expect_success \
+  "verify.yml desktop HTTP smoke job does not launch a packaged GUI" \
+  bash -c "awk '
+    /^  desktop-smoke:/ { in_job = 1 }
+    in_job && /^  [a-z]/ && !/^  desktop-smoke:/ { in_job = 0 }
+    in_job && /tauri build|nsis|dmg|codesign|notariz/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/.github/workflows/verify.yml'"
+
+expect_success \
   "desktop.yml smokes frozen sidecar /health after PyInstaller" \
   bash -c "awk '
     /packaging:sidecar/ { saw_build = 1 }

@@ -4,7 +4,7 @@
 
 Manual and command-driven checks for FramePilot desktop (`2.1.0-desktop` track). Local-first: never modify or delete original camera files. Prefer project copies under `{root_path}/originals`.
 
-`npm run verify` is the rust-free CI gate (lint, typecheck, tests, artifacts, validation-decision). It does **not** open a WebView or run `cargo`/`tauri`. GitHub Actions (`.github/workflows/verify.yml`) also runs an independent **Playwright E2E** job (`npm run test:e2e`: mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), an independent **100-photo real-browser** job (`npm run test:e2e:real-browser`; not `test:e2e:real-browser:large`), and an independent **frozen sidecar `/health`** job: `npm run packaging:sidecar` then `npm run test:sidecar`. Frozen smoke unsets `PYTHONPATH` (same as packaged Tauri spawn). `.github/workflows/desktop.yml` runs the same smoke after PyInstaller and does **not** launch the packaged GUI. Workflow YAML does not need a separate `check:pretag` job; `npm run verify` already includes `check:validation-decision`. GUI rows need a host with rustc ≥1.88 (and a display). Mark unverified GUI rows `[~]` with date and host notes — never invent pass results.
+`npm run verify` is the rust-free CI gate (lint, typecheck, tests, artifacts, validation-decision). It does **not** open a WebView or run `cargo`/`tauri`. GitHub Actions (`.github/workflows/verify.yml`) also runs an independent **Playwright E2E** job (`npm run test:e2e`: mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), an independent **100-photo real-browser** job (`npm run test:e2e:real-browser`; not `test:e2e:real-browser:large`), an independent **frozen sidecar `/health`** job (`npm run packaging:sidecar` then `npm run test:sidecar`), and an independent **desktop HTTP smoke** job (`npm run test:desktop:smoke`: `/health`, `/api/projects`, desktop Origin CORS, attacker `Host` → 403). Frozen smoke unsets `PYTHONPATH` (same as packaged Tauri spawn). Desktop HTTP smoke may use the venv sidecar when no frozen binary is present. `.github/workflows/desktop.yml` runs the frozen sidecar smoke after PyInstaller and does **not** launch the packaged GUI. Workflow YAML does not need a separate `check:pretag` job; `npm run verify` already includes `check:validation-decision`. GUI rows need a host with rustc ≥1.88 (and a display). Mark unverified GUI rows `[~]` with date and host notes — never invent pass results.
 
 **Related:** [Desktop shell README](../apps/desktop/README.md) · [Signing runbook](desktop_signing.md) · [Phase 2 workflow checklist](../tests/desktop/workflow.md) · [Phase 5 design](plans/2026-08-29-phase5-docs-design.md)
 
@@ -27,7 +27,7 @@ Manual and command-driven checks for FramePilot desktop (`2.1.0-desktop` track).
 | Script | Purpose |
 | ------ | ------- |
 | `npm run dev:desktop` | Tauri + Vite + sidecar (needs Rust) |
-| `npm run test:desktop:smoke` | HTTP smoke: sidecar health + `/api/projects` (`tests/desktop/smoke.sh`) |
+| `npm run test:desktop:smoke` | HTTP smoke: sidecar health + `/api/projects` + CORS/Host (`tests/desktop/smoke.sh`; CI default gate) |
 | `npm run generate:synthetic -- --output <dir> --count <n>` | Synthetic JPEGs for path-import rows |
 | `npm run perf:api -- --output <dir> --counts 100 500 2000` | Optional API-scale multipart import/process smoke (not `from-paths`) |
 | `npm run packaging:sidecar` | PyInstaller one-dir sidecar (CI frozen `/health` job builds this first) |
@@ -46,7 +46,7 @@ No extra npm alias is required for this matrix; use the scripts above directly.
 | --- | ---------------- | ------------- | ---------- |
 | Start (dev) | `npm run dev:desktop` | Window title `FramePilot`; sidecar on loopback; `GET /health` → 200 with `version` + `service` | Manual GUI |
 | Start (installed) | Launch NSIS/DMG build from CI or local `tauri build` | Same as above without running uvicorn yourself | Manual |
-| HTTP smoke | `npm run test:desktop:smoke` | Exit 0 | Yes |
+| HTTP smoke | `npm run test:desktop:smoke` | Exit 0; `/health`, `/api/projects`, desktop Origin CORS, attacker `Host` → 403 | Yes (CI) |
 | Frozen sidecar `/health` | `npm run packaging:sidecar` then `npm run test:sidecar` | Exit 0; frozen `GET /health` with `PYTHONPATH` unset | Yes (CI) |
 | Playwright E2E | `npm run test:e2e` | Exit 0; mocked E2E plus `real-local-smoke` | Yes (CI) |
 | Playwright real-browser (100) | `npm run test:e2e:real-browser` | Exit 0; 100 generated JPEGs, Chromium | Yes (CI) |

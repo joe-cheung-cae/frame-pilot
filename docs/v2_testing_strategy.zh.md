@@ -76,7 +76,7 @@ npm run verify
 
 `npm run verify` 包含 `npm run check:validation-decision`，因此当 `docs/v2_rc2_validation_decision.md` 仍为待处理、豁免不完整或缺少笔记文件时，默认 PR+main 门禁会失败。该检查在当前 main 上为绿。GitHub Actions workflow YAML 不需要单独的 `check:pretag` 作业。
 
-GitHub Actions（`.github/workflows/verify.yml`）在 pull request 与 `main` 上跑 `npm run test:e2e`（mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`），以及独立的 `npm run test:e2e:real-browser` 作业（100 张生成 JPEG，Chromium）。该门禁不含 `test:e2e:real-browser:large`。当前端工作流变更影响项目创建、导入、处理、筛选或导出流程时，本地运行 `npm run test:e2e`。100 张真实浏览器-后端 smoke 本地运行 `npm run test:e2e:real-browser`。
+GitHub Actions（`.github/workflows/verify.yml`）在 pull request 与 `main` 上跑 `npm run test:e2e`（mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 `npm run test:e2e:real-browser` 作业（100 张生成 JPEG，Chromium），以及独立的 `npm run test:desktop:smoke` 作业（HTTP `/health`、`/api/projects`、桌面 Origin CORS、攻击者 `Host` → 403）。该门禁不含 `test:e2e:real-browser:large`。当前端工作流变更影响项目创建、导入、处理、筛选或导出流程时，本地运行 `npm run test:e2e`。100 张真实浏览器-后端 smoke 本地运行 `npm run test:e2e:real-browser`。桌面 sidecar HTTP 冒烟本地运行 `npm run test:desktop:smoke`。
 
 发布时间命令仍是：
 

@@ -76,7 +76,7 @@ npm run verify
 
 `npm run verify` includes `npm run check:validation-decision` so the default PR+main gate fails if `docs/v2_rc2_validation_decision.md` is pending, incompletely waived, or missing its notes file. That check is green on current main. GitHub Actions workflow YAML does not need a separate `check:pretag` job.
 
-GitHub Actions (`.github/workflows/verify.yml`) runs `npm run test:e2e` on pull requests and `main` (mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`) and an independent `npm run test:e2e:real-browser` job (100 generated JPEGs, Chromium). That gate does not include `test:e2e:real-browser:large`. Run `npm run test:e2e` locally when frontend workflow changes affect project creation, import, processing, culling, or export flows. Run `npm run test:e2e:real-browser` locally for the 100-photo real browser-backend smoke.
+GitHub Actions (`.github/workflows/verify.yml`) runs `npm run test:e2e` on pull requests and `main` (mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), an independent `npm run test:e2e:real-browser` job (100 generated JPEGs, Chromium), and an independent `npm run test:desktop:smoke` job (HTTP `/health`, `/api/projects`, desktop Origin CORS, attacker `Host` → 403). That gate does not include `test:e2e:real-browser:large`. Run `npm run test:e2e` locally when frontend workflow changes affect project creation, import, processing, culling, or export flows. Run `npm run test:e2e:real-browser` locally for the 100-photo real browser-backend smoke. Run `npm run test:desktop:smoke` locally for the desktop sidecar HTTP smoke.
 
 The release-time command remains:
 
