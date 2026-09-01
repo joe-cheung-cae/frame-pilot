@@ -7,7 +7,7 @@ from PIL import Image
 
 from app.core.config import get_settings, reset_settings_cache
 from app.core.local_paths import is_windows_absolute_path, normalize_user_path
-from app.core.project_roots import clear_registered_roots, register_root
+from app.core.project_roots import clear_registered_roots, is_blocked_allowlist_root, register_root
 from app.main import create_app
 from app.services.importing import expand_import_paths
 
@@ -215,11 +215,27 @@ def test_allowlist_rejects_home_filesystem_root_drive_roots_and_blocked_names(tm
     reset_settings_cache()
     assert get_settings().project_root_allowlist == []
 
-    # Drive-letter roots contain ":", so they cannot be joined with POSIX pathsep.
-    for drive_root in (r"C:\", "C:/", "D:\\", r"C:\Windows"):
-        monkeypatch.setenv("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST", drive_root)
-        reset_settings_cache()
-        assert get_settings().project_root_allowlist == [], drive_root
+
+def test_allowlist_rejects_windows_drive_roots(tmp_path, monkeypatch):
+    # Drive-letter paths contain ":", which is POSIX pathsep; use "|" like the split tests.
+    monkeypatch.setattr("app.core.config.os.pathsep", "|")
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv(
+        "FRAMEPILOT_PROJECT_ROOT_ALLOWLIST",
+        "C:\\|C:/|D:\\|C:\\Windows",
+    )
+    reset_settings_cache()
+    assert get_settings().project_root_allowlist == []
+
+
+def test_is_blocked_allowlist_root_rejects_drive_roots_and_blocked_names(tmp_path):
+    data_dir = (tmp_path / "data").resolve()
+    data_dir.mkdir()
+    cases = ["/", "/etc", "/usr", "/bin", "/sbin", "/var", "/System", "/Windows", "C:\\", "C:/", "D:\\", r"C:\Windows"]
+    for raw in cases:
+        cleaned = normalize_user_path(raw)
+        resolved = Path(cleaned).expanduser().resolve()
+        assert is_blocked_allowlist_root(cleaned, resolved, data_dir), raw
 
 
 def test_allowlist_keeps_legal_entry_when_mixed_with_blocked_names(tmp_path, monkeypatch):
@@ -255,7 +271,7 @@ def test_allowlist_keeps_subdirectory_of_home(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize(
     "wide_entry_kind",
-    ["home", "tilde", "/", "/etc", r"C:\", r"C:\Windows"],
+    ["home", "tilde", "/", "/etc", "C:\\", r"C:\Windows"],
 )
 def test_create_project_rejects_when_env_allowlist_is_wide(tmp_path, monkeypatch, wide_entry_kind):
     home = _fake_home(tmp_path, monkeypatch)
@@ -272,6 +288,9 @@ def test_create_project_rejects_when_env_allowlist_is_wide(tmp_path, monkeypatch
         wide_entry = wide_entry_kind
         candidate = tmp_path / "outside-project-root"
         candidate.mkdir()
+
+    if ":" in wide_entry and os.pathsep == ":":
+        monkeypatch.setattr("app.core.config.os.pathsep", "|")
 
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(data_dir))
     monkeypatch.setenv("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST", wide_entry)
