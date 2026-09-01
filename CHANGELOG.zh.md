@@ -6,6 +6,12 @@
 
 ## 未发布
 
+### CI — Playwright E2E 门槛
+
+- `.github/workflows/verify.yml` 在 pull request 与 `main` 上跑独立作业：`npm run test:e2e`（Playwright mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）
+- 大规模真实浏览器（`test:e2e:real-browser:large`，500/1000/2000）仍为可选，不纳入默认门禁
+- 该 E2E 作业不启动打包的 NSIS/DMG GUI，也不增加代码签名 / 公证
+
 ### CI — 冻结 sidecar `/health` 门槛
 
 - `.github/workflows/verify.yml` 在 pull request 与 `main` 上跑独立作业：先 `npm run packaging:sidecar`，再 `npm run test:sidecar`（冻结 `GET /health`，且 `unset PYTHONPATH`）

@@ -4,9 +4,9 @@
 #   - workflow_dispatch: manual rebuilds without a merge.
 #   - push to main with path filters: after merge, installers appear when
 #     desktop/API/packaging/desktop workflow paths change. Docs-only merges
-#     skip this job. PRs use verify.yml (rust-free lint/test job, plus an
-#     independent frozen-sidecar /health job). Never attach photos or
-#     project data to artifacts.
+#     skip this job. PRs use verify.yml (rust-free lint/test job, Playwright
+#     E2E via npm run test:e2e, plus an independent frozen-sidecar /health
+#     job). Never attach photos or project data to artifacts.
 #
 # Unsigned builds only (signing is D4.05). After PyInstaller, run
 # npm run test:sidecar (GET /health with PYTHONPATH unset). Do not launch
