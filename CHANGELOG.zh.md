@@ -9,8 +9,9 @@
 ### CI — Playwright E2E 门槛
 
 - `.github/workflows/verify.yml` 在 pull request 与 `main` 上跑独立作业：`npm run test:e2e`（Playwright mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）
+- `.github/workflows/verify.yml` 另跑独立作业：`npm run test:e2e:real-browser`（100 张生成 JPEG，Chromium）
 - 大规模真实浏览器（`test:e2e:real-browser:large`，500/1000/2000）仍为可选，不纳入默认门禁
-- 该 E2E 作业不启动打包的 NSIS/DMG GUI，也不增加代码签名 / 公证
+- 这些 E2E 作业不启动打包的 NSIS/DMG GUI，也不增加代码签名 / 公证
 - Mocked 筛选 E2E 现在会先断言首页加载（`0/500 loaded reviewed` 以及 `500 of 501 loaded`），再点 Load all photos
 - Playwright 在 CI 中使用单个 worker，避免 real-local-smoke 与真实浏览器 smoke 并行共用 E2E API 数据目录
 

@@ -380,6 +380,16 @@ expect_success \
   ' '$repo_root/.github/workflows/verify.yml'"
 
 expect_success \
+  "verify.yml runs npm run test:e2e:real-browser as an independent job" \
+  bash -c "awk '
+    /^  e2e-real-browser:/ { in_job = 1 }
+    in_job && /^  [a-z]/ && !/^  e2e-real-browser:/ { in_job = 0 }
+    in_job && /playwright install/ { saw_install = 1 }
+    in_job && /npm run test:e2e:real-browser[[:space:]]*$/ { if (saw_install) found = 1 }
+    END { exit found ? 0 : 1 }
+  ' '$repo_root/.github/workflows/verify.yml'"
+
+expect_success \
   "verify.yml default gate does not run large real-browser E2E" \
   bash -c "awk '
     /run:.*test:e2e:real-browser:large/ { found = 1 }

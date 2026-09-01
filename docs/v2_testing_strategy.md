@@ -74,7 +74,7 @@ Use the narrowest relevant checks while developing, then run the repository gate
 npm run verify
 ```
 
-GitHub Actions (`.github/workflows/verify.yml`) runs `npm run test:e2e` on pull requests and `main` (mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`). That gate does not include `test:e2e:real-browser:large`. Run `npm run test:e2e` locally when frontend workflow changes affect project creation, import, processing, culling, or export flows.
+GitHub Actions (`.github/workflows/verify.yml`) runs `npm run test:e2e` on pull requests and `main` (mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`) and an independent `npm run test:e2e:real-browser` job (100 generated JPEGs, Chromium). That gate does not include `test:e2e:real-browser:large`. Run `npm run test:e2e` locally when frontend workflow changes affect project creation, import, processing, culling, or export flows. Run `npm run test:e2e:real-browser` locally for the 100-photo real browser-backend smoke.
 
 ## Test Data Rules
 
