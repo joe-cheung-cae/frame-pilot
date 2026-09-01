@@ -6,6 +6,13 @@
 
 ## 未发布
 
+### CI — 桌面 HTTP 冒烟门禁
+
+- `.github/workflows/verify.yml` 在 pull request 与 `main` 上跑独立作业：`npm run test:desktop:smoke`（`tests/desktop/smoke.sh`：sidecar ready 行、`GET /health`、`GET /api/projects`、桌面 Origin CORS preflight、攻击者 `Host` → 403）
+- 没有冻结二进制时使用 venv sidecar。仅 HTTP：不启动打包的 NSIS/DMG GUI，也不增加代码签名 / 公证
+- 大规模真实浏览器（`test:e2e:real-browser:large`）仍为可选，不纳入默认门禁
+- `tests/desktop/smoke.sh` 的残留进程检查只标记 sidecar/uvicorn（Linux 上 `pgrep -P $$` 会把自己也列进去）
+
 ### CI — 验证决策默认门禁
 
 - `npm run verify` 现已包含 `npm run check:validation-decision`（`scripts/check-validation-decision.sh` / `docs/v2_rc2_validation_decision.md`）

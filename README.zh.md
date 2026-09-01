@@ -68,7 +68,7 @@ npm run verify
 `docs/v2_rc2_validation_decision.md` 中的发布负责人决策仍为待处理、豁免字段不全、或缺少笔记文件时失败。
 该子集在当前 main 上为绿，不需要单独的 GitHub Actions 作业。
 
-GitHub Actions（`.github/workflows/verify.yml`）会跑 `npm run verify`、独立的 Playwright 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 100 张真实浏览器作业（`npm run test:e2e:real-browser`），以及独立的冻结 sidecar 作业：先 `npm run packaging:sidecar`，再 `npm run test:sidecar`，确保 `GET /health` 在没有 `PYTHONPATH` 时通过。这些作业不安装 Rust、不签名、不启动打包 GUI，也不跑 `test:e2e:real-browser:large`。workflow YAML 不需要单独的 `check:pretag` 作业；`npm run verify` 已包含验证决策检查。
+GitHub Actions（`.github/workflows/verify.yml`）会跑 `npm run verify`、独立的 Playwright 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 100 张真实浏览器作业（`npm run test:e2e:real-browser`）、独立的冻结 sidecar 作业（先 `npm run packaging:sidecar`，再 `npm run test:sidecar`，确保 `GET /health` 在没有 `PYTHONPATH` 时通过），以及独立的桌面 HTTP 冒烟（`npm run test:desktop:smoke`：`/health`、`/api/projects`、桌面 Origin CORS、攻击者 `Host` → 403）。这些作业不安装 Rust、不签名、不启动打包 GUI，也不跑 `test:e2e:real-browser:large`。workflow YAML 不需要单独的 `check:pretag` 作业；`npm run verify` 已包含验证决策检查。
 
 在给发布候选打标签之前，运行打标签前门槛：
 

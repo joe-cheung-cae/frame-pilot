@@ -165,10 +165,16 @@ done
 wait "$sidecar_pid" > /dev/null 2>&1 || true
 sidecar_pid=""
 
-leftover="$(pgrep -P $$ || true)"
-if [[ -n "${leftover}" ]]; then
-  echo "Leftover child processes: $leftover" >&2
-  exit 1
+# pgrep is unreliable under Git Bash on Windows; skip leftover check when absent.
+# Linux procps `pgrep -P $$` includes pgrep itself (a child of this shell), so
+# only fail on leftover sidecar/uvicorn processes.
+if command -v pgrep > /dev/null 2>&1; then
+  leftover="$(pgrep -P $$ -a || true)"
+  leftover="$(printf '%s\n' "$leftover" | grep -E 'framepilot-api|sidecar_main|[Uu]vicorn' || true)"
+  if [[ -n "${leftover}" ]]; then
+    echo "Leftover child processes: $leftover" >&2
+    exit 1
+  fi
 fi
 
 echo "desktop-smoke ok port=$port"

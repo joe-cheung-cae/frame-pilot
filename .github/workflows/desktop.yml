@@ -6,8 +6,9 @@
 #     desktop/API/packaging/desktop workflow paths change. Docs-only merges
 #     skip this job. PRs use verify.yml (rust-free lint/test job, Playwright
 #     E2E via npm run test:e2e, 100-photo real-browser via
-#     npm run test:e2e:real-browser, plus an independent frozen-sidecar /health
-#     job). Never attach photos or project data to artifacts.
+#     npm run test:e2e:real-browser, independent frozen-sidecar /health, plus
+#     independent desktop HTTP smoke via npm run test:desktop:smoke). Never
+#     attach photos or project data to artifacts.
 #
 # Unsigned builds only (signing is D4.05). After PyInstaller, run
 # npm run test:sidecar (GET /health with PYTHONPATH unset). Do not launch

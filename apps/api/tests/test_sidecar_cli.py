@@ -179,3 +179,14 @@ def test_sidecar_smoke_leftover_check_ignores_pgrep():
     assert "framepilot-api" in leftover_block
     assert "sidecar_main" in leftover_block
     assert leftover_block.count('leftover="$(pgrep -P $$ || true)"') == 0
+
+
+def test_desktop_smoke_leftover_check_ignores_pgrep():
+    source = Path(__file__).resolve().parents[3] / "tests" / "desktop" / "smoke.sh"
+    text = source.read_text(encoding="utf-8")
+    leftover_start = text.index("Leftover child processes")
+    leftover_block = text[text.rindex("if command -v pgrep", 0, leftover_start) : leftover_start]
+    assert "pgrep -P $$ -a" in leftover_block
+    assert "framepilot-api" in leftover_block
+    assert "sidecar_main" in leftover_block
+    assert leftover_block.count('leftover="$(pgrep -P $$ || true)"') == 0

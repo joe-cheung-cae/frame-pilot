@@ -6,6 +6,13 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### CI — desktop HTTP smoke gate
+
+- `.github/workflows/verify.yml` runs an independent job on pull requests and `main`: `npm run test:desktop:smoke` (`tests/desktop/smoke.sh`: sidecar ready line, `GET /health`, `GET /api/projects`, desktop Origin CORS preflight, attacker `Host` → 403)
+- Uses the venv sidecar when no frozen binary is present. HTTP-only: does not launch a packaged NSIS/DMG GUI or add code signing / notarization
+- Large real-browser (`test:e2e:real-browser:large`) stays opt-in and is not part of the default gate
+- `tests/desktop/smoke.sh` leftover check only flags leftover sidecar/uvicorn processes (Linux `pgrep -P $$` includes pgrep itself)
+
 ### CI — validation-decision default gate
 
 - `npm run verify` now includes `npm run check:validation-decision` (`scripts/check-validation-decision.sh` / `docs/v2_rc2_validation_decision.md`)
