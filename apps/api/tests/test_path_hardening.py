@@ -183,3 +183,103 @@ def test_allowlist_keeps_other_delimiter_inside_a_single_entry(tmp_path, monkeyp
     reset_settings_cache()
 
     assert get_settings().project_root_allowlist == [folder.resolve()]
+
+
+def _fake_home(tmp_path, monkeypatch) -> Path:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    return home.resolve()
+
+
+def test_allowlist_rejects_home_filesystem_root_drive_roots_and_blocked_names(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    home = _fake_home(tmp_path, monkeypatch)
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(data_dir))
+    posix_wide = [
+        str(home),
+        "~",
+        "/",
+        "/etc",
+        "/usr",
+        "/bin",
+        "/sbin",
+        "/var",
+        "/System",
+        "/Windows",
+        str(data_dir),
+        str(tmp_path),
+    ]
+    monkeypatch.setenv("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST", os.pathsep.join(posix_wide))
+    reset_settings_cache()
+    assert get_settings().project_root_allowlist == []
+
+    # Drive-letter roots contain ":", so they cannot be joined with POSIX pathsep.
+    for drive_root in (r"C:\", "C:/", "D:\\", r"C:\Windows"):
+        monkeypatch.setenv("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST", drive_root)
+        reset_settings_cache()
+        assert get_settings().project_root_allowlist == [], drive_root
+
+
+def test_allowlist_keeps_legal_entry_when_mixed_with_blocked_names(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    legal = tmp_path / "legal-root"
+    legal.mkdir()
+    home = _fake_home(tmp_path, monkeypatch)
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(data_dir))
+    monkeypatch.setenv(
+        "FRAMEPILOT_PROJECT_ROOT_ALLOWLIST",
+        os.pathsep.join([str(legal), str(home), "/", "/etc"]),
+    )
+    reset_settings_cache()
+
+    assert get_settings().project_root_allowlist == [legal.resolve()]
+
+    client = TestClient(create_app())
+    created = client.post("/api/projects", json={"name": "Legal", "root_path": str(legal)})
+    assert created.status_code == 201
+    assert Path(created.json()["root_path"]) == legal.resolve()
+
+
+def test_allowlist_keeps_subdirectory_of_home(tmp_path, monkeypatch):
+    home = _fake_home(tmp_path, monkeypatch)
+    pictures = home / "Pictures"
+    pictures.mkdir()
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST", str(pictures))
+    reset_settings_cache()
+
+    assert get_settings().project_root_allowlist == [pictures]
+
+
+@pytest.mark.parametrize(
+    "wide_entry_kind",
+    ["home", "tilde", "/", "/etc", r"C:\", r"C:\Windows"],
+)
+def test_create_project_rejects_when_env_allowlist_is_wide(tmp_path, monkeypatch, wide_entry_kind):
+    home = _fake_home(tmp_path, monkeypatch)
+    under_home = home / "Photos"
+    under_home.mkdir()
+    data_dir = tmp_path / "data"
+    if wide_entry_kind == "home":
+        wide_entry = str(home)
+        candidate = under_home
+    elif wide_entry_kind == "tilde":
+        wide_entry = "~"
+        candidate = under_home
+    else:
+        wide_entry = wide_entry_kind
+        candidate = tmp_path / "outside-project-root"
+        candidate.mkdir()
+
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST", wide_entry)
+    reset_settings_cache()
+
+    client = TestClient(create_app())
+    response = client.post("/api/projects", json={"name": "Wide", "root_path": str(candidate)})
+
+    assert response.status_code == 422
+    assert "allowlisted" in response.json()["detail"]
+    assert client.get("/api/projects").json() == []
