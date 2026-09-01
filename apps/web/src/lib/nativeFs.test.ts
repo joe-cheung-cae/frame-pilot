@@ -113,7 +113,12 @@ test("desktop frontend opener usage is revealItemInDir only", () => {
     const match = source.match(namedOpenerImport);
     const names = (match?.[1] ?? "")
       .split(",")
-      .map((part) => part.trim().split(/\s+as\s+/)[0]?.trim())
+      .map((part) =>
+        part
+          .trim()
+          .split(/\s+as\s+/)[0]
+          ?.trim(),
+      )
       .filter((name): name is string => Boolean(name));
     if (names.length !== 1 || names[0] !== "revealItemInDir") {
       offenders.push(filePath);
