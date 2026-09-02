@@ -77,7 +77,7 @@ FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。�
 | 仅回环 | Sidecar 绑定 `127.0.0.1` | 不在 LAN / `0.0.0.0` 上监听 |
 | Origin / Host | `FRAMEPILOT_DESKTOP=1` 启用 Tauri Origin；Host 拒绝非回环 | 从其他设备访问 `http://<LAN-IP>:<port>` **失败**；本机桌面 UI 可用 |
 | CORS / LAN | 桌面不是局域网相册服务 | 文档写明 LAN 访问按设计不可用 |
-| 项目根 | 自定义项目文件夹仅经 D2.00（`POST /api/desktop/project-roots`） | 白名单外路径被拒；不允许把 `$HOME` / 盘符根设为白名单 |
+| 项目根 | 自定义项目文件夹仅经 D2.00（`POST /api/desktop/project-roots`） | 白名单外路径被拒；`register_root` 按名拒绝 `$HOME` / `Path.home()`；不允许把 `$HOME` / 盘符根设为白名单 |
 
 ---
 

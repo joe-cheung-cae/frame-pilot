@@ -779,7 +779,7 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 
 - Problem: allowlist is read once via `lru_cache`; the user picks a folder **after** spawn. Setting `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST=$HOME` voids the control.
 - Process-level registry **not** inside `Settings` (mutating settings resets the DB engine). Persist `{data_dir}/desktop_project_roots.json`, cap 50.
-- `register_root`: absolute, exists, directory, resolved; reject `BLOCKED_ROOT_NAMES`, filesystem anchors, data dir and its parents.
+- `register_root`: absolute, exists, directory, resolved; reject `BLOCKED_ROOT_NAMES`, filesystem anchors, data dir and its parents, and the current home directory (`Path.home()` / `$HOME`) by name.
 - `create_project` allowed roots = `[projects_root, *allowlist, *registered_roots()]`. Do not change error messages.
 - Endpoints **only when `FRAMEPILOT_DESKTOP=1`** (else 404): `POST /api/desktop/project-roots` `{"path"}`, `GET` same.
 - Desktop flow: pick → POST register → POST `/api/projects` with `root_path`.

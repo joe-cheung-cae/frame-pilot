@@ -77,7 +77,7 @@ No extra npm alias is required for this matrix; use the scripts above directly.
 | Loopback only | Sidecar binds `127.0.0.1` | No listen on LAN interfaces / `0.0.0.0` |
 | Origin / Host | `FRAMEPILOT_DESKTOP=1` enables Tauri origins; Host checks reject non-loopback | Browsing `http://<LAN-IP>:<port>` from another device **fails**; localhost desktop UI works |
 | CORS / LAN | Desktop is not a LAN photo server | Document that LAN access is intentionally impossible |
-| Project roots | Custom project folders only via D2.00 registration (`POST /api/desktop/project-roots`) | Paths outside allowlist rejected; no `$HOME` / drive-root allowlist |
+| Project roots | Custom project folders only via D2.00 registration (`POST /api/desktop/project-roots`) | Paths outside allowlist rejected; `register_root` rejects `$HOME` / `Path.home()` by name; no `$HOME` / drive-root allowlist |
 
 ---
 

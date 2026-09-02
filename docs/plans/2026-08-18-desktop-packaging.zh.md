@@ -779,7 +779,7 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 
 - 问题：allowlist 经 `lru_cache` 只读一次；用户是在进程拉起**之后**选文件夹。把 `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST=$HOME` 会废掉该控制。
 - 进程级注册表**不**放在 `Settings` 内（改 settings 会重置 DB engine）。持久化 `{data_dir}/desktop_project_roots.json`，上限 50。
-- `register_root`：绝对路径、存在、是目录、已 resolve；拒绝 `BLOCKED_ROOT_NAMES`、文件系统锚点、数据目录及其父目录。
+- `register_root`：绝对路径、存在、是目录、已 resolve；拒绝 `BLOCKED_ROOT_NAMES`、文件系统锚点、数据目录及其父目录，以及按名拒绝当前家目录（`Path.home()` / `$HOME`）。
 - `create_project` 允许的根 = `[projects_root, *allowlist, *registered_roots()]`。不要改错误消息。
 - 端点**仅当 `FRAMEPILOT_DESKTOP=1`**（否则 404）：`POST /api/desktop/project-roots` `{"path"}`，`GET` 相同。
 - 桌面流程：选择 → POST 注册 → 带 `root_path` 的 POST `/api/projects`。

@@ -74,7 +74,7 @@ GET /api/assets/{project_id}/{thumbnails|previews}/{filename}
 `active_import_job` 是该项目最新的、非过期的排队或运行中导入作业；当导入衍生工作未在进行时为 `null`。项目列表和仪表板使用这个轻量字段，把处于活动导入的项目导回导入进度，而不是处理或筛选。`GET /api/projects` 为只读：它会从 `active_import_job` 中省略过期作业，但不会写入。过期作业的失败写入改由项目详情、作业端点、变更接口以及 API 启动处理。
 当 `POST /api/projects` 省略 `root_path` 或将其发送为空时，FramePilot 使用默认的托管项目目录。项目创建 UI 将其作为可选的本地项目数据文件夹字段暴露。自定义 `root_path` 必须是 `{data_dir}/projects` 下可用的本地目录、`FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` 条目，或通过 `POST /api/desktop/project-roots` 注册的文件夹。无效存储路径会在创建项目元数据之前返回 `422`。环境 allowlist 条目会用与 `register_root` 相同的 helpers 过滤：`$HOME`、`/`、盘符根、数据目录及其父目录，以及其他被拦截的系统路径会被忽略。
 
-`GET` 和 `POST /api/desktop/project-roots` 仅在 `FRAMEPILOT_DESKTOP=1` 时存在；否则返回 `404`。`POST` 接受 `{"path": "/absolute/folder"}`，要求该目录已存在；会拒绝被拦截的系统路径、文件系统锚点、数据目录以及数据目录的父目录，并在 `{data_dir}/desktop_project_roots.json` 中最多存储 50 条解析后的路径。`GET` 返回 `{"roots": [...]}`。该注册表以文件为后端，不存储在 Settings 中。
+`GET` 和 `POST /api/desktop/project-roots` 仅在 `FRAMEPILOT_DESKTOP=1` 时存在；否则返回 `404`。`POST` 接受 `{"path": "/absolute/folder"}`，要求该目录已存在；会拒绝被拦截的系统路径、文件系统锚点、当前家目录（按名拒绝 `Path.home()` / `$HOME`）、数据目录以及数据目录的父目录，并在 `{data_dir}/desktop_project_roots.json` 中最多存储 50 条解析后的路径。`GET` 返回 `{"roots": [...]}`。该注册表以文件为后端，不存储在 Settings 中。
 
 `DELETE /api/projects/{project_id}` 从应用数据库中移除该项目及相关本地元数据记录。它不会从磁盘删除项目文件夹、已复制的原片、生成的预览或导出产物。
 
