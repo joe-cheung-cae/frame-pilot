@@ -6,6 +6,12 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Desktop — return null from getNativeFs() outside Tauri (L3)
+
+- Desktop `getNativeFs()` returns `null` when `window` has neither `__TAURI_INTERNALS__` nor `__TAURI__`, matching the D2.01 web stub
+- Opening desktop Vite in a normal browser no longer takes native-picker branches that then fail plugin calls
+- No L4 (`@tauri-apps/api/webview` direct dep), version bump, signing, packaged GUI, or auto-update
+
 ### Desktop — reject home directory when registering a project root (L2)
 
 - `register_root` now rejects `Path.home()` / `$HOME` by name, including when Linux/WSL desktop-dev stores `data_dir` under the repo instead of under home

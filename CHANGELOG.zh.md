@@ -6,6 +6,12 @@
 
 ## 未发布
 
+### 桌面 — 非 Tauri 时 getNativeFs() 返回 null（L3）
+
+- 桌面 `getNativeFs()` 在 `window` 既没有 `__TAURI_INTERNALS__` 也没有 `__TAURI__` 时返回 `null`，与 D2.01 web stub 对齐
+- 用普通浏览器打开桌面 Vite 时不再走随后会在插件调用上失败的原生选择器分支
+- 不含 L4（`@tauri-apps/api/webview` 直接依赖）、版本号提升、签名、打包 GUI 或自动更新
+
 ### 桌面 — 注册项目根时按名拒绝家目录（L2）
 
 - `register_root` 现按名拒绝 `Path.home()` / `$HOME`，包括 Linux/WSL desktop-dev 把 `data_dir` 放在仓库下而不是 home 下的情况

@@ -72,6 +72,23 @@ const nativeFs: NativeFs = {
   subscribeDragDrop,
 };
 
+type TauriWindow = {
+  __TAURI__?: unknown;
+  __TAURI_INTERNALS__?: unknown;
+};
+
+function readGlobalWindow(): TauriWindow | undefined {
+  return (globalThis as { window?: TauriWindow }).window;
+}
+
+function isTauriRuntime(): boolean {
+  const win = readGlobalWindow();
+  if (!win) {
+    return false;
+  }
+  return win.__TAURI_INTERNALS__ != null || win.__TAURI__ != null;
+}
+
 export function getNativeFs(): NativeFs | null {
-  return nativeFs;
+  return isTauriRuntime() ? nativeFs : null;
 }

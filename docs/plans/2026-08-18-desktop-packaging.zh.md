@@ -793,7 +793,7 @@ font-src 'self' data:; object-src 'none'; frame-ancestors 'none'
 **Depends on:** Phase 1  
 **Files:** `apps/desktop/src/lib/nativeFs.ts`、Tauri dialog plugin、capabilities JSON
 
-**Implement:** `pickDirectory()`、`pickImageFiles()`、`revealInFileManager()`。Web 构建不得 import Tauri 插件。浏览器中 `getNativeFs()` 返回 `null`。
+**Implement:** `pickDirectory()`、`pickImageFiles()`、`revealInFileManager()`。Web 构建不得 import Tauri 插件。浏览器中 `getNativeFs()` 返回 `null`。桌面适配器在非 Tauri 运行时也返回 `null`（例如用普通浏览器打开桌面 Vite），因此不会走随后会失败的原生选择器分支。
 
 **Tests:** 单测浏览器 null 分支；桌面包装被 mock。
 
