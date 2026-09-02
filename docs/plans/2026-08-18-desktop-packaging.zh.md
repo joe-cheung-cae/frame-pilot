@@ -109,7 +109,7 @@
      sidecar 的 `--data-dir` **必填**。永不回退到相对 CWD 的 `.framepilot-data`。
 9. **安全：** 复制模式存储不变。原图复制进项目；源文件永不被修改或删除。资源 / 导出路径约束测试必须保持全绿。
 10. **Web 应用必须继续工作。** 每次触及共享代码的桌面提交之后，`npm run dev`、`npm run verify` 和 Playwright 必须保持全绿。
-11. **桌面上的项目根：** `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` 仍是部署级控制，Tauri 壳永远不得把它设为 `$HOME`、`/`、盘符根或任何过宽的父目录。用户选择的项目根只有在 D2.00 注册并持久化到 `{data_dir}/desktop_project_roots.json` 之后才合法。`test_create_project_rejects_root_outside_allowlist` 必须保持全绿且不变。
+11. **桌面上的项目根：** `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` 仍是部署级控制，Tauri 壳永远不得把它设为 `$HOME`、`/`、盘符根或任何过宽的父目录。sidecar spawn 会 `env_remove` 该变量，避免父 shell 把宽 allowlist 泄漏进来。用户选择的项目根只有在 D2.00 注册并持久化到 `{data_dir}/desktop_project_roots.json` 之后才合法。`test_create_project_rejects_root_outside_allowlist` 必须保持全绿且不变。
 12. **路径导入请求形态：** 一次 HTTP 请求最多消费 `IMPORT_MAX_FILES_PER_REQUEST`（100）个展开后的文件，并返回 `remaining_paths` 与 `expanded_total`。客户端用同一个 `job_id` 循环。2000 张照片的文件夹永远不是一次 HTTP 调用。
 13. **GUI 阻塞的任务：** 当剩余验证需要真实 WebView 且主机无法打开时，标 `[~]`，追加带日期的可行性说明，并继续做未阻塞的工作。没有记录的 GUI 运行时，`[~]` 永远不是 `[x]`。
 14. **桌面下载：** 桌面壳不通过 WebView 下载 API 响应。每种导出模式已经返回 `output_path`；桌面在文件管理器中显示产物。浏览器保留 `<a download>`。
