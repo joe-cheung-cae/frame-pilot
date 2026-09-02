@@ -6,6 +6,11 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Desktop — direct @tauri-apps/api/webview dependency (L4)
+
+- `apps/desktop/package.json` now lists `@tauri-apps/api` as a direct dependency so `nativeFs.ts` can import `@tauri-apps/api/webview` without relying on a plugin transitive install
+- No version bump, signing, packaged GUI, or auto-update
+
 ### Desktop — return null from getNativeFs() outside Tauri (L3)
 
 - Desktop `getNativeFs()` returns `null` when `window` has neither `__TAURI_INTERNALS__` nor `__TAURI__`, matching the D2.01 web stub
