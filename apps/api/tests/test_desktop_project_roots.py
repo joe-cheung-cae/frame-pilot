@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -62,6 +63,44 @@ def test_create_project_rejects_outside_root_until_registered(data_dir, monkeypa
     created = client.post("/api/projects", json={"name": "Outside", "root_path": str(outside)})
     assert created.status_code == 201
     assert Path(created.json()["root_path"]) == outside
+
+
+def _home_outside_data_dir(data_dir: Path, monkeypatch) -> Path:
+    # Linux/WSL desktop-dev stores data under the repo, so home is not a
+    # parent of data_dir and _is_data_dir_or_parent would not reject it.
+    home = data_dir.parent / f"{data_dir.name}-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    resolved = home.resolve()
+    assert not data_dir.resolve().is_relative_to(resolved)
+    return resolved
+
+
+def test_register_root_rejects_home_directory_when_data_dir_is_outside_home(data_dir, monkeypatch):
+    home = _home_outside_data_dir(data_dir, monkeypatch)
+    client = _desktop_client(monkeypatch)
+
+    cases = [str(Path.home()), str(home), os.environ["HOME"], str(home) + os.sep]
+    for path in cases:
+        response = client.post("/api/desktop/project-roots", json={"path": path})
+        assert response.status_code == 422, path
+        assert "system directory" in response.json()["detail"]
+
+    listed = client.get("/api/desktop/project-roots")
+    assert listed.status_code == 200
+    assert listed.json()["roots"] == []
+
+
+def test_register_root_keeps_subdirectory_of_home(data_dir, monkeypatch):
+    home = _home_outside_data_dir(data_dir, monkeypatch)
+    pictures = home / "Pictures"
+    pictures.mkdir()
+    client = _desktop_client(monkeypatch)
+
+    registered = client.post("/api/desktop/project-roots", json={"path": str(pictures)})
+    assert registered.status_code == 201
+    assert Path(registered.json()["path"]) == pictures
 
 
 def test_register_root_rejects_system_data_dir_relative_and_file_paths(data_dir, monkeypatch):

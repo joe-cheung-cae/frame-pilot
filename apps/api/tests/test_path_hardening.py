@@ -7,7 +7,12 @@ from PIL import Image
 
 from app.core.config import get_settings, reset_settings_cache
 from app.core.local_paths import is_windows_absolute_path, normalize_user_path
-from app.core.project_roots import clear_registered_roots, is_blocked_allowlist_root, register_root
+from app.core.project_roots import (
+    clear_registered_roots,
+    is_blocked_allowlist_root,
+    register_root,
+    registered_roots,
+)
 from app.main import create_app
 from app.services.importing import expand_import_paths
 
@@ -98,6 +103,54 @@ def test_register_root_spaces_non_ascii_and_trailing_sep(tmp_path, monkeypatch):
     registered = register_root(str(root) + os.sep)
 
     assert registered == root.resolve()
+    clear_registered_roots()
+
+
+def test_register_root_rejects_path_home_and_home_env_by_name(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    home = _fake_home(tmp_path, monkeypatch)
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(data_dir))
+    clear_registered_roots()
+
+    assert not data_dir.is_relative_to(home)
+
+    for path in (str(Path.home()), str(home), os.environ["HOME"], str(home) + os.sep):
+        with pytest.raises(ValueError, match="system directory"):
+            register_root(path)
+
+    assert registered_roots() == []
+    clear_registered_roots()
+
+
+def test_register_root_rejects_real_home_when_data_dir_is_outside_it(tmp_path, monkeypatch):
+    real_home = Path.home().expanduser().resolve()
+    if tmp_path.resolve().is_relative_to(real_home):
+        pytest.skip("tmp_path is under the real home directory")
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
+    clear_registered_roots()
+
+    with pytest.raises(ValueError, match="system directory"):
+        register_root(str(real_home))
+    home_env = os.environ.get("HOME") or os.environ.get("USERPROFILE")
+    if home_env:
+        with pytest.raises(ValueError, match="system directory"):
+            register_root(home_env)
+
+    assert registered_roots() == []
+    clear_registered_roots()
+
+
+def test_register_root_keeps_subdirectory_of_home(tmp_path, monkeypatch):
+    home = _fake_home(tmp_path, monkeypatch)
+    pictures = home / "Pictures"
+    pictures.mkdir()
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
+    clear_registered_roots()
+
+    registered = register_root(str(pictures))
+
+    assert registered == pictures
     clear_registered_roots()
 
 

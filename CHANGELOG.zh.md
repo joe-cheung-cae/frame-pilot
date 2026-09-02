@@ -6,6 +6,12 @@
 
 ## 未发布
 
+### 桌面 — 注册项目根时按名拒绝家目录（L2）
+
+- `register_root` 现按名拒绝 `Path.home()` / `$HOME`，包括 Linux/WSL desktop-dev 把 `data_dir` 放在仓库下而不是 home 下的情况
+- 家目录的子目录仍可注册；放宽路径仍是 D2.00 注册
+- 不含 L3（`getNativeFs` 从不返回 null）或 L4（`@tauri-apps/api/webview` 直接依赖）、版本号提升、签名、打包 GUI 或自动更新
+
 ### 桌面 — sidecar spawn 剥离继承的项目根 allowlist（L1）
 
 - Tauri sidecar spawn 会 `env_remove` `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST`，避免父 shell（例如 `tauri dev`）把宽 allowlist 泄漏进 sidecar

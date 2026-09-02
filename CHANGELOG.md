@@ -6,6 +6,12 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Desktop — reject home directory when registering a project root (L2)
+
+- `register_root` now rejects `Path.home()` / `$HOME` by name, including when Linux/WSL desktop-dev stores `data_dir` under the repo instead of under home
+- Subdirectories of home can still be registered; D2.00 remains the widen path
+- No L3 (`getNativeFs` never-null) or L4 (`@tauri-apps/api/webview` direct dep), version bump, signing, packaged GUI, or auto-update
+
 ### Desktop — strip inherited project-root allowlist at sidecar spawn (L1)
 
 - Tauri sidecar spawn `env_remove`s `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` so a parent shell (for example `tauri dev`) cannot leak a wide allowlist into the sidecar

@@ -68,8 +68,8 @@ def _is_home_directory(path: Path) -> bool:
 def is_blocked_allowlist_root(cleaned: str, resolved: Path, data_dir: Path) -> bool:
     """Return True if an env allowlist entry is too wide to accept.
 
-    Uses the same blocked-name, filesystem-anchor, drive-root, and data-dir
-    helpers as register_root, and also rejects the current home directory.
+    Uses the same blocked-name, filesystem-anchor, drive-root, data-dir,
+    and home-directory helpers as register_root.
     """
     if _is_blocked_input(cleaned):
         return True
@@ -144,6 +144,8 @@ def register_root(path: str) -> Path:
         raise ValueError("Project root path must be a usable local directory")
     data_dir = _data_dir()
     if _is_data_dir_or_parent(resolved, data_dir):
+        raise ValueError("Project root path cannot target a system directory")
+    if _is_home_directory(resolved):
         raise ValueError("Project root path cannot target a system directory")
 
     stored = _load_root_strings()

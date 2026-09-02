@@ -126,7 +126,7 @@ allowlist.append(Path(cleaned).expanduser().resolve())
 | ID | 路径 | 发现 | 安全红线 |
 | -- | ---- | ---- | -------- |
 | **L1** | `apps/desktop/src-tauri/src/sidecar.rs:467-477` | Spawn 没有 `env_remove("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST")`；父级 `tauri dev` shell 可能把宽 allowlist 泄漏进 sidecar | **否**（Tauri 不设置；与 M1 成对） |
-| **L2** | `apps/api/app/core/project_roots.py:11`，`108-125` | `register_root` 不按名称拒绝 `Path.home()`。打包的 macOS/Windows 通常会拦，因为 `data_dir` 在 home 下（`_is_data_dir_or_parent`）。Linux/WSL **dev** 使用仓库 `.framepilot-desktop-dev`，注册 `$HOME` 可能成功 | 打包 OS app-support **否**；Linux desktop-dev **部分** |
+| **L2** | `apps/api/app/core/project_roots.py:11`，`108-125` | `register_root` 不按名称拒绝 `Path.home()`。打包的 macOS/Windows 通常会拦，因为 `data_dir` 在 home 下（`_is_data_dir_or_parent`）。Linux/WSL **dev** 使用仓库 `.framepilot-desktop-dev`，注册 `$HOME` 可能成功。**跟进：** [#138](https://github.com/joe-cheung-cae/frame-pilot/issues/138) — `register_root` 现已按名拒绝当前家目录。 | 打包 OS app-support **否**；Linux desktop-dev **部分**（由 #138 关闭） |
 | **L3** | `apps/desktop/src/lib/nativeFs.ts:75-77` 对比 `apps/web/src/lib/nativeFs.ts:10-12` | 桌面 `getNativeFs()` 总是返回适配器对象，从不 `null`。D2.01 的浏览器 null 是 web stub。非 Tauri 打开桌面 Vite 可能走原生选择器分支然后插件调用失败 | **否** |
 | **L4** | `apps/desktop/src/lib/nativeFs.ts:1`，`apps/desktop/package.json` | 导入 `@tauri-apps/api/webview` 但不是直接依赖（经插件传递） | **否** |
 
