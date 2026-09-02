@@ -6,6 +6,11 @@
 
 ## 未发布
 
+### 桌面 — 直接依赖 @tauri-apps/api/webview（L4）
+
+- `apps/desktop/package.json` 现将 `@tauri-apps/api` 列为直接依赖，使 `nativeFs.ts` 导入 `@tauri-apps/api/webview` 不再依赖插件传递安装
+- 不含版本号提升、签名、打包 GUI 或自动更新
+
 ### 桌面 — 非 Tauri 时 getNativeFs() 返回 null（L3）
 
 - 桌面 `getNativeFs()` 在 `window` 既没有 `__TAURI_INTERNALS__` 也没有 `__TAURI__` 时返回 `null`，与 D2.01 web stub 对齐
