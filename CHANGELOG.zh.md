@@ -6,6 +6,12 @@
 
 ## 未发布
 
+### 桌面 — sidecar spawn 剥离继承的项目根 allowlist（L1）
+
+- Tauri sidecar spawn 会 `env_remove` `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST`，避免父 shell（例如 `tauri dev`）把宽 allowlist 泄漏进 sidecar
+- 放宽路径仍是 D2.00 注册；API 侧 M1 对残留 env 条目的过滤不变
+- 不含 L2–L4、版本号提升、签名、打包 GUI 或自动更新
+
 ### CI — 桌面 HTTP 冒烟门禁
 
 - `.github/workflows/verify.yml` 在 pull request 与 `main` 上跑独立作业：`npm run test:desktop:smoke`（`tests/desktop/smoke.sh`：sidecar ready 行、`GET /health`、`GET /api/projects`、桌面 Origin CORS preflight、攻击者 `Host` → 403）

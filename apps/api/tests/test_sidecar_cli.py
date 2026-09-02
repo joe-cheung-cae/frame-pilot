@@ -156,6 +156,35 @@ def test_pyinstaller_spec_includes_asyncio_loop_and_httptools_impl():
     assert '"uvicorn.protocols.http.httptools_impl"' in hiddenimports
 
 
+def test_tauri_spawn_strips_project_root_allowlist():
+    source = (
+        Path(__file__).resolve().parents[3]
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "src"
+        / "sidecar.rs"
+    )
+    text = source.read_text(encoding="utf-8")
+    fn_start = text.index("pub fn spawn_sidecar(")
+    next_item = text.find("\npub ", fn_start + 1)
+    spawn_fn = text[fn_start:next_item]
+    assert '.env("FRAMEPILOT_DESKTOP", "1")' in spawn_fn
+    assert 'env_remove("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST")' in spawn_fn
+    allowlist_remove = spawn_fn.index('env_remove("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST")')
+    frozen_branch = spawn_fn.index("} else {")
+    assert allowlist_remove < frozen_branch, (
+        "FRAMEPILOT_PROJECT_ROOT_ALLOWLIST env_remove must apply to every spawn, "
+        "not only the frozen PYTHONPATH branch"
+    )
+    remainder = spawn_fn.replace(
+        'env_remove("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST")',
+        "",
+        1,
+    )
+    assert "FRAMEPILOT_PROJECT_ROOT_ALLOWLIST" not in remainder
+
+
 def test_sidecar_smoke_unsets_pythonpath_for_frozen_binary():
     source = Path(__file__).resolve().parents[3] / "scripts" / "sidecar-smoke.sh"
     text = source.read_text(encoding="utf-8")

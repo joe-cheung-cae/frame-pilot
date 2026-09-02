@@ -467,6 +467,9 @@ pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<C
     command
         .args(&spec.args)
         .env("FRAMEPILOT_DESKTOP", "1")
+        // Parent shells (e.g. `tauri dev`) must not leak a wide deployment
+        // allowlist into the sidecar. D2.00 registration is the widen path.
+        .env_remove("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST")
         .stdout(Stdio::piped())
         .stderr(Stdio::from(log));
     if let Some(ref pythonpath) = spec.pythonpath {
@@ -1009,6 +1012,63 @@ mod tests {
             .expect("ready line from cursor");
         assert_eq!(parsed.port, 4242);
         assert_eq!(parsed.data_dir, "/tmp/Application Support/FramePilot");
+    }
+
+    #[test]
+    fn spawn_sidecar_strips_project_root_allowlist_from_child_env() {
+        let dir = std::env::temp_dir().join(format!(
+            "framepilot-sidecar-env-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).expect("temp dir");
+        let log = dir.join("sidecar.log");
+        let previous_allowlist = std::env::var("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST").ok();
+        std::env::set_var("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST", "/");
+
+        let spec = SidecarSpawnSpec {
+            program: PathBuf::from("python3"),
+            args: vec![
+                "-c".into(),
+                concat!(
+                    "import os, sys\n",
+                    "sys.stdout.write('ALLOWLIST=' + repr(os.environ.get('FRAMEPILOT_PROJECT_ROOT_ALLOWLIST')) + '\\n')\n",
+                    "sys.stdout.write('DESKTOP=' + os.environ.get('FRAMEPILOT_DESKTOP', '') + '\\n')\n",
+                )
+                .into(),
+            ],
+            pythonpath: Some(PathBuf::from("/repo/apps/api")),
+        };
+        let mut child = spawn_sidecar(&spec, &log).expect("spawn env probe");
+        let mut stdout = String::new();
+        child
+            .stdout
+            .take()
+            .expect("piped stdout")
+            .read_to_string(&mut stdout)
+            .expect("read stdout");
+        let status = child.wait().expect("wait env probe");
+        match previous_allowlist {
+            Some(value) => std::env::set_var("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST", value),
+            None => std::env::remove_var("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST"),
+        }
+        let _ = fs::remove_dir_all(&dir);
+
+        assert!(
+            status.success(),
+            "env probe failed ({status}): {stdout}"
+        );
+        assert!(
+            stdout.contains("ALLOWLIST=None"),
+            "child must not inherit FRAMEPILOT_PROJECT_ROOT_ALLOWLIST: {stdout}"
+        );
+        assert!(
+            stdout.contains("DESKTOP=1"),
+            "child must still receive FRAMEPILOT_DESKTOP=1: {stdout}"
+        );
     }
 
     #[test]

@@ -7,7 +7,7 @@ Tauri 2 + Vite SPA that reuses `apps/web` components over HTTP to a local Python
 `npm run dev:desktop` from the repo root starts `tauri dev`, which:
 
 1. Runs Vite on port **1420** (`strictPort: true`) via `beforeDevCommand`.
-2. Spawns the sidecar with an allocated loopback `--port <n>` (never `--port 0`), absolute `--data-dir`, and `FRAMEPILOT_DESKTOP=1`.
+2. Spawns the sidecar with an allocated loopback `--port <n>` (never `--port 0`), absolute `--data-dir`, and `FRAMEPILOT_DESKTOP=1`. Spawn also `env_remove`s `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` so a parent shell (for example `tauri dev`) cannot leak a wide allowlist into the sidecar.
 3. Injects `window.__FRAMEPILOT_API_BASE__` and `window.__FRAMEPILOT_DESKTOP__ = true` before the UI loads.
 
 Requires a user-space Rust toolchain (`rustup`). If `cargo`/`rustc` are missing, the script prints a clear error and exits 1. Do not install brew/apt Rust from this tree.

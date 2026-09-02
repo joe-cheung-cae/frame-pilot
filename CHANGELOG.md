@@ -6,6 +6,12 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Desktop — strip inherited project-root allowlist at sidecar spawn (L1)
+
+- Tauri sidecar spawn `env_remove`s `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` so a parent shell (for example `tauri dev`) cannot leak a wide allowlist into the sidecar
+- D2.00 registration remains the widen path; API-side M1 filtering of leftover env entries is unchanged
+- No L2–L4 work, version bump, signing, packaged GUI, or auto-update
+
 ### CI — desktop HTTP smoke gate
 
 - `.github/workflows/verify.yml` runs an independent job on pull requests and `main`: `npm run test:desktop:smoke` (`tests/desktop/smoke.sh`: sidecar ready line, `GET /health`, `GET /api/projects`, desktop Origin CORS preflight, attacker `Host` → 403)
