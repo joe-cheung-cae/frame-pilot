@@ -78,6 +78,7 @@ FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。�
 | Origin / Host | `FRAMEPILOT_DESKTOP=1` 启用 Tauri Origin；Host 拒绝非回环 | 从其他设备访问 `http://<LAN-IP>:<port>` **失败**；本机桌面 UI 可用 |
 | CORS / LAN | 桌面不是局域网相册服务 | 文档写明 LAN 访问按设计不可用 |
 | 项目根 | 自定义项目文件夹仅经 D2.00（`POST /api/desktop/project-roots`） | 白名单外路径被拒；`register_root` 按名拒绝 `$HOME` / `Path.home()`；不允许把 `$HOME` / 盘符根设为白名单 |
+| 原生 FS | 桌面 `getNativeFs()` | 在 Tauri 中返回适配器（`__TAURI_INTERNALS__` 或 `__TAURI__`）；普通浏览器（包括非 Tauri 打开的桌面 Vite）返回 `null`，因此不会走原生选择器 |
 
 ---
 

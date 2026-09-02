@@ -793,7 +793,7 @@ Allowed split: (a) adapter + tests, (b) Shell/list/dashboard/processing, (c) imp
 **Depends on:** Phase 1  
 **Files:** `apps/desktop/src/lib/nativeFs.ts`, Tauri dialog plugin, capabilities JSON
 
-**Implement:** `pickDirectory()`, `pickImageFiles()`, `revealInFileManager()`. Web builds must not import Tauri plugins. `getNativeFs()` returns `null` in the browser.
+**Implement:** `pickDirectory()`, `pickImageFiles()`, `revealInFileManager()`. Web builds must not import Tauri plugins. `getNativeFs()` returns `null` in the browser. The desktop adapter also returns `null` when not running inside Tauri (for example opening desktop Vite in a normal browser), so native-picker branches are not taken.
 
 **Tests:** unit-test the null-browser branch; desktop wrappers mocked.
 

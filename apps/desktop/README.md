@@ -10,6 +10,8 @@ Tauri 2 + Vite SPA that reuses `apps/web` components over HTTP to a local Python
 2. Spawns the sidecar with an allocated loopback `--port <n>` (never `--port 0`), absolute `--data-dir`, and `FRAMEPILOT_DESKTOP=1`. Spawn also `env_remove`s `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` so a parent shell (for example `tauri dev`) cannot leak a wide allowlist into the sidecar.
 3. Injects `window.__FRAMEPILOT_API_BASE__` and `window.__FRAMEPILOT_DESKTOP__ = true` before the UI loads.
 
+Opening the Vite URL in a normal browser (without Tauri) makes `getNativeFs()` return `null`, matching the web stub, so native pickers are not used.
+
 Requires a user-space Rust toolchain (`rustup`). If `cargo`/`rustc` are missing, the script prints a clear error and exits 1. Do not install brew/apt Rust from this tree.
 
 Windows NSIS and macOS DMG installers are produced by `.github/workflows/desktop.yml` (unsigned for internal testing). End-user steps: [Desktop User Guide](../../docs/desktop_user_guide.md). Signing: [Desktop Code Signing Runbook](../../docs/desktop_signing.md). Manual matrix: [Desktop Testing Matrix](../../docs/desktop_testing.md).
