@@ -279,6 +279,53 @@ Tests first:
 
 **Depends on:** J7.02
 
+**Contract (this task only; leave §3 J7.04 `[ ]` until the implementation commit):**
+
+J7.01/J7.02 persist `cancellation_requested` and finalize `cancelled` at checkpoints. The processing page has no cancel control. Import already has the UI pattern in `ImportPanel` (`api.cancelJob`, StopCircle, pending copy). J7.04 adds that pattern for grouping/ranking only.
+
+Live holes:
+
+- `ProcessingPanel.tsx` has no cancel mutation. `isProcessing` already disables Run while queued/running; after POST cancel the job stays queued/running until the worker finalizes, so Run stays disabled — but there is no Cancel button and no pending-checkpoint copy.
+- `processingRecoveryMessage` already returns cancelled copy; keep and show it. Do not invent a second cancelled string.
+- `api.cancelJob` already POSTs `/jobs/{id}/cancel`. Reuse it. Do not add a second client helper.
+- Shared mocked E2E `POST .../cancel` hardcodes `job_type: "import"` and immediately returns `status: "cancelled"`. Processing coverage must keep a processing job as `job_type: "processing"` after cancel (specialize the cancel route in the test, or update the shared mock without regressing import cancel). Instant terminal is OK for E2E (same as import); pending copy is unit-tested.
+
+Files (J7.04 only):
+
+- `apps/web/src/components/ProcessingPanel.tsx` — cancel mutation via `api.cancelJob`; Cancel control; pending copy; keep Run disabled while active or cancelling; show existing cancelled recovery copy; show cancel errors.
+- `apps/web/src/lib/processingProgress.ts` (+ `processingProgress.test.ts`) — `canCancelProcessing` (or equivalent), pending-cancel copy helper, `isCancelling` on `processingActionBlockMessage`. Optional `processingLoadRecoveryMessage("cancel")`.
+- `apps/web/src/lib/api.ts` — reuse `cancelJob`; do not add a new function.
+- `apps/web/src/components/ProcessingPanel.test.tsx` — optional; current mock is coarse. Helpers + mocked E2E are enough unless a cheap panel assertion is easy.
+- `tests/e2e/local-workflow.spec.ts` — mocked processing cancel request + cancelled terminal. Do not run `test:e2e:real-browser:large`.
+- This plan (+ zh) — tick §3 J7.04 only in the implementation commit.
+
+UI mapping (mirror `ImportPanel` `canCancelImport` / pending copy):
+
+| Displayed job | Control | Copy |
+| ------------- | ------- | ---- |
+| processing, queued/running, flag false, mutation not pending | show **Cancel Grouping and Ranking** (StopCircle, same border button as import) | existing `current_step` / progress |
+| processing, queued/running, `cancellation_requested` or mutation pending | hide Cancel | pending: `Cancellation requested. FramePilot will stop after a safe checkpoint.` (same sentence as import) |
+| processing, `cancelled` | hide Cancel; enable **Run Grouping and Ranking** (`POST /process`, not `/retry`) | existing `processingRecoveryMessage` cancelled string |
+| import / export / other, or terminal complete/failed | no processing cancel control | unchanged |
+
+`canCancelProcessing(job, isCancelPending)` is true iff the job exists, `job_type === "processing"`, status is `queued` or `running`, `cancellation_requested` is false, and `isCancelPending` is false.
+
+`processingActionBlockMessage` gains `isCancelling` (default false). If true, return `Cancellation is being requested. Wait for FramePilot to reach a safe checkpoint.` before the existing `isProcessing` message. The panel sets `isCancelling` from `cancelMutation.isPending` or (`job.cancellation_requested` and queued/running). Run stays disabled while `isProcessing` or `isCancelling`. After `cancelled`, both are false so Run is enabled (label stays “Run Grouping and Ranking”, not “Retry…”, which is only for `failed`).
+
+Polling: keep 1000ms while status is queued/running, including when the flag is set. Do not treat cancelled as reviewable. Do not add `interrupted` to the frontend job status union.
+
+Cancel mutation: `api.cancelJob(projectId, job.id)` only for the displayed processing job. onSuccess invalidate `project`, `projects`, `jobs`, and `job` queries (same as the process mutation). onError show the error; originals-unchanged recovery is enough (`processingLoadRecoveryMessage("cancel")` if added). Do not POST `/retry` for processing. Do not cancel import jobs from this panel.
+
+Tests first:
+
+- `canCancelProcessing` true only for processing queued/running without the flag; false when the flag is set, mutation pending, cancelled, or the job is import.
+- `processingActionBlockMessage` with `isCancelling` returns the wait-for-checkpoint string and still blocks Run.
+- Pending copy helper (if extracted) matches the import pending sentence.
+- Existing cancelled recovery string unchanged.
+- Mocked E2E: seed a running processing job on `/process`; Cancel visible; Run disabled; click Cancel; POST cancel; status Cancelled; recovery copy visible; Cancel gone; **Run Grouping and Ranking** enabled (not Retry). Keep import cancel E2E green.
+
+**J7.04 non-goals:** no `sidecar.rs` / desktop quit (J7.05); no living API/architecture/CHANGELOG close-out (J7.06); no pause (J7.07); do not expand `/retry`; do not change `processing.py` / routes / reclaim; do not bump `APP_VERSION`; do not sign or run packaged NSIS/DMG; do not work #144; do not run `test:e2e:real-browser:large`; do not tick J7.05–J7.07.
+
 **Implement:**
 
 - `ProcessingPanel`: Cancel control while queued/running and flag not set; pending copy while `cancellation_requested` and status not yet `cancelled`.
@@ -286,6 +333,11 @@ Tests first:
 - Keep “Run Grouping and Ranking” disabled while active or cancelling.
 - Recovery copy for `cancelled` already exists; show it.
 - Mocked E2E: processing cancel request + cancelled terminal state (follow import cancel coverage in `tests/e2e/local-workflow.spec.ts`).
+
+**Tests (write first):**
+
+- Helper coverage for can-cancel / `isCancelling` block / pending copy.
+- Mocked E2E for cancel request + cancelled terminal; import cancel E2E stays green.
 
 **Commit:** `v2: add cancel control to processing status UI`
 

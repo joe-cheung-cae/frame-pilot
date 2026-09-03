@@ -279,6 +279,53 @@ J7.01 的 interrupted HTTP 取消已在无在飞 worker 时终态为 `cancelled`
 
 **依赖：** J7.02
 
+**契约（仅本任务；实现提交前 §3 J7.04 保持 `[ ]`）：**
+
+J7.01/J7.02 已持久化 `cancellation_requested`，并在检查点终态为 `cancelled`。处理页没有取消控件。导入已有 UI 模式（`ImportPanel` 的 `api.cancelJob`、StopCircle、等待检查点文案）。J7.04 只给分组/排序加上同一模式。
+
+现场缺口：
+
+- `ProcessingPanel.tsx` 没有取消 mutation。`isProcessing` 已在 queued/running 时禁用 Run；POST 取消后作业在 worker 终态化前仍是 queued/running，所以 Run 仍禁用 —— 但没有 Cancel 按钮，也没有等待检查点文案。
+- `processingRecoveryMessage` 已有 cancelled 文案；保持并显示。不要另写第二条 cancelled 字符串。
+- `api.cancelJob` 已 POST `/jobs/{id}/cancel`。复用它。不要再加第二个客户端辅助函数。
+- 共用模拟 E2E 的 `POST .../cancel` 把 `job_type` 写死为 `"import"`，并立即返回 `status: "cancelled"`。处理覆盖必须让处理作业在取消后仍是 `job_type: "processing"`（可在测试里特化取消路由，或改共用 mock 且不回归导入取消）。E2E 立即终态可以（与导入相同）；等待检查点文案用单元测试覆盖。
+
+文件（仅 J7.04）：
+
+- `apps/web/src/components/ProcessingPanel.tsx` — 通过 `api.cancelJob` 发取消 mutation；取消控件；等待检查点文案；活跃或正在取消时禁用 Run；显示已有 cancelled 恢复文案；显示取消错误。
+- `apps/web/src/lib/processingProgress.ts`（+ `processingProgress.test.ts`）— `canCancelProcessing`（或等价函数）、等待取消文案辅助函数、`processingActionBlockMessage` 的 `isCancelling`。可选 `processingLoadRecoveryMessage("cancel")`。
+- `apps/web/src/lib/api.ts` — 复用 `cancelJob`；不要新增函数。
+- `apps/web/src/components/ProcessingPanel.test.tsx` — 可选；现有 mock 较粗。辅助函数 + 模拟 E2E 足够，除非面板断言成本很低。
+- `tests/e2e/local-workflow.spec.ts` — 模拟处理取消请求 + cancelled 终态。不要跑 `test:e2e:real-browser:large`。
+- 本计划（+ 英文）— 仅在实现提交中勾选 §3 J7.04。
+
+UI 映射（对齐 `ImportPanel` 的 `canCancelImport` / 等待文案）：
+
+| 展示的作业 | 控件 | 文案 |
+| ---------- | ---- | ---- |
+| processing，queued/running，标志为 false，mutation 未 pending | 显示 **Cancel Grouping and Ranking**（StopCircle，与导入相同的边框按钮） | 现有 `current_step` / 进度 |
+| processing，queued/running，已有 `cancellation_requested` 或 mutation pending | 隐藏 Cancel | 等待：`Cancellation requested. FramePilot will stop after a safe checkpoint.`（与导入同一句） |
+| processing，`cancelled` | 隐藏 Cancel；启用 **Run Grouping and Ranking**（`POST /process`，不是 `/retry`） | 现有 `processingRecoveryMessage` 的 cancelled 字符串 |
+| import / export / 其他，或终态 complete/failed | 无处理取消控件 | 不变 |
+
+`canCancelProcessing(job, isCancelPending)` 为 true 当且仅当：作业存在、`job_type === "processing"`、状态为 `queued` 或 `running`、`cancellation_requested` 为 false、且 `isCancelPending` 为 false。
+
+`processingActionBlockMessage` 增加 `isCancelling`（默认 false）。若为 true，在现有 `isProcessing` 文案之前返回 `Cancellation is being requested. Wait for FramePilot to reach a safe checkpoint.`。面板用 `cancelMutation.isPending || (job.cancellation_requested && (queued 或 running))` 设 `isCancelling`。`isProcessing || isCancelling` 时 Run 保持禁用。`cancelled` 之后两者都为 false，Run 启用（标签仍是 “Run Grouping and Ranking”，不是 “Retry…”，后者只给 `failed`）。
+
+轮询：状态为 queued/running 时保持 1000ms，包括已设标志。不要把 cancelled 当成可审阅结果。不要把 `interrupted` 加进前端作业状态联合类型。
+
+取消 mutation：只对当前展示的处理作业调用 `api.cancelJob(projectId, job.id)`。onSuccess 使 `project`、`projects`、`jobs`、`job` 查询失效（与 process mutation 相同）。onError 显示错误；原图未改的恢复文案即可（若增加则用 `processingLoadRecoveryMessage("cancel")`）。不要给处理作业 POST `/retry`。不要从本面板取消导入作业。
+
+先写测试：
+
+- `canCancelProcessing` 仅对无标志的 processing queued/running 为 true；已设标志、mutation pending、cancelled、或导入作业为 false。
+- `processingActionBlockMessage` 在 `isCancelling` 时返回等待检查点字符串，并仍阻断 Run。
+- 等待文案辅助函数（若抽出）与导入等待句相同。
+- 现有 cancelled 恢复字符串不变。
+- 模拟 E2E：在 `/process` 植入 running 处理作业；Cancel 可见；Run 禁用；点击 Cancel；POST cancel；状态 Cancelled；恢复文案可见；Cancel 消失；**Run Grouping and Ranking** 启用（不是 Retry）。导入取消 E2E 仍绿。
+
+**J7.04 非目标：** 不改 `sidecar.rs` / 桌面退出（J7.05）；不收尾活文档 API/架构/CHANGELOG（J7.06）；不做暂停（J7.07）；不要扩 `/retry`；不要改 `processing.py` / 路由 / 回收；不要改 `APP_VERSION`；不要签名或跑打包 NSIS/DMG；不要做 #144；不要跑 `test:e2e:real-browser:large`；不要勾选 J7.05–J7.07。
+
 **实现：**
 
 - `ProcessingPanel`：queued/running 且尚未设标志时显示取消；`cancellation_requested` 且尚未 `cancelled` 时显示等待检查点文案。
@@ -286,6 +333,11 @@ J7.01 的 interrupted HTTP 取消已在无在飞 worker 时终态为 `cancelled`
 - 活跃或正在取消时禁用「Run Grouping and Ranking」。
 - `cancelled` 恢复文案已存在，要显示出来。
 - 模拟 E2E：处理取消请求 + cancelled 终态（对齐 `tests/e2e/local-workflow.spec.ts` 的导入取消覆盖）。
+
+**测试（先写）：**
+
+- 辅助函数覆盖 can-cancel / `isCancelling` 阻断 / 等待文案。
+- 模拟 E2E 覆盖取消请求 + cancelled 终态；导入取消 E2E 仍绿。
 
 **提交说明：** `v2: add cancel control to processing status UI`
 
