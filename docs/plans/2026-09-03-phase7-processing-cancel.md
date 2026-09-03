@@ -345,14 +345,69 @@ Tests first:
 
 ### J7.05 — Desktop quit cancel processing
 
-**Depends on:** J7.01 (route); ideally J7.02 so the 10s wait can observe `cancelled`
+**Depends on:** J7.01 (route); J7.02 should be `[x]` so the 10s wait can observe `cancelled`
+
+**Contract (this task only; leave §3 J7.05 `[ ]` until the implementation commit):**
+
+J7.01 accepts processing cancel. J7.02 finalizes `cancelled` at checkpoints. Desktop quit still treats processing as uncancellable. Import already uses `CancelThenTerminate` → `request_cancel_then_wait` (POST cancel, wait up to `CANCEL_WAIT` 10s) in `lib.rs` `handle_close_requested`. J7.05 only flips processing onto that existing path.
+
+Live holes:
+
+- `close_decision`: `CloseChoice::CancelAndQuit` + `CloseJobKind::Processing` → `CloseDecision::Terminate` (`sidecar.rs`). Import already maps to `CancelThenTerminate`.
+- `quit_dialog_script_with_reclaim` Processing arm: `extra_button` is `""`; body starts with `"This job cannot be cancelled."` Title `"Grouping and ranking is still running"` and Keep working / Quit anyway stay.
+- Sidecar tests pin the limitation: `close_decision_cancels_import_only_and_maps_processing_to_terminate`, `quit_dialog_script_hides_cancel_for_processing_jobs`, `quit_dialog_script_processing_is_valid_javascript_without_cancel`, and the handshake case that maps processing `cancel_and_quit` to `Terminate`.
+- `apps/desktop/README.md` “Quit while a job is running”: “Processing jobs cannot be cancelled; that dialog omits Quit and cancel.” `apps/desktop/README.zh.md` is not present.
+- `lib.rs` already POSTs cancel when the decision is `CancelThenTerminate`. `request_cancel_then_wait` is job-type agnostic. Do not change those unless `close_decision` alone cannot reach POST-cancel.
+
+Files (J7.05 only):
+
+- `apps/desktop/src-tauri/src/sidecar.rs` — `close_decision`; Processing arm of `quit_dialog_script_with_reclaim`; invert the tests above (same `#[cfg(test)]` module).
+- `apps/desktop/README.md` — quit copy. Do not create `README.zh.md` in J7.05 (file map: “+ zh if present”).
+- This plan (+ zh) — tick §3 J7.05 only in the implementation commit, and only if `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib` ran.
+
+Decision mapping:
+
+| kind | choice | decision |
+| ---- | ------ | -------- |
+| Import or Processing | CancelAndQuit | CancelThenTerminate |
+| None | CancelAndQuit | Terminate (unchanged; None has no dialog) |
+| any | Stay | Stay |
+| any | QuitAnyway | Terminate |
+
+Do not change `close_job_kind` (unknown types already map to Processing). Do not change `find_active_job`, `request_cancel_then_wait`, `CANCEL_WAIT`, or `parse_quit_choice`. Hard kill after SIGTERM / 5s is still not labelled `cancelled`. If the 10s wait expires (for example `group_similar_photos` still running), still SIGTERM; a persisted `cancellation_requested` is honored by J7.03 reclaim.
+
+Dialog (Processing; mirror Import `data-choice`):
+
+| Reclaim | Title | extra_button | Body (drop “This job cannot be cancelled.”) |
+| ------- | ----- | ------------ | ------------------------------------------- |
+| on | Grouping and ranking is still running | same unquoted `data-choice=cancel_and_quit` as import, label **Quit and cancel processing** | `You can keep working, quit and cancel grouping and ranking, or quit anyway. Cancelled processing clears partial groups. Quit anyway SIGTERMs the sidecar; the next launch can interrupt and reclaim leftover processing (partial groups are cleared before rebuild). Original photos stay unchanged.` |
+| off | same | same | `You can keep working, quit and cancel grouping and ranking, or quit anyway. Cancelled processing clears partial groups. Quit anyway SIGTERMs the sidecar; the next launch marks the job failed and keeps original photos unchanged (FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled).` |
+
+Keep working / Quit anyway stay. Import dialog copy and button stay unchanged.
+
+README (J7.05 only): replace the processing-cannot-cancel sentence so an active grouping/ranking job shows Keep working / Quit and cancel processing / Quit anyway, same POST cancel + 10s wait + SIGTERM as import. Keep the Phase 6.1 reclaim paragraph and “original photos are never modified.”
+
+Tests first (invert; do not delete reclaim / `node --check` coverage):
+
+- `close_decision(Processing, CancelAndQuit) == CancelThenTerminate`; QuitAnyway / Stay unchanged; Import CancelAndQuit still CancelThenTerminate. Rename `close_decision_cancels_import_only_and_maps_processing_to_terminate`.
+- Processing script contains `Quit and cancel processing`, `data-choice=cancel_and_quit`, `Keep working`, `Quit anyway`; does **not** contain `cannot be cancelled`. Rename `quit_dialog_script_hides_cancel_for_processing_jobs` and `quit_dialog_script_processing_is_valid_javascript_without_cancel`.
+- Handshake: processing + `cancel_and_quit` → CancelThenTerminate (today Terminate).
+- `quit_dialog_script_mentions_reclaim_when_enabled` still distinguishes reclaim-on vs `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled` / `marks the job failed`.
+- `node --check` still passes for the processing script.
+- Import cancel-button tests stay green.
+
+**J7.05 non-goals:** no living API / architecture / CHANGELOG / `desktop_user_guide` / `desktop_testing` close-out (J7.06); no pause (J7.07); do not change `processing.py` / routes / reclaim / `ProcessingPanel`; do not change import quit copy; do not bump `APP_VERSION`; do not sign or run packaged NSIS/DMG; do not work #144; do not tick J7.06–J7.07. If `rustc` / `cargo` is missing, record the exact command and error, set ok=false, do **not** tick §3 J7.05.
 
 **Implement:**
 
 - `close_decision`: processing + CancelAndQuit → `CancelThenTerminate`.
 - `quit_dialog_script_with_reclaim`: add “Quit and cancel processing”; drop “This job cannot be cancelled.”
 - Invert sidecar tests that assert processing dialog has no cancel button.
-- Update `apps/desktop/README.md` (+ zh).
+- Update `apps/desktop/README.md` (zh only if present).
+
+**Tests (write first):** invert the processing no-cancel assertions; watch them fail; then implement.
+
+**Verify:** `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib`
 
 **Commit:** `desktop: allow quit and cancel during processing`
 

@@ -345,14 +345,69 @@ UI 映射（对齐 `ImportPanel` 的 `canCancelImport` / 等待文案）：
 
 ### J7.05 — 桌面退出取消处理
 
-**依赖：** J7.01（路由）；最好有 J7.02，以便 10 秒等待能看到 `cancelled`
+**依赖：** J7.01（路由）；J7.02 应为 `[x]`，以便 10 秒等待能看到 `cancelled`
+
+**契约（仅本任务；实现提交前 §3 J7.05 保持 `[ ]`）：**
+
+J7.01 已接受处理取消。J7.02 已在检查点终态为 `cancelled`。桌面退出仍把处理作业当成不可取消。导入已走 `CancelThenTerminate` → `lib.rs` `handle_close_requested` 里的 `request_cancel_then_wait`（POST cancel，最多等 `CANCEL_WAIT` 10 秒）。J7.05 只把处理作业接到这条现有路径。
+
+现场缺口：
+
+- `close_decision`：`CloseChoice::CancelAndQuit` + `CloseJobKind::Processing` → `CloseDecision::Terminate`（`sidecar.rs`）。导入已经映射到 `CancelThenTerminate`。
+- `quit_dialog_script_with_reclaim` 的 Processing 分支：`extra_button` 为 `""`；正文以 `"This job cannot be cancelled."` 开头。标题 `"Grouping and ranking is still running"` 以及 Keep working / Quit anyway 保持。
+- sidecar 测试钉死了限制：`close_decision_cancels_import_only_and_maps_processing_to_terminate`、`quit_dialog_script_hides_cancel_for_processing_jobs`、`quit_dialog_script_processing_is_valid_javascript_without_cancel`，以及握手用例把处理作业的 `cancel_and_quit` 映射成 `Terminate`。
+- `apps/desktop/README.md`「Quit while a job is running」：`Processing jobs cannot be cancelled; that dialog omits Quit and cancel.` 不存在 `apps/desktop/README.zh.md`。
+- `lib.rs` 在决策为 `CancelThenTerminate` 时已经 POST cancel。`request_cancel_then_wait` 与作业类型无关。除非只改 `close_decision` 到不了 POST-cancel，否则不要改这两处。
+
+文件（仅 J7.05）：
+
+- `apps/desktop/src-tauri/src/sidecar.rs` — `close_decision`；`quit_dialog_script_with_reclaim` 的 Processing 分支；改写上述测试（同一 `#[cfg(test)]` 模块）。
+- `apps/desktop/README.md` — 退出文案。J7.05 不要新建 `README.zh.md`（文件表：若有中文才改）。
+- 本计划（+ 英文）— 仅在实现提交中勾选 §3 J7.05，且仅当已跑 `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib`。
+
+决策映射：
+
+| kind | choice | decision |
+| ---- | ------ | -------- |
+| Import 或 Processing | CancelAndQuit | CancelThenTerminate |
+| None | CancelAndQuit | Terminate（不变；None 无对话框） |
+| 任意 | Stay | Stay |
+| 任意 | QuitAnyway | Terminate |
+
+不要改 `close_job_kind`（未知类型已经映射到 Processing）。不要改 `find_active_job`、`request_cancel_then_wait`、`CANCEL_WAIT`、`parse_quit_choice`。SIGTERM / 5 秒后的硬杀仍不标成 `cancelled`。若 10 秒等待超时（例如 `group_similar_photos` 仍在跑），仍 SIGTERM；已持久化的 `cancellation_requested` 由 J7.03 回收尊重。
+
+对话框（Processing；对齐导入的 `data-choice`）：
+
+| 回收 | 标题 | extra_button | 正文（去掉 “This job cannot be cancelled.”） |
+| ---- | ---- | ------------ | ------------------------------------------- |
+| 开 | Grouping and ranking is still running | 与导入相同的未加引号 `data-choice=cancel_and_quit`，标签 **Quit and cancel processing** | `You can keep working, quit and cancel grouping and ranking, or quit anyway. Cancelled processing clears partial groups. Quit anyway SIGTERMs the sidecar; the next launch can interrupt and reclaim leftover processing (partial groups are cleared before rebuild). Original photos stay unchanged.` |
+| 关 | 同上 | 同上 | `You can keep working, quit and cancel grouping and ranking, or quit anyway. Cancelled processing clears partial groups. Quit anyway SIGTERMs the sidecar; the next launch marks the job failed and keeps original photos unchanged (FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled).` |
+
+Keep working / Quit anyway 保持。导入对话框文案和按钮不变。
+
+README（仅 J7.05）：改掉 processing-cannot-cancel 那句，使活跃的分组/排序作业显示 Keep working / Quit and cancel processing / Quit anyway，取消路径与导入相同（POST cancel + 最多等 10 秒 + SIGTERM）。保留第六阶段 6.1 回收段落和 “original photos are never modified.”
+
+先写测试（改写；不要删掉回收 / `node --check` 覆盖）：
+
+- `close_decision(Processing, CancelAndQuit) == CancelThenTerminate`；QuitAnyway / Stay 不变；导入 CancelAndQuit 仍是 CancelThenTerminate。重命名 `close_decision_cancels_import_only_and_maps_processing_to_terminate`。
+- 处理脚本包含 `Quit and cancel processing`、`data-choice=cancel_and_quit`、`Keep working`、`Quit anyway`；**不**包含 `cannot be cancelled`。重命名 `quit_dialog_script_hides_cancel_for_processing_jobs` 与 `quit_dialog_script_processing_is_valid_javascript_without_cancel`。
+- 握手：processing + `cancel_and_quit` → CancelThenTerminate（今天是 Terminate）。
+- `quit_dialog_script_mentions_reclaim_when_enabled` 仍能区分回收开启 vs `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled` / `marks the job failed`。
+- 处理脚本仍通过 `node --check`。
+- 导入取消按钮测试仍绿。
+
+**J7.05 非目标：** 不收尾活文档 API / 架构 / CHANGELOG / `desktop_user_guide` / `desktop_testing`（J7.06）；不做暂停（J7.07）；不要改 `processing.py` / 路由 / 回收 / `ProcessingPanel`；不要改导入退出文案；不要改 `APP_VERSION`；不要签名或跑打包 NSIS/DMG；不要做 #144；不要勾选 J7.06–J7.07。若缺少 `rustc` / `cargo`，记录确切命令和错误，设 ok=false，**不要**勾选 §3 J7.05。
 
 **实现：**
 
 - `close_decision`：处理 + CancelAndQuit → `CancelThenTerminate`。
 - `quit_dialog_script_with_reclaim`：增加 “Quit and cancel processing”；去掉 “This job cannot be cancelled.”
 - 改写断言处理对话框没有取消按钮的 sidecar 测试。
-- 更新 `apps/desktop/README.md`（+ zh）。
+- 更新 `apps/desktop/README.md`（仅当已有中文对照时改 zh）。
+
+**测试（先写）：** 改写处理作业无取消按钮的断言；先看失败，再实现。
+
+**验证：** `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib`
 
 **提交说明：** `desktop: allow quit and cancel during processing`
 
