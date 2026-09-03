@@ -49,8 +49,8 @@ Phase 7 — processing job cancel (post Phase 6.1)
 - [x] J7.03 Reclaim/interrupted honor processing cancel
 - [x] J7.04 Processing UI cancel
 - [x] J7.05 Desktop quit cancel processing
-- [ ] J7.06 Docs close-out
-- [ ] J7.07 Optional pause/resume — **not DoD**; leave `[ ]` or mark `[-]` after J7.06 unless explicitly pulled in
+- [x] J7.06 Docs close-out
+- [-] J7.07 Optional pause/resume — **not DoD**; 2026-09-03: not Phase 7 DoD; not implemented (in-place pause vs clear-and-rerun).
 
 ---
 
@@ -415,16 +415,60 @@ Tests first (invert; do not delete reclaim / `node --check` coverage):
 
 ### J7.06 — Docs close-out
 
-**Depends on:** J7.03, J7.04, J7.05
+**Depends on:** J7.03, J7.04, J7.05 (all `[x]` in §3)
 
-**Implement bilingual updates:**
+**Contract (this task only; leave §3 J7.06 `[ ]` and §7 DoD boxes `[ ]` until the implementation commit):**
 
-- `docs/api.md` — cancel route covers import **and** processing; export still 422
-- `docs/architecture.md` — processing cancel + group reset
-- `docs/v2_known_limitations.md` — remove “processing jobs still have no cancel route”; keep export/pause limits
-- `docs/desktop_user_guide.md`, `docs/desktop_testing.md` — quit + processing cancel row
-- `CHANGELOG.md` Unreleased — Phase 7 section
-- Tick this plan’s §3 and §8
+J7.01–J7.05 already shipped processing cancel. Living docs still describe the pre-Phase-7 hole. J7.06 is docs-only: bilingual living pages + CHANGELOG Unreleased + plan ticks. Do not change production cancel logic.
+
+Live holes (read 2026-09-03 on `feature/phase7-processing-cancel` @ `d037db88ad10ec9ec26bbbfec7510f927de722ed`):
+
+| File | Stale claim |
+| ---- | ----------- |
+| `docs/api.md` Jobs intro | Poll processing until `complete` or `failed` (omits `cancelled`) |
+| `docs/api.md` cancel paragraph (+ zh) | Route is import-only |
+| `docs/architecture.md` (+ zh) | Import cancel only; processing polls until complete/fail |
+| `docs/v2_known_limitations.md` Cancellation Semantics (+ zh) | “Close with an active processing job cannot cancel it (`POST .../cancel` returns 422)” and “Processing jobs still have no cancel route.” |
+| `docs/desktop_user_guide.md` Quit section (+ zh) | “Closing with an active **processing** job cannot cancel processing” |
+| `docs/desktop_testing.md` lifecycle matrix (+ zh) | “Quit + import” exists; no “Quit + processing” row |
+| `CHANGELOG.md` Unreleased (+ zh) | No Phase 7 section |
+
+Live behavior the docs must match (do not invent; 开发 must re-read `cancel_job_endpoint` and `sidecar.rs` before writing):
+
+- `cancel_job_endpoint` allows `job_type` in `{import, processing}`; other types 422 with live detail `"Only import jobs can be cancelled"`. Do **not** change that 422 string here. Planted `ProcessingJob(job_type="export")` is 422. Cancel with an `ExportRecord.id` stays 404.
+- HTTP mapping: queued/running → 202 + flag / `current_step="cancellation_requested"` (status unchanged until the worker); terminal → 200 no-op; interrupted → 200 finalize `cancelled` + group reset.
+- Worker finalize: `_finalize_cancelled_processing_job` then `reset_project_after_processing_failure`; reason `"Processing job was cancelled by user request"`. Groups empty, `processed_images == 0`, in-flight photos `imported`; `user_status` / `star_rating` stay; import derivatives stay; originals never modified or deleted. No progress callback inside `group_similar_photos`.
+- Reclaim finalizes cancelled when the flag is set; does not re-queue. `/retry` remains import-only.
+- UI copy (keep as-is, document if mentioned): **Cancel Grouping and Ranking**; pending `Cancellation requested. FramePilot will stop after a safe checkpoint.`; cancelled recovery `Processing stopped at a safe checkpoint. Run grouping and ranking again when you are ready.` Re-run is `POST /process`, not `/retry`.
+- Desktop: **Quit and cancel processing** → `CancelThenTerminate` (POST cancel, wait up to 10s, SIGTERM). Hard kill is not labelled `cancelled`. Copy already in `apps/desktop/README.md` (no `README.zh.md`).
+- Pause/resume is **not** implemented.
+
+Files (J7.06 only):
+
+- `docs/api.md` + `docs/api.zh.md`
+- `docs/architecture.md` + `docs/architecture.zh.md`
+- `docs/v2_known_limitations.md` + `docs/v2_known_limitations.zh.md`
+- `docs/desktop_user_guide.md` + `docs/desktop_user_guide.zh.md`
+- `docs/desktop_testing.md` + `docs/desktop_testing.zh.md`
+- `CHANGELOG.md` + `CHANGELOG.zh.md`
+- This plan + zh — tick §3 J7.06 and §7 DoD in the **implementation** commit only
+
+Per-file edits (minimal; keep bilingual links; do not rewrite unrelated sections):
+
+- **api:** poll until `complete`, `failed`, or `cancelled`. Same cancel route covers import **and** processing (HTTP mapping above). Processing cancel is cooperative, then group reset; originals unchanged; re-run via `POST /process` not `/retry`. Export/other types still 422; note the live detail string still says `"Only import jobs can be cancelled"` even though processing is allowed — do not “fix” the string in this docs task. Keep the reclaim-honors-cancel sentence.
+- **architecture:** short Phase 7 note: same cancel route; cooperative not hard kill; cancel clears groups; photos return to `imported`; originals / import derivatives / `user_status` / `star_rating` stay; reclaim honors pending cancel; export still uncancellable.
+- **known limitations:** remove both “cannot cancel” / “still have no cancel route” sentences. Document import **and** processing cooperative cancel and desktop quit-and-cancel for both. Keep export fail-and-cleanup / export cancel 422. Add one sentence: pause/resume of in-flight grouping is not implemented.
+- **desktop user guide:** mirror `apps/desktop/README.md` — Keep working / Quit and cancel processing / Quit anyway; POST cancel + 10s + SIGTERM; cancelled processing clears partial groups; originals unchanged; keep Phase 6.1 reclaim vs `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0`.
+- **desktop testing:** after “Quit + import”, add **Quit + processing** (close during grouping/ranking; dialogs per README; cancelled processing clears partial groups; source originals unchanged; Manual GUI).
+- **CHANGELOG Unreleased** (first subsection): `### Phase 7 — processing job cancel` / `### 第七阶段 — 处理作业取消`. Bullets: cooperative processing cancel on the existing route; checkpoints + group reset + originals unchanged; processing UI cancel; desktop quit-and-cancel processing; reclaim honors pending cancel; export still 422; pause not implemented; no `APP_VERSION` bump, signing, or packaged GUI.
+
+**This plan (implementation commit only):** `[x]` J7.06; `[x]` every §7 DoD box (开发 must run `npm run verify` before ticking the verify box). Optionally mark J7.07 `[-]` with `2026-09-03: not Phase 7 DoD; not implemented (in-place pause vs clear-and-rerun).` Do not implement pause.
+
+**J7.06 non-goals:** no production code; no pause; do not expand `/retry`; do not bump `APP_VERSION`; do not sign or run packaged NSIS/DMG; do not work #144; do not edit `develop_plan.md`, `desktop_deep_review.md`, or `desktop_feasibility_notes.md`; do not close #145/#146 via Fixes; do not tick §3 J7.06 or §7 until the close-out commit.
+
+**Tests:** none to invert. Docs-only.
+
+**Verify:** `npm run verify` on the close-out commit. No packaged GUI.
 
 **Commit:** `docs: close out Phase 7 processing job cancel`
 
@@ -442,15 +486,15 @@ If pulled in later: needs a non-terminal `paused` status, a pause flag distinct 
 
 ## 7. Phase 7 Definition of Done
 
-- [ ] `POST .../jobs/{id}/cancel` cooperatively cancels queued, running, and interrupted **processing** jobs
-- [ ] Export cancel remains 422
-- [ ] Cancelled processing clears groups and returns in-flight photos to `imported`; originals unchanged
-- [ ] Processing UI can request cancel and show checkpoint copy
-- [ ] Desktop quit can cancel an active processing job, then SIGTERM
-- [ ] Reclaim does not resume a processing job that was asked to cancel
-- [ ] Pause/resume is not required
-- [ ] Bilingual docs match the new behavior
-- [ ] `npm run test:api`, `npm run test:web`, and `npm run verify` green on the Phase 7 branch tip
+- [x] `POST .../jobs/{id}/cancel` cooperatively cancels queued, running, and interrupted **processing** jobs
+- [x] Export cancel remains 422
+- [x] Cancelled processing clears groups and returns in-flight photos to `imported`; originals unchanged
+- [x] Processing UI can request cancel and show checkpoint copy
+- [x] Desktop quit can cancel an active processing job, then SIGTERM
+- [x] Reclaim does not resume a processing job that was asked to cancel
+- [x] Pause/resume is not required
+- [x] Bilingual docs match the new behavior
+- [x] `npm run test:api`, `npm run test:web`, and `npm run verify` green on the Phase 7 branch tip
 
 ---
 

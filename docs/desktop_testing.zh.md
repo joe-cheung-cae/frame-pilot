@@ -52,6 +52,7 @@ FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。�
 | Playwright 真实浏览器（100 张） | `npm run test:e2e:real-browser` | 退出码 0；100 张生成 JPEG，Chromium | 是（CI） |
 | 干净退出 | 无活跃导入/处理任务时关窗 | sidecar 退出；该端口无残留 uvicorn | 手工 GUI |
 | 导入中退出 | 活跃导入时关闭 | 对话框见 [apps/desktop/README.md](../apps/desktop/README.md)；源原图未改 | 手工 GUI |
+| 处理中退出 | 分组/排序进行中关闭 | 对话框见 [apps/desktop/README.md](../apps/desktop/README.md)（继续工作 / 退出并取消处理 / 仍要退出）；取消处理清部分分组；源原图未改 | 手工 GUI |
 | Sidecar 崩溃 | UI 打开时杀 sidecar | UI 显示失败/不可达；重启可恢复或文档说明重试；原图未动 | 手工 |
 | 端口占用 | 目标回环端口冲突 | 明确错误；**不得**监听 `0.0.0.0` | 手工 / 备注 |
 

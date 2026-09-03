@@ -49,8 +49,8 @@ Goal Mode：一次只实现**一个任务 id**。当前任务未完成实现、�
 - [x] J7.03 回收/interrupted 尊重处理取消
 - [x] J7.04 处理页 UI 取消
 - [x] J7.05 桌面退出取消处理
-- [ ] J7.06 文档收尾
-- [ ] J7.07 可选暂停/恢复 — **非 DoD**；J7.06 之后保持 `[ ]` 或标 `[-]`，除非明确拉入
+- [x] J7.06 文档收尾
+- [-] J7.07 可选暂停/恢复 — **非 DoD**；2026-09-03: 非第七阶段 DoD；未实现（原地暂停 vs clear-and-rerun）。
 
 ---
 
@@ -415,16 +415,60 @@ README（仅 J7.05）：改掉 processing-cannot-cancel 那句，使活跃的分
 
 ### J7.06 — 文档收尾
 
-**依赖：** J7.03、J7.04、J7.05
+**依赖：** J7.03、J7.04、J7.05（§3 均为 `[x]`）
 
-**双语更新：**
+**契约（仅本任务；实现提交前 §3 J7.06 与 §7 DoD 保持 `[ ]`）：**
 
-- `docs/api.md` — 取消路由覆盖导入**和**处理；导出仍 422
-- `docs/architecture.md` — 处理取消 + 清分组
-- `docs/v2_known_limitations.md` — 删除「处理作业仍无取消路由」；保留导出/暂停限制
-- `docs/desktop_user_guide.md`、`docs/desktop_testing.md` — 退出 + 处理取消
-- `CHANGELOG.md` Unreleased — 第七阶段
-- 勾选本计划 §3 与 §8
+J7.01–J7.05 已交付处理取消。活文档仍在描述第七阶段之前的缺口。J7.06 只改文档：双语活文档 + CHANGELOG Unreleased + 计划勾选。不要改生产取消逻辑。
+
+现场缺口（2026-09-03 在 `feature/phase7-processing-cancel` @ `d037db88ad10ec9ec26bbbfec7510f927de722ed` 读到）：
+
+| 文件 | 过时说法 |
+| ---- | -------- |
+| `docs/api.md` Jobs 引言 | 轮询处理直到 `complete` 或 `failed`（漏了 `cancelled`） |
+| `docs/api.md` 取消段落（+ zh） | 路由仅导入 |
+| `docs/architecture.md`（+ zh） | 只有导入取消；处理轮询到完成/失败 |
+| `docs/v2_known_limitations.md` 取消语义（+ zh） | 「处理任务仍活动时关闭不能取消它（`POST .../cancel` 返回 422）」以及「处理任务仍然没有取消路由」 |
+| `docs/desktop_user_guide.md` 退出一节（+ zh） | 「活跃**处理**任务无法取消」 |
+| `docs/desktop_testing.md` 生命周期矩阵（+ zh） | 有「导入中退出」；没有「处理中退出」行 |
+| `CHANGELOG.md` Unreleased（+ zh） | 没有第七阶段小节 |
+
+文档必须与现场行为一致（不要编造；开发在写之前必须再读 `cancel_job_endpoint` 与 `sidecar.rs`）：
+
+- `cancel_job_endpoint` 允许 `job_type` 为 `{import, processing}`；其他类型 422，现场 detail 仍是 `"Only import jobs can be cancelled"`。本任务**不要**改这条 422 字符串。植入的 `ProcessingJob(job_type="export")` 为 422。用 `ExportRecord.id` 打取消仍是 404。
+- HTTP 映射：queued/running → 202 + 标志 / `current_step="cancellation_requested"`（worker 终态化前不改 status）；终态 → 200 空操作；interrupted → 200 终态 `cancelled` + 清分组。
+- worker 终态：`_finalize_cancelled_processing_job` 再 `reset_project_after_processing_failure`；原因 `"Processing job was cancelled by user request"`。分组为空，`processed_images == 0`，在飞照片 `imported`；保留 `user_status` / `star_rating`；导入衍生件保留；永不修改或删除原图。不要给 `group_similar_photos` 加进度回调。
+- 回收在已设标志时终态为 cancelled，不重新入队。`/retry` 仍仅导入。
+- UI 文案（保持原句，若文档提到则照抄）：**Cancel Grouping and Ranking**；等待 `Cancellation requested. FramePilot will stop after a safe checkpoint.`；cancelled 恢复 `Processing stopped at a safe checkpoint. Run grouping and ranking again when you are ready.` 重跑走 `POST /process`，不是 `/retry`。
+- 桌面：**Quit and cancel processing** → `CancelThenTerminate`（POST cancel，最多等 10 秒，再 SIGTERM）。硬杀死不标成 `cancelled`。文案已在 `apps/desktop/README.md`（无 `README.zh.md`）。
+- 暂停/恢复**未实现**。
+
+文件（仅 J7.06）：
+
+- `docs/api.md` + `docs/api.zh.md`
+- `docs/architecture.md` + `docs/architecture.zh.md`
+- `docs/v2_known_limitations.md` + `docs/v2_known_limitations.zh.md`
+- `docs/desktop_user_guide.md` + `docs/desktop_user_guide.zh.md`
+- `docs/desktop_testing.md` + `docs/desktop_testing.zh.md`
+- `CHANGELOG.md` + `CHANGELOG.zh.md`
+- 本计划 + 英文 — 仅在**实现提交**中勾选 §3 J7.06 与 §7 DoD
+
+各文件最小改动（保留双语链接；不要重写无关章节）：
+
+- **api：** 轮询直到 `complete`、`failed` 或 `cancelled`。同一取消路由覆盖导入**和**处理（上表 HTTP 映射）。处理取消是协作式，然后清分组；原图不变；重跑走 `POST /process` 不是 `/retry`。导出/其他类型仍 422；注明现场 detail 仍写 `"Only import jobs can be cancelled"`（尽管处理已允许）——本任务不要「修好」该字符串。保留回收尊重取消的句子。
+- **architecture：** 简短第七阶段说明：同一取消路由；协作式不是硬杀；取消清分组；照片回到 `imported`；原图 / 导入衍生件 / `user_status` / `star_rating` 保留；回收尊重已请求取消；导出仍不可取消。
+- **known limitations：** 删掉两句「不能取消」/「仍无取消路由」。写明导入**和**处理均为协作式取消，桌面退出两者都可取消。保留导出 fail-and-cleanup / 导出取消 422。加一句：进行中分组的暂停/恢复未实现。
+- **desktop user guide：** 对齐 `apps/desktop/README.md` — Keep working / Quit and cancel processing / Quit anyway；POST cancel + 最多 10 秒 + SIGTERM；取消处理会清部分分组；原图不变；保留 6.1 回收 vs `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0`。
+- **desktop testing：** 在「导入中退出」后增加 **Quit + processing**（分组/排序进行中关闭；对话框见 README；取消处理清部分分组；源原图未改；手工 GUI）。
+- **CHANGELOG Unreleased**（第一个小节）：`### Phase 7 — processing job cancel` / `### 第七阶段 — 处理作业取消`。条目：现有取消路由上的协作式处理取消；检查点 + 清分组 + 原图不变；处理 UI 取消；桌面退出并取消处理；回收尊重已请求取消；导出仍 422；暂停未实现；不升 `APP_VERSION`、不签名、不跑打包 GUI。
+
+**本计划（仅实现提交）：** `[x]` J7.06；§7 每个 DoD 框 `[x]`（勾选 verify 框前开发必须已跑 `npm run verify`）。可选把 J7.07 标 `[-]`，并写 `2026-09-03: 非第七阶段 DoD；未实现（原地暂停 vs clear-and-rerun）。` 不要实现暂停。
+
+**J7.06 非目标：** 不改生产代码；不做暂停；不扩 `/retry`；不改 `APP_VERSION`；不签名或跑打包 NSIS/DMG；不做 #144；不改 `develop_plan.md`、`desktop_deep_review.md`、`desktop_feasibility_notes.md`；不要用 Fixes 关闭 #145/#146；实现提交前不要勾选 §3 J7.06 或 §7。
+
+**测试：** 无需改写。只改文档。
+
+**验证：** 收尾提交上跑 `npm run verify`。不启动打包 GUI。
 
 **提交说明：** `docs: close out Phase 7 processing job cancel`
 
@@ -442,15 +486,15 @@ README（仅 J7.05）：改掉 processing-cannot-cancel 那句，使活跃的分
 
 ## 7. 第七阶段完成定义
 
-- [ ] `POST .../jobs/{id}/cancel` 可协作取消 queued、running、interrupted **处理**作业
-- [ ] 导出取消仍为 422
-- [ ] 取消处理后清分组，在飞照片回到 `imported`；原图不变
-- [ ] 处理 UI 可请求取消并显示检查点文案
-- [ ] 桌面退出可取消活跃处理作业，再 SIGTERM
-- [ ] 回收不会续跑已被请求取消的处理作业
-- [ ] 不要求暂停/恢复
-- [ ] 双语文档与新行为一致
-- [ ] 第七阶段分支尖上 `npm run test:api`、`npm run test:web`、`npm run verify` 为绿
+- [x] `POST .../jobs/{id}/cancel` 可协作取消 queued、running、interrupted **处理**作业
+- [x] 导出取消仍为 422
+- [x] 取消处理后清分组，在飞照片回到 `imported`；原图不变
+- [x] 处理 UI 可请求取消并显示检查点文案
+- [x] 桌面退出可取消活跃处理作业，再 SIGTERM
+- [x] 回收不会续跑已被请求取消的处理作业
+- [x] 不要求暂停/恢复
+- [x] 双语文档与新行为一致
+- [x] 第七阶段分支尖上 `npm run test:api`、`npm run test:web`、`npm run verify` 为绿
 
 ---
 
@@ -479,20 +523,20 @@ npm run test:web
 
 - 暂停/恢复（J7.07）
 - 导出作业取消或导出回收
-- 改第六阶段 6.1 的回收默认
+- 改变第六阶段 6.1 回收默认
 - HEIC/RAW、XMP、本地模型
-- 桌面 2.2（托盘、自动更新、独立预览窗、改 data dir）
-- 已签名商店发行 / `2.1.0-desktop` git tag
+- 桌面 2.2（托盘、自动更新、独立预览、数据目录迁移）
+- 签名商店发布 / `2.1.0-desktop` git tag
 - 包装 GUI 生命周期 QA（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)）
 
 ---
 
-## 10. Workflow 执行
+## 10. 工作流执行
 
-J7.01–J7.06 各是**一条独立** workflow（workflow 不能启动另一条）。不要实现 J7.07。
+J7.01–J7.06 每个任务是**单独**工作流（工作流不能启动其他工作流）。不要实现 J7.07。
 
-| 任务 | Workflow | 启动 |
-| ---- | -------- | ----- |
+| 任务 | 工作流 | 启动 |
+| ---- | -------- | ------ |
 | J7.01 | `.grok/workflows/phase7-j7-01.rhai` | `/workflow phase7-j7-01` |
 | J7.02 | `.grok/workflows/phase7-j7-02.rhai` | `/workflow phase7-j7-02` |
 | J7.03 | `.grok/workflows/phase7-j7-03.rhai` | `/workflow phase7-j7-03` |
@@ -500,4 +544,4 @@ J7.01–J7.06 各是**一条独立** workflow（workflow 不能启动另一条�
 | J7.05 | `.grok/workflows/phase7-j7-05.rhai` | `/workflow phase7-j7-05` |
 | J7.06 | `.grok/workflows/phase7-j7-06.rhai` | `/workflow phase7-j7-06` |
 
-只能串行。每条 run 都走 需求拆解 → 评审 → 归档 → 开发 → 测试 → 上线。建议 `agent_budget` 为 16。进度在 `/workflows` 看。上一条 `complete` 且 `ok=true` 之前不要启动下一个 id。
+只按串行顺序。每次运行走六个阶段：需求拆解 → 评审 → 归档 → 开发 → 测试 → 上线。建议 `agent_budget`：16。在 `/workflows` 看进度。上一轮未 `complete` 且 `ok=true` 前，不要开始下一个 id。

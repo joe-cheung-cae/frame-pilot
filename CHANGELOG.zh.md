@@ -6,6 +6,16 @@
 
 ## 未发布
 
+### 第七阶段 — 处理作业取消
+
+- 现有 `POST /api/projects/{project_id}/jobs/{job_id}/cancel` 路由上的协作式处理取消（queued/running 持久化 `cancellation_requested` 并返回 202；终态 200 空操作；interrupted 终态 `cancelled` 并清分组）
+- worker 在检查点终态化后清分组：照片回到 `imported`；保留 `user_status` / `star_rating` 与导入衍生件；永不修改或删除原图
+- 处理 UI 可请求 **Cancel Grouping and Ranking** 并显示检查点文案
+- 桌面退出可 **Quit and cancel processing**（POST cancel，最多等 10 秒，再 SIGTERM）
+- 回收尊重已请求的处理取消，不重新入队
+- 导出取消仍为 422；进行中分组的暂停/恢复未实现
+- 不升 `APP_VERSION`、不签名、不跑打包 GUI
+
 ### 桌面 — 直接依赖 @tauri-apps/api/webview（L4）
 
 - `apps/desktop/package.json` 现将 `@tauri-apps/api` 列为直接依赖，使 `nativeFs.ts` 导入 `@tauri-apps/api/webview` 不再依赖插件传递安装
