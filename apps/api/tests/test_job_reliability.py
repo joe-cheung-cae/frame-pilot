@@ -466,9 +466,50 @@ def test_killed_import_worker_is_failed_retryable_and_photos_leave_processing(tm
     assert stuck_original.read_bytes() == stuck_original_bytes
 
 
-def test_processing_job_has_no_cancel_route_and_startup_sweep_resets_photos(tmp_path, monkeypatch):
+def test_processing_job_cancel_route_accepts_running_job(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Processing cancel"}).json()
+    original_path = tmp_path / "frame.jpg"
+    original_bytes = _jpeg_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="processing",
+        )
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="running",
+            current_step="grouping",
+            total_items=1,
+            processed_items=0,
+            started_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        session.add(photo)
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
+    assert response.status_code == 202
+    body = response.json()
+    assert body["status"] == "running"
+    assert body["cancellation_requested"] is True
+    assert body["current_step"] == "cancellation_requested"
+    assert body["cancelled_at"] is None
+    assert original_path.read_bytes() == original_bytes
+
+
+def test_processing_job_startup_sweep_resets_photos_without_cancel(tmp_path, monkeypatch):
     # Phase 6.1 (#105): reclaim defaults to on; explicitly disable it to exercise the
-    # legacy fail-and-retry startup sweep this test covers.
+    # legacy fail-and-retry startup sweep this test covers. A running processing job
+    # without a cancel flag still fails and resets photos (J7.01 keeps this coverage).
     monkeypatch.setenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "0")
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
@@ -497,10 +538,6 @@ def test_processing_job_has_no_cancel_route_and_startup_sweep_resets_photos(tmp_
         photo_id = photo.id
         job_id = job.id
 
-    denied = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
-    assert denied.status_code == 422
-    assert denied.json()["detail"] == "Only import jobs can be cancelled"
-
     reset_db_ready_flag()
     ensure_db_ready()
 
@@ -511,6 +548,7 @@ def test_processing_job_has_no_cancel_route_and_startup_sweep_resets_photos(tmp_
         assert job.status == "failed"
         assert job.current_step == "failed - restart"
         assert job.retryable is False
+        assert job.cancellation_requested is False
         assert photo is not None
         assert photo.processing_state == "imported"
         assert photo.processing_state != "processing"

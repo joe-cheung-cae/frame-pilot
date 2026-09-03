@@ -44,7 +44,7 @@ That is the user-visible hole: a long grouping run cannot be stopped on purpose.
 
 Phase 7 — processing job cancel (post Phase 6.1)
 
-- [ ] J7.01 Cancel route accepts processing jobs
+- [x] J7.01 Cancel route accepts processing jobs
 - [ ] J7.02 Cooperative checkpoints and cancel finalize
 - [ ] J7.03 Reclaim/interrupted honor processing cancel
 - [ ] J7.04 Processing UI cancel
@@ -106,6 +106,41 @@ Safe processing checkpoints already exist as `_save_job` / lease heartbeats:
 ### J7.01 — Cancel route accepts processing jobs
 
 **Depends on:** none
+
+**Contract (this task only; leave §3 J7.01 `[ ]` until the implementation commit):**
+
+Route: `POST /api/projects/{project_id}/jobs/{job_id}/cancel`
+
+Files (J7.01 only):
+
+- `apps/api/app/api/routes.py` — `cancel_job_endpoint` allows `job_type == "processing"`; dispatch import jobs to `request_import_job_cancellation` and processing jobs to `request_processing_job_cancellation`.
+- `apps/api/app/services/processing.py` — add `request_processing_job_cancellation(session, job)` only. Do not change `process_project` checkpoints.
+- `apps/api/tests/test_job_reliability.py` — invert the 422 assertion; keep reclaim-off startup-sweep coverage for a running processing job **without** a cancel flag (rename/split if needed).
+- `apps/api/tests/test_import_process_export_api.py` — queued/running persist, terminal no-op, planted non-import/non-processing 422.
+- This plan (+ zh) — tick §3 J7.01 only in the implementation commit.
+
+HTTP mapping for `job_type == "processing"`:
+
+| Job status | Persist | HTTP |
+| ---------- | ------- | ---- |
+| `queued` or `running` | `cancellation_requested=true`, `current_step="cancellation_requested"`; **do not** change `status` (J7.02 stops the worker) | `202 Accepted` |
+| `complete`, `complete_with_errors`, `failed`, `cancelled` | no-op; do not set the flag on a completed success | `200 OK` |
+| `interrupted` (no in-flight worker) | finalize `cancelled` (`status`, `current_step="cancelled"`, `cancellation_requested=true`, `cancelled_at`, `completed_at`, clear `worker_id` / `heartbeat_at` / `interrupted_at`) **and** `reset_project_after_processing_failure` | `200 OK` |
+| missing job or wrong `project_id` | unchanged | `404` |
+| `job_type` not `import` or `processing` | still reject; 422 detail may keep `"Only import jobs can be cancelled"` or name both allowed types | `422` |
+
+Live exports are `ExportRecord` rows, not `ProcessingJob`. Do **not** add production `job_type="export"`. The 422 test plants a `ProcessingJob(job_type="export")` (or any other non-import/non-processing type). Posting this cancel route with an `ExportRecord.id` stays `404`.
+
+Tests first:
+
+- Processing queued/running cancel → 202, flag true, `status` unchanged, original photo bytes untouched.
+- Terminal processing cancel → 200 no-op.
+- Planted export (or other) `ProcessingJob` cancel → 422.
+- Interrupted processing cancel → 200, `cancelled`, groups empty, photos `imported`, originals untouched.
+- Existing import cancel tests stay green (including `test_import_process_export_api.py` and `test_job_review_fixes_104.py`).
+- Reclaim-off startup sweep for a running processing job **without** a cancel flag still fails the job and resets photos.
+
+**J7.01 non-goals:** no worker checkpoints (`process_project` / `_save_job` observers — J7.02); no reclaim branch (J7.03); no `ProcessingPanel` / web / e2e (J7.04); no `sidecar.rs` / desktop quit (J7.05); no living API/architecture/CHANGELOG close-out (J7.06); no pause (J7.07); do not send processing jobs through `request_import_job_cancellation`; do not expand `/retry`; do not bump `APP_VERSION`; do not sign or run packaged NSIS/DMG.
 
 **Implement:**
 

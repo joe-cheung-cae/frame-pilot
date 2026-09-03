@@ -225,6 +225,41 @@ def create_processing_job(session: Session, project: Project) -> ProcessingJob:
     return job
 
 
+def request_processing_job_cancellation(session: Session, job: ProcessingJob) -> ProcessingJob:
+    if job.job_type != "processing":
+        return job
+    if job.status == "interrupted":
+        now = utc_now()
+        reset_project_after_processing_failure(
+            session,
+            job.project_id,
+            "Processing job was cancelled while waiting for local reclaim",
+        )
+        job.status = "cancelled"
+        job.current_step = "cancelled"
+        job.cancellation_requested = True
+        job.cancelled_at = now
+        job.completed_at = now
+        job.interrupted_at = None
+        job.worker_id = None
+        job.heartbeat_at = None
+        job.updated_at = now
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+        return job
+    if job.status in TERMINAL_JOB_STATUSES:
+        return job
+    now = utc_now()
+    job.cancellation_requested = True
+    job.current_step = "cancellation_requested"
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
 def prepare_interrupted_processing_jobs_for_reclaim(
     session: Session,
     *,

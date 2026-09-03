@@ -44,7 +44,7 @@ Goal Mode：一次只实现**一个任务 id**。当前任务未完成实现、�
 
 第七阶段 — 处理作业取消（第六阶段 6.1 之后）
 
-- [ ] J7.01 取消路由接受处理作业
+- [x] J7.01 取消路由接受处理作业
 - [ ] J7.02 协作检查点与取消终态化
 - [ ] J7.03 回收/interrupted 尊重处理取消
 - [ ] J7.04 处理页 UI 取消
@@ -106,6 +106,41 @@ Goal Mode：一次只实现**一个任务 id**。当前任务未完成实现、�
 ### J7.01 — 取消路由接受处理作业
 
 **依赖：** 无
+
+**契约（仅本任务；实现提交前 §3 J7.01 保持 `[ ]`）：**
+
+路由：`POST /api/projects/{project_id}/jobs/{job_id}/cancel`
+
+文件（仅 J7.01）：
+
+- `apps/api/app/api/routes.py` — `cancel_job_endpoint` 允许 `job_type == "processing"`；导入走 `request_import_job_cancellation`，处理走 `request_processing_job_cancellation`。
+- `apps/api/app/services/processing.py` — 只新增 `request_processing_job_cancellation(session, job)`。不要改 `process_project` 检查点。
+- `apps/api/tests/test_job_reliability.py` — 改写 422 断言；保留关闭回收时、**没有**取消标志的 running 处理作业启动扫描（可改名或拆分）。
+- `apps/api/tests/test_import_process_export_api.py` — queued/running 持久化、终态空操作、植入的非导入/非处理类型 422。
+- 本计划（+ 英文）— 仅在实现提交中勾选 §3 J7.01。
+
+`job_type == "processing"` 的 HTTP 映射：
+
+| 作业状态 | 持久化 | HTTP |
+| -------- | ------ | ---- |
+| `queued` 或 `running` | `cancellation_requested=true`，`current_step="cancellation_requested"`；**不要**改 `status`（J7.02 才停 worker） | `202 Accepted` |
+| `complete`、`complete_with_errors`、`failed`、`cancelled` | 空操作；成功完成的作业不要补设标志 | `200 OK` |
+| `interrupted`（无在飞 worker） | 立即终态 `cancelled`（`status`、`current_step="cancelled"`、`cancellation_requested=true`、`cancelled_at`、`completed_at`，清 `worker_id` / `heartbeat_at` / `interrupted_at`）**并且** `reset_project_after_processing_failure` | `200 OK` |
+| 作业不存在或 `project_id` 不匹配 | 不变 | `404` |
+| `job_type` 不是 `import` 或 `processing` | 仍拒绝；422 文案可保留 `"Only import jobs can be cancelled"`，或写明两种允许类型 | `422` |
+
+线上导出是 `ExportRecord`，不是 `ProcessingJob`。**不要**在生产代码里加 `job_type="export"`。422 测试植入 `ProcessingJob(job_type="export")`（或任何非导入/非处理类型）。用 `ExportRecord.id` 打这条取消路由仍是 `404`。
+
+先写测试：
+
+- 处理 queued/running 取消 → 202，标志为 true，`status` 不变，原图像素未动。
+- 终态处理取消 → 200 空操作。
+- 植入的 export（或其他）`ProcessingJob` 取消 → 422。
+- interrupted 处理取消 → 200，`cancelled`，分组为空，照片 `imported`，原图未动。
+- 现有导入取消测试仍绿（含 `test_import_process_export_api.py` 与 `test_job_review_fixes_104.py`）。
+- 关闭回收时，无取消标志的 running 处理作业启动扫描仍会失败该作业并重置照片。
+
+**J7.01 非目标：** 不加 worker 检查点（`process_project` / `_save_job` 观察 — J7.02）；不加回收分支（J7.03）；不改 `ProcessingPanel` / web / e2e（J7.04）；不改 `sidecar.rs` / 桌面退出（J7.05）；不收尾活文档 API/架构/CHANGELOG（J7.06）；不做暂停（J7.07）；不要把处理作业送进 `request_import_job_cancellation`；不要扩 `/retry`；不要改 `APP_VERSION`；不要签名或跑打包 NSIS/DMG。
 
 **实现：**
 
