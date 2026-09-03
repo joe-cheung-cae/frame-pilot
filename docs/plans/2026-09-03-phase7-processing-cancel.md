@@ -266,3 +266,20 @@ Do not launch packaged NSIS/DMG GUI. Do not sign. Do not treat #144 as this slic
 - Desktop 2.2 (tray, auto-update, detached preview, data-dir migration)
 - Signed store release / `2.1.0-desktop` git tag
 - Packaged GUI lifecycle QA ([#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144))
+
+---
+
+## 10. Workflow execution
+
+Each J7.01–J7.06 task is a **separate** workflow (workflows cannot launch other workflows). Do not implement J7.07.
+
+| Task | Workflow | Launch |
+| ---- | -------- | ------ |
+| J7.01 | `.grok/workflows/phase7-j7-01.rhai` | `/workflow phase7-j7-01` |
+| J7.02 | `.grok/workflows/phase7-j7-02.rhai` | `/workflow phase7-j7-02` |
+| J7.03 | `.grok/workflows/phase7-j7-03.rhai` | `/workflow phase7-j7-03` |
+| J7.04 | `.grok/workflows/phase7-j7-04.rhai` | `/workflow phase7-j7-04` |
+| J7.05 | `.grok/workflows/phase7-j7-05.rhai` | `/workflow phase7-j7-05` |
+| J7.06 | `.grok/workflows/phase7-j7-06.rhai` | `/workflow phase7-j7-06` |
+
+Serial order only. Each run uses the six stages 需求拆解 → 评审 → 归档 → 开发 → 测试 → 上线. Suggested `agent_budget`: 16. Watch progress in `/workflows`. Do not start the next id until the previous run `complete`s with `ok=true`.

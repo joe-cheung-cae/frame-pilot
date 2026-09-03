@@ -266,3 +266,20 @@ npm run test:web
 - 桌面 2.2（托盘、自动更新、独立预览窗、改 data dir）
 - 已签名商店发行 / `2.1.0-desktop` git tag
 - 包装 GUI 生命周期 QA（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)）
+
+---
+
+## 10. Workflow 执行
+
+J7.01–J7.06 各是**一条独立** workflow（workflow 不能启动另一条）。不要实现 J7.07。
+
+| 任务 | Workflow | 启动 |
+| ---- | -------- | ------ |
+| J7.01 | `.grok/workflows/phase7-j7-01.rhai` | `/workflow phase7-j7-01` |
+| J7.02 | `.grok/workflows/phase7-j7-02.rhai` | `/workflow phase7-j7-02` |
+| J7.03 | `.grok/workflows/phase7-j7-03.rhai` | `/workflow phase7-j7-03` |
+| J7.04 | `.grok/workflows/phase7-j7-04.rhai` | `/workflow phase7-j7-04` |
+| J7.05 | `.grok/workflows/phase7-j7-05.rhai` | `/workflow phase7-j7-05` |
+| J7.06 | `.grok/workflows/phase7-j7-06.rhai` | `/workflow phase7-j7-06` |
+
+只能串行。每条 run 都走 需求拆解 → 评审 → 归档 → 开发 → 测试 → 上线。建议 `agent_budget` 为 16。进度在 `/workflows` 看。上一条 `complete` 且 `ok=true` 之前不要启动下一个 id。
