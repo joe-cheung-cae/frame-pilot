@@ -422,21 +422,25 @@ test.beforeEach(async ({ page }) => {
 
   await page.route(`**/api/projects/${project.id}/jobs/**`, async (route) => {
     if (route.request().method() === "POST" && route.request().url().endsWith("/cancel")) {
+      const jobType = currentJob?.job_type ?? "import";
       const cancelledJob = {
         ...completedJob,
-        id: currentJob?.id ?? "import-job-cancelled",
-        job_type: "import",
+        id: currentJob?.id ?? `${jobType}-job-cancelled`,
+        job_type: jobType,
         status: "cancelled",
         current_step: "cancelled",
         total_items: currentJob?.total_items ?? currentProject.total_images,
         processed_items: currentJob?.processed_items ?? 0,
         failed_items: currentJob?.failed_items ?? 0,
         progress_percent: currentJob?.progress_percent ?? 0,
-        error_message: "Import job was cancelled by user request",
+        error_message:
+          jobType === "processing"
+            ? "Processing job was cancelled by user request"
+            : "Import job was cancelled by user request",
         cancellation_requested: true,
         cancelled_at: "2026-01-01T00:00:01Z",
         completed_at: "2026-01-01T00:00:01Z",
-        retryable: true,
+        retryable: jobType !== "processing",
       };
       currentJob = cancelledJob;
       await route.fulfill({ json: cancelledJob, status: 202 });
@@ -1452,6 +1456,60 @@ test("shows active import job progress while an upload is pending", async ({ pag
   await expect(page.getByText("Import Complete")).toBeVisible();
   await expect(page.getByText("5 of 5 files · 100%")).toBeVisible();
   await expect(page.getByText("preview_generation 2 of 5")).toHaveCount(0);
+});
+
+test("shows cancel control for processing cancellation", async ({ page }) => {
+  let processingJob = {
+    ...completedJob,
+    id: "processing-job-cancellable",
+    job_type: "processing",
+    status: "running",
+    current_step: "ranking group 1 of 2",
+    total_items: 3,
+    processed_items: 1,
+    failed_items: 0,
+    progress_percent: 33,
+    error_message: null,
+    cancellation_requested: false,
+    completed_at: null,
+    retryable: false,
+  };
+
+  await page.unroute(projectListRoute("jobs"));
+  await page.route(projectListRoute("jobs"), async (route) => {
+    await route.fulfill({ json: [processingJob] });
+  });
+  await page.route(`**/api/projects/${project.id}/jobs/${processingJob.id}/cancel`, async (route) => {
+    processingJob = {
+      ...processingJob,
+      status: "cancelled",
+      current_step: "cancelled",
+      cancellation_requested: true,
+      cancelled_at: "2026-01-01T00:00:01Z",
+      completed_at: "2026-01-01T00:00:01Z",
+      retryable: false,
+    };
+    await route.fulfill({ json: processingJob, status: 202 });
+  });
+  await page.route(`**/api/projects/${project.id}/jobs/${processingJob.id}`, async (route) => {
+    await route.fulfill({ json: processingJob });
+  });
+
+  await page.goto(`/projects/${project.id}/process`);
+
+  await expect(page.getByText("Running").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel Grouping and Ranking" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run Grouping and Ranking" })).toBeDisabled();
+
+  await page.getByRole("button", { name: "Cancel Grouping and Ranking" }).click();
+
+  await expect(page.getByText("Cancelled").first()).toBeVisible();
+  await expect(
+    page.getByText("Processing stopped at a safe checkpoint. Run grouping and ranking again when you are ready."),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel Grouping and Ranking" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Run Grouping and Ranking" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Retry Grouping and Ranking" })).toHaveCount(0);
 });
 
 test("shows cancel and retry controls for import cancellation", async ({ page }) => {

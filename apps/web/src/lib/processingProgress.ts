@@ -13,17 +13,26 @@ type ProcessingRecoveryReason = {
   status: ProcessingJob["status"] | null | undefined;
 };
 
-type ProcessingLoadScope = "history" | "job" | "project";
+type ProcessingLoadScope = "cancel" | "history" | "job" | "project";
 
 type ProcessingProgressProject = Pick<Project, "processed_images" | "total_images">;
 
 type ProcessingJobCandidate = Pick<ProcessingJob, "job_type" | "status">;
 type ProcessingDisplayJobCandidate = ProcessingJobCandidate & Pick<ProcessingJob, "id">;
 
+type ProcessingCancelJobCandidate = Pick<ProcessingJob, "cancellation_requested" | "job_type" | "status">;
+
 type ProcessingActionBlockReason = {
   hasImportedPhotos: boolean;
+  isCancelling?: boolean;
   isImportRunning: boolean;
   isProcessing: boolean;
+};
+
+type ProcessingCancelPendingReason = {
+  cancellationRequested?: boolean;
+  isCancelPending?: boolean;
+  status?: ProcessingJob["status"] | null;
 };
 
 function pluralize(count: number, singular: string, plural = `${singular}s`): string {
@@ -40,9 +49,7 @@ export function processingStatusLabel(status: ProcessingJob["status"] | null | u
   return status[0].toUpperCase() + status.slice(1);
 }
 
-export function processingJobHasReviewableResults(
-  status: ProcessingJob["status"] | null | undefined,
-): boolean {
+export function processingJobHasReviewableResults(status: ProcessingJob["status"] | null | undefined): boolean {
   return status === "complete" || status === "complete_with_errors";
 }
 
@@ -62,9 +69,7 @@ export function processingJobTypeLabel(jobType: string): string {
   return jobType ? jobType[0].toUpperCase() + jobType.slice(1) : "Job";
 }
 
-export function firstActiveJob<T extends ProcessingJobCandidate>(
-  jobs: readonly T[] | null | undefined,
-): T | undefined {
+export function firstActiveJob<T extends ProcessingJobCandidate>(jobs: readonly T[] | null | undefined): T | undefined {
   return jobs?.find((job) => job.status === "queued" || job.status === "running");
 }
 
@@ -83,7 +88,9 @@ export function jobsRefetchIntervalMs(jobs: readonly ProcessingJobCandidate[] | 
   return hasActiveProcessingJob(jobs) ? 1000 : 5000;
 }
 
-export function activeProcessingJob<T extends ProcessingJobCandidate>(jobs: readonly T[] | null | undefined): T | undefined {
+export function activeProcessingJob<T extends ProcessingJobCandidate>(
+  jobs: readonly T[] | null | undefined,
+): T | undefined {
   return activeJobOfType(jobs, "processing");
 }
 
@@ -133,7 +140,14 @@ export function processingFailureNotice(job: ProcessingFailureJob | null | undef
   if (job.error_message) {
     return job.error_message;
   }
-  const noun = job.job_type === "import" ? (job.failed_items === 1 ? "file" : "files") : job.failed_items === 1 ? "photo" : "photos";
+  const noun =
+    job.job_type === "import"
+      ? job.failed_items === 1
+        ? "file"
+        : "files"
+      : job.failed_items === 1
+        ? "photo"
+        : "photos";
   const verb = job.job_type === "import" ? "imported" : "processed";
   return `${job.failed_items} ${noun} could not be ${verb}.`;
 }
@@ -168,14 +182,50 @@ export function processingLoadRecoveryMessage(scope: ProcessingLoadScope): strin
     return "Confirm the local FramePilot API is running, then reload job history. Project data stays on this computer.";
   }
 
+  if (scope === "cancel") {
+    return "Confirm the local FramePilot API is running. If cancellation did not reach the job, FramePilot will keep the original files unchanged.";
+  }
+
   return "Confirm the local FramePilot API is running, then reload this processing page. Imported originals remain unchanged.";
+}
+
+export function canCancelProcessing(
+  job: ProcessingCancelJobCandidate | null | undefined,
+  isCancelPending: boolean,
+): boolean {
+  return Boolean(
+    job &&
+    job.job_type === "processing" &&
+    (job.status === "queued" || job.status === "running") &&
+    !job.cancellation_requested &&
+    !isCancelPending,
+  );
+}
+
+export function processingCancelPendingMessage({
+  cancellationRequested = false,
+  isCancelPending = false,
+  status,
+}: ProcessingCancelPendingReason): string {
+  if (status !== "queued" && status !== "running") {
+    return "";
+  }
+  if (!isCancelPending && !cancellationRequested) {
+    return "";
+  }
+  return "Cancellation requested. FramePilot will stop after a safe checkpoint.";
 }
 
 export function processingActionBlockMessage({
   hasImportedPhotos,
+  isCancelling = false,
   isImportRunning,
   isProcessing,
 }: ProcessingActionBlockReason): string {
+  if (isCancelling) {
+    return "Cancellation is being requested. Wait for FramePilot to reach a safe checkpoint.";
+  }
+
   if (isProcessing) {
     return "Grouping and ranking is already running.";
   }
