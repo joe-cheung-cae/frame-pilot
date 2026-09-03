@@ -12,6 +12,20 @@ v2 的目标不是完全替代人的审美判断。目标是去掉明显的技�
 
 > FramePilot v2 帮助摄影师把数百或数千张相机照片变成干净、可复核的短名单，提供本地优先处理、可解释的推荐，以及专业筛选工作流支持。
 
+### 1.1 当前交付状态与下一切片
+
+本节是「已经交付什么」和「下一步实现什么」的活指针。后文 stretch 列表是历史产品意图；已经交付的 stretch 项不要当新工作重开。
+
+`main` 上已经交付：
+
+- v2.0 本地 JPEG/PNG/WebP 精选工作流（项目、导入、评分/分组/排序、键盘审阅、CSV/ZIP/文件夹导出）。
+- `2.1.0-desktop` RC（未签名的 Tauri 2 + localhost Python sidecar）。不要当成已签名商店发行。
+- 第六阶段 / 6.1 本地持久作业回收（`npm run worker` / `python -m app.worker`；`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认开启）。
+
+**下一实现切片：** 第七阶段 — 协作式**处理作业取消**（[#145](https://github.com/joe-cheung-cae/frame-pilot/issues/145)，实现 [#146](https://github.com/joe-cheung-cae/frame-pilot/issues/146)）。计划：[docs/plans/2026-09-03-phase7-processing-cancel.zh.md](docs/plans/2026-09-03-phase7-processing-cancel.zh.md)。暂停/恢复是可选项，**不在**该阶段完成定义内。
+
+这一片之外仍开放的 GitHub 工作：[joe-cheung-cae/frame-pilot#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)（未签名 NSIS/DMG GUI 生命周期 QA）。不是这一片：导出取消、HEIC/RAW、XMP（[#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) 为 `not_planned`）、桌面 2.2、签名。
+
 ## 2. v1 现状与 v2 动机
 
 FramePilot v1 已经提供可用的 MVP 工作流：
@@ -403,11 +417,19 @@ v2 不应立即引入沉重的分布式队列。
 - 仅支持重新处理缺失或过期的派生数据。
 - 通过快速返回任务 id 避免长时间请求超时。
 
-未来的 v2.x 做法：
+上述 v2.0 原文之后已经交付：
 
-- 增加轻量 worker 进程。
-- 仅在需要时考虑 RQ、Dramatiq 或 Celery。
-- 增加取消和暂停/恢复。
+- 本地 worker 入口：`npm run worker` / `python -m app.worker`（第六阶段）。
+- 协作式**导入**取消（现有 cancel 路由）。
+- 残留导入/处理作业的启动回收（第六阶段 6.1 默认开启）。
+
+**下一步（第七阶段）：** 在同一 cancel 路由上做协作式**处理**取消。该阶段不要求暂停/恢复。见 [docs/plans/2026-09-03-phase7-processing-cancel.zh.md](docs/plans/2026-09-03-phase7-processing-cancel.zh.md)。
+
+仍然推迟：
+
+- RQ、Dramatiq 或 Celery（仅在有实测需要时）。
+- 不经过 clear-and-rerun 的分组过程中暂停/恢复。
+- 导出作业取消与导出回收。
 
 ## 11. 前端架构
 

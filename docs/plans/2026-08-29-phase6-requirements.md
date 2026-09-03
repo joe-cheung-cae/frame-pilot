@@ -56,6 +56,8 @@ Release review and architecture both name a **local durable worker / restart-saf
 
 Optional later (not Phase 6 DoD): processing cancel route; pause/resume; Dramatiq/RQ only if measured need.
 
+**Follow-up (2026-09-03):** processing cancel is now Phase 7 — [2026-09-03-phase7-processing-cancel.md](2026-09-03-phase7-processing-cancel.md). Pause/resume stays out of that phase’s DoD. Do not implement those items under Phase 6 task ids.
+
 ---
 
 ## 4. Gaps vs develop_plan “resumable”
@@ -69,8 +71,8 @@ Optional later (not Phase 6 DoD): processing cancel route; pause/resume; Dramati
 | Manual retry after interrupt | Import yes; processing via re-process |
 | Survive API/sidecar exit and continue | **Not done** |
 | Separate local worker / queue | Deferred |
-| Pause/resume | Not implemented |
-| Processing cancel | Not implemented |
+| Pause/resume | Not implemented (Phase 7 optional J7.07, not DoD) |
+| Processing cancel | Next slice: Phase 7 ([2026-09-03-phase7-processing-cancel.md](2026-09-03-phase7-processing-cancel.md)) |
 | Auto-resume interrupted jobs | Opposite: fail leftover actives |
 
 ---
