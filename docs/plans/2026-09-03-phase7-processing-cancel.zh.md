@@ -225,6 +225,42 @@ J7.01 已在 queued/running 处理作业上持久化 `cancellation_requested`。
 
 **依赖：** J7.02
 
+**契约（仅本任务；实现提交前 §3 J7.03 保持 `[ ]`）：**
+
+J7.01 的 interrupted HTTP 取消已在无在飞 worker 时终态为 `cancelled`。J7.03 覆盖重启路径：API/worker 回收一条已有 `cancellation_requested=true` 的 interrupted 处理行（queued/running 时已持久化取消，进程在 worker 终态化之前死掉）。回收不得把该行重新入队。
+
+现场缺口：`prepare_interrupted_processing_jobs_for_reclaim` 总会清分组、设 `status="queued"` / `current_step="reclaim_queued"`、增加 `reclaim_count`、并把 id 加入再跑列表。导入回收在标志已设时已跳过续跑（`prepare_interrupted_import_jobs_for_reclaim` 在 claim 之后走 `_finalize_cancelled_reclaim_import`，#104 修复 3）。处理侧对齐该行为。
+
+文件（仅 J7.03）：
+
+- `apps/api/app/services/processing.py` — 在 `prepare_interrupted_processing_jobs_for_reclaim` 原子 claim + refresh 之后加取消分支。复用 `_finalize_cancelled_processing_job`（先清分组，再写 cancelled 字段）。同时清 `interrupted_at`（J7.01 interrupted HTTP 取消和导入回收都会清；J7.02 辅助函数目前不会 —— 可扩展该辅助函数，或在回收分支里清）。不要改 `request_processing_job_cancellation` 的 HTTP 映射。不要改 worker 检查点。
+- `apps/api/tests/test_job_processing_reclaim.py` — interrupted + 标志不得重新入队；保留现有无标志回收测试。
+- `apps/api/tests/test_job_reliability.py` — 保留 `test_processing_job_startup_sweep_resets_photos_without_cancel`（关闭回收、无标志）。不要改写它。
+- `apps/api/tests/test_job_reclaim_startup.py` — 保留第六阶段 6.1 默认开启 / 显式关闭覆盖；不必为取消标志改它。
+- 本计划（+ 英文）— 仅在实现提交中勾选 §3 J7.03。
+
+关键：这里**不要**调用 `_processing_job_cancellation_requested`。`status == "interrupted"` 时该辅助函数为 false，因为 interrupted 属于 `TERMINAL_JOB_STATUSES`（J7.02）。在 `claim_job_atomic(..., from_statuses={"interrupted"})` + `session.refresh(job)` 之后，直接看 `job.cancellation_requested`（与导入回收相同）。
+
+成功 claim 之后的分支：
+
+| 条件 | 动作 | 再跑列表 |
+| ---- | ---- | -------- |
+| `job.cancellation_requested` | `_finalize_cancelled_processing_job`；同时清 `interrupted_at`。**不要**增加 `reclaim_count`。**不要**设 `status="queued"`。`continue`，让后面未取消的 interrupted 作业仍能填满 `limit`。 | 不加入 id |
+| 标志为 false | 现有第六阶段 6.1 路径：`reset_project_after_processing_failure`，`status="queued"`，`current_step="reclaim_queued"`，增加 `reclaim_count`，加入 id | 加入 id |
+
+`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 在 `main.py` 的 `start_reclaimable_jobs`：它会跳过 `prepare_*`，启动扫描会失败 running 作业。**不要**改那条路径。没有取消标志的作业保持默认回收，以及关闭回收时的 fail-and-retry 扫描。
+
+保持先 `release_stale_interrupted_lease` 再 `claim_job_atomic`。claim 失败仍 `continue`。取消路径不要二次重置（终态化辅助函数已经调用 `reset_project_after_processing_failure`）。永不修改或删除原图。导入衍生件保留。`user_status` / `star_rating` 保留。分组为空，`processed_images == 0`，在飞 `processing` / `processed` 照片回到 `imported`。不要设 `status="failed"`。
+
+先写测试：
+
+- interrupted 处理作业且 `cancellation_requested=true` → `prepare_*` 不包含该 id（只有这一条候选时为 `[]`）；作业为 `cancelled`，不是 `queued`/`failed`；分组为空；`processed_images == 0`；在飞照片为 `imported`；保留 `user_status`/`star_rating`；原图像素未变；`reclaim_count` 不变；`worker_id` 为 None；已设 `cancelled_at`。
+- 现有 `test_prepare_interrupted_processing_clears_partial_groups` 与 `test_reclaim_reruns_interrupted_processing_job` 仍绿（无标志 → queued 回收）。
+- `test_processing_job_startup_sweep_resets_photos_without_cancel` 在关闭回收时仍失败该作业。
+- 可选：两条 interrupted 处理作业，第一条有标志、第二条没有，`limit=1` → 第一条 cancelled（不在列表），第二条 queued（返回 id）。取消不得占用回收名额。
+
+**J7.03 非目标：** 不改 `ProcessingPanel` / web / e2e（J7.04）；不改 `sidecar.rs` / 桌面退出（J7.05）；不收尾活文档 API/架构/CHANGELOG（J7.06）；不做暂停（J7.07）；不要扩 `/retry`；不要改 `APP_VERSION`；不要签名或跑打包 NSIS/DMG；不要做 #144；不要改导入回收；不要改 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认。
+
 **实现：**
 
 - `prepare_interrupted_processing_jobs_for_reclaim` 在原子 claim 之后：若 `cancellation_requested`，终态为 cancelled 并清分组；不要把 job id 加入再跑列表。

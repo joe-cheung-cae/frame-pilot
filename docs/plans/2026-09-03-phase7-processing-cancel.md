@@ -225,6 +225,42 @@ Tests first:
 
 **Depends on:** J7.02
 
+**Contract (this task only; leave §3 J7.03 `[ ]` until the implementation commit):**
+
+J7.01 interrupted HTTP cancel already finalizes `cancelled` when there is no in-flight worker. J7.03 covers the restart path: API/worker reclaim of an `interrupted` processing row that already has `cancellation_requested=true` (cancel was persisted while queued/running, then the process died before the worker finalized). Reclaim must not re-queue that row.
+
+Live hole: `prepare_interrupted_processing_jobs_for_reclaim` always resets groups, sets `status="queued"` / `current_step="reclaim_queued"`, increments `reclaim_count`, and appends the id. Import reclaim already skips resume when the flag is set (`prepare_interrupted_import_jobs_for_reclaim` after claim → `_finalize_cancelled_reclaim_import`, #104 fix 3). Mirror that for processing.
+
+Files (J7.03 only):
+
+- `apps/api/app/services/processing.py` — cancel branch in `prepare_interrupted_processing_jobs_for_reclaim` after atomic claim + refresh. Reuse `_finalize_cancelled_processing_job` (reset groups, then cancelled fields). Also clear `interrupted_at` (J7.01 interrupted HTTP cancel and import reclaim both clear it; the J7.02 helper currently does not — extend the helper or set it in the reclaim branch). Do not change `request_processing_job_cancellation` HTTP mapping. Do not change worker checkpoints.
+- `apps/api/tests/test_job_processing_reclaim.py` — interrupted + flag is not re-queued; keep existing no-flag reclaim tests.
+- `apps/api/tests/test_job_reliability.py` — keep `test_processing_job_startup_sweep_resets_photos_without_cancel` (reclaim-off, no flag). Do not invert it.
+- `apps/api/tests/test_job_reclaim_startup.py` — keep Phase 6.1 default-on / explicit-off coverage; no cancel-flag change required.
+- This plan (+ zh) — tick §3 J7.03 only in the implementation commit.
+
+Critical: do **not** call `_processing_job_cancellation_requested` here. That helper is false when `status == "interrupted"` because interrupted is in `TERMINAL_JOB_STATUSES` (J7.02). After `claim_job_atomic(..., from_statuses={"interrupted"})` + `session.refresh(job)`, inspect `job.cancellation_requested` directly (same as import reclaim).
+
+Branch after a successful claim:
+
+| Condition | Action | Prepared list |
+| --------- | ------ | ------------- |
+| `job.cancellation_requested` | `_finalize_cancelled_processing_job`; also clear `interrupted_at`. Do **not** increment `reclaim_count`. Do **not** set `status="queued"`. `continue` so a later non-cancelled interrupted job can still fill `limit`. | omit id |
+| flag false | existing Phase 6.1 path: `reset_project_after_processing_failure`, `status="queued"`, `current_step="reclaim_queued"`, increment `reclaim_count`, append id | include id |
+
+`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` is `start_reclaimable_jobs` in `main.py`: it skips `prepare_*` and the startup sweep fails running jobs. Do **not** change that path. Jobs without a cancel flag keep default reclaim and the reclaim-off fail-and-retry sweep.
+
+Keep `release_stale_interrupted_lease` then `claim_job_atomic` order. Failed claim still `continue`. Do not double-reset on the cancel path (the finalize helper already calls `reset_project_after_processing_failure`). Originals are never modified or deleted. Import derivatives stay. `user_status` / `star_rating` stay. Groups empty, `processed_images == 0`, in-flight `processing` / `processed` photos return to `imported`. Do not set `status="failed"`.
+
+Tests first:
+
+- Interrupted processing with `cancellation_requested=true` → `prepare_*` omits that id (`[]` when it is the only candidate); job `cancelled` not `queued`/`failed`; groups empty; `processed_images == 0`; in-flight photos `imported`; `user_status`/`star_rating` preserved; original bytes unchanged; `reclaim_count` unchanged; `worker_id` is None; `cancelled_at` set.
+- Existing `test_prepare_interrupted_processing_clears_partial_groups` and `test_reclaim_reruns_interrupted_processing_job` stay green (no flag → queued reclaim).
+- `test_processing_job_startup_sweep_resets_photos_without_cancel` still fails the job when reclaim is off.
+- Optional: two interrupted processing jobs, first with flag, second without, `limit=1` → first cancelled (not in list), second queued (id returned). Cancel must not consume the reclaim slot.
+
+**J7.03 non-goals:** no `ProcessingPanel` / web / e2e (J7.04); no `sidecar.rs` / desktop quit (J7.05); no living API/architecture/CHANGELOG close-out (J7.06); no pause (J7.07); do not expand `/retry`; do not bump `APP_VERSION`; do not sign or run packaged NSIS/DMG; do not work #144; do not change import reclaim; do not change the `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` default.
+
 **Implement:**
 
 - In `prepare_interrupted_processing_jobs_for_reclaim`, after atomic claim: if `cancellation_requested`, finalize cancelled + reset groups; do not append the job id for re-run.
