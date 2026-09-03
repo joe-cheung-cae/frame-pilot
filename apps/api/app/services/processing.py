@@ -46,6 +46,7 @@ def _finalize_cancelled_processing_job(session: Session, job: ProcessingJob) -> 
     job.cancellation_requested = True
     job.cancelled_at = now
     job.completed_at = now
+    job.interrupted_at = None
     job.worker_id = None
     job.heartbeat_at = None
     job.updated_at = now
@@ -301,7 +302,8 @@ def prepare_interrupted_processing_jobs_for_reclaim(
     Each candidate row is claimed with a single atomic ``UPDATE ... WHERE status =
     'interrupted'`` before it is mutated, so a concurrent reclaimer (e.g. the API's
     lifespan reclaim thread racing a separately running ``python -m app.worker``) cannot
-    also reactivate the same row (#104 fix 2).
+    also reactivate the same row (#104 fix 2). A job whose cancel was requested before
+    the restart is finalized as cancelled rather than re-queued (J7.03).
 
     A row can also be left ``interrupted`` with a foreign, abandoned ``worker_id`` if a
     previous reclaimer crashed after claiming it but before finishing the reclaim; such a
@@ -332,6 +334,10 @@ def prepare_interrupted_processing_jobs_for_reclaim(
             # Already claimed by a concurrent reclaimer between our read and this write.
             continue
         session.refresh(job)
+
+        if job.cancellation_requested:
+            _finalize_cancelled_processing_job(session, job)
+            continue
 
         reason = "Interrupted processing was reclaimed after API restart; rebuilding local groups"
         reset_project_after_processing_failure(session, job.project_id, reason)

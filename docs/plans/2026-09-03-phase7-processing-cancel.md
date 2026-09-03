@@ -46,7 +46,7 @@ Phase 7 — processing job cancel (post Phase 6.1)
 
 - [x] J7.01 Cancel route accepts processing jobs
 - [x] J7.02 Cooperative checkpoints and cancel finalize
-- [ ] J7.03 Reclaim/interrupted honor processing cancel
+- [x] J7.03 Reclaim/interrupted honor processing cancel
 - [ ] J7.04 Processing UI cancel
 - [ ] J7.05 Desktop quit cancel processing
 - [ ] J7.06 Docs close-out
