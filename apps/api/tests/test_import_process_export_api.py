@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from PIL import ExifTags, Image, ImageDraw, ImageFilter
 from sqlmodel import Session, select
 
+import app.services.processing as processing_module
 from app.api import routes
 from app.db.session import get_engine
 from app.main import create_app
@@ -1703,6 +1704,63 @@ def test_cancel_interrupted_processing_job_finalizes_and_resets_groups(tmp_path,
         stored_project = session.get(Project, project["id"])
         assert stored_project is not None
         assert stored_project.processed_images == 0
+
+
+def test_cancel_during_derivative_validation_keeps_copied_originals_and_thumbnails(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel during derivatives"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    _import_job, photo = _wait_for_imported_photo(client, project["id"], import_response.json())
+    thumbnail_path = Path(photo["thumbnail_path"])
+    preview_path = Path(photo["preview_path"])
+    assert thumbnail_path.is_file()
+    preview_path.unlink()
+
+    with Session(get_engine()) as session:
+        stored_photo = session.get(Photo, photo["id"])
+        assert stored_photo is not None
+        original_path = Path(stored_photo.project_copy_path or stored_photo.original_path)
+        original_bytes = original_path.read_bytes()
+
+    real_refresh = processing_module.refresh_job_lease_heartbeat
+    validating_refreshes = {"count": 0}
+
+    def refresh_then_request_cancel_during_validation(session, job):
+        result = real_refresh(session, job)
+        if job.current_step == "validating generated files":
+            validating_refreshes["count"] += 1
+            if validating_refreshes["count"] >= 2 and not job.cancellation_requested:
+                job.cancellation_requested = True
+                session.add(job)
+        return result
+
+    monkeypatch.setattr(
+        processing_module,
+        "refresh_job_lease_heartbeat",
+        refresh_then_request_cancel_during_validation,
+    )
+
+    process_job = _wait_for_job(
+        client,
+        project["id"],
+        client.post(f"/api/projects/{project['id']}/process").json(),
+    )
+    assert process_job["status"] == "cancelled"
+    assert process_job["status"] != "failed"
+    assert process_job["cancellation_requested"] is True
+    assert process_job["cancelled_at"] is not None
+    assert original_path.read_bytes() == original_bytes
+    assert thumbnail_path.is_file()
+
+    photo_after = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
+    assert photo_after["processing_state"] == "imported"
+    assert client.get(f"/api/projects/{project['id']}/groups").json() == []
+    assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 0
 
 
 def test_retry_import_job_reuses_existing_derivatives_and_clears_failed_photo_state(tmp_path, monkeypatch):

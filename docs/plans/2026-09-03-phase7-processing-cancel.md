@@ -45,7 +45,7 @@ That is the user-visible hole: a long grouping run cannot be stopped on purpose.
 Phase 7 — processing job cancel (post Phase 6.1)
 
 - [x] J7.01 Cancel route accepts processing jobs
-- [ ] J7.02 Cooperative checkpoints and cancel finalize
+- [x] J7.02 Cooperative checkpoints and cancel finalize
 - [ ] J7.03 Reclaim/interrupted honor processing cancel
 - [ ] J7.04 Processing UI cancel
 - [ ] J7.05 Desktop quit cancel processing
@@ -166,10 +166,50 @@ Tests first:
 
 **Depends on:** J7.01
 
+**Contract (this task only; leave §3 J7.02 `[ ]` until the implementation commit):**
+
+J7.01 persists `cancellation_requested` on queued/running processing jobs. J7.02 makes the in-flight worker observe that flag at safe checkpoints and finalize `cancelled` (not `failed`).
+
+Files (J7.02 only):
+
+- `apps/api/app/services/processing.py` — add `_processing_job_cancellation_requested` (mirror `_import_job_cancellation_requested`), a worker finalize helper, and checkpoint checks in `run_processing_job` / `process_project` / `_save_job`. Do not change the J7.01 HTTP mapping in `request_processing_job_cancellation`. Do not change `prepare_interrupted_processing_jobs_for_reclaim` (J7.03).
+- `apps/api/tests/test_job_reliability.py` — running-job checkpoint cancel; keep crash-handler-`failed` coverage and the reclaim-off startup sweep **without** a cancel flag.
+- `apps/api/tests/test_import_process_export_api.py` — derivative-validation cancel keeps copied originals and import thumbnails (or put that case in the reliability file).
+- This plan (+ zh) — tick §3 J7.02 only in the implementation commit.
+
+Live checkpoints (all of these must observe the flag). Several §5 sites are **not** `_save_job` today:
+
+| Site | Live code | Notes |
+| ---- | --------- | ----- |
+| After atomic claim | `run_processing_job` after `claim_job_atomic` + refresh | queued cancel must finalize and return; do not call `process_project` |
+| After `starting` commit | `process_project` after the starting commit, **before** `_complete_unchanged_job` | starting is a direct commit, not `_save_job`; a requested cancel must not take the unchanged-complete success path |
+| Each `_save_job` | start of `_save_job` (`session.refresh` first) | `clearing stale groups`, `validating generated files`, `validating similarity data`, `grouping photos`, `ranking group i of n` |
+| Derivative heartbeat | every `DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL` photos and the post-loop heartbeat commit | heartbeat is `refresh_job_lease_heartbeat` + commit, not `_save_job` |
+| Immediately before and after `group_similar_photos` | existing pre/post heartbeats | **do not** add a progress callback inside `group_similar_photos`; the current CPU-bound call may finish |
+| After each ranking group commit | after the per-group `session.commit()` that writes ranked photos | `_save_job("ranking group i of n")` runs *before* rank; post-commit is a separate check so a newly written group is reset on cancel |
+
+Unwind (critical): `process_project`'s `except Exception` rollbacks then marks `failed`. Cooperative cancel must **not** raise a generic exception through that path (rollback would also risk undoing an uncommitted finalize). Prefer: check helper returns bool; `_save_job` returns `False` after it finalized cancel; callers `return job` immediately. A dedicated cancel exception is allowed only if it is caught *before* `except Exception` and only after finalize is committed — still prefer the bool return so a missed except cannot overwrite `cancelled` with `failed`.
+
+Finalize (same fields as J7.01 interrupted cancel): call `reset_project_after_processing_failure` **then** set `status="cancelled"`, `current_step="cancelled"`, `cancellation_requested=True`, `cancelled_at` / `completed_at`, clear `worker_id` / `heartbeat_at`, commit. Reason string may be `"Processing job was cancelled by user request"`. Do not set `status="failed"`. Originals are never modified or deleted. Import derivatives stay. `user_status` / `star_rating` stay. Groups empty, `processed_images == 0`, in-flight `processing` / `processed` photos return to `imported`.
+
+`_processing_job_cancellation_requested(session, job)`: `session.refresh(job)`; true iff `job.cancellation_requested` and `job.status not in TERMINAL_JOB_STATUSES` (mirror `_import_job_cancellation_requested`). Interrupted is terminal for this helper; reclaim is J7.03.
+
+`run_processing_job` crash handler stays `failed` + reset. Its existing `TERMINAL_JOB_STATUSES` guard already no-ops an already-cancelled row. Do not relabel crashes as `cancelled`.
+
+Tests first:
+
+- Running processing job observes the flag at a ranking or post-grouping checkpoint (monkeypatch `rank_group` / `group_similar_photos` / `_save_job` to set or POST the flag); job ends `cancelled` (not `failed`); groups empty; `processed_images == 0`; original photo bytes unchanged; `user_status` / `star_rating` preserved if set.
+- Cancel during derivative validation: copied originals and import thumbnails remain; original bytes unchanged; job `cancelled`.
+- Existing `run_processing_job` crash test still ends `failed`.
+- Reclaim-off startup sweep without a cancel flag still fails the job (J7.01 coverage).
+- Existing import cancel tests stay green.
+
+**J7.02 non-goals:** no reclaim branch (`prepare_interrupted_processing_jobs_for_reclaim` — J7.03); no `ProcessingPanel` / web / e2e (J7.04); no `sidecar.rs` / desktop quit (J7.05); no living API/architecture/CHANGELOG close-out (J7.06); no pause (J7.07); do not add a progress callback inside `group_similar_photos`; do not expand `/retry`; do not bump `APP_VERSION`; do not sign or run packaged NSIS/DMG; do not work #144.
+
 **Implement:**
 
 - `_processing_job_cancellation_requested` (refresh job row; true only while not terminal).
-- Check at the checkpoints in §5. On true: `reset_project_after_processing_failure`, then mark job `cancelled` with `cancelled_at` / `completed_at`, clear `worker_id` / `heartbeat_at`, return. Do not raise a generic failure path that marks `failed`.
+- Check at the checkpoints above. On true: `reset_project_after_processing_failure`, then mark job `cancelled` with `cancelled_at` / `completed_at`, clear `worker_id` / `heartbeat_at`, return. Do not raise a generic failure path that marks `failed`.
 - `run_processing_job` crash handler stays `failed` + reset; do not relabel crashes as `cancelled`.
 
 **Tests (write first):**

@@ -25,10 +25,34 @@ from app.services.ranking import RankedPhoto, rank_group
 # (Bugbot residual fix after #104 / 6b580a8).
 DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL = 5
 
+PROCESSING_CANCEL_REASON = "Processing job was cancelled by user request"
+
 
 def _failed_photo_count_message(count: int) -> str:
     noun = "photo" if count == 1 else "photos"
     return f"{count} {noun} could not be processed"
+
+
+def _processing_job_cancellation_requested(session: Session, job: ProcessingJob) -> bool:
+    session.refresh(job)
+    return bool(job.cancellation_requested) and job.status not in TERMINAL_JOB_STATUSES
+
+
+def _finalize_cancelled_processing_job(session: Session, job: ProcessingJob) -> ProcessingJob:
+    now = utc_now()
+    reset_project_after_processing_failure(session, job.project_id, PROCESSING_CANCEL_REASON)
+    job.status = "cancelled"
+    job.current_step = "cancelled"
+    job.cancellation_requested = True
+    job.cancelled_at = now
+    job.completed_at = now
+    job.worker_id = None
+    job.heartbeat_at = None
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
 
 
 def _save_job(
@@ -37,7 +61,12 @@ def _save_job(
     current_step: str,
     processed_items: int | None = None,
     failed_items: int | None = None,
-) -> None:
+) -> bool:
+    if _processing_job_cancellation_requested(session, job):
+        _finalize_cancelled_processing_job(session, job)
+        return False
+    if job.status in TERMINAL_JOB_STATUSES:
+        return False
     job.current_step = current_step
     if processed_items is not None:
         job.processed_items = processed_items
@@ -50,6 +79,7 @@ def _save_job(
     session.add(job)
     session.commit()
     session.refresh(job)
+    return True
 
 
 def _photo_embedding(photo: Photo) -> list[float]:
@@ -344,6 +374,9 @@ def run_processing_job(job_id: str, *, worker_id: str | None = None) -> None:
         ):
             return
         session.refresh(job)
+        if _processing_job_cancellation_requested(session, job):
+            _finalize_cancelled_processing_job(session, job)
+            return
         try:
             project = session.get(Project, job.project_id)
             if project is None:
@@ -379,6 +412,9 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
     session.commit()
     session.refresh(job)
 
+    if _processing_job_cancellation_requested(session, job):
+        return _finalize_cancelled_processing_job(session, job)
+
     if _project_processing_is_current(session, project, photos):
         return _complete_unchanged_job(session, job, len(photos))
 
@@ -399,7 +435,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         preserved_ids = {photo.id for photo in preserved_photos}
         preserved_group_ids = {photo.group_id for photo in preserved_photos if photo.group_id}
 
-        _save_job(session, job, "clearing stale groups", 0)
+        if not _save_job(session, job, "clearing stale groups", 0):
+            return job
         work_photos = [photo for photo in photos if photo.id not in preserved_ids]
         for photo in work_photos:
             photo.group_id = None
@@ -412,7 +449,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
                 session.delete(existing)
         session.commit()
 
-        _save_job(session, job, "validating generated files", len(preserved_photos))
+        if not _save_job(session, job, "validating generated files", len(preserved_photos)):
+            return job
         derivative_failed_photos = []
         derivative_failed_ids = set()
         for index, photo in enumerate(work_photos, start=1):
@@ -439,10 +477,21 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
             if index % DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL == 0:
                 refresh_job_lease_heartbeat(session, job)
                 session.commit()
+                if _processing_job_cancellation_requested(session, job):
+                    return _finalize_cancelled_processing_job(session, job)
         refresh_job_lease_heartbeat(session, job)
         session.commit()
+        if _processing_job_cancellation_requested(session, job):
+            return _finalize_cancelled_processing_job(session, job)
 
-        _save_job(session, job, "validating similarity data", len(preserved_photos), len(derivative_failed_photos))
+        if not _save_job(
+            session,
+            job,
+            "validating similarity data",
+            len(preserved_photos),
+            len(derivative_failed_photos),
+        ):
+            return job
         candidate_photos = [photo for photo in work_photos if photo.id not in derivative_failed_ids]
         group_inputs, similarity_failed_photos = _build_group_inputs(candidate_photos)
         for photo in similarity_failed_photos:
@@ -457,7 +506,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
 
         failed_photos = derivative_failed_photos + similarity_failed_photos
 
-        _save_job(session, job, "grouping photos", len(preserved_photos), len(failed_photos))
+        if not _save_job(session, job, "grouping photos", len(preserved_photos), len(failed_photos)):
+            return job
         failed_photo_ids = {failed.id for failed in failed_photos}
         photo_map = {photo.id: photo for photo in candidate_photos if photo.id not in failed_photo_ids}
         # group_similar_photos is a single CPU-bound call over the whole batch with no
@@ -469,16 +519,26 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         # (#104 residual fix 2).
         refresh_job_lease_heartbeat(session, job)
         session.commit()
+        if _processing_job_cancellation_requested(session, job):
+            return _finalize_cancelled_processing_job(session, job)
         grouped_photos = group_similar_photos(group_inputs)
         refresh_job_lease_heartbeat(session, job)
         session.commit()
+        if _processing_job_cancellation_requested(session, job):
+            return _finalize_cancelled_processing_job(session, job)
         next_sequence = max(
             (group.sequence for group in existing_groups.values() if group.id in preserved_group_ids),
             default=0,
         )
 
         for index, grouped in enumerate(grouped_photos, start=1):
-            _save_job(session, job, f"ranking group {index} of {len(grouped_photos)}", job.processed_items)
+            if not _save_job(
+                session,
+                job,
+                f"ranking group {index} of {len(grouped_photos)}",
+                job.processed_items,
+            ):
+                return job
             next_sequence += 1
             group = PhotoGroup(
                 project_id=project.id,
@@ -529,6 +589,8 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
             job.updated_at = utc_now()
             session.add(job)
             session.commit()
+            if _processing_job_cancellation_requested(session, job):
+                return _finalize_cancelled_processing_job(session, job)
 
         job.status = "complete"
         job.current_step = "complete"

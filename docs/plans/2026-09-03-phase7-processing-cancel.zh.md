@@ -45,7 +45,7 @@ Goal Mode：一次只实现**一个任务 id**。当前任务未完成实现、�
 第七阶段 — 处理作业取消（第六阶段 6.1 之后）
 
 - [x] J7.01 取消路由接受处理作业
-- [ ] J7.02 协作检查点与取消终态化
+- [x] J7.02 协作检查点与取消终态化
 - [ ] J7.03 回收/interrupted 尊重处理取消
 - [ ] J7.04 处理页 UI 取消
 - [ ] J7.05 桌面退出取消处理
@@ -71,7 +71,7 @@ Goal Mode：一次只实现**一个任务 id**。当前任务未完成实现、�
 | `apps/desktop/README.md`（+ 中文若有） | 退出文案 | J7.05 |
 | `docs/api.md`、`docs/architecture.md`、`docs/v2_known_limitations.md`、`docs/desktop_user_guide.md`、`docs/desktop_testing.md`（+ zh） | 行为说明 | J7.06 |
 | `CHANGELOG.md`（+ zh） | Unreleased 第七阶段 | J7.06 |
-| 本计划（+ zh） | 每完成一个任务勾选 §3 | 各任务 |
+| 本计划（+ 英文） | 每完成一个任务勾选 §3 | 各任务 |
 
 ---
 
@@ -166,10 +166,50 @@ Goal Mode：一次只实现**一个任务 id**。当前任务未完成实现、�
 
 **依赖：** J7.01
 
+**契约（仅本任务；实现提交前 §3 J7.02 保持 `[ ]`）：**
+
+J7.01 已在 queued/running 处理作业上持久化 `cancellation_requested`。J7.02 让在飞 worker 在安全检查点看到该标志，并终态为 `cancelled`（不是 `failed`）。
+
+文件（仅 J7.02）：
+
+- `apps/api/app/services/processing.py` — 增加 `_processing_job_cancellation_requested`（对齐 `_import_job_cancellation_requested`）、worker 终态化辅助函数，以及 `run_processing_job` / `process_project` / `_save_job` 的检查点。不要改 J7.01 的 `request_processing_job_cancellation` HTTP 映射。不要改 `prepare_interrupted_processing_jobs_for_reclaim`（J7.03）。
+- `apps/api/tests/test_job_reliability.py` — 运行中作业检查点取消；保留崩溃处理为 `failed` 的覆盖，以及关闭回收、**没有**取消标志的启动扫描。
+- `apps/api/tests/test_import_process_export_api.py` — 衍生件校验中取消仍保留已复制原图和导入缩略图（也可写在 reliability 测试里）。
+- 本计划（+ 英文）— 仅在实现提交中勾选 §3 J7.02。
+
+现场检查点（下列位置都必须看标志）。§5 里有几处今天**不是** `_save_job`：
+
+| 位置 | 现场代码 | 说明 |
+| ---- | --------- | ----- |
+| 原子 claim 之后 | `run_processing_job` 在 `claim_job_atomic` + refresh 之后 | queued 取消必须终态化并返回；不要调用 `process_project` |
+| `starting` 提交之后 | `process_project` 在 starting 提交之后、**`_complete_unchanged_job` 之前** | starting 是直接 commit，不是 `_save_job`；已请求取消时不得走 unchanged-complete 成功路径 |
+| 每次 `_save_job` | `_save_job` 开头（先 `session.refresh`） | `clearing stale groups`、`validating generated files`、`validating similarity data`、`grouping photos`、`ranking group i of n` |
+| 衍生件心跳 | 每 `DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL` 张，以及循环后的心跳提交 | 心跳是 `refresh_job_lease_heartbeat` + commit，不是 `_save_job` |
+| `group_similar_photos` 前后 | 现有前后心跳 | **不要**给 `group_similar_photos` 加进度回调；当前这次 CPU 密集调用可以先跑完 |
+| 每个 ranking 分组提交之后 | 写入已排序照片的每次 `session.commit()` 之后 | `_save_job("ranking group i of n")` 在 rank **之前**；提交后再查一次，刚写入的分组在取消时会被重置 |
+
+退出路径（关键）：`process_project` 的 `except Exception` 会 rollback 再标 `failed`。协作取消**不得**把普通异常抛进这条路径（未提交的终态化也可能被 rollback 掉）。优先：检查辅助函数返回 bool；`_save_job` 在终态化取消后返回 `False`；调用方立即 `return job`。仅当专用取消异常在 `except Exception` **之前**被接住、且终态化已经 commit 时才允许用异常 —— 仍优先 bool 返回，以免漏接 except 把 `cancelled` 覆盖成 `failed`。
+
+终态化（字段与 J7.01 interrupted 取消相同）：先 `reset_project_after_processing_failure`，再设 `status="cancelled"`、`current_step="cancelled"`、`cancellation_requested=True`、`cancelled_at` / `completed_at`，清 `worker_id` / `heartbeat_at`，提交。原因字符串可用 `"Processing job was cancelled by user request"`。不要设 `status="failed"`。永不修改或删除原图。导入衍生件保留。`user_status` / `star_rating` 保留。分组为空，`processed_images == 0`，在飞 `processing` / `processed` 照片回到 `imported`。
+
+`_processing_job_cancellation_requested(session, job)`：`session.refresh(job)`；仅当 `job.cancellation_requested` 且 `job.status not in TERMINAL_JOB_STATUSES` 为 true（对齐 `_import_job_cancellation_requested`）。interrupted 对本辅助函数是终态；回收是 J7.03。
+
+`run_processing_job` 崩溃处理仍是 `failed` + 重置。现有 `TERMINAL_JOB_STATUSES` 守卫对已 cancelled 的行会直接返回。崩溃不得改标为 `cancelled`。
+
+先写测试：
+
+- 运行中处理作业在 ranking 或 grouping 之后的检查点看到标志（monkeypatch `rank_group` / `group_similar_photos` / `_save_job` 来设置或 POST 标志）；作业结束为 `cancelled`（不是 `failed`）；分组为空；`processed_images == 0`；原图像素未变；若已设则保留 `user_status` / `star_rating`。
+- 衍生件校验中取消：已复制原图和导入缩略图仍在；原图像素未变；作业为 `cancelled`。
+- 现有 `run_processing_job` 崩溃测试仍结束为 `failed`。
+- 关闭回收、无取消标志的启动扫描仍失败该作业（J7.01 覆盖）。
+- 现有导入取消测试仍绿。
+
+**J7.02 非目标：** 不加回收分支（`prepare_interrupted_processing_jobs_for_reclaim` — J7.03）；不改 `ProcessingPanel` / web / e2e（J7.04）；不改 `sidecar.rs` / 桌面退出（J7.05）；不收尾活文档 API/架构/CHANGELOG（J7.06）；不做暂停（J7.07）；不要给 `group_similar_photos` 加进度回调；不要扩 `/retry`；不要改 `APP_VERSION`；不要签名或跑打包 NSIS/DMG；不要做 #144。
+
 **实现：**
 
 - `_processing_job_cancellation_requested`（刷新作业行；仅非终态为 true）。
-- 在 §5 检查点查看。为 true 时：`reset_project_after_processing_failure`，再标 `cancelled`（含 `cancelled_at` / `completed_at`），清 `worker_id` / `heartbeat_at`，返回。不要走把作业标成 `failed` 的通用失败路径。
+- 在上表检查点查看。为 true 时：`reset_project_after_processing_failure`，再标 `cancelled`（含 `cancelled_at` / `completed_at`），清 `worker_id` / `heartbeat_at`，返回。不要走把作业标成 `failed` 的通用失败路径。
 - `run_processing_job` 崩溃处理仍是 `failed` + 重置；崩溃不得改标为 `cancelled`。
 
 **测试（先写）：**
@@ -309,7 +349,7 @@ npm run test:web
 J7.01–J7.06 各是**一条独立** workflow（workflow 不能启动另一条）。不要实现 J7.07。
 
 | 任务 | Workflow | 启动 |
-| ---- | -------- | ------ |
+| ---- | -------- | ----- |
 | J7.01 | `.grok/workflows/phase7-j7-01.rhai` | `/workflow phase7-j7-01` |
 | J7.02 | `.grok/workflows/phase7-j7-02.rhai` | `/workflow phase7-j7-02` |
 | J7.03 | `.grok/workflows/phase7-j7-03.rhai` | `/workflow phase7-j7-03` |
