@@ -4,7 +4,7 @@ import zipfile
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 
-STORED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+STORED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 ExportProgressCallback = Callable[[int, int], None]
