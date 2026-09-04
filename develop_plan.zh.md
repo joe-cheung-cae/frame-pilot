@@ -21,10 +21,11 @@ v2 的目标不是完全替代人的审美判断。目标是去掉明显的技�
 - v2.0 本地 JPEG/PNG/WebP 精选工作流（项目、导入、评分/分组/排序、键盘审阅、CSV/ZIP/文件夹导出）。
 - `2.1.0-desktop` RC（未签名的 Tauri 2 + localhost Python sidecar）。不要当成已签名商店发行。
 - 第六阶段 / 6.1 本地持久作业回收（`npm run worker` / `python -m app.worker`；`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认开启）。
+- 第七阶段协作式**处理作业取消**（J7.01–J7.06，[#148](https://github.com/joe-cheung-cae/frame-pilot/pull/148)）。暂停/恢复（J7.07）**不在**该阶段完成定义内。计划：[docs/plans/2026-09-03-phase7-processing-cancel.zh.md](docs/plans/2026-09-03-phase7-processing-cancel.zh.md)。
 
-**下一实现切片：** 第七阶段 — 协作式**处理作业取消**（[#145](https://github.com/joe-cheung-cae/frame-pilot/issues/145)，实现 [#146](https://github.com/joe-cheung-cae/frame-pilot/issues/146)）。计划：[docs/plans/2026-09-03-phase7-processing-cancel.zh.md](docs/plans/2026-09-03-phase7-processing-cancel.zh.md)。暂停/恢复是可选项，**不在**该阶段完成定义内。
+**下一步：** 未签名安装包 GUI 生命周期 QA — [joe-cheung-cae/frame-pilot#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)。矩阵：[docs/desktop_testing.zh.md](docs/desktop_testing.zh.md) 生命周期行（启动安装包、干净退出、导入中退出、sidecar 崩溃、端口占用、安装/卸载）。需要 Windows NSIS 和/或 macOS DMG 的带日期窗口或安装证据。skip 不能当 pass。
 
-这一片之外仍开放的 GitHub 工作：[joe-cheung-cae/frame-pilot#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)（未签名 NSIS/DMG GUI 生命周期 QA）。不是这一片：导出取消、HEIC/RAW、XMP（[#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) 为 `not_planned`）、桌面 2.2、签名。
+不是这项工作：导出取消、HEIC/RAW、XMP（[#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) 为 `not_planned`）、桌面 2.2、签名、J7.07 暂停。
 
 ## 2. v1 现状与 v2 动机
 
@@ -422,13 +423,14 @@ v2 不应立即引入沉重的分布式队列。
 - 本地 worker 入口：`npm run worker` / `python -m app.worker`（第六阶段）。
 - 协作式**导入**取消（现有 cancel 路由）。
 - 残留导入/处理作业的启动回收（第六阶段 6.1 默认开启）。
+- 同一 cancel 路由上的协作式**处理**取消（第七阶段，J7.01–J7.06）。见 [docs/plans/2026-09-03-phase7-processing-cancel.zh.md](docs/plans/2026-09-03-phase7-processing-cancel.zh.md)。
 
-**下一步（第七阶段）：** 在同一 cancel 路由上做协作式**处理**取消。该阶段不要求暂停/恢复。见 [docs/plans/2026-09-03-phase7-processing-cancel.zh.md](docs/plans/2026-09-03-phase7-processing-cancel.zh.md)。
+**下一步：** [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) 未签名 NSIS/DMG GUI 生命周期 QA（不是处理架构改动）。
 
 仍然推迟：
 
 - RQ、Dramatiq 或 Celery（仅在有实测需要时）。
-- 不经过 clear-and-rerun 的分组过程中暂停/恢复。
+- 不经过 clear-and-rerun 的分组过程中暂停/恢复（第七阶段 J7.07，非 DoD）。
 - 导出作业取消与导出回收。
 
 ## 11. 前端架构
