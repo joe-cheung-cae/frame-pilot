@@ -22,10 +22,11 @@ Already delivered on `main`:
 - `2.1.0-desktop` RC (unsigned Tauri 2 + localhost Python sidecar). Do not treat it as a signed store release.
 - Phase 6 / 6.1 durable local job reclaim (`npm run worker` / `python -m app.worker`; `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on).
 - Phase 7 cooperative **processing job cancel** (J7.01–J7.06, [#148](https://github.com/joe-cheung-cae/frame-pilot/pull/148)). Pause/resume (J7.07) is **not** in that phase’s Definition of Done. Plan: [docs/plans/2026-09-03-phase7-processing-cancel.md](docs/plans/2026-09-03-phase7-processing-cancel.md).
+- Unsigned Windows NSIS GUI lifecycle QA ([#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144), closed Windows-only 2026-09-04). macOS DMG was skip (no Mac host); skip is not a macOS pass.
 
-**Next:** unsigned packaged GUI lifecycle QA — [joe-cheung-cae/frame-pilot#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144). Matrix: [docs/desktop_testing.md](docs/desktop_testing.md) lifecycle rows (Start installed, Quit clean, Quit + import, Sidecar crash, Port in use, Install / uninstall). Needs a Windows NSIS and/or macOS DMG run with dated window or installer evidence. Skip is not pass.
+**Next:** local **HEIC/HEIF still preview** (Phase 8, H8.01–H8.06, [#150](https://github.com/joe-cheung-cae/frame-pilot/issues/150) / [#151](https://github.com/joe-cheung-cae/frame-pilot/issues/151)). Plan: [docs/plans/2026-09-04-heic-preview.md](docs/plans/2026-09-04-heic-preview.md). Copy original HEIC unchanged; decode with `pillow-heif`; WebP derivatives; score/group on RGB. RAW stays skipped.
 
-Not this work: export cancel, HEIC/RAW, XMP ([#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) is `not_planned`), desktop 2.2, signing, J7.07 pause.
+Not this work: RAW preview, AVIF, XMP ([#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) is `not_planned`), export cancel, desktop 2.2, signing, J7.07 pause.
 
 ## 2. v1 Status and Motivation for v2
 
@@ -425,13 +426,14 @@ Shipped after the original v2.0 note above:
 - Startup reclaim for leftover import/processing jobs (Phase 6.1 default on).
 - Cooperative **processing** cancellation on the same cancel route (Phase 7, J7.01–J7.06). See [docs/plans/2026-09-03-phase7-processing-cancel.md](docs/plans/2026-09-03-phase7-processing-cancel.md).
 
-**Next:** [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) unsigned NSIS/DMG GUI lifecycle QA (not a processing-architecture change).
+**Next:** local HEIC/HEIF still preview (Phase 8, [#150](https://github.com/joe-cheung-cae/frame-pilot/issues/150)). See [docs/plans/2026-09-04-heic-preview.md](docs/plans/2026-09-04-heic-preview.md).
 
 Still deferred:
 
 - RQ, Dramatiq, or Celery (only if a measured need appears).
 - Pause/resume of in-flight grouping without clear-and-rerun (Phase 7 J7.07, not DoD).
 - Export job cancel and export reclaim.
+- RAW embedded preview, AVIF, XMP, signing.
 
 ## 11. Frontend Architecture
 

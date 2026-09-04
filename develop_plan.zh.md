@@ -22,10 +22,11 @@ v2 的目标不是完全替代人的审美判断。目标是去掉明显的技�
 - `2.1.0-desktop` RC（未签名的 Tauri 2 + localhost Python sidecar）。不要当成已签名商店发行。
 - 第六阶段 / 6.1 本地持久作业回收（`npm run worker` / `python -m app.worker`；`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认开启）。
 - 第七阶段协作式**处理作业取消**（J7.01–J7.06，[#148](https://github.com/joe-cheung-cae/frame-pilot/pull/148)）。暂停/恢复（J7.07）**不在**该阶段完成定义内。计划：[docs/plans/2026-09-03-phase7-processing-cancel.zh.md](docs/plans/2026-09-03-phase7-processing-cancel.zh.md)。
+- 未签名 Windows NSIS GUI 生命周期 QA（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)，2026-09-04 按 Windows-only 关闭）。macOS DMG 为 skip（没有 Mac 主机）；skip 不是 macOS pass。
 
-**下一步：** 未签名安装包 GUI 生命周期 QA — [joe-cheung-cae/frame-pilot#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)。矩阵：[docs/desktop_testing.zh.md](docs/desktop_testing.zh.md) 生命周期行（启动安装包、干净退出、导入中退出、sidecar 崩溃、端口占用、安装/卸载）。需要 Windows NSIS 和/或 macOS DMG 的带日期窗口或安装证据。skip 不能当 pass。
+**下一步：** 本地 **HEIC/HEIF 静帧预览**（第八阶段，H8.01–H8.06，[#150](https://github.com/joe-cheung-cae/frame-pilot/issues/150) / [#151](https://github.com/joe-cheung-cae/frame-pilot/issues/151)）。计划：[docs/plans/2026-09-04-heic-preview.zh.md](docs/plans/2026-09-04-heic-preview.zh.md)。原片 HEIC 原样拷贝；用 `pillow-heif` 解码；WebP 衍生件；在 RGB 上评分/分组。RAW 仍跳过。
 
-不是这项工作：导出取消、HEIC/RAW、XMP（[#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) 为 `not_planned`）、桌面 2.2、签名、J7.07 暂停。
+不是这项工作：RAW 预览、AVIF、XMP（[#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) 为 `not_planned`）、导出取消、桌面 2.2、签名、J7.07 暂停。
 
 ## 2. v1 现状与 v2 动机
 
@@ -425,13 +426,14 @@ v2 不应立即引入沉重的分布式队列。
 - 残留导入/处理作业的启动回收（第六阶段 6.1 默认开启）。
 - 同一 cancel 路由上的协作式**处理**取消（第七阶段，J7.01–J7.06）。见 [docs/plans/2026-09-03-phase7-processing-cancel.zh.md](docs/plans/2026-09-03-phase7-processing-cancel.zh.md)。
 
-**下一步：** [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) 未签名 NSIS/DMG GUI 生命周期 QA（不是处理架构改动）。
+**下一步：** 本地 HEIC/HEIF 静帧预览（第八阶段，[#150](https://github.com/joe-cheung-cae/frame-pilot/issues/150)）。见 [docs/plans/2026-09-04-heic-preview.zh.md](docs/plans/2026-09-04-heic-preview.zh.md)。
 
 仍然推迟：
 
 - RQ、Dramatiq 或 Celery（仅在有实测需要时）。
 - 不经过 clear-and-rerun 的分组过程中暂停/恢复（第七阶段 J7.07，非 DoD）。
 - 导出作业取消与导出回收。
+- RAW 内嵌预览、AVIF、XMP、签名。
 
 ## 11. 前端架构
 
