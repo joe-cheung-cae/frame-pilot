@@ -6,10 +6,12 @@ import fs from "node:fs";
 import {
   activeJobOfType,
   activeProcessingJob,
+  canCancelProcessing,
   firstActiveJob,
   hasActiveProcessingJob,
   jobsRefetchIntervalMs,
   processingActionBlockMessage,
+  processingCancelPendingMessage,
   processingFailureNotice,
   processingJobForDisplay,
   processingJobHasReviewableResults,
@@ -34,6 +36,7 @@ test("recognizes processing states with reviewable results", () => {
   assert.equal(processingJobHasReviewableResults("complete_with_errors"), true);
   assert.equal(processingJobHasReviewableResults("running"), false);
   assert.equal(processingJobHasReviewableResults("failed"), false);
+  assert.equal(processingJobHasReviewableResults("cancelled"), false);
   assert.equal(processingJobHasReviewableResults(null), false);
 });
 
@@ -229,6 +232,10 @@ test("explains how to recover from processing data load failures", () => {
     processingLoadRecoveryMessage("history"),
     "Confirm the local FramePilot API is running, then reload job history. Project data stays on this computer.",
   );
+  assert.equal(
+    processingLoadRecoveryMessage("cancel"),
+    "Confirm the local FramePilot API is running. If cancellation did not reach the job, FramePilot will keep the original files unchanged.",
+  );
 });
 
 test("explains why processing action is blocked", () => {
@@ -253,6 +260,78 @@ test("allows processing action when imports are ready", () => {
   );
 });
 
+test("blocks processing action while cancellation is being requested", () => {
+  assert.equal(
+    processingActionBlockMessage({
+      hasImportedPhotos: true,
+      isCancelling: true,
+      isImportRunning: false,
+      isProcessing: true,
+    }),
+    "Cancellation is being requested. Wait for FramePilot to reach a safe checkpoint.",
+  );
+  assert.equal(
+    processingActionBlockMessage({
+      hasImportedPhotos: true,
+      isCancelling: true,
+      isImportRunning: false,
+      isProcessing: false,
+    }),
+    "Cancellation is being requested. Wait for FramePilot to reach a safe checkpoint.",
+  );
+});
+
+test("allows cancel only for active processing jobs without a pending request", () => {
+  const runningProcessing = {
+    cancellation_requested: false,
+    job_type: "processing",
+    status: "running" as const,
+  };
+  assert.equal(canCancelProcessing(runningProcessing, false), true);
+  assert.equal(canCancelProcessing({ ...runningProcessing, status: "queued" }, false), true);
+  assert.equal(canCancelProcessing({ ...runningProcessing, cancellation_requested: true }, false), false);
+  assert.equal(canCancelProcessing(runningProcessing, true), false);
+  assert.equal(canCancelProcessing({ ...runningProcessing, status: "cancelled" }, false), false);
+  assert.equal(canCancelProcessing({ ...runningProcessing, job_type: "import" }, false), false);
+  assert.equal(canCancelProcessing(undefined, false), false);
+});
+
+test("explains pending processing cancellation with the import checkpoint sentence", () => {
+  const pendingCopy = "Cancellation requested. FramePilot will stop after a safe checkpoint.";
+  assert.equal(
+    processingCancelPendingMessage({
+      cancellationRequested: true,
+      isCancelPending: false,
+      status: "running",
+    }),
+    pendingCopy,
+  );
+  assert.equal(
+    processingCancelPendingMessage({
+      cancellationRequested: false,
+      isCancelPending: true,
+      status: "queued",
+    }),
+    pendingCopy,
+  );
+  assert.equal(
+    processingCancelPendingMessage({
+      cancellationRequested: true,
+      isCancelPending: false,
+      status: "cancelled",
+    }),
+    "",
+  );
+  assert.equal(
+    processingCancelPendingMessage({
+      cancellationRequested: false,
+      isCancelPending: false,
+      status: "running",
+    }),
+    "",
+  );
+});
+
 test("selects the newest active processing job from ordered jobs", () => {
   const active = { id: "job-2", job_type: "processing", status: "running" as const };
   const jobs = [
@@ -262,10 +341,7 @@ test("selects the newest active processing job from ordered jobs", () => {
   ];
 
   assert.equal(activeProcessingJob(jobs), active);
-  assert.equal(
-    activeProcessingJob([{ id: "export-1", job_type: "export", status: "running" as const }]),
-    undefined,
-  );
+  assert.equal(activeProcessingJob([{ id: "export-1", job_type: "export", status: "running" as const }]), undefined);
   assert.equal(activeProcessingJob(undefined), undefined);
 });
 

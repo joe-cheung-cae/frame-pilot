@@ -6,6 +6,16 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 7 — processing job cancel
+
+- Cooperative processing cancel on the existing `POST /api/projects/{project_id}/jobs/{job_id}/cancel` route (queued/running persist `cancellation_requested` with 202; terminal is a 200 no-op; interrupted finalizes `cancelled` and resets groups)
+- Worker checkpoints then group reset: photos return to `imported`; `user_status` / `star_rating` and import derivatives stay; originals are never modified or deleted
+- Processing UI can request **Cancel Grouping and Ranking** and shows checkpoint copy
+- Desktop quit can **Quit and cancel processing** (POST cancel, wait up to 10s, then SIGTERM)
+- Reclaim honors a pending processing cancel and does not re-queue
+- Export cancel remains 422; pause/resume of in-flight grouping is not implemented
+- No `APP_VERSION` bump, signing, or packaged GUI
+
 ### Desktop — direct @tauri-apps/api/webview dependency (L4)
 
 - `apps/desktop/package.json` now lists `@tauri-apps/api` as a direct dependency so `nativeFs.ts` can import `@tauri-apps/api/webview` without relying on a plugin transitive install

@@ -34,9 +34,9 @@ HEIC 以及 DNG、ARW、CR3、NEF 等 RAW 格式被延后。v2.0 可能识别这
 
 ## 取消语义
 
-导入取消是协作式的。取消请求会持久化一个标志，后台 worker 在安全检查点读取该标志。取消不是硬性进程杀死，可能不会立即停止，会保留已完成的衍生件，让未处理照片保持可重试，并且永不修改或删除源原图。
+导入和处理取消都是协作式的。取消请求会持久化一个标志，后台 worker 在安全检查点读取该标志。取消不是硬性进程杀死，可能不会立即停止，并且永不修改或删除源原图。导入取消会保留已完成的衍生件，让未处理照片保持可重试。处理取消随后清分组：在飞照片回到 `imported`，`user_status` 与 `star_rating` 保留，导入衍生件保留。重跑分组走 `POST /process`；`/retry` 仍仅导入。
 
-桌面端在导入仍活动时关闭，可以 POST 同一取消路由，最多等待 10 秒，然后对 sidecar 发送 SIGTERM。处理任务仍活动时关闭不能取消它（`POST .../cancel` 返回 422）；选择仍然退出会对 sidecar 发送 SIGTERM。默认下次启动会将残留任务标为 `interrupted` 并回收；设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 后会改为通过旧的启动扫描将其标记为 `failed`。硬杀死不会被标记为 `cancelled`。处理任务仍然没有取消路由。
+桌面端在导入或处理仍活动时关闭，可以 POST 同一取消路由，最多等待 10 秒，然后对 sidecar 发送 SIGTERM（继续工作 / 退出并取消导入或退出并取消处理 / 仍要退出）。默认下次启动会将残留任务标为 `interrupted` 并回收；设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 后会改为通过旧的启动扫描将其标记为 `failed`。硬杀死不会被标记为 `cancelled`。导出作业仍不可取消（`POST .../cancel` 返回 422；现场 detail 仍是 `"Only import jobs can be cancelled"`）。进行中分组的暂停/恢复未实现。
 
 ## 重试语义
 

@@ -146,8 +146,8 @@ pub fn close_decision(kind: CloseJobKind, choice: CloseChoice) -> CloseDecision 
         CloseChoice::Stay => CloseDecision::Stay,
         CloseChoice::QuitAnyway => CloseDecision::Terminate,
         CloseChoice::CancelAndQuit => match kind {
-            CloseJobKind::Import => CloseDecision::CancelThenTerminate,
-            CloseJobKind::None | CloseJobKind::Processing => CloseDecision::Terminate,
+            CloseJobKind::Import | CloseJobKind::Processing => CloseDecision::CancelThenTerminate,
+            CloseJobKind::None => CloseDecision::Terminate,
         },
     }
 }
@@ -244,11 +244,11 @@ pub fn quit_dialog_script_with_reclaim(kind: CloseJobKind, reclaim_on_startup: b
         CloseJobKind::Processing => (
             "Grouping and ranking is still running",
             if reclaim_on_startup {
-                "This job cannot be cancelled. You can keep working or quit anyway. Quit anyway SIGTERMs the sidecar; the next launch can interrupt and reclaim leftover processing (partial groups are cleared before rebuild). Original photos stay unchanged."
+                "You can keep working, quit and cancel grouping and ranking, or quit anyway. Cancelled processing clears partial groups. Quit anyway SIGTERMs the sidecar; the next launch can interrupt and reclaim leftover processing (partial groups are cleared before rebuild). Original photos stay unchanged."
             } else {
-                "This job cannot be cancelled. You can keep working or quit anyway. Quit anyway SIGTERMs the sidecar; the next launch marks the job failed and keeps original photos unchanged (FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled)."
+                "You can keep working, quit and cancel grouping and ranking, or quit anyway. Cancelled processing clears partial groups. Quit anyway SIGTERMs the sidecar; the next launch marks the job failed and keeps original photos unchanged (FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled)."
             },
-            "",
+            r#"<button type=\"button\" data-choice=cancel_and_quit>Quit and cancel processing</button>"#,
         ),
         CloseJobKind::None => return String::new(),
     };
@@ -1195,13 +1195,17 @@ mod tests {
     }
 
     #[test]
-    fn close_decision_cancels_import_only_and_maps_processing_to_terminate() {
+    fn close_decision_cancels_import_and_processing() {
         assert_eq!(
             close_decision(CloseJobKind::Import, CloseChoice::CancelAndQuit),
             CloseDecision::CancelThenTerminate
         );
         assert_eq!(
             close_decision(CloseJobKind::Processing, CloseChoice::CancelAndQuit),
+            CloseDecision::CancelThenTerminate
+        );
+        assert_eq!(
+            close_decision(CloseJobKind::None, CloseChoice::CancelAndQuit),
             CloseDecision::Terminate
         );
         assert_eq!(
@@ -1210,6 +1214,10 @@ mod tests {
         );
         assert_eq!(
             close_decision(CloseJobKind::Import, CloseChoice::Stay),
+            CloseDecision::Stay
+        );
+        assert_eq!(
+            close_decision(CloseJobKind::Processing, CloseChoice::Stay),
             CloseDecision::Stay
         );
         assert_eq!(
@@ -1239,15 +1247,17 @@ mod tests {
     }
 
     #[test]
-    fn quit_dialog_script_hides_cancel_for_processing_jobs() {
+    fn quit_dialog_script_shows_cancel_for_processing_jobs() {
         let import_script = quit_dialog_script(CloseJobKind::Import);
         assert!(import_script.contains("Quit and cancel import"));
         assert!(import_script.contains("Keep working"));
         assert!(import_script.contains("Quit anyway"));
         let processing_script = quit_dialog_script(CloseJobKind::Processing);
-        assert!(!processing_script.contains("Quit and cancel"));
-        assert!(processing_script.contains("cannot be cancelled"));
+        assert!(processing_script.contains("Quit and cancel processing"));
+        assert!(processing_script.contains("data-choice=cancel_and_quit"));
+        assert!(processing_script.contains("Keep working"));
         assert!(processing_script.contains("Quit anyway"));
+        assert!(!processing_script.contains("cannot be cancelled"));
     }
 
     #[test]
@@ -1256,8 +1266,12 @@ mod tests {
         assert!(processing.contains("interrupt and reclaim"));
         assert!(!processing.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP"));
         let processing_disabled = quit_dialog_script_with_reclaim(CloseJobKind::Processing, false);
+        assert!(processing.contains("Cancelled processing clears partial groups"));
+        assert!(!processing.contains("cannot be cancelled"));
         assert!(processing_disabled.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled"));
         assert!(processing_disabled.contains("marks the job failed"));
+        assert!(processing_disabled.contains("Cancelled processing clears partial groups"));
+        assert!(!processing_disabled.contains("cannot be cancelled"));
         let import_disabled = quit_dialog_script_with_reclaim(CloseJobKind::Import, false);
         assert!(import_disabled.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled"));
     }
@@ -1311,11 +1325,15 @@ mod tests {
     }
 
     #[test]
-    fn quit_dialog_script_processing_is_valid_javascript_without_cancel() {
+    fn quit_dialog_script_processing_is_valid_javascript_with_cancel() {
         let processing_script = quit_dialog_script(CloseJobKind::Processing);
-        assert!(!processing_script.contains("Quit and cancel"));
-        assert!(!processing_script.contains("cancel_and_quit"));
+        assert!(
+            processing_script.contains("data-choice=cancel_and_quit"),
+            "processing overlay must keep data-choice=cancel_and_quit: {processing_script}"
+        );
+        assert!(processing_script.contains("Quit and cancel processing"));
         assert!(processing_script.contains("Quit anyway"));
+        assert!(!processing_script.contains("cannot be cancelled"));
         assert_javascript_parses(&processing_script);
     }
 
@@ -1378,7 +1396,7 @@ mod tests {
                 CloseJobKind::Processing,
                 close_choice_from_handshake(Some("cancel_and_quit"))
             ),
-            CloseDecision::Terminate
+            CloseDecision::CancelThenTerminate
         );
     }
 

@@ -12,6 +12,20 @@ Primary product statement:
 
 > FramePilot v2 helps photographers turn hundreds or thousands of camera photos into a clean, reviewable shortlist with local-first processing, explainable recommendations, and professional culling workflow support.
 
+### 1.1 Current delivery status and next slice
+
+This subsection is the living pointer for “what is already shipped” vs “what to implement next”. Stretch lists later in this file are historical product intent; do not reopen a stretch item that already shipped.
+
+Already delivered on `main`:
+
+- v2.0 local JPEG/PNG/WebP culling workflow (project, import, scoring/grouping/ranking, keyboard review, CSV/ZIP/folder export).
+- `2.1.0-desktop` RC (unsigned Tauri 2 + localhost Python sidecar). Do not treat it as a signed store release.
+- Phase 6 / 6.1 durable local job reclaim (`npm run worker` / `python -m app.worker`; `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on).
+
+**Next implementation slice:** Phase 7 — cooperative **processing job cancel** ([#145](https://github.com/joe-cheung-cae/frame-pilot/issues/145), implement [#146](https://github.com/joe-cheung-cae/frame-pilot/issues/146)). Plan: [docs/plans/2026-09-03-phase7-processing-cancel.md](docs/plans/2026-09-03-phase7-processing-cancel.md). Pause/resume is optional and is **not** in that phase’s Definition of Done.
+
+Open GitHub work outside this slice: [joe-cheung-cae/frame-pilot#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) (unsigned NSIS/DMG GUI lifecycle QA). Not this slice: export cancel, HEIC/RAW, XMP ([#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) is `not_planned`), desktop 2.2, signing.
+
 ## 2. v1 Status and Motivation for v2
 
 FramePilot v1 already provides a usable MVP workflow:
@@ -403,11 +417,19 @@ Recommended v2.0 approach:
 - Support reprocessing only missing or stale derived data.
 - Avoid long request timeouts by returning a job id quickly.
 
-Future v2.x approach:
+Shipped after the original v2.0 note above:
 
-- Add a lightweight worker process.
-- Consider RQ, Dramatiq, or Celery only if needed.
-- Add cancellation and pause/resume.
+- Local worker entrypoint: `npm run worker` / `python -m app.worker` (Phase 6).
+- Cooperative **import** cancellation (existing cancel route).
+- Startup reclaim for leftover import/processing jobs (Phase 6.1 default on).
+
+**Next (Phase 7):** cooperative **processing** cancellation on the same cancel route. Pause/resume is not required for that phase. See [docs/plans/2026-09-03-phase7-processing-cancel.md](docs/plans/2026-09-03-phase7-processing-cancel.md).
+
+Still deferred:
+
+- RQ, Dramatiq, or Celery (only if a measured need appears).
+- Pause/resume of in-flight grouping without clear-and-rerun.
+- Export job cancel and export reclaim.
 
 ## 11. Frontend Architecture
 

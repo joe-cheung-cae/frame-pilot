@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Play, Rows3, Upload } from "lucide-react";
+import { Loader2, Play, Rows3, StopCircle, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import { Link } from "@/lib/navigation";
 import {
   activeJobOfType,
+  canCancelProcessing,
   hasActiveProcessingJob,
   processingActionBlockMessage,
+  processingCancelPendingMessage,
   processingFailureNotice,
   processingJobForDisplay,
   processingJobHasReviewableResults,
@@ -26,13 +28,26 @@ const RECENT_JOB_LIMIT = 50;
 export function ProcessingPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [jobLimit, setJobLimit] = useState(RECENT_JOB_LIMIT);
-  const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
+  const project = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => api.getProject(projectId),
+    retry: false,
+  });
   const mutation = useMutation({
     mutationFn: () => api.processProject(projectId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       await queryClient.invalidateQueries({ queryKey: ["jobs", projectId] });
+    },
+  });
+  const cancelMutation = useMutation({
+    mutationFn: (jobId: string) => api.cancelJob(projectId, jobId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      await queryClient.invalidateQueries({ queryKey: ["jobs", projectId] });
+      await queryClient.invalidateQueries({ queryKey: ["job", projectId] });
     },
   });
   const jobsQuery = useQuery({
@@ -62,8 +77,22 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   const statusLabel = processingStatusLabel(job?.status);
   const isProcessing = job?.status === "queued" || job?.status === "running" || mutation.isPending;
   const isImportRunning = activeImportJob?.status === "queued" || activeImportJob?.status === "running";
+  const isCancelling =
+    cancelMutation.isPending ||
+    Boolean(job?.cancellation_requested && (job.status === "queued" || job.status === "running"));
+  const canCancel = canCancelProcessing(job, cancelMutation.isPending);
+  const cancelPendingMessage = processingCancelPendingMessage({
+    cancellationRequested: Boolean(job?.cancellation_requested),
+    isCancelPending: cancelMutation.isPending,
+    status: job?.status,
+  });
   const processingActionLabel = job?.status === "failed" ? "Retry Grouping and Ranking" : "Run Grouping and Ranking";
-  const processingBlockMessage = processingActionBlockMessage({ hasImportedPhotos, isImportRunning, isProcessing });
+  const processingBlockMessage = processingActionBlockMessage({
+    hasImportedPhotos,
+    isCancelling,
+    isImportRunning,
+    isProcessing,
+  });
   const canLoadMoreJobs = (jobsQuery.data?.length ?? 0) >= jobLimit;
   const jobFailureNotice = processingFailureNotice(job);
   const jobRecoveryMessage = processingRecoveryMessage({
@@ -93,9 +122,7 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
       <div className="rounded border border-line bg-surface p-5">
         <div className="flex items-center justify-between gap-4">
           <span className="font-medium">{statusLabel}</span>
-          <span className="text-sm text-muted">
-            {processingProgressSummary(job, project.data)}
-          </span>
+          <span className="text-sm text-muted">{processingProgressSummary(job, project.data)}</span>
         </div>
         <p className="mt-2 text-sm text-muted">
           {job?.current_step ?? "Run grouping and ranking when imports are ready."}
@@ -112,6 +139,17 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           </p>
         ) : null}
         {jobRecoveryMessage ? <p className="mt-3 text-sm text-muted">{jobRecoveryMessage}</p> : null}
+        {cancelPendingMessage ? <p className="mt-3 text-sm text-muted">{cancelPendingMessage}</p> : null}
+        {canCancel && job?.id ? (
+          <button
+            className="focus-ring mt-3 inline-flex w-fit items-center gap-2 rounded border border-line bg-surface px-3 py-2 font-medium"
+            onClick={() => cancelMutation.mutate(job.id)}
+            type="button"
+          >
+            <StopCircle size={16} />
+            Cancel Grouping and Ranking
+          </button>
+        ) : null}
         {jobFailureNotice && job?.status !== "failed" ? (
           <div className="mt-3 grid gap-2 text-sm">
             <p className="text-coral">{jobFailureNotice}</p>
@@ -176,6 +214,12 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
         </div>
       ) : null}
       {mutation.isError ? <p className="text-sm text-coral">{mutation.error.message}</p> : null}
+      {cancelMutation.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{cancelMutation.error.message}</p>
+          <p className="text-muted">{processingLoadRecoveryMessage("cancel")}</p>
+        </div>
+      ) : null}
       {jobQuery.isError ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">Could not load processing job status: {jobQuery.error.message}</p>

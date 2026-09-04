@@ -61,7 +61,7 @@ You can also drop files/folders on the import page only. Dropping elsewhere must
 
 ## Quit while work is running
 
-Closing with an active **import** offers Keep working / Quit and cancel import / Quit anyway. Cancel uses the same job cancel API, then stops the sidecar. Closing with an active **processing** job cannot cancel processing; Quit anyway stops the sidecar. By default the next launch interrupts leftover jobs and reclaims them; set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` to instead mark them failed for manual retry. Details: [apps/desktop/README.md](../apps/desktop/README.md).
+Closing with an active **import** offers Keep working / Quit and cancel import / Quit anyway. Closing with an active **processing** job offers Keep working / Quit and cancel processing / Quit anyway. Cancel POSTs the same job cancel API, waits up to 10 seconds, then SIGTERMs the sidecar. Cancelled processing clears partial groups; original photos stay unchanged. Quit anyway SIGTERMs the sidecar without waiting for cancel. By default the next launch interrupts leftover jobs and reclaims them; set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` to instead mark them failed for manual retry. A hard kill is not labelled `cancelled`. Details: [apps/desktop/README.md](../apps/desktop/README.md).
 
 ---
 

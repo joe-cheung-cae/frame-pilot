@@ -8,10 +8,11 @@ from PIL import Image
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, select
 
+import app.services.processing as processing_module
 from app.api import routes
 from app.db.session import get_engine
 from app.main import create_app, ensure_db_ready, reset_db_ready_flag
-from app.models.entities import Photo, ProcessingJob, Project
+from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project
 from app.services import importing
 from app.services.jobs import fail_active_jobs_on_startup
 from app.services.processing import run_processing_job
@@ -466,9 +467,50 @@ def test_killed_import_worker_is_failed_retryable_and_photos_leave_processing(tm
     assert stuck_original.read_bytes() == stuck_original_bytes
 
 
-def test_processing_job_has_no_cancel_route_and_startup_sweep_resets_photos(tmp_path, monkeypatch):
+def test_processing_job_cancel_route_accepts_running_job(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Processing cancel"}).json()
+    original_path = tmp_path / "frame.jpg"
+    original_bytes = _jpeg_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="processing",
+        )
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="running",
+            current_step="grouping",
+            total_items=1,
+            processed_items=0,
+            started_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        session.add(photo)
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
+    assert response.status_code == 202
+    body = response.json()
+    assert body["status"] == "running"
+    assert body["cancellation_requested"] is True
+    assert body["current_step"] == "cancellation_requested"
+    assert body["cancelled_at"] is None
+    assert original_path.read_bytes() == original_bytes
+
+
+def test_processing_job_startup_sweep_resets_photos_without_cancel(tmp_path, monkeypatch):
     # Phase 6.1 (#105): reclaim defaults to on; explicitly disable it to exercise the
-    # legacy fail-and-retry startup sweep this test covers.
+    # legacy fail-and-retry startup sweep this test covers. A running processing job
+    # without a cancel flag still fails and resets photos (J7.01 keeps this coverage).
     monkeypatch.setenv("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP", "0")
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
@@ -497,10 +539,6 @@ def test_processing_job_has_no_cancel_route_and_startup_sweep_resets_photos(tmp_
         photo_id = photo.id
         job_id = job.id
 
-    denied = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
-    assert denied.status_code == 422
-    assert denied.json()["detail"] == "Only import jobs can be cancelled"
-
     reset_db_ready_flag()
     ensure_db_ready()
 
@@ -511,6 +549,143 @@ def test_processing_job_has_no_cancel_route_and_startup_sweep_resets_photos(tmp_
         assert job.status == "failed"
         assert job.current_step == "failed - restart"
         assert job.retryable is False
+        assert job.cancellation_requested is False
         assert photo is not None
         assert photo.processing_state == "imported"
         assert photo.processing_state != "processing"
+
+
+def test_running_processing_job_cancels_at_ranking_checkpoint(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    cancel_client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel at ranking"}).json()
+    original_bytes = _jpeg_bytes((40, 80, 120))
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", original_bytes, "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    import_job = _wait_for_job(client, project["id"], import_response.json()["job"])
+    assert import_job["status"] in {"complete", "complete_with_errors"}
+    photo_id = import_response.json()["imported"][0]["id"]
+    client.patch(
+        f"/api/projects/{project['id']}/photos/{photo_id}",
+        json={"user_status": "Pick", "star_rating": 4},
+    )
+
+    with Session(get_engine()) as session:
+        stored_photo = session.get(Photo, photo_id)
+        assert stored_photo is not None
+        original_path = Path(stored_photo.project_copy_path or stored_photo.original_path)
+        stored_bytes = original_path.read_bytes()
+
+    real_save_job = processing_module._save_job
+
+    def save_job_then_request_cancel_at_ranking(
+        session,
+        job,
+        current_step,
+        processed_items=None,
+        failed_items=None,
+    ):
+        result = real_save_job(session, job, current_step, processed_items, failed_items)
+        if result is False:
+            return result
+        if str(current_step).startswith("ranking group") and not job.cancellation_requested:
+            response = cancel_client.post(f"/api/projects/{project['id']}/jobs/{job.id}/cancel")
+            assert response.status_code == 202
+        return result
+
+    monkeypatch.setattr(processing_module, "_save_job", save_job_then_request_cancel_at_ranking)
+
+    process_job = _wait_for_job(
+        client,
+        project["id"],
+        client.post(f"/api/projects/{project['id']}/process").json(),
+    )
+    assert process_job["status"] == "cancelled"
+    assert process_job["status"] != "failed"
+    assert process_job["current_step"] == "cancelled"
+    assert process_job["cancellation_requested"] is True
+    assert process_job["cancelled_at"] is not None
+    assert process_job["completed_at"] is not None
+    assert process_job["worker_id"] is None
+    assert process_job["heartbeat_at"] is None
+
+    project_after = client.get(f"/api/projects/{project['id']}").json()
+    assert project_after["processed_images"] == 0
+    assert client.get(f"/api/projects/{project['id']}/groups").json() == []
+
+    photo_after = client.get(f"/api/projects/{project['id']}/photos/{photo_id}").json()
+    assert photo_after["processing_state"] == "imported"
+    assert photo_after["group_id"] is None
+    assert photo_after["user_status"] == "Pick"
+    assert photo_after["star_rating"] == 4
+    assert original_path.read_bytes() == stored_bytes
+
+    with Session(get_engine()) as session:
+        assert session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project["id"])).all() == []
+
+
+def test_run_processing_job_finalizes_queued_cancel_without_process_project(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Queued cancel claim"}).json()
+    original_path = tmp_path / "frame.jpg"
+    original_bytes = _jpeg_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            project_copy_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="processing",
+            user_status="Maybe",
+            star_rating=2,
+        )
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="queued",
+            current_step="cancellation_requested",
+            cancellation_requested=True,
+            total_items=1,
+        )
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        stored_project.total_images = 1
+        stored_project.processed_images = 1
+        session.add(photo)
+        session.add(job)
+        session.add(stored_project)
+        session.commit()
+        job_id = job.id
+        photo_id = photo.id
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("process_project must not run after a queued cancel is claimed")
+
+    monkeypatch.setattr(processing_module, "process_project", boom)
+    run_processing_job(job_id)
+
+    with Session(get_engine()) as session:
+        job = session.get(ProcessingJob, job_id)
+        photo = session.get(Photo, photo_id)
+        stored_project = session.get(Project, project["id"])
+        assert job is not None
+        assert job.status == "cancelled"
+        assert job.status != "failed"
+        assert job.current_step == "cancelled"
+        assert job.cancellation_requested is True
+        assert job.cancelled_at is not None
+        assert job.worker_id is None
+        assert photo is not None
+        assert photo.processing_state == "imported"
+        assert photo.user_status == "Maybe"
+        assert photo.star_rating == 2
+        assert stored_project is not None
+        assert stored_project.processed_images == 0
+        assert original_path.read_bytes() == original_bytes

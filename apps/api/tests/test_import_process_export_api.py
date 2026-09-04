@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from PIL import ExifTags, Image, ImageDraw, ImageFilter
 from sqlmodel import Session, select
 
+import app.services.processing as processing_module
 from app.api import routes
 from app.db.session import get_engine
 from app.main import create_app
@@ -1520,6 +1521,246 @@ def test_cancelled_import_job_stops_safely_and_retry_preserves_review_state(tmp_
     assert Path(by_id[second_photo_id]["preview_path"]).is_file()
     assert first_original_path.read_bytes() == first_original_bytes
     assert second_original_path.read_bytes() == second_original_bytes
+
+
+@pytest.mark.parametrize("job_status", ["queued", "running"])
+def test_cancel_processing_job_persists_request_and_leaves_originals(tmp_path, monkeypatch, job_status):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel processing request"}).json()
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    original_path = originals / "frame.jpg"
+    original_bytes = _image_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            project_copy_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="processing",
+        )
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status=job_status,
+            current_step="grouping" if job_status == "running" else "queued",
+            total_items=1,
+            processed_items=0,
+            started_at=datetime.now(UTC) if job_status == "running" else None,
+            updated_at=datetime.now(UTC),
+        )
+        session.add(photo)
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    cancel_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
+
+    assert cancel_response.status_code == 202
+    cancelled = cancel_response.json()
+    assert cancelled["id"] == job_id
+    assert cancelled["job_type"] == "processing"
+    assert cancelled["status"] == job_status
+    assert cancelled["cancellation_requested"] is True
+    assert cancelled["current_step"] == "cancellation_requested"
+    assert cancelled["cancelled_at"] is None
+    assert original_path.read_bytes() == original_bytes
+
+    polled = client.get(f"/api/projects/{project['id']}/jobs/{job_id}").json()
+    assert polled["status"] == job_status
+    assert polled["cancellation_requested"] is True
+    assert original_path.read_bytes() == original_bytes
+
+
+@pytest.mark.parametrize("job_status", ["complete", "complete_with_errors", "failed", "cancelled"])
+def test_cancel_terminal_processing_job_is_safe_noop(tmp_path, monkeypatch, job_status):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel complete processing"}).json()
+
+    with Session(get_engine()) as session:
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status=job_status,
+            current_step=job_status,
+            cancellation_requested=False,
+            total_items=1,
+        )
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    cancel_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
+
+    assert cancel_response.status_code == 200
+    body = cancel_response.json()
+    assert body["status"] == job_status
+    assert body["cancellation_requested"] is False
+    assert body["cancelled_at"] is None
+
+
+def test_cancel_export_job_is_still_rejected(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel export"}).json()
+
+    with Session(get_engine()) as session:
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="export",
+            status="running",
+            current_step="exporting",
+            total_items=1,
+            updated_at=datetime.now(UTC),
+        )
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    cancel_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
+
+    assert cancel_response.status_code == 422
+    assert cancel_response.json()["detail"] == "Only import jobs can be cancelled"
+
+
+def test_cancel_interrupted_processing_job_finalizes_and_resets_groups(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel interrupted processing"}).json()
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    original_path = originals / "frame.jpg"
+    original_bytes = _image_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        group = PhotoGroup(project_id=project["id"], group_type="burst", photo_count=1)
+        session.add(group)
+        session.commit()
+        session.refresh(group)
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            project_copy_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="processed",
+            group_id=group.id,
+            user_status="Pick",
+            star_rating=4,
+        )
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        stored_project.processed_images = 1
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="interrupted",
+            current_step="interrupted - restart",
+            interrupted_at=datetime.now(UTC),
+            worker_id="stale-worker",
+            heartbeat_at=datetime.now(UTC),
+            total_items=1,
+        )
+        session.add(photo)
+        session.add(stored_project)
+        session.add(job)
+        session.commit()
+        job_id = job.id
+        photo_id = photo.id
+        group_id = group.id
+
+    cancel_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
+
+    assert cancel_response.status_code == 200
+    body = cancel_response.json()
+    assert body["status"] == "cancelled"
+    assert body["current_step"] == "cancelled"
+    assert body["cancellation_requested"] is True
+    assert body["cancelled_at"] is not None
+    assert original_path.read_bytes() == original_bytes
+
+    persisted = client.get(f"/api/projects/{project['id']}/jobs/{job_id}").json()
+    assert persisted["status"] == "cancelled"
+    assert persisted["cancellation_requested"] is True
+    assert persisted["cancelled_at"] is not None
+    assert persisted["completed_at"] is not None
+    assert persisted["worker_id"] is None
+    assert persisted["heartbeat_at"] is None
+    assert persisted["interrupted_at"] is None
+
+    photo_after = client.get(f"/api/projects/{project['id']}/photos/{photo_id}").json()
+    assert photo_after["processing_state"] == "imported"
+    assert photo_after["group_id"] is None
+    assert photo_after["user_status"] == "Pick"
+    assert photo_after["star_rating"] == 4
+    assert original_path.read_bytes() == original_bytes
+
+    with Session(get_engine()) as session:
+        assert session.get(PhotoGroup, group_id) is None
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        assert stored_project.processed_images == 0
+
+
+def test_cancel_during_derivative_validation_keeps_copied_originals_and_thumbnails(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel during derivatives"}).json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", _image_bytes(), "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    _import_job, photo = _wait_for_imported_photo(client, project["id"], import_response.json())
+    thumbnail_path = Path(photo["thumbnail_path"])
+    preview_path = Path(photo["preview_path"])
+    assert thumbnail_path.is_file()
+    preview_path.unlink()
+
+    with Session(get_engine()) as session:
+        stored_photo = session.get(Photo, photo["id"])
+        assert stored_photo is not None
+        original_path = Path(stored_photo.project_copy_path or stored_photo.original_path)
+        original_bytes = original_path.read_bytes()
+
+    real_refresh = processing_module.refresh_job_lease_heartbeat
+    validating_refreshes = {"count": 0}
+
+    def refresh_then_request_cancel_during_validation(session, job):
+        result = real_refresh(session, job)
+        if job.current_step == "validating generated files":
+            validating_refreshes["count"] += 1
+            if validating_refreshes["count"] >= 2 and not job.cancellation_requested:
+                job.cancellation_requested = True
+                session.add(job)
+        return result
+
+    monkeypatch.setattr(
+        processing_module,
+        "refresh_job_lease_heartbeat",
+        refresh_then_request_cancel_during_validation,
+    )
+
+    process_job = _wait_for_job(
+        client,
+        project["id"],
+        client.post(f"/api/projects/{project['id']}/process").json(),
+    )
+    assert process_job["status"] == "cancelled"
+    assert process_job["status"] != "failed"
+    assert process_job["cancellation_requested"] is True
+    assert process_job["cancelled_at"] is not None
+    assert original_path.read_bytes() == original_bytes
+    assert thumbnail_path.is_file()
+
+    photo_after = client.get(f"/api/projects/{project['id']}/photos/{photo['id']}").json()
+    assert photo_after["processing_state"] == "imported"
+    assert client.get(f"/api/projects/{project['id']}/groups").json() == []
+    assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 0
 
 
 def test_retry_import_job_reuses_existing_derivatives_and_clears_failed_photo_state(tmp_path, monkeypatch):

@@ -57,6 +57,7 @@ from app.services.jobs import (
 from app.services.processing import (
     create_processing_job,
     project_export_root,
+    request_processing_job_cancellation,
     run_processing_job,
 )
 from app.services.projects import create_project, list_projects
@@ -803,15 +804,18 @@ def cancel_job_endpoint(
     if job is None or job.project_id != project_id:
         raise HTTPException(status_code=404, detail="Processing job not found")
     job = _ensure_fresh_job(session, job)
-    if job.job_type != "import":
+    if job.job_type not in {"import", "processing"}:
         raise HTTPException(status_code=422, detail="Only import jobs can be cancelled")
     if job.status in {"complete", "complete_with_errors", "failed", "cancelled"}:
         response.status_code = status.HTTP_200_OK
         return job
-    # "interrupted" imports finalize synchronously (no in-flight worker to cooperatively
+    # "interrupted" jobs finalize synchronously (no in-flight worker to cooperatively
     # cancel), so report 200 rather than the async-style 202 (#104 fix 4).
     was_interrupted = job.status == "interrupted"
-    result = request_import_job_cancellation(session, job)
+    if job.job_type == "processing":
+        result = request_processing_job_cancellation(session, job)
+    else:
+        result = request_import_job_cancellation(session, job)
     response.status_code = status.HTTP_200_OK if was_interrupted else status.HTTP_202_ACCEPTED
     return result
 
