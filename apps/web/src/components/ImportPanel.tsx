@@ -39,6 +39,9 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
   return count === 1 ? singular : plural;
 }
 
+export const IMPORT_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif";
+const IMPORT_FORMAT_COPY = "JPEG, PNG, WebP, and HEIC/HEIF are supported. RAW files are skipped.";
+
 const IMPORT_MESSAGE_CLASS: Record<ImportFeedbackTone, string> = {
   neutral: "text-muted",
   success: "text-leaf",
@@ -434,7 +437,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
             <span className="grid gap-3">
               <FileImage className="mx-auto text-leaf" size={34} />
               <span className="font-medium">Choose image files</span>
-              <span className="text-sm text-muted">JPEG, PNG, and WebP are supported.</span>
+              <span className="text-sm text-muted">{IMPORT_FORMAT_COPY}</span>
             </span>
           </button>
           <button
@@ -466,14 +469,14 @@ export function ImportPanel({ projectId }: { projectId: string }) {
               className="sr-only"
               type="file"
               multiple
-              accept="image/jpeg,image/png,image/webp"
+              accept={IMPORT_IMAGE_ACCEPT}
               disabled={importSelectionDisabled}
               onChange={onFiles}
             />
             <span className="grid gap-3">
               <FileImage className="mx-auto text-leaf" size={34} />
               <span className="font-medium">Choose image files</span>
-              <span className="text-sm text-muted">JPEG, PNG, and WebP are supported.</span>
+              <span className="text-sm text-muted">{IMPORT_FORMAT_COPY}</span>
             </span>
           </label>
           <label
@@ -485,7 +488,7 @@ export function ImportPanel({ projectId }: { projectId: string }) {
               className="sr-only"
               type="file"
               multiple
-              accept="image/jpeg,image/png,image/webp"
+              accept={IMPORT_IMAGE_ACCEPT}
               disabled={importSelectionDisabled}
               onChange={onFiles}
               {...{ webkitdirectory: "", directory: "" }}

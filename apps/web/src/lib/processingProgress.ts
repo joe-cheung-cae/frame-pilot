@@ -235,7 +235,7 @@ export function processingActionBlockMessage({
   }
 
   if (!hasImportedPhotos) {
-    return "Import JPEG, PNG, or WebP images before running grouping and ranking.";
+    return "Import JPEG, PNG, WebP, or HEIC/HEIF images before running grouping and ranking.";
   }
 
   return "";
