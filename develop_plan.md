@@ -21,10 +21,11 @@ Already delivered on `main`:
 - v2.0 local JPEG/PNG/WebP culling workflow (project, import, scoring/grouping/ranking, keyboard review, CSV/ZIP/folder export).
 - `2.1.0-desktop` RC (unsigned Tauri 2 + localhost Python sidecar). Do not treat it as a signed store release.
 - Phase 6 / 6.1 durable local job reclaim (`npm run worker` / `python -m app.worker`; `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on).
+- Phase 7 cooperative **processing job cancel** (J7.01–J7.06, [#148](https://github.com/joe-cheung-cae/frame-pilot/pull/148)). Pause/resume (J7.07) is **not** in that phase’s Definition of Done. Plan: [docs/plans/2026-09-03-phase7-processing-cancel.md](docs/plans/2026-09-03-phase7-processing-cancel.md).
 
-**Next implementation slice:** Phase 7 — cooperative **processing job cancel** ([#145](https://github.com/joe-cheung-cae/frame-pilot/issues/145), implement [#146](https://github.com/joe-cheung-cae/frame-pilot/issues/146)). Plan: [docs/plans/2026-09-03-phase7-processing-cancel.md](docs/plans/2026-09-03-phase7-processing-cancel.md). Pause/resume is optional and is **not** in that phase’s Definition of Done.
+**Next:** unsigned packaged GUI lifecycle QA — [joe-cheung-cae/frame-pilot#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144). Matrix: [docs/desktop_testing.md](docs/desktop_testing.md) lifecycle rows (Start installed, Quit clean, Quit + import, Sidecar crash, Port in use, Install / uninstall). Needs a Windows NSIS and/or macOS DMG run with dated window or installer evidence. Skip is not pass.
 
-Open GitHub work outside this slice: [joe-cheung-cae/frame-pilot#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) (unsigned NSIS/DMG GUI lifecycle QA). Not this slice: export cancel, HEIC/RAW, XMP ([#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) is `not_planned`), desktop 2.2, signing.
+Not this work: export cancel, HEIC/RAW, XMP ([#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) is `not_planned`), desktop 2.2, signing, J7.07 pause.
 
 ## 2. v1 Status and Motivation for v2
 
@@ -422,13 +423,14 @@ Shipped after the original v2.0 note above:
 - Local worker entrypoint: `npm run worker` / `python -m app.worker` (Phase 6).
 - Cooperative **import** cancellation (existing cancel route).
 - Startup reclaim for leftover import/processing jobs (Phase 6.1 default on).
+- Cooperative **processing** cancellation on the same cancel route (Phase 7, J7.01–J7.06). See [docs/plans/2026-09-03-phase7-processing-cancel.md](docs/plans/2026-09-03-phase7-processing-cancel.md).
 
-**Next (Phase 7):** cooperative **processing** cancellation on the same cancel route. Pause/resume is not required for that phase. See [docs/plans/2026-09-03-phase7-processing-cancel.md](docs/plans/2026-09-03-phase7-processing-cancel.md).
+**Next:** [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) unsigned NSIS/DMG GUI lifecycle QA (not a processing-architecture change).
 
 Still deferred:
 
 - RQ, Dramatiq, or Celery (only if a measured need appears).
-- Pause/resume of in-flight grouping without clear-and-rerun.
+- Pause/resume of in-flight grouping without clear-and-rerun (Phase 7 J7.07, not DoD).
 - Export job cancel and export reclaim.
 
 ## 11. Frontend Architecture
