@@ -88,6 +88,87 @@ assert payload.get("version"), payload
 print(json.dumps(payload, sort_keys=True))
 PY
 
+if [[ "$use_frozen" -eq 1 ]]; then
+  unpacked="$repo_root/dist/framepilot-api"
+  unpacked_bytes="$(du -sb "$unpacked" | awk '{print $1}')"
+  max_bytes=$((400 * 1024 * 1024))
+  echo "unpacked sidecar bytes=$unpacked_bytes max=$max_bytes"
+  if [[ "$unpacked_bytes" -gt "$max_bytes" ]]; then
+    echo "Unpacked sidecar exceeds the 400 MB D4.06 threshold: $unpacked_bytes" >&2
+    exit 1
+  fi
+
+  if [[ -x "$repo_root/.venv/bin/python" ]]; then
+    gen_python="$repo_root/.venv/bin/python"
+  elif [[ -f "$repo_root/.venv/Scripts/python.exe" ]]; then
+    gen_python="$repo_root/.venv/Scripts/python.exe"
+  else
+    echo "Need .venv python to generate a tiny HEIC for frozen decode smoke" >&2
+    exit 1
+  fi
+
+  heic_path="$data_dir/still.heic"
+  "$gen_python" - "$heic_path" << 'PY'
+from io import BytesIO
+from pathlib import Path
+import sys
+
+from PIL import Image
+from pillow_heif import register_heif_opener
+
+register_heif_opener()
+image = Image.new("RGB", (8, 6), (12, 34, 56))
+buffer = BytesIO()
+image.save(buffer, format="HEIF")
+Path(sys.argv[1]).write_bytes(buffer.getvalue())
+print(f"wrote {sys.argv[1]} bytes={len(buffer.getvalue())}")
+PY
+
+  python3 - "$port" "$heic_path" << 'PY'
+import json
+import sys
+import time
+import urllib.error
+import urllib.request
+
+port = sys.argv[1]
+heic_path = sys.argv[2]
+base = f"http://127.0.0.1:{port}"
+
+
+def request(method: str, path: str, payload: dict | None = None) -> dict:
+    data = None if payload is None else json.dumps(payload).encode()
+    req = urllib.request.Request(
+        f"{base}{path}",
+        data=data,
+        method=method,
+        headers={"Content-Type": "application/json", "Host": f"127.0.0.1:{port}"},
+    )
+    with urllib.request.urlopen(req, timeout=30) as response:
+        return json.loads(response.read().decode())
+
+
+project = request("POST", "/api/projects", {"name": "sidecar-heic"})
+imported = request(
+    "POST",
+    f"/api/projects/{project['id']}/imports/from-paths",
+    {"paths": [heic_path], "finalize": True},
+)
+assert imported["imported"] and imported["imported"][0]["filename"] == "still.heic", imported
+job = imported["job"]
+for _ in range(50):
+    if job["status"] in {"complete", "complete_with_errors", "failed", "cancelled"}:
+        break
+    time.sleep(0.1)
+    job = request("GET", f"/api/projects/{project['id']}/jobs/{job['id']}")
+assert job["status"] == "complete", job
+photo = request("GET", f"/api/projects/{project['id']}/photos/{imported['imported'][0]['id']}")
+assert photo["processing_state"] == "imported", photo
+assert photo["file_ext"] == ".heic", photo
+print(json.dumps({"job": job["status"], "photo": photo["filename"], "state": photo["processing_state"]}))
+PY
+fi
+
 kill -TERM "$sidecar_pid" 2> /dev/null || true
 elapsed=0
 while kill -0 "$sidecar_pid" 2> /dev/null; do

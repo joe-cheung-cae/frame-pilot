@@ -48,7 +48,7 @@ Phase 8 — HEIC preview (post #144)
 - [x] H8.02 Import accepts `.heic` / `.heif`
 - [x] H8.03 Process and export original HEIC
 - [x] H8.04 Web import accept + copy
-- [ ] H8.05 Frozen sidecar collects pillow-heif
+- [x] H8.05 Frozen sidecar collects pillow-heif
 - [ ] H8.06 Docs close-out
 
 ---
