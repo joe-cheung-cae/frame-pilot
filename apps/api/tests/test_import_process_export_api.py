@@ -31,6 +31,7 @@ from app.services.importing import (
     import_image_file,
     invalidate_project_processing,
 )
+from tests.heic_helpers import tiny_heic_bytes
 
 
 def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
@@ -3020,28 +3021,32 @@ def test_import_skips_invalid_files_when_other_images_import_successfully(tmp_pa
     assert {photo["processing_state"] for photo in photos} == {"imported", "failed"}
 
 
-def test_import_reports_heic_and_raw_as_planned_unsupported_formats(tmp_path, monkeypatch):
+def _tiny_heic_with_exif() -> bytes:
+    exif = Image.Exif()
+    exif[ExifTags.Base.DateTimeOriginal] = "2026:01:02 03:04:05"
+    exif[ExifTags.Base.Model] = "FramePilotCam"
+    return tiny_heic_bytes(exif=exif)
+
+
+def test_import_accepts_heic_and_still_skips_raw(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
     project = client.post("/api/projects", json={"name": "Planned formats"}).json()
+    heic_payload = tiny_heic_bytes()
 
     response = client.post(
         f"/api/projects/{project['id']}/import",
         files=[
             ("files", ("good.jpg", _image_bytes(), "image/jpeg")),
-            ("files", ("camera.heic", b"not decoded in v2", "image/heic")),
+            ("files", ("camera.heic", heic_payload, "image/heic")),
             ("files", ("frame.dng", b"not decoded in v2", "image/x-adobe-dng")),
         ],
     )
 
     assert response.status_code == 201
     result = response.json()
-    assert [photo["filename"] for photo in result["imported"]] == ["good.jpg"]
+    assert [photo["filename"] for photo in result["imported"]] == ["good.jpg", "camera.heic"]
     assert result["skipped"] == [
-        {
-            "filename": "camera.heic",
-            "reason": "HEIC files are not supported yet; import JPEG, PNG, or WebP files for this release",
-        },
         {
             "filename": "frame.dng",
             "reason": "RAW files are not supported yet; import JPEG, PNG, or WebP files for this release",
@@ -3049,8 +3054,61 @@ def test_import_reports_heic_and_raw_as_planned_unsupported_formats(tmp_path, mo
     ]
     originals = Path(project["root_path"]) / "originals"
     assert (originals / "good.jpg").exists()
-    assert not (originals / "camera.heic").exists()
+    assert (originals / "camera.heic").read_bytes() == heic_payload
     assert not (originals / "frame.dng").exists()
+
+
+def test_import_heic_writes_webp_derivatives_and_exif(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "HEIC import"}).json()
+    payload = _tiny_heic_with_exif()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("still.heic", payload, "image/heic"))],
+    )
+    assert response.status_code == 201
+    result = response.json()
+    job, photo = _wait_for_imported_photo(client, project["id"], result)
+    assert job["status"] == "complete"
+    assert photo["filename"] == "still.heic"
+    assert photo["file_ext"] == ".heic"
+    assert photo["processing_state"] == "imported"
+    assert photo["capture_time"] == "2026-01-02T03:04:05"
+    assert photo["camera_model"] == "FramePilotCam"
+    assert Path(photo["project_copy_path"]).read_bytes() == payload
+    assert Path(photo["thumbnail_path"]).suffix == ".webp"
+    assert Path(photo["preview_path"]).suffix == ".webp"
+    assert Path(photo["thumbnail_path"]).is_file()
+    assert Path(photo["preview_path"]).is_file()
+
+
+def test_import_garbage_heic_fails_that_file_like_broken_jpeg(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Garbage HEIC"}).json()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[
+            ("files", ("good.jpg", _image_bytes(), "image/jpeg")),
+            ("files", ("shot.heic", b"not-a-real-heic", "image/heic")),
+        ],
+    )
+    assert response.status_code == 201
+    result = response.json()
+    assert [photo["filename"] for photo in result["imported"]] == ["good.jpg", "shot.heic"]
+    assert result["skipped"] == []
+    originals = Path(project["root_path"]) / "originals"
+    assert (originals / "shot.heic").read_bytes() == b"not-a-real-heic"
+    job = _wait_for_job(client, project["id"], result["job"])
+    assert job["status"] == "complete_with_errors"
+    assert job["processed_items"] == 1
+    assert job["failed_items"] == 1
+    photos = {photo["filename"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
+    assert photos["good.jpg"]["processing_state"] == "imported"
+    assert photos["shot.heic"]["processing_state"] == "failed"
 
 
 def test_export_rejects_invalid_status(tmp_path, monkeypatch):

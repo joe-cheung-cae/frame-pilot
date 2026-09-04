@@ -11,6 +11,7 @@ from app.services.importing import (
     expand_import_paths,
     unsupported_image_reason,
 )
+from tests.heic_helpers import tiny_heic_bytes
 
 
 def _write_jpeg(path: Path, color=(80, 120, 40)) -> None:
@@ -25,14 +26,16 @@ def test_expand_nested_jpegs_and_skips(tmp_path):
     _write_jpeg(source / "a.jpg")
     _write_jpeg(source / "nested" / "b.JPG")
     (source / "notes.txt").write_text("skip me", encoding="utf-8")
-    (source / "shot.heic").write_bytes(b"not-a-real-heic")
+    (source / "shot.heic").write_bytes(tiny_heic_bytes())
+    (source / "frame.dng").write_bytes(b"not-raw")
 
     expanded = expand_import_paths([str(source)], project_root)
 
-    assert [path.name.lower() for path in expanded.files] == ["a.jpg", "b.jpg"]
+    assert [path.name.lower() for path in expanded.files] == ["a.jpg", "b.jpg", "shot.heic"]
     reasons = {item["filename"]: item["reason"] for item in expanded.skipped}
     assert reasons["notes.txt"] == "Only JPEG, PNG, and WebP files are supported"
-    assert reasons["shot.heic"] == unsupported_image_reason("shot.heic")
+    assert reasons["frame.dng"] == unsupported_image_reason("frame.dng")
+    assert "shot.heic" not in reasons
 
 
 def test_expand_rejects_relative_missing_and_empty(tmp_path):

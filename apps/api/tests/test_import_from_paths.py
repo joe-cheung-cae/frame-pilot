@@ -11,6 +11,7 @@ from app.db.session import get_engine
 from app.main import create_app
 from app.models.entities import Photo
 from app.services.importing import IMPORT_COPY_CHUNK_SIZE, IMPORT_MAX_FILES_PER_REQUEST, unsupported_image_reason
+from tests.heic_helpers import tiny_heic_bytes
 
 
 def _jpeg(color=(120, 150, 90)) -> bytes:
@@ -39,6 +40,17 @@ def _open_fd_count() -> int:
 def _client(tmp_path, monkeypatch) -> TestClient:
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     return TestClient(create_app())
+
+
+def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
+    current = job
+    for _ in range(20):
+        if current["status"] in {"complete", "complete_with_errors", "failed", "cancelled"}:
+            return current
+        response = client.get(f"/api/projects/{project_id}/jobs/{current['id']}")
+        assert response.status_code == 200
+        current = response.json()
+    return current
 
 
 def test_import_from_paths_two_jpegs(tmp_path, monkeypatch):
@@ -365,19 +377,57 @@ def test_import_from_paths_skips_unsupported(tmp_path, monkeypatch):
     jpeg = tmp_path / "keep.jpg"
     txt = tmp_path / "notes.txt"
     heic = tmp_path / "shot.heic"
+    heif = tmp_path / "frame.heif"
+    heic_payload = tiny_heic_bytes(color=(12, 34, 56))
+    heif_payload = tiny_heic_bytes(color=(90, 12, 40))
     _write_jpeg(jpeg)
     txt.write_text("nope", encoding="utf-8")
+    heic.write_bytes(heic_payload)
+    heif.write_bytes(heif_payload)
+    before = _source_fingerprint(heic)
+    response = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={"paths": [str(jpeg), str(txt), str(heic), str(heif)]},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert {item["filename"] for item in body["imported"]} == {"keep.jpg", "shot.heic", "frame.heif"}
+    reasons = {item["filename"]: item["reason"] for item in body["skipped"]}
+    assert reasons["notes.txt"] == unsupported_image_reason("notes.txt")
+    assert "shot.heic" not in reasons
+    originals = Path(project["root_path"]) / "originals"
+    assert (originals / "shot.heic").read_bytes() == heic_payload
+    assert (originals / "frame.heif").read_bytes() == heif_payload
+    assert _source_fingerprint(heic) == before
+    job = _wait_for_job(client, project["id"], body["job"])
+    assert job["status"] in {"complete", "complete_with_errors"}
+    photos = {photo["filename"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
+    assert photos["shot.heic"]["processing_state"] == "imported"
+    assert photos["frame.heif"]["processing_state"] == "imported"
+    assert Path(photos["shot.heic"]["thumbnail_path"]).suffix == ".webp"
+
+
+def test_import_from_paths_garbage_heic_fails_that_file(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    project = client.post("/api/projects", json={"name": "Garbage HEIC path"}).json()
+    jpeg = tmp_path / "keep.jpg"
+    heic = tmp_path / "shot.heic"
+    _write_jpeg(jpeg)
     heic.write_bytes(b"not-heic")
     response = client.post(
         f"/api/projects/{project['id']}/imports/from-paths",
-        json={"paths": [str(jpeg), str(txt), str(heic)]},
+        json={"paths": [str(jpeg), str(heic)]},
     )
     assert response.status_code == 201
-    payload = response.json()
-    assert [item["filename"] for item in payload["imported"]] == ["keep.jpg"]
-    reasons = {item["filename"]: item["reason"] for item in payload["skipped"]}
-    assert reasons["notes.txt"] == unsupported_image_reason("notes.txt")
-    assert reasons["shot.heic"] == unsupported_image_reason("shot.heic")
+    body = response.json()
+    assert {item["filename"] for item in body["imported"]} == {"keep.jpg", "shot.heic"}
+    assert body["skipped"] == []
+    job = _wait_for_job(client, project["id"], body["job"])
+    assert job["status"] == "complete_with_errors"
+    assert job["failed_items"] == 1
+    photos = {photo["filename"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
+    assert photos["keep.jpg"]["processing_state"] == "imported"
+    assert photos["shot.heic"]["processing_state"] == "failed"
 
 
 def test_import_from_paths_records_source_root(tmp_path, monkeypatch):
