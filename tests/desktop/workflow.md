@@ -1,5 +1,7 @@
 # Desktop Phase 2 workflow checklist
 
+> Language: **English** | [中文](workflow.zh.md)
+
 Manual GUI pass for D2.08. Automated coverage is `apps/api/tests/test_path_import_process_export_workflow.py` (`from-paths` → process → Pick → CSV/ZIP/folder export; source `st_size` / mtime / hash unchanged).
 
 Do **not** modify or delete original camera files. Copy-mode only. HEIC/RAW/XMP are out of Phase 2.

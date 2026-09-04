@@ -17,6 +17,12 @@ if not root.is_dir():
     raise SystemExit(1)
 
 NAMED_STEMS = ("README", "AGENTS", "develop_plan", "implement_goals")
+EXTRA_LIVING = (
+    "apps/desktop/README.md",
+    "apps/desktop/README.zh.md",
+    "tests/desktop/workflow.md",
+    "tests/desktop/workflow.zh.md",
+)
 FENCE_RE = re.compile(
     r"^(?P<fence>`{3,}|~{3,})[^\n]*\n(?:.*?\n)?(?P=fence)[ \t]*$",
     re.MULTILINE | re.DOTALL,
@@ -40,6 +46,13 @@ def living_markdown_files(base: Path) -> list[Path]:
     docs = base / "docs"
     if docs.is_dir():
         for path in sorted(p for p in docs.rglob("*.md") if p.is_file()):
+            resolved = path.resolve()
+            if resolved not in seen:
+                files.append(path)
+                seen.add(resolved)
+    for rel in EXTRA_LIVING:
+        path = base / rel
+        if path.is_file():
             resolved = path.resolve()
             if resolved not in seen:
                 files.append(path)

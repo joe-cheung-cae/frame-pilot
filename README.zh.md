@@ -47,7 +47,7 @@ Web 应用运行在 `http://localhost:3000`。本地 API 运行在 `http://127.0
 
 ## 桌面应用
 
-可安装的 Windows（NSIS）与 macOS（DMG）构建会为你启动 UI 与本地 API sidecar。安装、数据目录、路径导入（只复制不移动）与导出揭示见 [桌面用户指南](docs/desktop_user_guide.zh.md)。贡献者日常可继续用 `npm run dev`（上方的 web + API）。桌面壳开发用 `npm run dev:desktop`（需要 Rust）；见 [apps/desktop/README.md](apps/desktop/README.md)。
+可安装的 Windows（NSIS）与 macOS（DMG）构建会为你启动 UI 与本地 API sidecar。安装、数据目录、路径导入（只复制不移动）与导出揭示见 [桌面用户指南](docs/desktop_user_guide.zh.md)。贡献者日常可继续用 `npm run dev`（上方的 web + API）。桌面壳开发用 `npm run dev:desktop`（需要 Rust）；见 [apps/desktop/README.zh.md](apps/desktop/README.zh.md)。
 
 典型工作流：
 

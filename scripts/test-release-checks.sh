@@ -265,6 +265,25 @@ expect_success \
   "markdown link check accepts existing relative targets" \
   bash scripts/check-markdown-links.sh "$link_root"
 
+extra_desktop="$tmpdir/extra-desktop"
+cp -a "$link_root" "$extra_desktop"
+mkdir -p "$extra_desktop/apps/desktop"
+printf '# Desktop\n\n> Language: **English** | [中文](README.zh.md)\n\nShell.\n' \
+  > "$extra_desktop/apps/desktop/README.md"
+
+expect_failure \
+  "markdown link check rejects a missing desktop README Chinese counterpart" \
+  "missing Chinese counterpart" \
+  bash scripts/check-markdown-links.sh "$extra_desktop"
+
+write_pair "$extra_desktop/apps/desktop/README.md" "Desktop shell"
+mkdir -p "$extra_desktop/tests/desktop"
+write_pair "$extra_desktop/tests/desktop/workflow.md" "Workflow"
+
+expect_success \
+  "markdown link check accepts extra living desktop pages" \
+  bash scripts/check-markdown-links.sh "$extra_desktop"
+
 missing_zh="$tmpdir/missing-zh"
 cp -a "$link_root" "$missing_zh"
 rm -f "$missing_zh/README.zh.md"
