@@ -43,7 +43,7 @@ FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，
 
 - 优先 **Choose a folder** 或 **Choose image files**（原生对话框）。桌面使用路径导入（`POST .../imports/from-paths`），不会经 WebView File API 上传成千上万字节。
 - 每次 HTTP 请求最多消费 **100** 个展开后的文件。大文件夹用同一 `job_id` 继续，直到最后一片 `finalize`。
-- 支持：JPEG、PNG、WebP。HEIC/RAW 会以本地提示跳过。
+- 支持：JPEG、PNG、WebP 以及 HEIC/HEIF 静帧。原片原样拷贝；预览为 WebP。RAW 会以本地提示跳过。
 - 有效文件**复制**到 `{root_path}/originals`。源卡与源文件夹保持不动（size、mtime、字节）。
 
 也可以仅在导入页拖放文件/文件夹。在其他页面拖放不得开始导入。

@@ -49,7 +49,7 @@ Phase 8 — HEIC preview (post #144)
 - [x] H8.03 Process and export original HEIC
 - [x] H8.04 Web import accept + copy
 - [x] H8.05 Frozen sidecar collects pillow-heif
-- [ ] H8.06 Docs close-out
+- [x] H8.06 Docs close-out
 
 ---
 
@@ -217,17 +217,17 @@ Do **not** edit `develop_plan.md` in the implementation commit if this docs-poin
 
 ## 7. Phase 8 Definition of Done
 
-- [ ] Valid `.heic` / `.heif` stills import, copy to `originals/`, and get WebP thumb/preview
-- [ ] Source HEIC bytes/mtime unchanged through import, process, and export
-- [ ] Scoring/grouping/ranking run on decoded RGB without a second pipeline
-- [ ] ZIP/folder export ships the original HEIC; CSV lists it
-- [ ] Garbage HEIC fails that file, does not crash the job
-- [ ] RAW extensions still skipped with the existing reason
-- [ ] Web import accept includes HEIC
-- [ ] Frozen sidecar can decode HEIC (plugin + native libs collected)
-- [ ] Bilingual docs match; CHANGELOG Unreleased has Phase 8
-- [ ] `npm run test:api`, `npm run test:web`, and `npm run verify` green
-- [ ] No `APP_VERSION` bump, no signing, no XMP, no RAW preview, no AVIF, no J7.07
+- [x] Valid `.heic` / `.heif` stills import, copy to `originals/`, and get WebP thumb/preview
+- [x] Source HEIC bytes/mtime unchanged through import, process, and export
+- [x] Scoring/grouping/ranking run on decoded RGB without a second pipeline
+- [x] ZIP/folder export ships the original HEIC; CSV lists it
+- [x] Garbage HEIC fails that file, does not crash the job
+- [x] RAW extensions still skipped with the existing reason
+- [x] Web import accept includes HEIC
+- [x] Frozen sidecar can decode HEIC (plugin + native libs collected)
+- [x] Bilingual docs match; CHANGELOG Unreleased has Phase 8
+- [x] `npm run test:api`, `npm run test:web`, and `npm run verify` green
+- [x] No `APP_VERSION` bump, no signing, no XMP, no RAW preview, no AVIF, no J7.07
 
 ---
 

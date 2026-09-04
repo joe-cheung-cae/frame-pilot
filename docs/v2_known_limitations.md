@@ -15,12 +15,15 @@ v2.0 supports local import and processing for:
 - JPEG
 - PNG
 - WebP
+- HEIC / HEIF stills (local `pillow-heif` decode; WebP derivatives; original bytes exported)
 
 Unsupported files are reported locally instead of uploaded or decoded remotely.
 
 ## Deferred Formats
 
-HEIC and RAW formats such as DNG, ARW, CR3, and NEF are deferred. v2.0 may recognize these extensions enough to show explicit unsupported-format messages, but it does not decode them, extract embedded RAW previews, or write RAW sidecars.
+RAW formats such as DNG, ARW, CR3, and NEF remain deferred. FramePilot skips those extensions with an explicit unsupported-format message and does not extract embedded RAW previews or write RAW sidecars. HEIC/HEIF stills import locally; Live Photo `.mov` companions, AVIF, HDR/gain-map tone mapping, and XMP writes are not implemented.
+
+`pillow-heif` is BSD-3-Clause. Its wheels ship **LGPL** `libheif` (and codecs) inside the API/sidecar runtime. FramePilot does not vendor libheif source into this MIT tree.
 
 ## Background Job Durability
 
@@ -87,7 +90,7 @@ v2.0 does not support cloud libraries, shared team projects, automatic original 
 The installable desktop app (`2.1.0-desktop`) shares the same local API and culling UI with extra shell constraints:
 
 - Import and processing jobs are durable by default across sidecar kill or app quit: leftover jobs are marked `interrupted` and reclaimed on the next launch. Set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` to opt back into marking stale jobs failed on the next launch instead (exports still fail-and-cleanup either way).
-- HEIC and RAW remain skipped with local messages (same as v2.0 web).
+- HEIC/HEIF stills import locally (same as the web app). RAW remains skipped with a local message.
 - **Auto-update is deferred**; users install new builds manually.
 - CI installers may be **unsigned** until certificates exist; see [Desktop Code Signing Runbook](desktop_signing.md).
 - **WSL may not run the GUI** (needs rustc ≥1.88 and a display); HTTP/API smoke still works. See [Desktop Testing Matrix](desktop_testing.md).

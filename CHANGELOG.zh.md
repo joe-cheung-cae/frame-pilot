@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 第八阶段 — HEIC 预览
+
+- 本地 HEIC/HEIF 静帧导入，用 `pillow-heif` 解码，WebP 缩略图/预览，在解码 RGB 上评分/分组
+- 原始 HEIC 字节拷进 `originals/` 并导出（ZIP 使用 `ZIP_STORED`）；永不修改源文件
+- 垃圾 HEIC 在拷贝后只让该文件失败；RAW、AVIF、Live Photo `.mov`、HDR gain-map 色调映射和 XMP 不在本切片
+- 冻结 sidecar 收集 `pillow_heif` / libheif；wheel 带 LGPL libheif（写在已知限制里）
+- 不升 `APP_VERSION`、不签名、不跑打包 GUI
+
 ### 第七阶段 — 处理作业取消
 
 - 现有 `POST /api/projects/{project_id}/jobs/{job_id}/cancel` 路由上的协作式处理取消（queued/running 持久化 `cancellation_requested` 并返回 202；终态 200 空操作；interrupted 终态 `cancelled` 并清分组）

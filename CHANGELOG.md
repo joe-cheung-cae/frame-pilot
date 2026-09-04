@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 8 — HEIC preview
+
+- Local HEIC/HEIF still import, decode with `pillow-heif`, WebP thumbnails/previews, and score/group on decoded RGB
+- Original HEIC bytes are copied into `originals/` and exported (ZIP uses `ZIP_STORED`); source files are never modified
+- Garbage HEIC fails that file after copy; RAW, AVIF, Live Photo `.mov`, HDR gain-map tone mapping, and XMP stay out of this slice
+- Frozen sidecar collects `pillow_heif` / libheif; wheels ship LGPL libheif (documented in known limitations)
+- No `APP_VERSION` bump, signing, or packaged GUI
+
 ### Phase 7 — processing job cancel
 
 - Cooperative processing cancel on the existing `POST /api/projects/{project_id}/jobs/{job_id}/cancel` route (queued/running persist `cancellation_requested` with 202; terminal is a 200 no-op; interrupted finalizes `cancelled` and resets groups)

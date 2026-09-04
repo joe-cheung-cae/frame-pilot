@@ -9,7 +9,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 - Next.js, React, TypeScript, Tailwind CSS frontend.
 - FastAPI, Pydantic, SQLModel, SQLite backend.
 - Local project folders with originals, thumbnails, previews, structured export/cache subdirectories, and logs.
-- JPEG, PNG, and WebP imports. HEIC and RAW files are skipped with explicit local messages. HEIC/HEIF still preview is Phase 8 (not yet implemented); RAW stays skipped.
+- JPEG, PNG, WebP, and HEIC/HEIF still imports. Originals are copied unchanged; thumbnails and previews are WebP; scoring and grouping run on decoded RGB via local `pillow-heif`. RAW files are still skipped with explicit local messages.
 - Import jobs return after local upload/register work and continue derivative generation in a queryable, cooperatively cancellable local background task.
 - Processing is blocked while import derivative work is still active, and project navigation routes users back to import progress until the import job reaches a terminal state.
 - Processing (grouping and ranking) is cooperatively cancellable on the same job cancel route. Desktop quit can cancel an active processing job, then SIGTERM the sidecar.
@@ -24,7 +24,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 
 Known v2.0 limitations:
 
-- HEIC and RAW files are skipped with explicit local messages. HEIC/HEIF still preview is the current next slice (Phase 8, H8.01–H8.06); RAW stays skipped.
+- RAW files such as DNG, ARW, CR3, and NEF are skipped with explicit local messages. HEIC/HEIF stills import locally; Live Photo `.mov` companions, AVIF, HDR gain-map tone mapping, and XMP writes are not implemented.
 - Import and processing jobs run in the local API process or the optional local worker (`npm run worker`). Progress, cooperative import and processing cancellation, stale-job detection, active-import processing guards, safe import retry, and stale-processing cleanup are available. By default leftover active import/processing jobs are marked `interrupted` on the next startup and reclaimed (`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on; set `0`/`false`/`no`/`off` for fail-and-retry). Export jobs are not cancellable and are not reclaimed.
 - Experimental face and eye-open signals are deterministic local heuristics, not professional face detection, eye-state detection, identity recognition, or biometric analysis.
 - Grouping and ranking remain recommendation aids. The user keeps final control through manual statuses and star ratings.
@@ -52,7 +52,7 @@ Installable Windows (NSIS) and macOS (DMG) builds start the UI and a local API s
 Typical workflow:
 
 1. Create a project.
-2. Import JPEG, PNG, or WebP files. Valid files are registered locally, preview generation continues through a visible import job, and a running import can be cancelled at safe checkpoints without deleting originals or completed previews. Same-file reimports or import retries can reuse existing local records and generated previews.
+2. Import JPEG, PNG, WebP, or HEIC/HEIF stills. Valid files are registered locally, preview generation continues through a visible import job, and a running import can be cancelled at safe checkpoints without deleting originals or completed previews. Same-file reimports or import retries can reuse existing local records and generated previews. RAW stays skipped.
 3. Run processing after the import job completes. If import is still running, FramePilot keeps the project on import progress and rejects direct process requests.
 4. Review photos by group and mark Pick, Maybe, Reject, or Unreviewed.
 5. Export one or more selected statuses to CSV, folder, or ZIP. CSV and ZIP exports can be downloaded from the browser, and previous exports remain visible in export history.
