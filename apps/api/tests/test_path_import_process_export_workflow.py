@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from app.main import create_app
+from tests.heic_helpers import tiny_heic_bytes
 
 
 def _jpeg(color: tuple[int, int, int]) -> bytes:
@@ -173,3 +174,98 @@ def test_path_import_process_pick_and_export_leaves_originals_unchanged(tmp_path
     assert modes == {"csv", "zip", "folder"}
     assert pick_source.read_bytes() == pick_bytes
     assert other_source.read_bytes() == other_bytes
+
+
+def test_path_import_process_export_heic_leaves_originals_unchanged(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
+    client = TestClient(create_app())
+
+    source_dir = tmp_path / "camera-card"
+    source_dir.mkdir()
+    source = source_dir / "still.heic"
+    payload = tiny_heic_bytes(size=(64, 48), color=(210, 180, 40))
+    source.write_bytes(payload)
+    before = _fingerprint(source)
+    source_names_before = sorted(path.name for path in source_dir.iterdir())
+
+    def assert_originals_unchanged() -> None:
+        assert sorted(path.name for path in source_dir.iterdir()) == source_names_before
+        assert _fingerprint(source) == before
+
+    created = client.post("/api/projects", json={"name": "HEIC workflow"})
+    assert created.status_code == 201
+    project = created.json()
+    assert_originals_unchanged()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={"paths": [str(source)], "finalize": True},
+    )
+    assert import_response.status_code == 201, import_response.text
+    import_result = import_response.json()
+    assert [item["filename"] for item in import_result["imported"]] == ["still.heic"]
+    import_job = _wait_for_job(client, project["id"], import_result["job"])
+    assert import_job["status"] == "complete"
+    assert_originals_unchanged()
+
+    copy_path = Path(import_result["imported"][0]["project_copy_path"])
+    assert copy_path.read_bytes() == payload
+
+    process_response = client.post(f"/api/projects/{project['id']}/process")
+    assert process_response.status_code == 202
+    process_job = _wait_for_job(client, project["id"], process_response.json())
+    assert process_job["status"] == "complete"
+    photos = client.get(f"/api/projects/{project['id']}/photos").json()
+    assert len(photos) == 1
+    assert photos[0]["filename"] == "still.heic"
+    assert photos[0]["processing_state"] == "processed"
+    groups = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert len(groups) == 1
+    assert_originals_unchanged()
+
+    pick_photo = photos[0]
+    pick_response = client.patch(
+        f"/api/projects/{project['id']}/photos/{pick_photo['id']}",
+        json={"user_status": "Pick", "star_rating": 5},
+    )
+    assert pick_response.status_code == 200
+    assert_originals_unchanged()
+
+    csv_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "csv", "statuses": ["Pick"]},
+    )
+    assert csv_response.status_code == 201
+    csv_export = _wait_for_export(client, project["id"], csv_response.json())
+    assert csv_export["status"] == "complete"
+    with Path(csv_export["output_path"]).open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [row["filename"] for row in rows] == ["still.heic"]
+    assert rows[0]["photo_id"] == pick_photo["id"]
+    assert_originals_unchanged()
+
+    zip_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "zip", "statuses": ["Pick"]},
+    )
+    assert zip_response.status_code == 201
+    zip_export = _wait_for_export(client, project["id"], zip_response.json())
+    assert zip_export["status"] == "complete"
+    with zipfile.ZipFile(zip_export["output_path"]) as archive:
+        assert archive.namelist() == ["still.heic"]
+        assert archive.read("still.heic") == payload
+        assert archive.getinfo("still.heic").compress_type == zipfile.ZIP_STORED
+    assert_originals_unchanged()
+
+    folder_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "folder", "statuses": ["Pick"]},
+    )
+    assert folder_response.status_code == 201
+    folder_export = _wait_for_export(client, project["id"], folder_response.json())
+    assert folder_export["status"] == "complete"
+    exported_file = Path(folder_export["output_path"]) / "still.heic"
+    assert exported_file.is_file()
+    assert exported_file.read_bytes() == payload
+    assert exported_file.resolve() != source.resolve()
+    assert_originals_unchanged()

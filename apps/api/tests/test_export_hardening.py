@@ -53,6 +53,23 @@ def test_zip_selected_files_stores_jpeg_without_deflate(tmp_path):
         assert archive.read("frame.jpg") == source.read_bytes()
 
 
+def test_zip_selected_files_stores_heic_without_deflate(tmp_path):
+    originals = tmp_path / "originals"
+    originals.mkdir()
+    source = originals / "still.heic"
+    source.write_bytes(b"\x00\x00\x00\x1cftypheic" + b"0" * 1000)
+    target = tmp_path / "out.zip"
+    zip_selected_files(
+        target,
+        [{"filename": "still.heic", "original_path": str(source), "project_copy_path": str(source)}],
+        project_root=tmp_path,
+    )
+    with zipfile.ZipFile(target) as archive:
+        info = archive.getinfo("still.heic")
+        assert info.compress_type == zipfile.ZIP_STORED
+        assert archive.read("still.heic") == source.read_bytes()
+
+
 def test_zip_selected_files_uses_allow_zip64_for_large_members(tmp_path):
     """Practical Zip64/large-member smoke for #71 / legacy #13.
 
