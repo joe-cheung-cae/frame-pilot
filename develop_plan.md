@@ -737,6 +737,8 @@ Documentation must remain practical and implementation-oriented.
 
 ## 16. Development Milestones
 
+This section is historical Goal Mode sequencing (v2.0–v2.6). The living next-slice pointer is [§1.1](#11-current-delivery-status-and-next-slice). Do not reopen a shipped item from this list. Delivery Phase 7 is processing job cancel (already shipped), not §16.7. HEIC still preview is delivery Phase 8 (`docs/plans/2026-09-04-heic-preview.md`).
+
 ### 16.1 v2.0 Foundation
 
 Objective:
@@ -874,13 +876,15 @@ Acceptance criteria:
 
 ### 16.7 v2.6 Optional RAW, HEIC, and AI Model Support
 
+Historical stretch. **HEIC still preview is now a dedicated Phase 8** (H8.01–H8.06). Do not implement RAW, AVIF, XMP, or optional models as part of that slice.
+
 Objective:
 
 Add advanced format and model support only after v2 core is stable.
 
 Tasks:
 
-- Add HEIC preview support.
+- Add HEIC preview support (moved to Phase 8; see `docs/plans/2026-09-04-heic-preview.md`).
 - Add RAW embedded preview extraction.
 - Add optional model registry.
 - Add optional local face detection model.
@@ -968,7 +972,7 @@ When using Codex to implement v2, follow these rules:
 Mitigation:
 
 - Keep v2.0 focused on processing, progress, export, and workspace reliability.
-- Defer RAW, HEIC, and AI model support.
+- HEIC still preview is Phase 8; defer RAW and AI model support.
 
 ### Risk: local browser file access is inconsistent
 

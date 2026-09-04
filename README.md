@@ -9,9 +9,10 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 - Next.js, React, TypeScript, Tailwind CSS frontend.
 - FastAPI, Pydantic, SQLModel, SQLite backend.
 - Local project folders with originals, thumbnails, previews, structured export/cache subdirectories, and logs.
-- JPEG, PNG, and WebP imports. HEIC and RAW files are skipped with explicit local messages until preview extraction is added in a later v2.x slice.
+- JPEG, PNG, and WebP imports. HEIC and RAW files are skipped with explicit local messages. HEIC/HEIF still preview is Phase 8 (not yet implemented); RAW stays skipped.
 - Import jobs return after local upload/register work and continue derivative generation in a queryable, cooperatively cancellable local background task.
 - Processing is blocked while import derivative work is still active, and project navigation routes users back to import progress until the import job reaches a terminal state.
+- Processing (grouping and ranking) is cooperatively cancellable on the same job cancel route. Desktop quit can cancel an active processing job, then SIGTERM the sidecar.
 - Deterministic thumbnail and preview generation.
 - Basic metadata extraction and explainable image quality scoring.
 - Experimental local face and eye-open heuristic signals.
@@ -23,8 +24,8 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 
 Known v2.0 limitations:
 
-- HEIC and RAW files are deferred and are skipped with explicit local messages.
-- Import and processing jobs run in the local API process. Progress, cooperative import cancellation, stale-job detection, active-import processing guards, safe import retry, and stale-processing cleanup are available, but jobs are not durable across API process restarts.
+- HEIC and RAW files are skipped with explicit local messages. HEIC/HEIF still preview is the current next slice (Phase 8, H8.01–H8.06); RAW stays skipped.
+- Import and processing jobs run in the local API process or the optional local worker (`npm run worker`). Progress, cooperative import and processing cancellation, stale-job detection, active-import processing guards, safe import retry, and stale-processing cleanup are available. By default leftover active import/processing jobs are marked `interrupted` on the next startup and reclaimed (`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on; set `0`/`false`/`no`/`off` for fail-and-retry). Export jobs are not cancellable and are not reclaimed.
 - Experimental face and eye-open signals are deterministic local heuristics, not professional face detection, eye-state detection, identity recognition, or biometric analysis.
 - Grouping and ranking remain recommendation aids. The user keeps final control through manual statuses and star ratings.
 
@@ -132,7 +133,8 @@ npm run perf:api -- --output /tmp/framepilot-perf-targets --counts 100 500 2000
 Each count writes generated sources, local metadata, and exports under a separate `count-*` subdirectory.
 
 See [FramePilot v2 Product Requirements](docs/v2_product_requirements.md) for target users, scope, workflows, and release boundaries.
-See [FramePilot v2 Architecture](docs/v2_architecture.md) for backend, frontend, storage, processing, and export boundaries.
+See [Architecture](docs/architecture.md) for current backend, frontend, storage, processing, desktop sidecar, and export boundaries.
+See [FramePilot v2 Architecture](docs/v2_architecture.md) for the older v2.0-shaped architecture snapshot.
 See [FramePilot v2 Milestones](docs/v2_milestones.md) for release checkpoints and validation gates.
 See [FramePilot v2 Testing Strategy](docs/v2_testing_strategy.md) for the expected unit, integration, E2E, and performance validation layers.
 See [FramePilot v2 Performance Baseline](docs/v2_performance_baseline.md) for the latest recorded synthetic large-batch smoke result.
