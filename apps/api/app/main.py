@@ -13,6 +13,7 @@ from app.core.config import get_settings, reset_settings_cache
 from app.core.origins import allowed_origins, host_is_allowed
 from app.core.version import APP_VERSION, health_payload
 from app.db.session import get_engine, init_db
+from app.image.heif_support import ensure_heif_opener
 from app.services.importing import prepare_interrupted_import_jobs_for_reclaim, run_import_derivative_job
 from app.services.jobs import reconcile_active_jobs_on_startup
 from app.services.processing import prepare_interrupted_processing_jobs_for_reclaim, run_processing_job
@@ -104,6 +105,7 @@ async def lifespan(_app: FastAPI):
 def create_app() -> FastAPI:
     reset_settings_cache()
     reset_db_ready_flag()
+    ensure_heif_opener()
     origins = allowed_origins()
     app = FastAPI(title="FramePilot API", version=APP_VERSION, lifespan=lifespan)
     app.add_middleware(

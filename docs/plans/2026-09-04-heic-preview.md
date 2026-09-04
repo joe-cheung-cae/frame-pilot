@@ -44,7 +44,7 @@ This slice decodes HEIC/HEIF **locally** into the existing derivative/scoring pi
 
 Phase 8 — HEIC preview (post #144)
 
-- [ ] H8.01 pillow-heif dependency and opener registration
+- [x] H8.01 pillow-heif dependency and opener registration
 - [ ] H8.02 Import accepts `.heic` / `.heif`
 - [ ] H8.03 Process and export original HEIC
 - [ ] H8.04 Web import accept + copy

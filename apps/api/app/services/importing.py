@@ -19,6 +19,7 @@ from sqlmodel import Session, select
 from app.ai.embeddings import image_embedding, perceptual_hash
 from app.core.local_paths import normalize_user_path
 from app.db.session import get_engine
+from app.image.heif_support import ensure_heif_opener
 from app.image.scoring import compute_quality_scores_for_image
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.services.jobs import (
@@ -50,6 +51,8 @@ IMPORT_JOB_UPDATE_MIN_SECONDS = 0.75
 IMPORT_MAX_FILES_PER_REQUEST = 100
 PATH_IMPORT_MAX_INPUT_ENTRIES = 5000
 PATH_IMPORT_MAX_EXPANDED_FILES = 20000
+
+ensure_heif_opener()
 
 ImportProgressCallback = Callable[[str], None]
 
