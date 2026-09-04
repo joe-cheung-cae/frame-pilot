@@ -196,7 +196,7 @@ Client loop with one `job_id`:
 
 Job control matches multipart import: a new import without that `job_id` returns `409` while another import is active; `expected_total` updates `job.total_items`. Each consumed file is opened `rb` and copied through the existing register/copy path. Sources are never modified, deleted, or hard-linked. When `finalize` is true, a single input directory was given, and `source_root_path` is empty, the API stores that directory as read-only project metadata. It does not rescan the folder.
 When EXIF data is available, the background derivative job records basic capture time, camera, lens, focal length, aperture, shutter speed, and ISO metadata. Numeric EXIF rationals are normalized into stable display strings.
-HEIC and RAW extensions such as `.heic`, `.dng`, `.arw`, `.cr3`, and `.nef` are recognized as planned future formats, but v2 currently skips them with explicit unsupported-format reasons instead of attempting local decoding.
+Supported still formats are JPEG, PNG, WebP, HEIC, and HEIF. HEIC/HEIF files are copied into `originals/` unchanged, decoded locally with `pillow-heif`, and given WebP thumbnails/previews. Scoring and grouping use that decoded RGB. ZIP and folder export ship the original HEIC/HEIF bytes (`ZIP_STORED`). RAW extensions such as `.dng`, `.arw`, `.cr3`, and `.nef` are still skipped with an explicit unsupported-format reason. Garbage HEIC bytes fail that file after copy instead of being treated as an unsupported extension. AVIF is not accepted.
 
 ## Jobs
 

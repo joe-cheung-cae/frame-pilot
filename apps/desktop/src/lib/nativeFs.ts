@@ -10,7 +10,7 @@ export type NativeFs = {
   subscribeDragDrop: (handler: (event: NativeDragDropEvent) => void) => Promise<() => void>;
 };
 
-const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp"];
+const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "heic", "heif"];
 
 function asDirectoryPath(selected: unknown): string | null {
   return typeof selected === "string" && selected.length > 0 ? selected : null;

@@ -15,12 +15,15 @@ v2.0 支持以下格式的本地导入与处理：
 - JPEG
 - PNG
 - WebP
+- HEIC / HEIF 静帧（本地 `pillow-heif` 解码；WebP 衍生件；导出原始字节）
 
 不受支持的文件会在本地报告，而不是远程上传或解码。
 
 ## 延后的格式
 
-HEIC 以及 DNG、ARW、CR3、NEF 等 RAW 格式被延后。v2.0 可能识别这些扩展名，从而显示明确的不支持格式消息，但不会解码它们、提取内嵌 RAW 预览，或写入 RAW sidecar。
+DNG、ARW、CR3、NEF 等 RAW 格式仍延后。FramePilot 会以明确的不支持格式消息跳过这些扩展名，不会提取内嵌 RAW 预览，也不会写入 RAW sidecar。HEIC/HEIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、AVIF、HDR/gain-map 色调映射或 XMP 写入。
+
+`pillow-heif` 为 BSD-3-Clause。其 wheel 在 API/sidecar 运行时内带有 **LGPL** 的 `libheif`（及编码器）。FramePilot 不把 libheif 源码塞进本 MIT 树。
 
 ## 后台任务持久性
 
@@ -87,7 +90,7 @@ v2.0 不支持云图库、共享团队项目、自动删除原图、远程 AI �
 可安装桌面应用（`2.1.0-desktop`）共用同一套本地 API 与筛选 UI，并带有额外壳层约束：
 
 - 导入与处理任务在 sidecar 被杀或应用退出后**默认持久**：残留的导入/处理任务会标为 `interrupted`，并在下次启动时回收。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可退回旧行为，把过期任务标为失败以便用户重试（无论哪种方式，导出仍失败并清理）。
-- HEIC 与 RAW 仍以本地提示跳过（与 v2.0 web 相同）。
+- HEIC/HEIF 静帧可本地导入（与 web 应用相同）。RAW 仍以本地提示跳过。
 - **自动更新延期**；用户需手动安装新构建。
 - 在配置证书之前，CI 安装包可能是**未签名**的；见 [桌面代码签名手册](desktop_signing.zh.md)。
 - **WSL 可能无法运行 GUI**（需要 rustc ≥1.88 与显示）；HTTP/API 冒烟仍可用。见 [桌面测试矩阵](desktop_testing.zh.md)。

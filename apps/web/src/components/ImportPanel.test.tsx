@@ -67,7 +67,7 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
-import { ImportPanel } from "./ImportPanel";
+import { IMPORT_IMAGE_ACCEPT, ImportPanel } from "./ImportPanel";
 
 function fileWithPath(filePath: string, name = "a.jpg"): File {
   const file = new File(["jpeg"], name, { type: "image/jpeg" });
@@ -99,6 +99,23 @@ describe("ImportPanel desktop path import", () => {
     const { container } = render(<ImportPanel projectId="project-1" />);
     expect(container.querySelectorAll('input[type="file"]')).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /Choose image files/ })).toBeNull();
+  });
+
+  it("accepts HEIC/HEIF on file inputs in addition to JPEG PNG WebP", () => {
+    const { container } = render(<ImportPanel projectId="project-1" />);
+    const inputs = [...container.querySelectorAll('input[type="file"]')];
+    expect(inputs).toHaveLength(2);
+    for (const input of inputs) {
+      expect(input.getAttribute("accept")).toBe(IMPORT_IMAGE_ACCEPT);
+    }
+    expect(IMPORT_IMAGE_ACCEPT).toContain("image/jpeg");
+    expect(IMPORT_IMAGE_ACCEPT).toContain("image/png");
+    expect(IMPORT_IMAGE_ACCEPT).toContain("image/webp");
+    expect(IMPORT_IMAGE_ACCEPT).toContain("image/heic");
+    expect(IMPORT_IMAGE_ACCEPT).toContain("image/heif");
+    expect(IMPORT_IMAGE_ACCEPT).toContain(".heic");
+    expect(IMPORT_IMAGE_ACCEPT).toContain(".heif");
+    expect(screen.getByText("JPEG, PNG, WebP, and HEIC/HEIF are supported. RAW files are skipped.")).toBeTruthy();
   });
 
   it("picks image files then imports from local paths", async () => {

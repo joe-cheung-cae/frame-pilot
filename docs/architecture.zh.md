@@ -30,7 +30,7 @@ FramePilot 是一个本地 Web 应用，分为两个应用：
 项目会记录存储策略元数据：`source_mode`、`source_root_path` 和 `schema_version`。v2 当前以 `copy` 模式创建项目；引用模式（reference-mode）元数据留给后续工作，不会改变当前导入时复制（copy-on-import）的安全行为。创建项目时，用户可以选择自定义的本地项目数据文件夹；留空则使用 FramePilot 管理的项目目录。
 首页项目列表和导入界面会显示本地项目数据路径，以便用户看到生成的元数据、预览和导出文件存放在何处。
 
-导入分为同步的上传/登记阶段和进程内后台衍生阶段。请求接收所选本地文件，校验受支持的扩展名，将接受的文件复制到项目的 `originals/` 文件夹，记录文件身份元数据，创建或复用 `Photo` 记录，创建 `job_type` 为 `import` 的 `ProcessingJob`，并在新照片仍标记为 `processing` 时返回。随后 FastAPI `BackgroundTasks` 工作器打开新的数据库会话，生成缩略图和预览，提取元数据，计算质量分数、感知哈希和轻量嵌入，更新每张照片的状态，并将导入作业完成状态设为 `complete`、`complete_with_errors`、`failed` 或 `cancelled`。
+导入分为同步的上传/登记阶段和进程内后台衍生阶段。请求接收所选本地文件，校验受支持的扩展名（JPEG、PNG、WebP、HEIC、HEIF），将接受的文件复制到项目的 `originals/` 文件夹，记录文件身份元数据，创建或复用 `Photo` 记录，创建 `job_type` 为 `import` 的 `ProcessingJob`，并在新照片仍标记为 `processing` 时返回。随后 FastAPI `BackgroundTasks` 工作器打开新的数据库会话，生成缩略图和预览，提取元数据，计算质量分数、感知哈希和轻量嵌入，更新每张照片的状态，并将导入作业完成状态设为 `complete`、`complete_with_errors`、`failed` 或 `cancelled`。HEIC/HEIF 静帧用本地 `pillow-heif`（`register_heif_opener`）解码；衍生件仍是 WebP；评分和分组使用解码后的 RGB。导出拷贝原始 HEIC/HEIF 字节。RAW 仍跳过。
 
 导入页面在响应后轮询返回的作业 id，因此长时间导入会显示衍生进度，而不是让用户等待一个不透明的请求。它还会加载最新的导入作业历史，以便过期、失败、`complete_with_errors`、`cancelled` 以及可回收的 `interrupted` 导入作业在导航或页面重新加载后仍然可见。过期检测在存在工作器租约心跳时优先使用 2 分钟窗口，否则使用 `updated_at` 的 10 分钟窗口。默认仍是本地进程内后台任务；启动回收默认开启（自第 6.1 阶段起），因此衍生工作会在 API 进程重启后进程内续跑，而不是直接失败。
 

@@ -193,7 +193,7 @@ API 先将目录展开为普通文件，然后在该 HTTP 请求中最多消费 
 
 作业控制与 multipart 导入一致：没有该 `job_id` 的新导入在另一个导入活动时返回 `409`；`expected_total` 会更新 `job.total_items`。每个被消费的文件以 `rb` 打开，并经过现有的登记/复制路径复制。源文件永不被修改、删除或硬链接。当 `finalize` 为 true、给定的是单个输入目录、且 `source_root_path` 为空时，API 将该目录存为只读项目元数据。它不会重新扫描该文件夹。
 当 EXIF 数据可用时，后台衍生作业会记录基本的拍摄时间、相机、镜头、焦距、光圈、快门速度和 ISO 元数据。数值型 EXIF 有理数会规范化为稳定的显示字符串。
-HEIC 和 RAW 扩展名（如 `.heic`、`.dng`、`.arw`、`.cr3` 和 `.nef`）被识别为计划中的未来格式，但 v2 当前会以明确的不支持格式原因跳过它们，而不是尝试本地解码。
+支持的静帧格式为 JPEG、PNG、WebP、HEIC 和 HEIF。HEIC/HEIF 文件原样拷进 `originals/`，用本地 `pillow-heif` 解码，并生成 WebP 缩略图/预览。评分和分组使用该解码 RGB。ZIP 和文件夹导出带上原始 HEIC/HEIF 字节（`ZIP_STORED`）。`.dng`、`.arw`、`.cr3`、`.nef` 等 RAW 扩展名仍以明确的不支持格式原因跳过。垃圾 HEIC 字节会在拷贝后让该文件失败，而不是当成不支持的扩展名。不接受 AVIF。
 
 ## 作业
 

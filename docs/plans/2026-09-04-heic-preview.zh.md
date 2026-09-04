@@ -47,9 +47,9 @@ JPEG/PNG/WebP 精选、桌面 RC、持久作业和处理取消已在 `main`。�
 - [x] H8.01 pillow-heif 依赖与 opener 注册
 - [x] H8.02 导入接受 `.heic` / `.heif`
 - [x] H8.03 处理并导出原始 HEIC
-- [ ] H8.04 Web 导入 accept 与文案
-- [ ] H8.05 冻结 sidecar 收集 pillow-heif
-- [ ] H8.06 文档收口
+- [x] H8.04 Web 导入 accept 与文案
+- [x] H8.05 冻结 sidecar 收集 pillow-heif
+- [x] H8.06 文档收口
 
 ---
 
@@ -217,17 +217,17 @@ JPEG/PNG/WebP 导入、取消、回收和桌面退出必须保持绿色。
 
 ## 7. 第八阶段完成定义
 
-- [ ] 有效 `.heic` / `.heif` 静帧能导入、拷进 `originals/`、并得到 WebP 缩略图/预览
-- [ ] 源 HEIC 字节/mtime 在导入、处理、导出过程中不变
-- [ ] 评分/分组/排序跑在解码后的 RGB 上，不另起管道
-- [ ] ZIP/文件夹导出带上原始 HEIC；CSV 列出它
-- [ ] 垃圾 HEIC 只让该文件失败，不打崩作业
-- [ ] RAW 扩展名仍按现有原因跳过
-- [ ] Web 导入 accept 包含 HEIC
-- [ ] 冻结 sidecar 能解码 HEIC（插件 + 原生库已收集）
-- [ ] 双语文档一致；CHANGELOG Unreleased 有第八阶段
-- [ ] `npm run test:api`、`npm run test:web` 和 `npm run verify` 绿色
-- [ ] 不升 `APP_VERSION`、不签名、不写 XMP、不做 RAW 预览、不做 AVIF、不做 J7.07
+- [x] 有效 `.heic` / `.heif` 静帧能导入、拷进 `originals/`、并得到 WebP 缩略图/预览
+- [x] 源 HEIC 字节/mtime 在导入、处理、导出过程中不变
+- [x] 评分/分组/排序跑在解码后的 RGB 上，不另起管道
+- [x] ZIP/文件夹导出带上原始 HEIC；CSV 列出它
+- [x] 垃圾 HEIC 只让该文件失败，不打崩作业
+- [x] RAW 扩展名仍按现有原因跳过
+- [x] Web 导入 accept 包含 HEIC
+- [x] 冻结 sidecar 能解码 HEIC（插件 + 原生库已收集）
+- [x] 双语文档一致；CHANGELOG Unreleased 有第八阶段
+- [x] `npm run test:api`、`npm run test:web` 和 `npm run verify` 绿色
+- [x] 不升 `APP_VERSION`、不签名、不写 XMP、不做 RAW 预览、不做 AVIF、不做 J7.07
 
 ---
 

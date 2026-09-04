@@ -9,7 +9,7 @@ export type ShellCopy = {
 
 const BROWSER_COPY: ShellCopy = {
   chooseFolder: "Choose a folder",
-  cullingEmptyImportDetail: "Import JPEG, PNG, or WebP images before opening the culling workspace.",
+  cullingEmptyImportDetail: "Import JPEG, PNG, WebP, or HEIC/HEIF images before opening the culling workspace.",
   exportCopyPathRecovery:
     "The export path is still visible above. Select and copy it manually if browser clipboard access is blocked.",
   exportHistoryEmptyDetail: "No exports yet.",
@@ -20,7 +20,7 @@ const BROWSER_COPY: ShellCopy = {
 
 const DESKTOP_COPY: ShellCopy = {
   chooseFolder: "Choose a folder",
-  cullingEmptyImportDetail: "Choose a folder of JPEG, PNG, or WebP images before opening the culling workspace.",
+  cullingEmptyImportDetail: "Choose a folder of JPEG, PNG, WebP, or HEIC/HEIF images before opening the culling workspace.",
   exportCopyPathRecovery:
     "The export path is still visible above. Select and copy it manually if clipboard access is blocked.",
   exportHistoryEmptyDetail: "No exports yet. After you export, FramePilot reveals the folder instead of downloading a file.",

@@ -28,10 +28,13 @@ hiddenimports = [
     "PIL.JpegImagePlugin",
     "PIL.PngImagePlugin",
     "PIL.WebPImagePlugin",
+    "pillow_heif",
+    "_pillow_heif",
     "imagehash",
     "numpy",
 ]
 hiddenimports += collect_submodules("scipy")
+hiddenimports += collect_submodules("pillow_heif")
 
 a = Analysis(
     [str(api_root / "app" / "sidecar_main.py")],
