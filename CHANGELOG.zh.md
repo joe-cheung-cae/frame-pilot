@@ -6,6 +6,11 @@
 
 ## 未发布
 
+### 文档 — 桌面壳双语页
+
+- 为 `apps/desktop/README.md` 和 `tests/desktop/workflow.md` 补中文对应页
+- markdown 链接检查现在会扫这些活页
+
 ### 第八阶段 — HEIC 预览
 
 - 本地 HEIC/HEIF 静帧导入，用 `pillow-heif` 解码，WebP 缩略图/预览，在解码 RGB 上评分/分组

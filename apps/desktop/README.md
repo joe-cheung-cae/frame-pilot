@@ -1,5 +1,7 @@
 # FramePilot desktop shell
 
+> Language: **English** | [中文](README.zh.md)
+
 Tauri 2 + Vite SPA that reuses `apps/web` components over HTTP to a local Python sidecar.
 
 ## Dev

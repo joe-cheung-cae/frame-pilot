@@ -6,6 +6,11 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Docs — bilingual desktop shell pages
+
+- Add Chinese counterparts for `apps/desktop/README.md` and `tests/desktop/workflow.md`
+- Markdown link check now scans those living pages
+
 ### Phase 8 — HEIC preview
 
 - Local HEIC/HEIF still import, decode with `pillow-heif`, WebP thumbnails/previews, and score/group on decoded RGB
