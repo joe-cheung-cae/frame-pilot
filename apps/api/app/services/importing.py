@@ -34,8 +34,7 @@ from app.services.jobs import (
     release_stale_interrupted_lease,
 )
 
-SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-PLANNED_HEIC_EXTENSIONS = {".heic", ".heif"}
+SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 PLANNED_RAW_EXTENSIONS = {".arw", ".cr3", ".dng", ".nef"}
 EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 CONTENT_HASH_CHUNK_SIZE = 1024 * 1024
@@ -429,8 +428,6 @@ def is_supported_image(filename: str) -> bool:
 
 def unsupported_image_reason(filename: str) -> str:
     extension = Path(filename).suffix.lower()
-    if extension in PLANNED_HEIC_EXTENSIONS:
-        return "HEIC files are not supported yet; import JPEG, PNG, or WebP files for this release"
     if extension in PLANNED_RAW_EXTENSIONS:
         return "RAW files are not supported yet; import JPEG, PNG, or WebP files for this release"
     return "Only JPEG, PNG, and WebP files are supported"

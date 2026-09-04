@@ -45,7 +45,7 @@ JPEG/PNG/WebP 精选、桌面 RC、持久作业和处理取消已在 `main`。�
 第八阶段 — HEIC 预览（#144 之后）
 
 - [x] H8.01 pillow-heif 依赖与 opener 注册
-- [ ] H8.02 导入接受 `.heic` / `.heif`
+- [x] H8.02 导入接受 `.heic` / `.heif`
 - [ ] H8.03 处理并导出原始 HEIC
 - [ ] H8.04 Web 导入 accept 与文案
 - [ ] H8.05 冻结 sidecar 收集 pillow-heif
