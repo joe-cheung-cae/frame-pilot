@@ -16,7 +16,7 @@ Each imported JPEG, PNG, or WebP file records local metadata and derived analysi
 - sharpness, blur risk, exposure, contrast, noise risk, aesthetic balance
 - experimental face, face sharpness, eye-open, and face quality signals
 
-HEIC stills are Phase 8 (decode to RGB, then the same scoring/grouping path). Until that slice lands, HEIC and RAW are skipped with explicit messages. RAW preview stays out of Phase 8.
+HEIC stills are Phase 8 (decode to RGB, then the same scoring/grouping path) and already shipped. RAW stays skipped with explicit messages. RAW preview is not a numbered slice.
 
 ## Similarity Grouping
 

@@ -33,7 +33,7 @@ FramePilot v2 测试应证明本地照片工作流端到端可用，同时不让
 - 下载已完成的 CSV 和 ZIP 产物
 - 验证原始源文件未被修改
 
-第八阶段落地前，不支持的 HEIC 和 RAW 文件应作为跳过导入来覆盖。第八阶段会反转 HEIC skip 测试，并保留 RAW skip 覆盖。见 `docs/plans/2026-09-04-heic-preview.zh.md`。
+第八阶段已反转 HEIC skip 测试，并保留 RAW skip 覆盖。见 `docs/plans/2026-09-04-heic-preview.zh.md`。
 
 ### 前端单元测试
 

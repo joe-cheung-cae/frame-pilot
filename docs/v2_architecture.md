@@ -142,7 +142,7 @@ Deferred until after the core local workflow is stable. This page is a v2.0-shap
 
 - reference-in-place storage mode
 - RAW embedded preview extraction
-- HEIC preview support — in progress as Phase 8 (H8.01–H8.06); not yet implemented
+- HEIC preview support — Phase 8 (H8.01–H8.06) shipped; living description is [Architecture](architecture.md)
 - XMP sidecar export
 - optional local model registry
 - cloud/external queue (a local SQLite-polled worker exists since Phase 6; it is not an external queue)

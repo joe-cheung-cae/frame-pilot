@@ -126,9 +126,9 @@ The smoke should report timings, failed item counts, group counts, exports, and 
 
 ## v2.6 Optional Advanced Support
 
-Historical Goal Mode label. The living next slice is **Phase 8 HEIC still preview** (`docs/plans/2026-09-04-heic-preview.md`), not this whole v2.6 bundle. Delivery Phase 7 is processing job cancel and already shipped.
+Historical Goal Mode label. **Phase 8 HEIC still preview** (`docs/plans/2026-09-04-heic-preview.md`) shipped; it is not this whole v2.6 bundle. Delivery Phase 7 is processing job cancel and already shipped. There is no numbered Phase 9.
 
-Phase 8 (current, not yet implemented):
+Phase 8 (shipped):
 
 - HEIC/HEIF still preview only
 
