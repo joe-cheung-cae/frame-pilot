@@ -11,7 +11,7 @@ FramePilot v2 should evolve existing local projects without requiring users to r
 - Prefer additive SQLite changes with defaults over destructive rewrites.
 - Make compatibility migrations idempotent so app startup can safely run them more than once.
 - Preserve v1 project data whenever the required source files and generated artifacts still exist.
-- Keep unsupported RAW and optional model workflows disabled unless they are explicitly implemented in a later slice. HEIC still preview is Phase 8 (not yet implemented); do not enable RAW as part of that slice.
+- Keep unsupported RAW and optional model workflows disabled unless they are explicitly implemented in a later slice. HEIC still preview is Phase 8 and shipped; do not enable RAW because HEIC shipped.
 
 ## Current Baseline
 

@@ -13,7 +13,7 @@ FramePilot v2 is a local-first photo culling workflow for photographers who want
 - Rank photos with deterministic, explainable quality signals.
 - Keep review keyboard-first, fast, and usable for repeated culling sessions.
 - Export user decisions to local CSV, ZIP, and copied-folder outputs.
-- Keep optional RAW, sidecar, and model workflows planned but outside the v2.0 core. HEIC still preview is a focused later slice (Phase 8, H8.01–H8.06) and is not yet implemented.
+- Keep optional RAW, sidecar, and model workflows planned but outside the v2.0 core. HEIC still preview shipped as Phase 8 (H8.01–H8.06). RAW preview is not scheduled as a numbered slice.
 
 ## Target Users
 
@@ -54,12 +54,15 @@ Required for v2.0:
 - PNG
 - WebP
 
-Planned for later v2.x slices:
+Shipped after v2.0 on `main`:
 
-- HEIC preview support — Phase 8 (H8.01–H8.06); not yet implemented
-- RAW embedded preview extraction for DNG, ARW, CR3, NEF, and similar camera formats — not Phase 8
+- HEIC preview support — Phase 8 (H8.01–H8.06)
 
-Until Phase 8 lands, unsupported HEIC and RAW inputs should fail gracefully with explicit local messages. After Phase 8, RAW stays skipped.
+Still later (not a numbered slice):
+
+- RAW embedded preview extraction for DNG, ARW, CR3, NEF, and similar camera formats
+
+HEIC/HEIF stills import locally. RAW inputs still fail gracefully with explicit local messages.
 
 ## Review Workspace Requirements
 

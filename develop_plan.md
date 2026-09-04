@@ -23,10 +23,11 @@ Already delivered on `main`:
 - Phase 6 / 6.1 durable local job reclaim (`npm run worker` / `python -m app.worker`; `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on).
 - Phase 7 cooperative **processing job cancel** (J7.01–J7.06, [#148](https://github.com/joe-cheung-cae/frame-pilot/pull/148)). Pause/resume (J7.07) is **not** in that phase’s Definition of Done. Plan: [docs/plans/2026-09-03-phase7-processing-cancel.md](docs/plans/2026-09-03-phase7-processing-cancel.md).
 - Unsigned Windows NSIS GUI lifecycle QA ([#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144), closed Windows-only 2026-09-04). macOS DMG was skip (no Mac host); skip is not a macOS pass.
+- Phase 8 local **HEIC/HEIF still preview** (H8.01–H8.06, [#157](https://github.com/joe-cheung-cae/frame-pilot/pull/157); [#151](https://github.com/joe-cheung-cae/frame-pilot/issues/151) closed). Plan: [docs/plans/2026-09-04-heic-preview.md](docs/plans/2026-09-04-heic-preview.md). Copy original HEIC unchanged; decode with `pillow-heif`; WebP derivatives; score/group on RGB. RAW stays skipped.
 
-**Next:** local **HEIC/HEIF still preview** (Phase 8, H8.01–H8.06, [#150](https://github.com/joe-cheung-cae/frame-pilot/issues/150) / [#151](https://github.com/joe-cheung-cae/frame-pilot/issues/151)). Plan: [docs/plans/2026-09-04-heic-preview.md](docs/plans/2026-09-04-heic-preview.md). Copy original HEIC unchanged; decode with `pillow-heif`; WebP derivatives; score/group on RGB. RAW stays skipped.
+**Next:** no numbered delivery slice. Do not invent Phase 9.
 
-Not this work: RAW preview, AVIF, XMP ([#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) is `not_planned`), export cancel, desktop 2.2, signing, J7.07 pause.
+Remaining stretch (not scheduled): RAW preview, export cancel, desktop 2.2, signing, J7.07 pause, AVIF, XMP ([#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) is `not_planned`).
 
 ## 2. v1 Status and Motivation for v2
 
@@ -425,8 +426,9 @@ Shipped after the original v2.0 note above:
 - Cooperative **import** cancellation (existing cancel route).
 - Startup reclaim for leftover import/processing jobs (Phase 6.1 default on).
 - Cooperative **processing** cancellation on the same cancel route (Phase 7, J7.01–J7.06). See [docs/plans/2026-09-03-phase7-processing-cancel.md](docs/plans/2026-09-03-phase7-processing-cancel.md).
+- Local HEIC/HEIF still preview (Phase 8, H8.01–H8.06). See [docs/plans/2026-09-04-heic-preview.md](docs/plans/2026-09-04-heic-preview.md).
 
-**Next:** local HEIC/HEIF still preview (Phase 8, [#150](https://github.com/joe-cheung-cae/frame-pilot/issues/150)). See [docs/plans/2026-09-04-heic-preview.md](docs/plans/2026-09-04-heic-preview.md).
+**Next:** no numbered delivery slice. Do not invent Phase 9.
 
 Still deferred:
 
@@ -737,7 +739,7 @@ Documentation must remain practical and implementation-oriented.
 
 ## 16. Development Milestones
 
-This section is historical Goal Mode sequencing (v2.0–v2.6). The living next-slice pointer is [§1.1](#11-current-delivery-status-and-next-slice). Do not reopen a shipped item from this list. Delivery Phase 7 is processing job cancel (already shipped), not §16.7. HEIC still preview is delivery Phase 8 (`docs/plans/2026-09-04-heic-preview.md`).
+This section is historical Goal Mode sequencing (v2.0–v2.6). The living next-slice pointer is [§1.1](#11-current-delivery-status-and-next-slice). Do not reopen a shipped item from this list. Delivery Phase 7 is processing job cancel (already shipped), not §16.7. HEIC still preview is delivery Phase 8 (`docs/plans/2026-09-04-heic-preview.md`) and already shipped. There is no numbered Phase 9.
 
 ### 16.1 v2.0 Foundation
 
@@ -876,7 +878,7 @@ Acceptance criteria:
 
 ### 16.7 v2.6 Optional RAW, HEIC, and AI Model Support
 
-Historical stretch. **HEIC still preview is now a dedicated Phase 8** (H8.01–H8.06). Do not implement RAW, AVIF, XMP, or optional models as part of that slice.
+Historical stretch. **HEIC still preview shipped as dedicated Phase 8** (H8.01–H8.06). Do not implement RAW, AVIF, XMP, or optional models because HEIC shipped. There is no numbered Phase 9.
 
 Objective:
 

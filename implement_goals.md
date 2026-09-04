@@ -10,7 +10,7 @@ FramePilot v2 should evolve the existing v1 MVP into a reliable local-first phot
 
 Use these prompts in Codex Goal Mode when you want Codex to continue developing the project autonomously but safely.
 
-The living next slice is `develop_plan.md` §1.1 (currently Phase 8 HEIC still preview, H8.01–H8.06). The Phase 0–7 / v2.0–v2.6 list inside the long-running prompt is historical product sequencing. Delivery Phase 7 is processing job cancel and already shipped; do not treat Goal Mode “Phase 7: v2.6” as current work.
+The living next-slice pointer is `develop_plan.md` §1.1. Phase 8 HEIC still preview (H8.01–H8.06) is already shipped. There is no numbered next slice; do not invent Phase 9. The Phase 0–7 / v2.0–v2.6 list inside the long-running prompt is historical product sequencing. Delivery Phase 7 is processing job cancel and already shipped; do not treat Goal Mode “Phase 7: v2.6” as current work.
 
 ## 2. Long-Running Auto-Iteration Prompt
 
@@ -100,11 +100,11 @@ Before starting implementation:
 3. Do not overwrite user changes.
 4. If the working tree is dirty because of previous Codex work, either continue from it safely or commit only after tests pass.
 5. Read `develop_plan.md` §1.1 first. That subsection is the living next-slice pointer. Stretch lists later in `develop_plan.md` and the Phase 0–7 / v2.0–v2.6 list below are historical product sequencing. Do not reopen a shipped item.
-6. The current Goal Mode target is **Phase 8 HEIC still preview** (H8.01–H8.06) in `docs/plans/2026-09-04-heic-preview.md`. Implement **one task id at a time**. Do not implement RAW preview, AVIF, XMP, signing, export cancel, D3.06 tray, or J7.07 pause.
+6. There is **no current numbered Goal Mode target**. Phase 8 HEIC still preview is shipped; do not re-implement it. Do not invent Phase 9. Do not implement RAW preview, AVIF, XMP, signing, export cancel, D3.06 tray, or J7.07 pause unless §1.1 names that slice. If §1.1 still has no numbered next slice, stop rather than picking from historical lists.
 
 Numbering warning:
 - Goal Mode “Phase 7: v2.6 Optional Advanced Support” is **not** delivery Phase 7. Delivery Phase 7 is processing job cancel (J7.01–J7.06) and already shipped.
-- HEIC still preview is delivery **Phase 8**, not a v2.6 bundle with RAW and optional models.
+- HEIC still preview is delivery **Phase 8** and already shipped, not a v2.6 bundle with RAW and optional models.
 
 Overall historical order (shipped unless noted):
 
@@ -290,7 +290,7 @@ Acceptance criteria:
 Phase 7: v2.6 Optional Advanced Support (historical Goal Mode label — do not execute as one phase)
 This list bundled HEIC, RAW, and optional models. That numbering is not the living pointer.
 - Delivery Phase 7 is cooperative processing job cancel (J7.01–J7.06) and already shipped. Pause/resume (J7.07) is not DoD.
-- HEIC still preview is delivery Phase 8 (current). Follow the Phase 8 plan, not this bundle.
+- HEIC still preview is delivery Phase 8 (shipped). Do not follow this v2.6 bundle.
 - RAW preview, optional models, and XMP remain deferred; do not start them in this Goal Mode run.
 
 Rules:
@@ -299,21 +299,18 @@ Rules:
 - Local inference only.
 - Existing JPEG workflow must remain stable.
 
-Phase 8: HEIC still preview (current delivery slice)
+Phase 8: HEIC still preview (shipped — do not re-implement)
 Goal:
-Implement local HEIC/HEIF still preview only.
+Local HEIC/HEIF still preview only. Already on `main` (H8.01–H8.06).
 
 Requirements:
-- Follow `docs/plans/2026-09-04-heic-preview.md` one task id at a time (H8.01–H8.06).
-- Copy original HEIC bytes unchanged; decode with `pillow-heif`; WebP derivatives; score/group on decoded RGB.
-- Invert HEIC skip tests; keep RAW skip coverage.
-- Bilingual docs close-out is H8.06, after H8.02–H8.05.
-- Do not implement RAW preview, AVIF, XMP, signing, export cancel, D3.06 tray, or J7.07 pause.
+- Do not re-run `docs/plans/2026-09-04-heic-preview.md`.
+- Do not invent Phase 9.
+- Do not implement RAW preview, AVIF, XMP, signing, export cancel, D3.06 tray, or J7.07 pause unless `develop_plan.md` §1.1 names that slice.
 
 Acceptance criteria:
-- The Phase 8 Definition of Done in that plan is ticked.
-- `npm run test:api`, `npm run test:web`, and `npm run verify` pass.
-- Commit after each task id.
+- The Phase 8 Definition of Done in that plan is already ticked.
+- If §1.1 has no numbered next slice, do not start a new implementation loop.
 
 Per-iteration workflow details:
 
