@@ -10,6 +10,8 @@ FramePilot v2 should evolve the existing v1 MVP into a reliable local-first phot
 
 Use these prompts in Codex Goal Mode when you want Codex to continue developing the project autonomously but safely.
 
+The living next slice is `develop_plan.md` §1.1 (currently Phase 8 HEIC still preview, H8.01–H8.06). The Phase 0–7 / v2.0–v2.6 list inside the long-running prompt is historical product sequencing. Delivery Phase 7 is processing job cancel and already shipped; do not treat Goal Mode “Phase 7: v2.6” as current work.
+
 ## 2. Long-Running Auto-Iteration Prompt
 
 Copy the following prompt into Codex Goal Mode.
@@ -97,9 +99,14 @@ Before starting implementation:
 2. If there are uncommitted user changes, inspect them.
 3. Do not overwrite user changes.
 4. If the working tree is dirty because of previous Codex work, either continue from it safely or commit only after tests pass.
-5. Read `develop_plan.md` and build an internal ordered backlog from the v2 milestones.
+5. Read `develop_plan.md` §1.1 first. That subsection is the living next-slice pointer. Stretch lists later in `develop_plan.md` and the Phase 0–7 / v2.0–v2.6 list below are historical product sequencing. Do not reopen a shipped item.
+6. The current Goal Mode target is **Phase 8 HEIC still preview** (H8.01–H8.06) in `docs/plans/2026-09-04-heic-preview.md`. Implement **one task id at a time**. Do not implement RAW preview, AVIF, XMP, signing, export cancel, D3.06 tray, or J7.07 pause.
 
-Overall priority order:
+Numbering warning:
+- Goal Mode “Phase 7: v2.6 Optional Advanced Support” is **not** delivery Phase 7. Delivery Phase 7 is processing job cancel (J7.01–J7.06) and already shipped.
+- HEIC still preview is delivery **Phase 8**, not a v2.6 bundle with RAW and optional models.
+
+Overall historical order (shipped unless noted):
 
 Phase 0: Safety and repository baseline
 - Confirm repository can install dependencies and run existing tests.
@@ -280,23 +287,33 @@ Acceptance criteria:
 - Tests/checks pass.
 - Commit after tests pass.
 
-Phase 7: v2.6 Optional Advanced Support
-Goal:
-Only after the v2 core is stable, prepare optional advanced support.
-
-Allowed only after earlier phases are substantially complete:
-- HEIC preview support.
-- RAW embedded preview extraction.
-- Optional model registry.
-- Optional local face detection model.
-- Optional local embedding model.
-- Documentation for model download, license, size, and performance.
+Phase 7: v2.6 Optional Advanced Support (historical Goal Mode label — do not execute as one phase)
+This list bundled HEIC, RAW, and optional models. That numbering is not the living pointer.
+- Delivery Phase 7 is cooperative processing job cancel (J7.01–J7.06) and already shipped. Pause/resume (J7.07) is not DoD.
+- HEIC still preview is delivery Phase 8 (current). Follow the Phase 8 plan, not this bundle.
+- RAW preview, optional models, and XMP remain deferred; do not start them in this Goal Mode run.
 
 Rules:
 - Do not bundle large model files.
 - Models must be optional.
 - Local inference only.
 - Existing JPEG workflow must remain stable.
+
+Phase 8: HEIC still preview (current delivery slice)
+Goal:
+Implement local HEIC/HEIF still preview only.
+
+Requirements:
+- Follow `docs/plans/2026-09-04-heic-preview.md` one task id at a time (H8.01–H8.06).
+- Copy original HEIC bytes unchanged; decode with `pillow-heif`; WebP derivatives; score/group on decoded RGB.
+- Invert HEIC skip tests; keep RAW skip coverage.
+- Bilingual docs close-out is H8.06, after H8.02–H8.05.
+- Do not implement RAW preview, AVIF, XMP, signing, export cancel, D3.06 tray, or J7.07 pause.
+
+Acceptance criteria:
+- The Phase 8 Definition of Done in that plan is ticked.
+- `npm run test:api`, `npm run test:web`, and `npm run verify` pass.
+- Commit after each task id.
 
 Per-iteration workflow details:
 

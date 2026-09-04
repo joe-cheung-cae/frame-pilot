@@ -737,6 +737,8 @@ AGENTS.md
 
 ## 16. 开发里程碑
 
+本节是历史 Goal Mode 排序（v2.0–v2.6）。现行下一步指针是 [§1.1](#11-当前交付状态与下一切片)。不要从本列表重开已交付项。交付上的第七阶段是处理作业取消（已交付），不是 §16.7。HEIC 静帧预览是交付第八阶段（`docs/plans/2026-09-04-heic-preview.zh.md`）。
+
 ### 16.1 v2.0 Foundation
 
 目标：
@@ -874,13 +876,15 @@ AGENTS.md
 
 ### 16.7 v2.6 Optional RAW, HEIC, and AI Model Support
 
+历史 stretch。**HEIC 静帧预览现为独立的第八阶段**（H8.01–H8.06）。不要把 RAW、AVIF、XMP 或可选模型塞进该切片。
+
 目标：
 
 仅在 v2 核心稳定之后加入高级格式和模型支持。
 
 任务：
 
-- 增加 HEIC 预览支持。
+- 增加 HEIC 预览支持（已迁到第八阶段；见 `docs/plans/2026-09-04-heic-preview.zh.md`）。
 - 增加 RAW 内嵌预览提取。
 - 增加可选模型注册表。
 - 增加可选的本地人脸检测模型。
@@ -968,7 +972,7 @@ tests or apps/api tests
 缓解：
 
 - 让 v2.0 聚焦处理、进度、导出和工作区可靠性。
-- 推迟 RAW、HEIC 和 AI 模型支持。
+- HEIC 静帧预览是第八阶段；推迟 RAW 和 AI 模型支持。
 
 ### 风险：本地浏览器文件访问不一致
 

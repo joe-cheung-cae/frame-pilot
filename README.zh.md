@@ -9,9 +9,10 @@ FramePilot 是一款本地优先的 AI 辅助照片筛选 Web 应用。当前 v2
 - Next.js、React、TypeScript、Tailwind CSS 前端。
 - FastAPI、Pydantic、SQLModel、SQLite 后端。
 - 本地项目文件夹，包含原片、缩略图、预览、结构化的导出/缓存子目录和日志。
-- 导入 JPEG、PNG 和 WebP。HEIC 和 RAW 文件会以明确的本地消息跳过，直到后续 v2.x 切片加入预览提取。
+- 导入 JPEG、PNG 和 WebP。HEIC 和 RAW 文件会以明确的本地消息跳过。HEIC/HEIF 静帧预览是第八阶段（尚未实现）；RAW 仍跳过。
 - 导入任务在完成本地上传/登记工作后返回，并在可查询、可协作取消的本地后台任务中继续生成派生文件。
 - 导入派生工作仍在进行时会阻止处理，项目导航会把用户带回导入进度，直到导入任务到达终态。
+- 处理（分组和排序）也可通过同一取消路由协作取消。桌面退出可以取消活动处理任务，再 SIGTERM sidecar。
 - 确定性缩略图和预览生成。
 - 基本元数据提取和可解释的图像质量评分。
 - 实验性的本地人脸与睁眼启发式信号。
@@ -23,8 +24,8 @@ FramePilot 是一款本地优先的 AI 辅助照片筛选 Web 应用。当前 v2
 
 已知的 v2.0 限制：
 
-- HEIC 和 RAW 文件被推迟，并以明确的本地消息跳过。
-- 导入和处理任务运行在本地 API 进程中。进度、协作式导入取消、过期任务检测、活动导入处理保护、安全导入重试和过期处理清理可用，但任务在 API 进程重启后不持久。
+- HEIC 和 RAW 文件会以明确的本地消息跳过。HEIC/HEIF 静帧预览是当前下一步切片（第八阶段，H8.01–H8.06）；RAW 仍跳过。
+- 导入和处理任务运行在本地 API 进程或可选本地 worker（`npm run worker`）中。进度、协作式导入与处理取消、过期任务检测、活动导入处理保护、安全导入重试和过期处理清理可用。默认情况下，下次启动会把残留的活动导入/处理任务标为 `interrupted` 并回收（`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认开启；设为 `0`/`false`/`no`/`off` 则回到失败并重试）。导出任务不可取消，也不会被回收。
 - 实验性人脸与睁眼信号是确定性本地启发式，不是专业人脸检测、眼睛状态检测、身份识别或生物特征分析。
 - 分组和排序仍是推荐辅助。用户通过手工状态和星级保留最终控制。
 
@@ -132,7 +133,8 @@ npm run perf:api -- --output /tmp/framepilot-perf-targets --counts 100 500 2000
 每个数量会在单独的 `count-*` 子目录下写入生成的源、本地元数据和导出。
 
 参见 [FramePilot v2 产品需求](docs/v2_product_requirements.zh.md) 了解目标用户、范围、工作流和发布边界。
-参见 [FramePilot v2 架构](docs/v2_architecture.zh.md) 了解后端、前端、存储、处理和导出边界。
+参见 [架构](docs/architecture.zh.md) 了解当前后端、前端、存储、处理、桌面 sidecar 和导出边界。
+参见 [FramePilot v2 架构](docs/v2_architecture.zh.md) 了解较早的 v2.0 形态架构快照。
 参见 [FramePilot v2 里程碑](docs/v2_milestones.zh.md) 了解发布检查点和验证门槛。
 参见 [FramePilot v2 测试策略](docs/v2_testing_strategy.zh.md) 了解预期的单元、集成、E2E 和性能验证层。
 参见 [FramePilot v2 性能基线](docs/v2_performance_baseline.zh.md) 了解最近记录的合成大批量 smoke 结果。

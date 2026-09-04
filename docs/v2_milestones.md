@@ -126,11 +126,14 @@ The smoke should report timings, failed item counts, group counts, exports, and 
 
 ## v2.6 Optional Advanced Support
 
-Goal: prepare advanced formats and models only after the core workflow is stable.
+Historical Goal Mode label. The living next slice is **Phase 8 HEIC still preview** (`docs/plans/2026-09-04-heic-preview.md`), not this whole v2.6 bundle. Delivery Phase 7 is processing job cancel and already shipped.
 
-Allowed later:
+Phase 8 (current, not yet implemented):
 
-- HEIC preview support
+- HEIC/HEIF still preview only
+
+Still later:
+
 - RAW embedded preview extraction
 - optional local model registry
 - optional local face, eye, embedding, or aesthetic models

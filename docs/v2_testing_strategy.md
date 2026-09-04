@@ -33,7 +33,7 @@ Integration tests should exercise the local API workflow through `TestClient`:
 - download completed CSV and ZIP artifacts
 - verify original source files are not modified
 
-Unsupported HEIC and RAW files should be covered as skipped imports until preview extraction is implemented in a later v2.x slice.
+Until Phase 8 lands, unsupported HEIC and RAW files should be covered as skipped imports. Phase 8 inverts HEIC skip tests and keeps RAW skip coverage. See `docs/plans/2026-09-04-heic-preview.md`.
 
 ### Frontend Unit Tests
 

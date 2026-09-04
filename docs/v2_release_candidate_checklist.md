@@ -10,6 +10,15 @@ FramePilot v2.0 is a local-first MVP-plus release candidate for JPEG, PNG, and W
 
 Current RC decision: real-world/manual algorithm validation notes are recorded in `docs/v2_real_world_validation_notes.md` (2026-08-17, pass with notes). An unqualified `v2.0.0` tag still requires `npm run check:pretag` from the commit to be tagged.
 
+This file remains the **v2.0 RC decision record** (verification run dated 2026-06-05). It is not the living next-slice pointer. After rc2, `main` also shipped:
+
+- `2.1.0-desktop` unsigned Tauri sidecar RC (desktop packaging Phases 0–5)
+- Phase 6 / 6.1 durable local job reclaim (`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on)
+- Phase 7 cooperative processing job cancel (J7.01–J7.06)
+- Unsigned Windows NSIS GUI lifecycle QA ([#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144), Windows-only)
+
+**Next on `main`:** Phase 8 HEIC/HEIF still preview (H8.01–H8.06). RAW, AVIF, XMP, signing, export cancel, and J7.07 pause remain out of that slice. Job durability, desktop packaging, and processing cancel in the sections below describe the 2026-06-05 rc2 product unless a later-slice note says otherwise. See `develop_plan.md` §1.1.
+
 ## Implemented v2.0 Features
 
 - Local project creation with managed or custom local project storage.
@@ -98,9 +107,11 @@ Do not make the 2,000-photo real browser-backend workflow a v2.0 release gate un
 - Generated thumbnails, previews, caches, logs, exports, project databases, browser traces, generated photos, and test artifacts must not be committed.
 - No cloud upload, login, payment, telemetry requirement, remote photo processing, or collaboration service is required for v2.0.
 - No large model files are committed.
-- HEIC, RAW, optional AI models, desktop packaging, and XMP sidecar writing are deferred.
+- HEIC, RAW, optional AI models, desktop packaging, and XMP sidecar writing are deferred in this **rc2** record. Desktop packaging later shipped as `2.1.0-desktop`. HEIC still preview is Phase 8 (not yet implemented). RAW, optional models, and XMP remain deferred.
 
 ## Job System Limitations
+
+The following bullets are the **2026-06-05 rc2** job contract. On current `main`, leftover active import/processing jobs are reclaimed by default (Phase 6.1), and processing jobs are cooperatively cancellable (Phase 7). Export jobs stay uncancellable.
 
 - FastAPI `BackgroundTasks` run in the local API process and are not durable across API process exits.
 - Stale job detection marks interrupted queued or running jobs as failed after the configured stale window.
@@ -130,12 +141,14 @@ Do not make the 2,000-photo real browser-backend workflow a v2.0 release gate un
 
 ## Deferred Features
 
-- HEIC support.
+Historical rc2 list. Later slices on `main` are noted in parentheses.
+
+- HEIC support. (Phase 8, H8.01–H8.06; not yet implemented)
 - RAW and embedded RAW preview extraction.
 - XMP sidecar export.
 - Optional local AI models.
-- Durable external or separate local worker process.
-- Desktop packaging.
+- Durable external or separate local worker process. (Phase 6 shipped a local SQLite-polled worker and in-process reclaim; not an external queue)
+- Desktop packaging. (shipped as unsigned `2.1.0-desktop` RC)
 - Cloud sync, accounts, payment, remote processing, and collaboration.
 - Automatic deletion of original source photos.
 
@@ -164,4 +177,4 @@ Do not make the 2,000-photo real browser-backend workflow a v2.0 release gate un
 - Optional: a license-clear photographer burst/session set, and a 2,000-photo real browser-backend run, before later milestones.
 - Revisit durable local worker architecture with measured failure modes.
 - Continue culling workspace maintainability only through focused, tested extractions.
-- Plan XMP sidecar export and HEIC/RAW preview support as separate scoped milestones.
+- Plan XMP sidecar export and RAW preview support as separate scoped milestones. HEIC still preview is Phase 8 (`docs/plans/2026-09-04-heic-preview.md`).

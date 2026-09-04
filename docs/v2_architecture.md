@@ -138,11 +138,11 @@ The installable desktop app is a Tauri 2 window plus a localhost Python sidecar.
 
 ## Deferred Architecture
 
-Deferred until after the core local workflow is stable:
+Deferred until after the core local workflow is stable. This page is a v2.0-shaped snapshot; the living description is [Architecture](architecture.md). Current next slice: `develop_plan.md` §1.1.
 
 - reference-in-place storage mode
 - RAW embedded preview extraction
-- HEIC preview support
+- HEIC preview support — in progress as Phase 8 (H8.01–H8.06); not yet implemented
 - XMP sidecar export
 - optional local model registry
-- separate worker process or external queue
+- cloud/external queue (a local SQLite-polled worker exists since Phase 6; it is not an external queue)
