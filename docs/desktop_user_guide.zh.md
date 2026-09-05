@@ -27,6 +27,7 @@ FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，
   - Windows：`%APPDATA%\FramePilot`
   - Linux（开发壳）：`~/.local/share/FramePilot`
 - 打开 **Settings** 确认数据目录（`GET /api/meta`）。仅在明确需要时用绝对路径的 `FRAMEPILOT_DATA_DIR` 覆盖。
+- **Import workers**（1–4，默认 1）可加快大导入的缩略图和预览。分组和排序仍是每个项目一个作业。原片不变。该值作用于下一次导入作业（`GET`/`PATCH /api/settings`）。
 
 ---
 

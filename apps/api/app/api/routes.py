@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import case, func
 from sqlmodel import Session, select
 
+from app.core.app_settings import load_app_settings, save_app_settings
 from app.core.config import get_settings
 from app.core.origins import desktop_mode_enabled
 from app.core.project_roots import register_root, registered_roots
@@ -15,6 +16,8 @@ from app.core.version import health_payload, meta_payload
 from app.db.session import get_session
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.schemas.api import (
+    AppSettingsRead,
+    AppSettingsUpdate,
     DesktopProjectRootCreate,
     ExportCreate,
     ExportRead,
@@ -83,6 +86,19 @@ def api_health_endpoint() -> dict[str, str]:
 @router.get("/meta")
 def api_meta_endpoint() -> dict[str, str | bool]:
     return meta_payload(data_dir=str(get_settings().data_dir), desktop_mode=desktop_mode_enabled())
+
+
+@router.get("/settings", response_model=AppSettingsRead)
+def get_app_settings_endpoint() -> AppSettingsRead:
+    return AppSettingsRead(import_workers=load_app_settings().import_workers)
+
+
+@router.patch("/settings", response_model=AppSettingsRead)
+def patch_app_settings_endpoint(payload: AppSettingsUpdate) -> AppSettingsRead:
+    if payload.import_workers is None:
+        return AppSettingsRead(import_workers=load_app_settings().import_workers)
+    saved = save_app_settings(payload.import_workers)
+    return AppSettingsRead(import_workers=saved.import_workers)
 
 
 def _get_project(session: Session, project_id: str) -> Project:

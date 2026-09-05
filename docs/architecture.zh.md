@@ -32,6 +32,8 @@ FramePilot 是一个本地 Web 应用，分为两个应用：
 
 导入分为同步的上传/登记阶段和进程内后台衍生阶段。请求接收所选本地文件，校验受支持的扩展名（JPEG、PNG、WebP、HEIC、HEIF、AVIF，以及带内嵌预览的 RAW），将接受的文件复制到项目的 `originals/` 文件夹，记录文件身份元数据，创建或复用 `Photo` 记录，创建 `job_type` 为 `import` 的 `ProcessingJob`，并在新照片仍标记为 `processing` 时返回。随后 FastAPI `BackgroundTasks` 工作器打开新的数据库会话，生成缩略图和预览，提取元数据，计算质量分数、感知哈希和轻量嵌入，更新每张照片的状态，并将导入作业完成状态设为 `complete`、`complete_with_errors`、`failed` 或 `cancelled`。HEIC/HEIF 静帧用本地 `pillow-heif`（`register_heif_opener`）解码；AVIF 静帧用 Pillow 自带的 `AvifImagePlugin`；RAW 对已拷原片调用 `rawpy.extract_thumb`（不 demosaic）；衍生件仍是 WebP；评分和分组使用解码后的静帧 RGB 或 RAW 预览 RGB。导出拷贝原始 HEIC/HEIF/AVIF/RAW 字节。没有内嵌预览的 RAW 以明确本地消息跳过，不会拷贝。
 
+导入衍生生成默认一个 worker。设置可将 `import_workers` 升到 2–4（`GET`/`PATCH /api/settings`，存于 `{data_dir}/app_settings.json`）。`n==1` 保持按照片顺序循环；`n=2–4` 使用进程内 `ThreadPoolExecutor`，每个任务一个 SQLAlchemy session。并发 `process_registered_import_photo` 峰值 ≤ n。取消仍是协作式（停止调度、等待在飞、不杀线程）。登记/拷贝仍顺序。处理仍是每个项目一个作业。没有 Redis、Celery 或额外操作系统 worker 进程。
+
 导入页面在响应后轮询返回的作业 id，因此长时间导入会显示衍生进度，而不是让用户等待一个不透明的请求。它还会加载最新的导入作业历史，以便过期、失败、`complete_with_errors`、`cancelled` 以及可回收的 `interrupted` 导入作业在导航或页面重新加载后仍然可见。过期检测在存在工作器租约心跳时优先使用 2 分钟窗口，否则使用 `updated_at` 的 10 分钟窗口。默认仍是本地进程内后台任务；启动回收默认开启（自第 6.1 阶段起），因此衍生工作会在 API 进程重启后进程内续跑，而不是直接失败。
 
 导入取消是协作式的。`POST /api/projects/{project_id}/jobs/{job_id}/cancel` 会为排队或正在运行的导入作业持久化 `cancellation_requested`，后台衍生工作器在每张照片之前以及每次完成照片级衍生/评分/哈希处理后检查该标志。取消不是硬性杀死进程。工作器只在安全检查点退出，将作业标记为 `cancelled`，记录 `cancelled_at`，保留已完成的衍生文件，将未处理的照片留在可重试状态，并且从不删除或修改原始文件。
@@ -54,6 +56,8 @@ FramePilot 是一个本地 Web 应用，分为两个应用：
 2026-09-05 更新（第九阶段 S9.01，[#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)）：同一取消路由现可协作取消导出作业。不完整的 CSV/ZIP/文件夹走 fail-and-cleanup；原片不变；残留导出仍不会被回收。
 
 2026-09-05 更新（第九阶段 S9.02，[#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)）：处理作业可用独立的 `pause_requested` 标志暂停。工作器在现有检查点退出，不 finalize 为 `cancelled`，也不留下可审阅的半成品分组。恢复是 `POST /process` 的 clear-and-rerun，不是原地继续。
+
+2026-09-05 更新（第九阶段 S9.08，[#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)）：设置可将导入**衍生** worker 从 1 升到 4。该值在 `run_import_derivative_job` 开始时快照。处理仍是每个项目一个作业。
 
 对未变更的已完成项目，处理是幂等的：如果所有照片已标记为 `processed`，项目计数匹配，生成的缩略图和预览仍然存在，且分组覆盖全部照片集，则新的处理作业会完成且不清除或重建分组。新导入或缺失的生成文件仍会使该捷径失效，并在分组/排序完成前需要本地校验。导入在保守的相同上传情形下是幂等的：如果所选文件的上传文件名和 SHA-256 内容哈希与项目中已有照片相同，且该照片的缩略图和预览仍然存在，则复用现有记录和衍生文件，不重置用户状态，也不再创建一份副本。文件名不同但字节相同的文件仍视为不同的导入。
 

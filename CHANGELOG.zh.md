@@ -6,6 +6,15 @@
 
 ## 未发布
 
+### 第九阶段 — S9.08 可选导入 worker 并发
+
+- 设置中的 **Import workers** 为 1–4（默认 1），经 `GET`/`PATCH /api/settings` 持久化到 `{data_dir}/app_settings.json`
+- 导入衍生作业在开始时快照该值；`n==1` 保持顺序，`n=2–4` 使用进程内 `ThreadPoolExecutor`，每个任务一个 session
+- 并发 `process_registered_import_photo` 峰值 ≤ n；取消等待在飞照片，不杀线程
+- 处理仍是每个项目一个作业；没有 Redis/Celery、ProcessPool、额外操作系统 worker 或 cache 旋钮
+- 永不修改原片；该值作用于下一次导入作业
+- 不改 `APP_VERSION`、不签名
+
 ### 第九阶段 — S9.07 独立预览窗口
 
 - 桌面 View → Detached preview（无加速键）以及筛选工具栏切换打开标签为 `preview` 的第二个 WebView

@@ -108,6 +108,14 @@ export type AppMeta = {
   desktop_mode: boolean;
 };
 
+export type AppSettings = {
+  import_workers: number;
+};
+
+export type AppSettingsPatch = {
+  import_workers?: number;
+};
+
 export type ProcessingJob = {
   id: string;
   project_id: string;
@@ -327,6 +335,9 @@ export const api = {
     }),
   getHealth: () => request<HealthStatus>("/api/health"),
   getMeta: () => request<AppMeta>("/api/meta"),
+  getSettings: () => request<AppSettings>("/api/settings"),
+  patchSettings: (patch: AppSettingsPatch) =>
+    request<AppSettings>("/api/settings", { method: "PATCH", body: JSON.stringify(patch) }),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   getPhoto: (projectId: string, photoId: string) => request<Photo>(`/api/projects/${projectId}/photos/${photoId}`),
   importPhotosBatch: (

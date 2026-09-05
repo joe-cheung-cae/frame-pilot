@@ -6,6 +6,15 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.08 opt-in import worker concurrency
+
+- Settings **Import workers** 1–4 (default 1) persist in `{data_dir}/app_settings.json` via `GET`/`PATCH /api/settings`
+- Import derivative jobs snapshot the value at start; `n==1` stays sequential, `n=2–4` uses an in-process `ThreadPoolExecutor` with one session per task
+- Peak concurrent `process_registered_import_photo` is ≤ n; cancel waits for in-flight photos and does not kill threads
+- Processing stays one job per project; no Redis/Celery, ProcessPool, extra OS workers, or cache knobs
+- Originals are never modified; the value applies to the next import job
+- No `APP_VERSION` bump or signing
+
 ### Phase 9 — S9.07 detached preview window
 
 - Desktop View → Detached preview (no accelerator) and the culling toolbar toggle open a second WebView labeled `preview`

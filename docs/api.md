@@ -8,12 +8,16 @@ Base URL during development: `http://127.0.0.1:8000`.
 
 `GET /api/meta` returns `version`, `service`, `data_dir`, and `desktop_mode`. `data_dir` is the resolved `FRAMEPILOT_DATA_DIR` path. `desktop_mode` is `true` only when `FRAMEPILOT_DESKTOP=1`. This payload is not added to `/health`.
 
+`GET /api/settings` returns `{ "import_workers": 1 }` (default). `PATCH /api/settings` with `{ "import_workers": 2 }` persists an integer **1–4** in `{data_dir}/app_settings.json` (atomic tmp + replace). Omitted key or `{}` returns the current value. `0`, `5`, non-integers, and `null` return `422`. This knob is API-owned (not `localStorage`, not `/api/meta`) and applies to the **next** import derivative job. Processing stays one job per project.
+
 Implemented endpoints:
 
 ```text
 GET    /health
 GET    /api/health
 GET    /api/meta
+GET    /api/settings
+PATCH  /api/settings
 
 POST   /api/projects
 GET    /api/projects

@@ -102,7 +102,7 @@ v2.0 不支持云图库、共享团队项目、自动删除原图、远程 AI �
 - **WSL 可能无法运行 GUI**（需要 rustc ≥1.88 与显示）；HTTP/API 冒烟仍可用。见 [桌面测试矩阵](desktop_testing.zh.md)。
 - 存储为**仅复制模式**（不支持相机卡原地引用）。
 - 桌面**独立预览**（View → Detached preview，或筛选工具栏）打开第二个 WebView，显示当前筛选照片并共享选中。裸筛选键只作用于聚焦窗口。创建失败为非致命，并保持壳内预览。关闭预览窗不会退出应用。未添加额外的 `fs:` / `shell:` capabilities。
-- 除现有本地任务模型外，**没有**导入/处理并发旋钮。
+- 导入衍生 worker 默认 **1**。设置可将下一次导入作业升到 **2–4**（`GET`/`PATCH /api/settings`，`{data_dir}/app_settings.json`）。处理仍是每个项目一个作业。没有处理 worker 池、Redis 或 Celery。
 - 可选**系统托盘**（D3.06）在 tooltip 中显示作业进度。**Show** 恢复主窗口；**Quit** 走与 File → Quit 同一套进行中作业对话框。关窗口仍是退出，不是藏到托盘。无头或部分 Linux 桌面创建托盘可能失败，且为非致命。未添加与托盘相关的 `fs:` / `shell:` capabilities。
 
 终端用户步骤见 [桌面用户指南](desktop_user_guide.zh.md)。

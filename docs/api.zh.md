@@ -6,11 +6,15 @@
 
 `GET /health` 和 `GET /api/health` 返回 `status`、`version` 和 `service`。`version` 是 API 的 `APP_VERSION` 值。Playwright 和桌面 sidecar 探测无前缀的 `/health` URL，作为 2xx 检查。
 
+`GET /api/settings` 返回 `{ "import_workers": 1 }`（默认）。`PATCH /api/settings` 用 `{ "import_workers": 2 }` 把整数 **1–4** 持久化到 `{data_dir}/app_settings.json`（原子 tmp + replace）。省略该键或 `{}` 返回当前值。`0`、`5`、非整数和 `null` 返回 `422`。该旋钮由 API 拥有（不是 `localStorage`，不是 `/api/meta`），作用于**下一次**导入衍生作业。处理仍是每个项目一个作业。
+
 已实现的端点：
 
 ```text
 GET    /health
 GET    /api/health
+GET    /api/settings
+PATCH  /api/settings
 
 POST   /api/projects
 GET    /api/projects

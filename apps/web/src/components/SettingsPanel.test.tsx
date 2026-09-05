@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { nativeFsState, revealInFileManager, getMeta } = vi.hoisted(() => ({
+const { nativeFsState, revealInFileManager, getMeta, getSettings, patchSettings } = vi.hoisted(() => ({
   nativeFsState: {
     current: null as {
       pickDirectory: () => Promise<string | null>;
@@ -18,6 +18,10 @@ const { nativeFsState, revealInFileManager, getMeta } = vi.hoisted(() => ({
     data_dir: "/tmp/framepilot-data",
     desktop_mode: false,
   })),
+  getSettings: vi.fn(async () => ({ import_workers: 1 })),
+  patchSettings: vi.fn(async (payload: { import_workers?: number }) => ({
+    import_workers: payload.import_workers ?? 1,
+  })),
 }));
 
 vi.mock("@/lib/nativeFs", () => ({
@@ -27,6 +31,8 @@ vi.mock("@/lib/nativeFs", () => ({
 vi.mock("@/lib/api", () => ({
   api: {
     getMeta,
+    getSettings,
+    patchSettings,
   },
 }));
 
@@ -50,6 +56,9 @@ describe("SettingsPanel data directory", () => {
     cleanup();
     revealInFileManager.mockClear();
     getMeta.mockClear();
+    getSettings.mockClear();
+    patchSettings.mockClear();
+    getSettings.mockResolvedValue({ import_workers: 1 });
     nativeFsState.current = null;
     delete window.__FRAMEPILOT_DESKTOP__;
   });
@@ -104,5 +113,43 @@ describe("SettingsPanel data directory", () => {
       expect(screen.getByText(DATA_DIR)).toBeTruthy();
     });
     expect(screen.queryByRole("button", { name: "Open data folder" })).toBeNull();
+  });
+});
+
+describe("SettingsPanel import workers", () => {
+  beforeEach(() => {
+    cleanup();
+    getMeta.mockClear();
+    getSettings.mockClear();
+    patchSettings.mockClear();
+    getSettings.mockResolvedValue({ import_workers: 1 });
+    nativeFsState.current = null;
+    delete window.__FRAMEPILOT_DESKTOP__;
+  });
+
+  afterEach(() => {
+    cleanup();
+    delete window.__FRAMEPILOT_DESKTOP__;
+  });
+
+  it("shows import workers 1 by default", async () => {
+    renderSettings();
+
+    const control = await screen.findByLabelText("Import workers");
+    expect((control as HTMLSelectElement).value).toBe("1");
+    expect(screen.getByRole("heading", { name: "Import workers" })).toBeTruthy();
+    expect(getSettings).toHaveBeenCalled();
+  });
+
+  it("patches import_workers 3 when the control is changed", async () => {
+    renderSettings();
+    const control = await screen.findByLabelText("Import workers");
+
+    fireEvent.change(control, { target: { value: "3" } });
+
+    await waitFor(() => {
+      expect(patchSettings).toHaveBeenCalledWith({ import_workers: 3 });
+    });
+    expect(window.localStorage.getItem("import_workers")).toBeNull();
   });
 });

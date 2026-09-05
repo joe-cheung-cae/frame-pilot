@@ -3,6 +3,25 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+class AppSettingsRead(BaseModel):
+    import_workers: int = Field(ge=1, le=4)
+
+
+class AppSettingsUpdate(BaseModel):
+    import_workers: int | None = None
+
+    @field_validator("import_workers", mode="before")
+    @classmethod
+    def import_workers_must_be_int(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("import_workers must be an integer from 1 to 4")
+        if type(value) is not int:
+            raise ValueError("import_workers must be an integer from 1 to 4")
+        if value < 1 or value > 4:
+            raise ValueError("import_workers must be an integer from 1 to 4")
+        return value
+
+
 class DesktopProjectRootCreate(BaseModel):
     path: str = Field(min_length=1)
 
