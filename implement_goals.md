@@ -10,7 +10,7 @@ FramePilot v2 should evolve the existing v1 MVP into a reliable local-first phot
 
 Use these prompts in Codex Goal Mode when you want Codex to continue developing the project autonomously but safely.
 
-The living next-slice pointer is `develop_plan.md` §1.1. Phase 8 HEIC still preview (H8.01–H8.06) is already shipped. Delivery Phase 9 is remaining-stretch S9.00–S9.13 (`docs/plans/2026-09-04-remaining-stretch.md`); S9.00 is landed. Implement **one S9 issue per run**, starting at S9.01 unless §1.1 names a later unfinished id. Do not invent Phase 10. The Phase 0–7 / v2.0–v2.6 list inside the long-running prompt is historical product sequencing. Delivery Phase 7 is processing job cancel and already shipped; do not treat Goal Mode “Phase 7: v2.6” as current work.
+The living next-slice pointer is `develop_plan.md` §1.1. Phase 8 HEIC still preview (H8.01–H8.06) is already shipped. Delivery Phase 9 is remaining-stretch S9.00–S9.13 (`docs/plans/2026-09-04-remaining-stretch.md`); S9.00 and S9.01 are landed. Implement **one S9 issue per run**, starting at S9.02 unless §1.1 names a later unfinished id. Do not invent Phase 10. The Phase 0–7 / v2.0–v2.6 list inside the long-running prompt is historical product sequencing. Delivery Phase 7 is processing job cancel and already shipped; do not treat Goal Mode “Phase 7: v2.6” as current work.
 
 ## 2. Long-Running Auto-Iteration Prompt
 
@@ -100,7 +100,7 @@ Before starting implementation:
 3. Do not overwrite user changes.
 4. If the working tree is dirty because of previous Codex work, either continue from it safely or commit only after tests pass.
 5. Read `develop_plan.md` §1.1 first. That subsection is the living next-slice pointer. Stretch lists later in `develop_plan.md` and the Phase 0–7 / v2.0–v2.6 list below are historical product sequencing. Do not reopen a shipped item.
-6. The current numbered Goal Mode target is **Phase 9 remaining stretch**, one S9 issue at a time. Phase 8 HEIC still preview is shipped; do not re-implement it. Do not invent Phase 10. Implement only the slice §1.1 names next (S9.01 export cancel until that box is `[x]`). Do not implement later S9 ids in the same run. If §1.1 has no unfinished S9 id, stop rather than picking from historical lists.
+6. The current numbered Goal Mode target is **Phase 9 remaining stretch**, one S9 issue at a time. Phase 8 HEIC still preview is shipped; do not re-implement it. Do not invent Phase 10. Implement only the slice §1.1 names next (S9.02 J7.07 pause until that box is `[x]`). Do not implement later S9 ids in the same run. If §1.1 has no unfinished S9 id, stop rather than picking from historical lists.
 
 Numbering warning:
 - Goal Mode “Phase 7: v2.6 Optional Advanced Support” is **not** delivery Phase 7. Delivery Phase 7 is processing job cancel (J7.01–J7.06) and already shipped.
