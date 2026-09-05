@@ -1,5 +1,11 @@
 @import "../../web/src/app/globals.css";
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 @media (prefers-color-scheme: dark) {
   html[data-shell="desktop"] {
     color-scheme: dark;

@@ -101,7 +101,7 @@ The installable desktop app (`2.1.0-desktop`) shares the same local API and cull
 - CI installers may be **unsigned** until certificates exist; see [Desktop Code Signing Runbook](desktop_signing.md).
 - **WSL may not run the GUI** (needs rustc ≥1.88 and a display); HTTP/API smoke still works. See [Desktop Testing Matrix](desktop_testing.md).
 - Storage is **copy mode only** (no reference-in-place of camera cards).
-- There is **no detached preview** window outside the main shell.
+- Desktop **detached preview** (View → Detached preview, or the culling toolbar) opens a second WebView for the current culling photo and shared selection. Bare culling keys apply to the focused window only. Create failure is non-fatal and keeps the in-shell preview. Closing the preview window does not quit the app. No extra `fs:` / `shell:` capabilities were added.
 - There are **no concurrency knobs** for import/process workers beyond the existing local job model.
 - Optional **system tray** (D3.06) shows job progress in the tooltip. **Show** restores the main window; **Quit** uses the same running-job dialog as File → Quit. Window close is still quit, not hide-to-tray. Tray create may fail on headless or some Linux desktops and is non-fatal. No tray-related `fs:` / `shell:` capabilities were added.
 

@@ -382,12 +382,34 @@ describe("CullingWorkspace", () => {
 
   afterEach(() => {
     cleanup();
+    delete window.__FRAMEPILOT_DESKTOP__;
   });
 
   it("shows an empty import state when the project has no photos", () => {
     render(<CullingWorkspace projectId="project-1" />);
     expect(screen.getByText("No Photos Imported")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Import Images/i })).toBeTruthy();
+  });
+
+  it("hides detached preview toggle in the browser shell and keeps Eye", async () => {
+    photosState.current = [makePhoto(0)];
+    mockFilmstripViewport();
+    render(<CullingWorkspace projectId="project-1" />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Toggle large preview" })).toBeTruthy();
+    });
+    expect(screen.queryByRole("button", { name: "Toggle detached preview" })).toBeNull();
+  });
+
+  it("shows detached preview toggle on desktop without replacing Eye", async () => {
+    window.__FRAMEPILOT_DESKTOP__ = true;
+    photosState.current = [makePhoto(0)];
+    mockFilmstripViewport();
+    render(<CullingWorkspace projectId="project-1" />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Toggle detached preview" })).toBeTruthy();
+    });
+    expect(screen.getByRole("button", { name: "Toggle large preview" })).toBeTruthy();
   });
 
   it("keeps filmstrip DOM bounded for a 2000-photo workspace", async () => {

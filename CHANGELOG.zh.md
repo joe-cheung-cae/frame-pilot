@@ -6,6 +6,15 @@
 
 ## 未发布
 
+### 第九阶段 — S9.07 独立预览窗口
+
+- 桌面 View → Detached preview（无加速键）以及筛选工具栏切换打开标签为 `preview` 的第二个 WebView
+- 选中与主筛选工作区共享；卫星窗口只显示衍生预览（不用 `fs:` 读原片）
+- 裸筛选键作用于聚焦窗口；preview 把命令转发给 main，自己不调用 `api.updatePhoto`
+- 创建失败为非致命并保持壳内预览；关闭预览窗不会退出应用或关掉 sidecar
+- 不加额外的 `fs:` 或 `shell:` capabilities；启动不自动重开；Space 和 Eye 仍切换壳内预览
+- 不改 `APP_VERSION`、不签名
+
 ### 第九阶段 — S9.06 可选系统托盘
 
 - 桌面壳总是尝试创建系统托盘图标（Show + Quit）；无头或部分 Linux 桌面创建失败为非致命

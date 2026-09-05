@@ -6,6 +6,15 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.07 detached preview window
+
+- Desktop View → Detached preview (no accelerator) and the culling toolbar toggle open a second WebView labeled `preview`
+- Selection is shared with the main culling workspace; the satellite window shows derivative previews only (no `fs:` read of originals)
+- Bare culling keys apply to the focused window; preview forwards commands to main and does not call `api.updatePhoto`
+- Create failure is non-fatal and keeps the in-shell preview; closing the preview window does not quit the app or shut down the sidecar
+- No extra `fs:` or `shell:` capabilities; no auto-reopen on launch; Space and Eye still toggle in-shell preview
+- No `APP_VERSION` bump or signing
+
 ### Phase 9 — S9.06 optional system tray
 
 - Desktop shell always attempts a system tray icon (Show + Quit); create failure is non-fatal on headless or some Linux desktops

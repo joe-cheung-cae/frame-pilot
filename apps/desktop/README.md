@@ -10,7 +10,7 @@ Tauri 2 + Vite SPA that reuses `apps/web` components over HTTP to a local Python
 
 1. Runs Vite on port **1420** (`strictPort: true`) via `beforeDevCommand`.
 2. Spawns the sidecar with an allocated loopback `--port <n>` (never `--port 0`), absolute `--data-dir`, and `FRAMEPILOT_DESKTOP=1`. Spawn also `env_remove`s `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` so a parent shell (for example `tauri dev`) cannot leak a wide allowlist into the sidecar.
-3. Injects `window.__FRAMEPILOT_API_BASE__` and `window.__FRAMEPILOT_DESKTOP__ = true` before the UI loads.
+3. Injects `window.__FRAMEPILOT_API_BASE__`, `window.__FRAMEPILOT_DESKTOP__ = true`, and `window.__FRAMEPILOT_WINDOW__` (`"main"` or `"preview"`) before the UI loads.
 
 Opening the Vite URL in a normal browser (without Tauri) makes `getNativeFs()` return `null`, matching the web stub, so native pickers are not used.
 
@@ -29,6 +29,10 @@ Override with absolute `FRAMEPILOT_DATA_DIR`. Sidecar stderr is appended to `{da
 ## Verify
 
 `npm run verify` typechecks the desktop Vite app (`typecheck:desktop`) and **must not** invoke `rustc`, `cargo`, or Tauri. `install:all` already installs `apps/desktop`.
+
+## Detached preview
+
+**View → Detached preview** (no accelerator) or the culling toolbar **Toggle detached preview** opens a second WebView labeled `preview`. It shows the current culling photo (and the compare set when compare is on) via shared selection events. Create failure is non-fatal and keeps the in-shell preview. Closing the preview window is not app quit. Bare culling keys apply to the focused window only. No extra `fs:` or `shell:` capabilities.
 
 ## System tray
 

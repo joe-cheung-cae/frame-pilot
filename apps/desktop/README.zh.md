@@ -10,7 +10,7 @@ Tauri 2 + Vite SPA，通过 HTTP 复用 `apps/web` 组件，对接本地 Python 
 
 1. 经 `beforeDevCommand` 在端口 **1420** 跑 Vite（`strictPort: true`）。
 2. 拉起 sidecar，分配回环 `--port <n>`（从不用 `--port 0`），绝对 `--data-dir`，以及 `FRAMEPILOT_DESKTOP=1`。Spawn 还会 `env_remove` `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST`，避免父 shell（例如 `tauri dev`）把过宽的 allowlist 漏进 sidecar。
-3. 在 UI 加载前注入 `window.__FRAMEPILOT_API_BASE__` 和 `window.__FRAMEPILOT_DESKTOP__ = true`。
+3. 在 UI 加载前注入 `window.__FRAMEPILOT_API_BASE__`、`window.__FRAMEPILOT_DESKTOP__ = true`，以及 `window.__FRAMEPILOT_WINDOW__`（`"main"` 或 `"preview"`）。
 
 在普通浏览器打开 Vite URL（没有 Tauri）时，`getNativeFs()` 返回 `null`，与 web stub 一致，因此不会用原生选择器。
 
@@ -29,6 +29,10 @@ Windows NSIS 和 macOS DMG 安装包由 `.github/workflows/desktop.yml` 产出�
 ## 验证
 
 `npm run verify` 会对桌面 Vite 应用做类型检查（`typecheck:desktop`），**不得**调用 `rustc`、`cargo` 或 Tauri。`install:all` 已经会安装 `apps/desktop`。
+
+## 独立预览
+
+**View → Detached preview**（无加速键）或筛选工具栏 **Toggle detached preview** 打开标签为 `preview` 的第二个 WebView。它通过共享选中事件显示当前筛选照片（compare 打开时显示 compare 集合）。创建失败为非致命，并保持壳内预览。关闭预览窗不是退出应用。裸筛选键只作用于聚焦窗口。不加额外的 `fs:` 或 `shell:` capabilities。
 
 ## 系统托盘
 

@@ -2,6 +2,7 @@
 
 mod data_dir;
 mod menu;
+mod preview;
 mod sidecar;
 mod tray;
 
@@ -16,8 +17,9 @@ use menu::{build_app_menu, handle_menu_event, DesktopPaths};
 use sidecar::{
     allocate_loopback_port, api_pythonpath, app_quit_action, blocking_error_script,
     close_choice_from_handshake, close_decision, close_decision_requests_shutdown, close_job_kind,
-    default_python, find_active_job, frozen_sidecar_binary, initialization_script, parse_quit_choice,
-    probe_health, quit_dialog_script, repo_root, request_cancel_then_wait, sidecar_spawn_spec,
+    default_python, find_active_job, frozen_sidecar_binary, initialization_script_for_window,
+    parse_quit_choice, probe_health, quit_dialog_script, repo_root, request_cancel_then_wait,
+    sidecar_spawn_spec,
     sidecar_stderr_log, spawn_sidecar, staged_sidecar_resource_root, start_sidecar_unless_shutdown,
     supervisor_tick_after_probe, terminate_sidecar, wait_for_health, AppQuitAction, AppQuitEvent,
     CloseDecision, CloseJobKind, SidecarLaunchMode, SidecarStart, SidecarState, SpawnedSidecar,
@@ -266,13 +268,22 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&[preview::PREVIEW_WINDOW_LABEL])
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![
+            preview::toggle_detached_preview,
+            preview::close_detached_preview,
+        ])
         .manage(Arc::clone(&state))
         .manage(DesktopPaths {
             data_dir: data_dir.clone(),
         })
+        .manage(preview::PreviewHost { port })
         .on_menu_event(|app, event| handle_menu_event(app, event))
         .setup(move |app| {
             let launch_mode = resolve_launch_mode(app.handle(), &root);
@@ -305,7 +316,7 @@ pub fn run() {
             .title("FramePilot")
             .inner_size(1200.0, 800.0)
             .min_inner_size(1100.0, 720.0)
-            .initialization_script(&initialization_script(port))
+            .initialization_script(&initialization_script_for_window(port, "main"))
             .build()?;
 
             let menu = build_app_menu(app)?;
@@ -340,6 +351,9 @@ pub fn run() {
         .on_window_event(move |window, event| {
             match event {
                 WindowEvent::CloseRequested { api, .. } => {
+                    if !preview::window_close_targets_app_quit(window.label()) {
+                        return;
+                    }
                     let shutting_down = window
                         .try_state::<Arc<SidecarState>>()
                         .is_some_and(|state| state.is_shutdown());
@@ -360,8 +374,12 @@ pub fn run() {
                     }
                 }
                 WindowEvent::Destroyed => {
-                    if let Some(state) = window.try_state::<Arc<SidecarState>>() {
-                        state.request_shutdown();
+                    if preview::window_destroyed_requests_sidecar_shutdown(window.label()) {
+                        if let Some(state) = window.try_state::<Arc<SidecarState>>() {
+                            state.request_shutdown();
+                        }
+                    } else if window.label() == preview::PREVIEW_WINDOW_LABEL {
+                        preview::emit_preview_closed(window.app_handle());
                     }
                 }
                 _ => {}

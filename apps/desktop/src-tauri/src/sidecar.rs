@@ -359,9 +359,19 @@ pub fn api_base_url(port: u16) -> String {
 }
 
 pub fn initialization_script(port: u16) -> String {
+    initialization_script_for_window(port, "main")
+}
+
+pub fn initialization_script_for_window(port: u16, window_label: &str) -> String {
+    let label = if window_label == "preview" {
+        "preview"
+    } else {
+        "main"
+    };
     format!(
-        "window.__FRAMEPILOT_API_BASE__ = \"{}\";\nwindow.__FRAMEPILOT_DESKTOP__ = true;",
-        api_base_url(port)
+        "window.__FRAMEPILOT_API_BASE__ = \"{}\";\nwindow.__FRAMEPILOT_DESKTOP__ = true;\nwindow.__FRAMEPILOT_WINDOW__ = \"{}\";",
+        api_base_url(port),
+        label
     )
 }
 
@@ -1201,6 +1211,12 @@ mod tests {
         assert!(script.contains("window.__FRAMEPILOT_DESKTOP__ = true;"));
         assert!(!script.contains("__FRAMEPILOT_DESKTOP__ = \"true\""));
         assert!(!script.contains("__FRAMEPILOT_DESKTOP__ = 1"));
+        assert!(script.contains("window.__FRAMEPILOT_WINDOW__ = \"main\";"));
+        assert!(!script.contains("__FRAMEPILOT_WINDOW__ = true"));
+        assert!(initialization_script_for_window(4242, "preview")
+            .contains("window.__FRAMEPILOT_WINDOW__ = \"preview\";"));
+        assert!(initialization_script_for_window(4242, "preview")
+            .contains("window.__FRAMEPILOT_DESKTOP__ = true;"));
     }
 
     #[test]

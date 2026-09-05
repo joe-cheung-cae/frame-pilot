@@ -15,7 +15,7 @@ export function HelpShortcuts() {
         </p>
         {desktopShell ? (
           <p className="max-w-2xl text-muted">
-            Desktop also lists native menu accelerators CmdOrCtrl+N, CmdOrCtrl+W, and CmdOrCtrl+Q.
+            Desktop also lists native menu accelerators CmdOrCtrl+N, CmdOrCtrl+W, and CmdOrCtrl+Q. Bare culling keys apply to the focused window only.
           </p>
         ) : null}
       </div>

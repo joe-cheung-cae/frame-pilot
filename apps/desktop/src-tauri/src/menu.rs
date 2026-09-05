@@ -77,6 +77,7 @@ pub fn build_app_menu<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Result<M
 
     let view = SubmenuBuilder::new(manager, "View")
         .item(&MenuItemBuilder::with_id("fullscreen", "Fullscreen").build(manager)?)
+        .item(&MenuItemBuilder::with_id("detached-preview", "Detached preview").build(manager)?)
         .build()?;
 
     let project = SubmenuBuilder::new(manager, "Project")
@@ -131,8 +132,13 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
             }
         }
         "close" => {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.close();
+            let focused = crate::preview::focused_webview_label(app);
+            if crate::preview::file_close_targets_app_quit(focused.as_deref()) {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.close();
+                }
+            } else if let Err(err) = crate::preview::close_preview_window(app) {
+                eprintln!("FramePilot could not close detached preview: {err}");
             }
         }
         "quit" => {
@@ -141,6 +147,11 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
         "fullscreen" => {
             if let Some(window) = app.get_webview_window("main") {
                 toggle_fullscreen(&window);
+            }
+        }
+        "detached-preview" => {
+            if let Err(err) = crate::preview::toggle_preview_window(app) {
+                eprintln!("FramePilot detached preview is unavailable: {err}");
             }
         }
         _ => {}
@@ -173,5 +184,12 @@ mod tests {
     #[test]
     fn about_version_comes_from_package_metadata() {
         assert_eq!(env!("CARGO_PKG_VERSION"), "2.1.0-desktop");
+    }
+
+    #[test]
+    fn detached_preview_menu_id_has_no_accelerator() {
+        assert_eq!(crate::preview::DETACHED_PREVIEW_MENU_ID, "detached-preview");
+        assert!(crate::preview::DETACHED_PREVIEW_ACCELERATOR.is_none());
+        assert!(!CUSTOM_ACCELERATORS.iter().any(|accel| accel.contains("detached")));
     }
 }
