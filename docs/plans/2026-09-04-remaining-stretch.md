@@ -51,7 +51,7 @@ Phase 9 — remaining stretch (post Phase 8)
 - [x] S9.06 Optional system tray (D3.06) — [#169](https://github.com/joe-cheung-cae/frame-pilot/issues/169)
 - [x] S9.07 Detached preview window — [#166](https://github.com/joe-cheung-cae/frame-pilot/issues/166)
 - [x] S9.08 Opt-in import concurrency knobs — [#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)
-- [ ] S9.09 Change data directory — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
+- [x] S9.09 Change data directory — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
 - [ ] S9.10 Optional check for updates — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
 - [ ] S9.11 Signing-ready CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
 - [ ] S9.12 macOS DMG GUI lifecycle QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
@@ -113,6 +113,26 @@ Locked contract: [2026-09-04-s908.md](2026-09-04-s908.md). Settings 1–4 import
 ### S9.09 — Data directory
 
 Explicit authorize (D2.00 allowlist). Rewrite stored project paths. Never rewrite camera-card originals.
+
+**Hole (live tree):** SettingsPanel shows a read-only data directory from `GET /api/meta` and says changing the location is not available (`apps/web/src/components/SettingsPanel.tsx`). D3.03 deferred change to 2.2. Rust `resolve_runtime_data_dir` uses absolute `FRAMEPILOT_DATA_DIR` else OS app-support / `.framepilot-desktop-dev` (`apps/desktop/src-tauri/src/data_dir.rs`); no pointer file. Sidecar `--data-dir` is required. SQLite `framepilot.db` plus absolute `Project.root_path`, `Photo.original_path` / `project_copy_path` / `thumbnail_path` / `preview_path`, and `ExportRecord.output_path`. `Project.source_root_path` is the import folder (camera card / source). Import copies into `{root_path}/originals` and never modifies the source. D2.00 `POST /api/desktop/project-roots` + `register_root` is the authorize path; rejects `$HOME` / `/` / drive roots / current data_dir and its parents. `test_create_project_rejects_root_outside_allowlist` must stay green unchanged. #170: explicit user authorize; copy/move FramePilot data dir; rewrite stored project paths; never rewrite camera-card originals.
+
+**Identity:** Desktop-only change of the FramePilot **app data directory** (db, logs, `app_settings.json`, `desktop_project_roots.json`, `{data_dir}/projects/...`). Not a project-root picker and not reference-in-place. Copy the current data-dir tree into an explicitly authorized destination; rewrite stored paths whose resolved prefix is the **old** data_dir; leave the old tree on disk (do not delete in this slice). **Never** open, copy, move, chmod, or rewrite files on a camera card or any path outside the old data_dir. No schema bump.
+
+**Authorize:** Same D2.00 flow as project folders: native `pickDirectory` → `POST /api/desktop/project-roots` (existing 422s). Migrate only if the destination is already in `registered_roots()`. Reuse `register_root` / `is_blocked_allowlist_root`. Also reject the current data_dir, its parents, **children** of the current data_dir (nested copy), and the same path. Destination must exist, be a directory, and be empty. Do **not** set `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST`. Do **not** change `test_create_project_rejects_root_outside_allowlist`. After copy, drop the new data_dir from the copied `desktop_project_roots.json` (it is now the data dir; D2.00 would reject it).
+
+**API:** Desktop-only `POST /api/desktop/data-dir` `{"path": "<abs>"}` (404 unless `FRAMEPILOT_DESKTOP=1`). 409 if any job is in `BLOCKING_JOB_STATUSES`. 422 if unregistered / blocked / nested / missing / nonempty. Copy the tree including SQLite `-wal`/`-shm`. Rewrite in the **destination** db only (old db and files stay byte-identical). Prefix-replace old_data_dir on `Project.root_path`, `Photo.original_path` / `project_copy_path` / `thumbnail_path` / `preview_path`, and `ExportRecord.output_path` **only when** the stored path is under the old data_dir. **Never** rewrite `Project.source_root_path`. Custom D2.00 project folders outside the old data_dir stay put (files not copied; `root_path` unchanged). 200 `{ "data_dir": "<new>" }`.
+
+**Persist / restart:** Rust reads `{anchor}/data_dir.json` (`{"data_dir": "<abs>"}`) after env override and before default app-support / `.framepilot-desktop-dev`. Absolute `FRAMEPILOT_DATA_DIR` still wins. After API 200, Tauri writes the pointer at the **default anchor** (not inside the movable tree), updates `DesktopPaths`, and respawns the sidecar with the new `--data-dir`. Settings refetches `GET /api/meta`. No extra `fs:` / `shell:` capabilities.
+
+**UI:** SettingsPanel, desktop shell + native FS only: **Change data directory** (pick → register → confirm → POST). Confirm copy: rewrite paths inside the current data directory; camera cards and other source folders are not moved or modified. Browser stays read-only. Keep **Open data folder**.
+
+**This plan (implementation commit only):** tick §3 S9.09 `[x]` (en+zh). Do not tick S9.10–S9.13.
+
+**Files:** `apps/api/app/services/data_dir.py` (new); `apps/api/app/api/routes.py`; `apps/api/app/schemas/api.py`; `apps/api/tests/test_data_dir_relocate.py` (new); `apps/desktop/src-tauri/src/data_dir.rs`; `apps/desktop/src-tauri/src/lib.rs`; `apps/web/src/lib/api.ts`; `apps/web/src/components/SettingsPanel.tsx` (+ test); `docs/api.md`, `docs/v2_known_limitations.md`, architecture, user guide, CHANGELOG Unreleased (+ zh). Do not rewrite `docs/desktop_development_plan.md` §2.2 as shipped (S9.13).
+
+**Tests first:** register then POST copies db + managed project; rewritten `root_path` / photo copy / derivative paths live under the new data_dir; old data_dir files byte-identical; camera-card source size/mtime/bytes unchanged; `source_root_path` unchanged; custom D2.00 `root_path` outside the old data_dir unchanged; blocked / unregistered / nested / nonempty 422; no desktop env 404; blocking job 409; `test_create_project_rejects_root_outside_allowlist` unchanged; SettingsPanel shows Change on desktop only; pointer file makes next `resolve_data_dir` return the override; env override still wins.
+
+**Non-goals:** deleting the old data dir; rewriting §2.2 as done; check for updates (S9.10); signing; `APP_VERSION`; extra `fs:`/`shell:` capabilities; Redis/Celery; S9.10–S9.13.
 
 ### S9.10 — Check for updates
 

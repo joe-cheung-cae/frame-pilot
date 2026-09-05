@@ -18,6 +18,8 @@ from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, 
 from app.schemas.api import (
     AppSettingsRead,
     AppSettingsUpdate,
+    DesktopDataDirChange,
+    DesktopDataDirRead,
     DesktopProjectRootCreate,
     ExportCreate,
     ExportRead,
@@ -32,6 +34,7 @@ from app.schemas.api import (
     ProjectCreate,
     ProjectRead,
 )
+from app.services.data_dir import DataDirRelocateError, relocate_data_dir
 from app.services.exporting import (
     EXPORT_CANCEL_REASON,
     ExportCancelled,
@@ -325,6 +328,19 @@ def register_desktop_project_root(payload: DesktopProjectRootCreate) -> dict[str
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return {"path": str(root)}
+
+
+@router.post("/desktop/data-dir", response_model=DesktopDataDirRead)
+def change_desktop_data_dir(
+    payload: DesktopDataDirChange,
+    session: Session = Depends(get_session),
+) -> DesktopDataDirRead:
+    _require_desktop_mode()
+    try:
+        dest = relocate_data_dir(payload.path, session)
+    except DataDirRelocateError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+    return DesktopDataDirRead(data_dir=str(dest))
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)

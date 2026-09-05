@@ -333,6 +333,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ path }),
     }),
+  changeDesktopDataDir: (path: string) =>
+    request<{ data_dir: string }>("/api/desktop/data-dir", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    }),
   getHealth: () => request<HealthStatus>("/api/health"),
   getMeta: () => request<AppMeta>("/api/meta"),
   getSettings: () => request<AppSettings>("/api/settings"),

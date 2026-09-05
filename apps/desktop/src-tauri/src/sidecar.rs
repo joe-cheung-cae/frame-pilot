@@ -726,6 +726,7 @@ pub struct SidecarState {
     child: Mutex<Option<Child>>,
     shutdown: AtomicBool,
     pub close_in_progress: AtomicBool,
+    pub relocate_in_progress: AtomicBool,
 }
 
 impl SidecarState {
@@ -734,6 +735,7 @@ impl SidecarState {
             child: Mutex::new(None),
             shutdown: AtomicBool::new(false),
             close_in_progress: AtomicBool::new(false),
+            relocate_in_progress: AtomicBool::new(false),
         })
     }
 

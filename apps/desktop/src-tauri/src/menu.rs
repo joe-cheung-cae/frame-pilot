@@ -1,6 +1,7 @@
 //! Native application menu for the FramePilot desktop shell.
 
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use tauri::menu::{AboutMetadata, Menu, MenuBuilder, MenuEvent, MenuItemBuilder, SubmenuBuilder};
 use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
@@ -15,7 +16,29 @@ pub const QUIT_ACCELERATOR: &str = "CmdOrCtrl+Q";
 pub const CUSTOM_ACCELERATORS: &[&str] = &[NEW_ACCELERATOR, CLOSE_ACCELERATOR, QUIT_ACCELERATOR];
 
 pub struct DesktopPaths {
-    pub data_dir: PathBuf,
+    data_dir: Mutex<PathBuf>,
+}
+
+impl DesktopPaths {
+    pub fn new(data_dir: PathBuf) -> Self {
+        Self {
+            data_dir: Mutex::new(data_dir),
+        }
+    }
+
+    pub fn current(&self) -> PathBuf {
+        self.data_dir
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_else(|poisoned| poisoned.into_inner().clone())
+    }
+
+    pub fn set(&self, data_dir: PathBuf) {
+        match self.data_dir.lock() {
+            Ok(mut guard) => *guard = data_dir,
+            Err(poisoned) => *poisoned.into_inner() = data_dir,
+        }
+    }
 }
 
 fn about_metadata() -> AboutMetadata<'static> {
@@ -128,7 +151,8 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
         }
         "open-data-folder" => {
             if let Some(paths) = app.try_state::<DesktopPaths>() {
-                let _ = app.opener().reveal_item_in_dir(&paths.data_dir);
+                let current = paths.current();
+                let _ = app.opener().reveal_item_in_dir(&current);
             }
         }
         "close" => {

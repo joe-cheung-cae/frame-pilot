@@ -26,6 +26,7 @@ DELETE /api/projects/{project_id}
 
 GET    /api/desktop/project-roots
 POST   /api/desktop/project-roots
+POST   /api/desktop/data-dir
 
 POST   /api/projects/{project_id}/imports
 POST   /api/projects/{project_id}/imports/from-paths
@@ -82,6 +83,8 @@ Project responses include image totals and processing metadata:
 When `POST /api/projects` omits `root_path` or sends it blank, FramePilot uses the default managed project directory. The project creation UI exposes this as an optional local project data folder field. Custom `root_path` values must be a usable local directory under `{data_dir}/projects`, a `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` entry, or a folder registered with `POST /api/desktop/project-roots`. Invalid storage paths return `422` before project metadata is created. Env allowlist entries are filtered with the same helpers as `register_root`: `$HOME`, `/`, drive roots, the data directory and its parents, and other blocked system names are ignored.
 
 `GET` and `POST /api/desktop/project-roots` exist only when `FRAMEPILOT_DESKTOP=1`; otherwise they return `404`. `POST` accepts `{"path": "/absolute/folder"}` for an existing directory, rejects blocked system paths, filesystem anchors, the current home directory (`Path.home()` / `$HOME`) by name, the data directory, and parents of the data directory, and stores at most 50 resolved paths in `{data_dir}/desktop_project_roots.json`. `GET` returns `{"roots": [...]}`. The registry is file-backed and is not stored in Settings.
+
+`POST /api/desktop/data-dir` exists only when `FRAMEPILOT_DESKTOP=1`; otherwise it returns `404`. The body is `{"path": "/absolute/empty-folder"}`. The destination must already be registered with `POST /api/desktop/project-roots`. Blocked, unregistered, nested, missing, and nonempty destinations return `422`. A job in `BLOCKING_JOB_STATUSES` returns `409`. Success copies the current data-directory tree (including SQLite `-wal`/`-shm`) into the destination, rewrites stored project/photo/export paths whose prefix is the old data directory in the **destination** database only, leaves the old tree byte-identical, never rewrites `Project.source_root_path`, and never copies or rewrites camera-card originals. The copied `desktop_project_roots.json` drops the new data directory (it is now the data dir). The response is `{"data_dir": "<new>"}`. The desktop shell then writes `{anchor}/data_dir.json` and respawns the sidecar with the new `--data-dir`.
 
 `DELETE /api/projects/{project_id}` removes the project and related local metadata records from the app database. It does not delete the project folder, copied originals, generated previews, or exports from disk.
 

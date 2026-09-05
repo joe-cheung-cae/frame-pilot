@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.09 change data directory
+
+- Desktop Settings **Change data directory** copies the current app data directory into an empty folder authorized with D2.00 `POST /api/desktop/project-roots`, then `POST /api/desktop/data-dir`
+- Stored `root_path` / photo copy / derivative / export paths under the old data dir are rewritten in the destination database only; the old tree stays byte-identical
+- Camera-card originals and `Project.source_root_path` are never rewritten; custom D2.00 project folders outside the old data dir stay put
+- The shell persists `{anchor}/data_dir.json` after `FRAMEPILOT_DATA_DIR` and before the default app-support / `.framepilot-desktop-dev` path, then respawns the sidecar
+- No extra `fs:` / `shell:` capabilities; old data dir is not deleted; no `APP_VERSION` bump or signing
+
 ### Phase 9 — S9.08 opt-in import worker concurrency
 
 - Settings **Import workers** 1–4 (default 1) persist in `{data_dir}/app_settings.json` via `GET`/`PATCH /api/settings`

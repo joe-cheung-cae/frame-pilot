@@ -51,7 +51,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 - [x] S9.06 可选系统托盘（D3.06） — [#169](https://github.com/joe-cheung-cae/frame-pilot/issues/169)
 - [x] S9.07 独立预览窗口 — [#166](https://github.com/joe-cheung-cae/frame-pilot/issues/166)
 - [x] S9.08 可选导入并发旋钮 — [#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)
-- [ ] S9.09 更改数据目录 — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
+- [x] S9.09 更改数据目录 — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
 - [ ] S9.10 可选检查更新 — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
 - [ ] S9.11 签名就绪 CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
 - [ ] S9.12 macOS DMG GUI 生命周期 QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
@@ -114,6 +114,26 @@ S9.01–S9.07 合同未改、已经交付。锁定的导出取消、暂停、AVI
 
 显式授权（D2.00 允许名单）。改写已存项目路径。永不改写相机卡上的原片。
 
+**现场空洞：** SettingsPanel 用 `GET /api/meta` 只读展示数据目录，并写明本版本不能改位置（`apps/web/src/components/SettingsPanel.tsx`）。D3.03 把更改推迟到 2.2。Rust `resolve_runtime_data_dir` 用绝对 `FRAMEPILOT_DATA_DIR`，否则是操作系统 app-support / `.framepilot-desktop-dev`（`apps/desktop/src-tauri/src/data_dir.rs`）；没有指针文件。Sidecar 必须带 `--data-dir`。SQLite `framepilot.db` 以及绝对路径 `Project.root_path`、`Photo.original_path` / `project_copy_path` / `thumbnail_path` / `preview_path`、`ExportRecord.output_path`。`Project.source_root_path` 是导入文件夹（相机卡 / 源）。导入拷贝进 `{root_path}/originals`，永不改源文件。D2.00 `POST /api/desktop/project-roots` + `register_root` 是授权路径；拒绝 `$HOME` / `/` / 盘符根 / 当前 data_dir 及其父目录。`test_create_project_rejects_root_outside_allowlist` 必须保持全绿且不变。#170：显式用户授权；拷贝/移动 FramePilot 数据目录；改写已存项目路径；永不改写相机卡上的原片。
+
+**身份：** 仅桌面更改 FramePilot **应用数据目录**（数据库、日志、`app_settings.json`、`desktop_project_roots.json`、`{data_dir}/projects/...`）。不是项目根选择器，也不是原地引用。把当前 data-dir 树拷贝到显式授权的目标；只改写解析后前缀为**旧** data_dir 的已存路径；旧树留在磁盘（本切片不删除）。**永不**打开、拷贝、移动、chmod 或改写相机卡上的文件，以及旧 data_dir 之外的任何路径。不升 schema。
+
+**授权：** 与项目文件夹相同的 D2.00 流程：原生 `pickDirectory` → `POST /api/desktop/project-roots`（既有 422）。仅当目标已在 `registered_roots()` 里才迁移。复用 `register_root` / `is_blocked_allowlist_root`。另外拒绝当前 data_dir、其父目录、当前 data_dir 的**子目录**（嵌套拷贝）以及同一路径。目标必须存在、是目录、且为空。**不要**设置 `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST`。**不要**改 `test_create_project_rejects_root_outside_allowlist`。拷贝后从拷贝出的 `desktop_project_roots.json` 里去掉新 data_dir（它现在就是 data dir；D2.00 会拒绝它）。
+
+**API：** 仅桌面 `POST /api/desktop/data-dir` `{"path": "<abs>"}`（无 `FRAMEPILOT_DESKTOP=1` 则 404）。若有作业处于 `BLOCKING_JOB_STATUSES` 则 409。未注册 / 被拦截 / 嵌套 / 缺失 / 非空则 422。拷贝整棵树（含 SQLite `-wal`/`-shm`）。只在**目标**数据库里改写（旧库和文件保持字节一致）。仅当已存路径位于旧 data_dir 下时，才对 `Project.root_path`、`Photo.original_path` / `project_copy_path` / `thumbnail_path` / `preview_path`、`ExportRecord.output_path` 做 old_data_dir 前缀替换。**永不**改写 `Project.source_root_path`。旧 data_dir 之外的自定义 D2.00 项目文件夹不动（不拷贝文件；`root_path` 不变）。200 `{ "data_dir": "<new>" }`。
+
+**持久化 / 重启：** Rust 在环境变量覆盖之后、默认 app-support / `.framepilot-desktop-dev` 之前读取 `{anchor}/data_dir.json`（`{"data_dir": "<abs>"}`）。绝对 `FRAMEPILOT_DATA_DIR` 仍优先。API 200 之后，Tauri 把指针写到**默认锚点**（不写进可移动树内），更新 `DesktopPaths`，并用新的 `--data-dir` 重新拉起 sidecar。设置页重新请求 `GET /api/meta`。不要额外 `fs:` / `shell:` 能力。
+
+**UI：** 仅桌面壳 + native FS 的 SettingsPanel：**Change data directory**（选择 → 注册 → 确认 → POST）。确认拷贝：只改写当前数据目录内的路径；相机卡和其他源文件夹不移动、不修改。浏览器保持只读。保留 **Open data folder**。
+
+**本计划（仅实现提交）：** 勾选 §3 S9.09 `[x]`（中英）。不要勾 S9.10–S9.13。
+
+**文件：** `apps/api/app/services/data_dir.py`（新建）；`apps/api/app/api/routes.py`；`apps/api/app/schemas/api.py`；`apps/api/tests/test_data_dir_relocate.py`（新建）；`apps/desktop/src-tauri/src/data_dir.rs`；`apps/desktop/src-tauri/src/lib.rs`；`apps/web/src/lib/api.ts`；`apps/web/src/components/SettingsPanel.tsx`（+ 测试）；`docs/api.md`、`docs/v2_known_limitations.md`、architecture、用户指南、CHANGELOG Unreleased（+ zh）。不要把 `docs/desktop_development_plan.md` §2.2 改写成已交付（留给 S9.13）。
+
+**测试先行：** 先注册再 POST，拷贝数据库 + 托管项目；改写后的 `root_path` / 项目拷贝 / 衍生路径落在新 data_dir 下；旧 data_dir 文件字节不变；相机卡源 size/mtime/bytes 不变；`source_root_path` 不变；旧 data_dir 之外的自定义 D2.00 `root_path` 不变；被拦截 / 未注册 / 嵌套 / 非空 422；非桌面环境 404；阻塞作业 409；`test_create_project_rejects_root_outside_allowlist` 不变；SettingsPanel 仅桌面显示 Change；指针文件使下一次 `resolve_data_dir` 返回覆盖值；环境变量覆盖仍优先。
+
+**非目标：** 删除旧数据目录；把 §2.2 改写成已完成；检查更新（S9.10）；签名；`APP_VERSION`；额外 `fs:`/`shell:` 能力；Redis/Celery；S9.10–S9.13。
+
 ### S9.10 — 检查更新
 
 仅菜单。GitHub Releases。启动不联网。
@@ -152,7 +172,7 @@ S9.01–S9.07 合同未改、已经交付。锁定的导出取消、暂停、AVI
 | 下一个产品 issue | `/workflow remaining-stretch` 传入 `{"slice":"s901"}`（然后 `s902`…） |
 | 文件 | `.grok/workflows/remaining-stretch.rhai` |
 
-每次运行的仪表盘 `phase()` 标题就是该 issue id。phase 内部：需求拆解 → 评审（+ skeptic）→ 归档 → 开发 → 测试 → 上线。
+每次运行的仪表盘 `phase()` 标题就是该 issue id。phase 内部：需求拆解 → 评审（+ skeptic） → 归档 → 开发 → 测试 → 上线。
 
 **分支：** 从 `origin/main` 拉出的 `feature/remaining-stretch`。每个 issue 后推送。永远不要第二份 PR。工作流不要合并进 `main`。不要 squash。不要 force-push。
 
@@ -160,4 +180,4 @@ S9.01–S9.07 合同未改、已经交付。锁定的导出取消、暂停、AVI
 
 **失败即停：** `ok=false` 或 skeptic `real=false` → 停止。不要开始下一个切片。
 
-建议 `agent_budget`：32.
+建议 `agent_budget`: 32.

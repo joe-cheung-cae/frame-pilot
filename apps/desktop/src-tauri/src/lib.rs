@@ -6,13 +6,16 @@ mod preview;
 mod sidecar;
 mod tray;
 
+use std::path::PathBuf;
 use std::process::Child;
 use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Duration;
 
-use data_dir::resolve_runtime_data_dir;
+use data_dir::{
+    default_anchor_dir, ensure_data_dir, resolve_runtime_data_dir, write_data_dir_pointer,
+};
 use menu::{build_app_menu, handle_menu_event, DesktopPaths};
 use sidecar::{
     allocate_loopback_port, api_pythonpath, app_quit_action, blocking_error_script,
@@ -167,6 +170,38 @@ fn handle_close_requested(window: tauri::Window, state: Arc<SidecarState>, port:
     finish_quit(&window, &state);
 }
 
+#[tauri::command]
+fn apply_data_directory(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    let new_dir = PathBuf::from(&path);
+    if !new_dir.is_absolute() {
+        return Err("data dir must be absolute".into());
+    }
+    let packaged = cfg!(not(debug_assertions));
+    let anchor = default_anchor_dir(packaged).map_err(|err| err.to_string())?;
+    write_data_dir_pointer(&anchor, &new_dir).map_err(|err| err.to_string())?;
+    ensure_data_dir(&new_dir).map_err(|err| err.to_string())?;
+    if let Some(paths) = app.try_state::<DesktopPaths>() {
+        paths.set(new_dir.clone());
+    }
+    let Some(state) = app.try_state::<Arc<SidecarState>>() else {
+        return Err("sidecar state is not configured".into());
+    };
+    let port = app
+        .try_state::<preview::PreviewHost>()
+        .map(|host| host.port)
+        .ok_or_else(|| "preview host is not configured".to_string())?;
+    let mode = resolve_launch_mode(&app, &repo_root())?;
+    state.relocate_in_progress.store(true, Ordering::SeqCst);
+    let result = (|| {
+        state.terminate_stored_child();
+        let child = spawn_ready_sidecar(port, &new_dir, &mode)?;
+        state.store_child(child);
+        Ok(new_dir.to_string_lossy().into_owned())
+    })();
+    state.relocate_in_progress.store(false, Ordering::SeqCst);
+    result
+}
+
 fn show_blocking_error(app: &tauri::AppHandle, message: &str) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.eval(&blocking_error_script(message));
@@ -177,7 +212,7 @@ fn supervise_sidecar(
     app: tauri::AppHandle,
     state: Arc<SidecarState>,
     port: u16,
-    data_dir: std::path::PathBuf,
+    data_dir: PathBuf,
     mode: SidecarLaunchMode,
     mut restart_used: bool,
 ) {
@@ -189,6 +224,9 @@ fn supervise_sidecar(
         thread::sleep(Duration::from_millis(500));
         if state.is_shutdown() {
             return;
+        }
+        if state.relocate_in_progress.load(Ordering::SeqCst) {
+            continue;
         }
 
         let exited = match state.child_has_exited() {
@@ -214,7 +252,11 @@ fn supervise_sidecar(
                 if state.is_shutdown() {
                     return;
                 }
-                match start_sidecar_process(port, &data_dir, &mode, || state.is_shutdown()) {
+                let current_dir = app
+                    .try_state::<DesktopPaths>()
+                    .map(|paths| paths.current())
+                    .unwrap_or_else(|| data_dir.clone());
+                match start_sidecar_process(port, &current_dir, &mode, || state.is_shutdown()) {
                     Ok(SidecarStart::Started(child)) => {
                         health_failures = 0;
                         state.store_child(child);
@@ -278,11 +320,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             preview::toggle_detached_preview,
             preview::close_detached_preview,
+            apply_data_directory,
         ])
         .manage(Arc::clone(&state))
-        .manage(DesktopPaths {
-            data_dir: data_dir.clone(),
-        })
+        .manage(DesktopPaths::new(data_dir.clone()))
         .manage(preview::PreviewHost { port })
         .on_menu_event(|app, event| handle_menu_event(app, event))
         .setup(move |app| {

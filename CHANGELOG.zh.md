@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 第九阶段 — S9.09 更改数据目录
+
+- 桌面设置中的 **Change data directory** 把当前应用数据目录拷贝到经 D2.00 `POST /api/desktop/project-roots` 授权的空文件夹，再调用 `POST /api/desktop/data-dir`
+- 只在目标数据库里改写位于旧 data dir 下的已存 `root_path` / 项目拷贝 / 衍生件 / 导出路径；旧树保持字节不变
+- 永不改写相机卡上的原片和 `Project.source_root_path`；旧 data dir 之外的自定义 D2.00 项目文件夹不动
+- 壳层在 `FRAMEPILOT_DATA_DIR` 之后、默认 app-support / `.framepilot-desktop-dev` 之前读取 `{anchor}/data_dir.json`，并重新拉起 sidecar
+- 不添加额外的 `fs:` / `shell:` 能力；不删除旧数据目录；不改 `APP_VERSION`、不签名
+
 ### 第九阶段 — S9.08 可选导入 worker 并发
 
 - 设置中的 **Import workers** 为 1–4（默认 1），经 `GET`/`PATCH /api/settings` 持久化到 `{data_dir}/app_settings.json`

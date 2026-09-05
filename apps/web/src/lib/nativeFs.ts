@@ -5,6 +5,7 @@ export type NativeFs = {
   pickImageFiles: () => Promise<string[] | null>;
   revealInFileManager: (targetPath: string) => Promise<void>;
   subscribeDragDrop: (handler: (event: NativeDragDropEvent) => void) => Promise<() => void>;
+  applyDataDirectory?: (path: string) => Promise<void>;
 };
 
 export function getNativeFs(): NativeFs | null {

@@ -26,6 +26,14 @@ class DesktopProjectRootCreate(BaseModel):
     path: str = Field(min_length=1)
 
 
+class DesktopDataDirChange(BaseModel):
+    path: str = Field(min_length=1)
+
+
+class DesktopDataDirRead(BaseModel):
+    data_dir: str
+
+
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     root_path: str | None = None

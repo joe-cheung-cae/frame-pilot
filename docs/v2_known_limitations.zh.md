@@ -103,6 +103,7 @@ v2.0 不支持云图库、共享团队项目、自动删除原图、远程 AI �
 - 存储为**仅复制模式**（不支持相机卡原地引用）。
 - 桌面**独立预览**（View → Detached preview，或筛选工具栏）打开第二个 WebView，显示当前筛选照片并共享选中。裸筛选键只作用于聚焦窗口。创建失败为非致命，并保持壳内预览。关闭预览窗不会退出应用。未添加额外的 `fs:` / `shell:` capabilities。
 - 导入衍生 worker 默认 **1**。设置可将下一次导入作业升到 **2–4**（`GET`/`PATCH /api/settings`，`{data_dir}/app_settings.json`）。处理仍是每个项目一个作业。没有处理 worker 池、Redis 或 Celery。
+- 桌面 **Change data directory** 把当前应用数据目录拷贝到已通过 D2.00 授权的空文件夹，并改写前缀为旧 data dir 的已存路径。旧树不删除。相机卡和其他源文件夹不移动、不修改。`FRAMEPILOT_DATA_DIR` 仍优先于 `{anchor}/data_dir.json`。未添加额外的 `fs:` / `shell:` capabilities。
 - 可选**系统托盘**（D3.06）在 tooltip 中显示作业进度。**Show** 恢复主窗口；**Quit** 走与 File → Quit 同一套进行中作业对话框。关窗口仍是退出，不是藏到托盘。无头或部分 Linux 桌面创建托盘可能失败，且为非致命。未添加与托盘相关的 `fs:` / `shell:` capabilities。
 
 终端用户步骤见 [桌面用户指南](desktop_user_guide.zh.md)。

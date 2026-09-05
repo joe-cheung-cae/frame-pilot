@@ -27,6 +27,7 @@ Uninstall removes the application binary. The app data directory may remain on d
   - Windows: `%APPDATA%\FramePilot`
   - Linux (dev shells): `~/.local/share/FramePilot`
 - Open **Settings** to confirm the data directory (`GET /api/meta`). Override only with an absolute `FRAMEPILOT_DATA_DIR` when you know you need it.
+- **Change data directory** (desktop only) copies the current app data directory into an empty folder you pick and authorize (`POST /api/desktop/project-roots`, then `POST /api/desktop/data-dir`). Stored project paths inside that directory are rewritten. Camera cards and other source folders are not moved or modified. The previous data directory stays on disk. An absolute `FRAMEPILOT_DATA_DIR` still wins over the pointer file.
 - **Import workers** (1–4, default 1) speeds thumbnail and preview generation on large imports. Grouping and ranking stay one job per project. Originals stay unchanged. The value applies to the next import job (`GET`/`PATCH /api/settings`).
 
 ---
