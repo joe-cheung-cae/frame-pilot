@@ -615,7 +615,11 @@ test.beforeEach(async ({ page }) => {
       await route.fulfill({ json: { detail: "Export failed" }, status: 500 });
       return;
     }
-    const payload = route.request().postDataJSON() as { mode?: "csv" | "folder" | "zip"; statuses?: string[] };
+    const payload = route.request().postDataJSON() as {
+      mode?: "csv" | "folder" | "zip";
+      statuses?: string[];
+      include_xmp?: boolean;
+    };
     const exportMode = payload.mode ?? "csv";
     const exportOutputPath =
       exportMode === "folder"
@@ -631,6 +635,7 @@ test.beforeEach(async ({ page }) => {
         status: "complete",
         selected_count: currentPhotos.filter((photo) => selectedStatuses.includes(photo.user_status)).length,
         statuses: JSON.stringify(selectedStatuses),
+        include_xmp: payload.include_xmp ?? false,
         output_path: exportOutputPath,
         created_at: "2026-06-02T00:00:00Z",
       },
@@ -840,6 +845,50 @@ test("copies folder export output paths", async ({ page }) => {
 
   await expect(page.getByRole("button", { name: "Path Copied" }).first()).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("copied-export-path"))).toBe(folderPath);
+});
+
+test("posts include_xmp when Write XMP sidecars is checked", async ({ page }) => {
+  const exportBodies: Array<{ include_xmp?: boolean; mode?: string }> = [];
+  await page.unroute(projectListRoute("exports"));
+  await page.route(projectListRoute("exports"), async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: [] });
+      return;
+    }
+    const payload = route.request().postDataJSON() as { mode?: "csv" | "folder" | "zip"; include_xmp?: boolean };
+    exportBodies.push(payload);
+    await route.fulfill({
+      json: {
+        id: "export-xmp",
+        project_id: project.id,
+        mode: payload.mode ?? "zip",
+        status: "complete",
+        selected_count: 1,
+        statuses: '["Pick"]',
+        include_xmp: payload.include_xmp ?? false,
+        output_path: `${project.root_path}/exports/zip/selection-export-xmp.zip`,
+        created_at: "2026-06-02T00:00:00Z",
+      },
+      status: 201,
+    });
+  });
+
+  await page.goto(`/projects/${project.id}/cull`);
+  await expect(page.getByRole("heading", { name: "frame-001.jpg" })).toBeVisible();
+  await page.keyboard.press("p");
+  await expect.poll(() => photoPatches.length).toBe(1);
+
+  await page.goto(`/projects/${project.id}/export`);
+  const xmpCheckbox = page.getByRole("checkbox", { name: /Write XMP sidecars/i });
+  await expect(xmpCheckbox).not.toBeChecked();
+  await page.getByLabel("Maybe").uncheck();
+  await page.getByRole("button", { name: "ZIP" }).click();
+  await xmpCheckbox.check();
+  await page.getByRole("button", { name: "Export" }).click();
+
+  await expect.poll(() => exportBodies.length).toBe(1);
+  expect(exportBodies[0]?.include_xmp).toBe(true);
+  expect(exportBodies[0]?.mode).toBe("zip");
 });
 
 test("shows processing job list load errors", async ({ page }) => {

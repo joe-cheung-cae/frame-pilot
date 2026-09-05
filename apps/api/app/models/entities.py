@@ -131,6 +131,7 @@ class ExportRecord(SQLModel, table=True):
     processed_count: int = 0
     total_count: int = 0
     statuses: str = "[]"
+    include_xmp: bool = False
     output_path: str
     error_message: str | None = None
     completed_at: datetime | None = None

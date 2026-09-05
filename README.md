@@ -20,11 +20,11 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 - Group-focused culling with recommendation-first review ordering.
 - Pick, Maybe, Reject, and Unreviewed statuses.
 - Keyboard review shortcuts: arrows, P, M, X, U, 1-5, 0, Space, Z, C, G, F, and E.
-- CSV, folder, and ZIP export modes with unique local export outputs, export history, and project-originals source containment for file exports.
+- CSV, folder, and ZIP export modes with unique local export outputs, export history, project-originals source containment for file exports, and an optional XMP sidecar checkbox (default off) that writes `.xmp` only under the project export directory.
 
 Known v2.0 limitations:
 
-- RAW files such as DNG, ARW, CR3, and NEF import when they have an embedded preview (copy original bytes; WebP from the preview RGB; no demosaic). RAW without a preview is skipped with an explicit local message. HEIC/HEIF and AVIF stills import locally; Live Photo `.mov` companions, HDR gain-map tone mapping, and XMP writes are not implemented.
+- RAW files such as DNG, ARW, CR3, and NEF import when they have an embedded preview (copy original bytes; WebP from the preview RGB; no demosaic). RAW without a preview is skipped with an explicit local message. HEIC/HEIF and AVIF stills import locally; Live Photo `.mov` companions and HDR gain-map tone mapping are not implemented. Optional XMP sidecars are export-directory only (never beside originals or in image bytes).
 - Import and processing jobs run in the local API process or the optional local worker (`npm run worker`). Progress, cooperative import, processing, and export cancellation, stale-job detection, active-import processing guards, safe import retry, and stale-processing cleanup are available. By default leftover active import/processing jobs are marked `interrupted` on the next startup and reclaimed (`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on; set `0`/`false`/`no`/`off` for fail-and-retry). Export jobs are cancellable and are not reclaimed (fail-and-cleanup).
 - Experimental face and eye-open signals are deterministic local heuristics, not professional face detection, eye-state detection, identity recognition, or biometric analysis.
 - Grouping and ranking remain recommendation aids. The user keeps final control through manual statuses and star ratings.

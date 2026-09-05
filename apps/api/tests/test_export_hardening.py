@@ -104,6 +104,33 @@ def test_zip_selected_files_stores_dng_without_deflate(tmp_path):
         assert archive.read("still.dng") == source.read_bytes()
 
 
+def test_zip_selected_files_deflates_xmp_members_and_stores_images(tmp_path):
+    originals = tmp_path / "originals"
+    originals.mkdir()
+    source = originals / "frame.jpg"
+    source.write_bytes(b"\xff\xd8\xff" + b"0" * 1000)
+    target = tmp_path / "out.zip"
+    zip_selected_files(
+        target,
+        [
+            {
+                "id": "photo-1",
+                "filename": "frame.jpg",
+                "original_path": str(source),
+                "project_copy_path": str(source),
+                "user_status": "Pick",
+                "star_rating": 5,
+            }
+        ],
+        project_root=tmp_path,
+        include_xmp=True,
+    )
+    with zipfile.ZipFile(target) as archive:
+        assert archive.getinfo("frame.jpg").compress_type == zipfile.ZIP_STORED
+        assert archive.getinfo("frame.jpg.xmp").compress_type == zipfile.ZIP_DEFLATED
+        assert archive.read("frame.jpg") == source.read_bytes()
+
+
 def test_zip_selected_files_uses_allow_zip64_for_large_members(tmp_path):
     """Practical Zip64/large-member smoke for #71 / legacy #13.
 

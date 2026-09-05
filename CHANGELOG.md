@@ -6,6 +6,16 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.05 XMP sidecar export
+
+- Optional `include_xmp` on CSV/ZIP/folder export (default off); not a fourth export mode
+- Folder and ZIP write `{exported_filename}.xmp` only under the project export directory (ZIP XML uses `ZIP_DEFLATED`; images stay `ZIP_STORED`)
+- CSV stores the flag but writes no `.xmp` files; cancel/fail still fail-and-cleanup the export artifact
+- Sidecars never land in `originals/`, beside camera originals, or inside image bytes; original bytes stay identical
+- Mapping: `xmp:Rating` is stars 0–5; Pick/Maybe/Reject use Green/Yellow/Red `xmp:Label`; Unreviewed omits the label; Reject does not use `xmp:Rating = -1`
+- Export UI checkbox **Write XMP sidecars** is unchecked by default and is not persisted in `localStorage`
+- No `APP_VERSION` bump, signing, Lightroom/Capture One GUI certification, or write-back on import/review
+
 ### Phase 9 — S9.04 RAW embedded preview
 
 - Local RAW import for `.dng`, `.arw`, `.cr3`, and `.nef` when an embedded preview exists: copy original bytes, extract with `rawpy.extract_thumb` only, WebP thumbnails/previews, and score/group on preview RGB

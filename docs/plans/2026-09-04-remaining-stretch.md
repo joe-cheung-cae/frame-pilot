@@ -47,7 +47,7 @@ Phase 9 — remaining stretch (post Phase 8)
 - [x] S9.02 J7.07 processing pause/resume — [#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)
 - [x] S9.03 AVIF still preview — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
 - [x] S9.04 RAW embedded preview — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
-- [ ] S9.05 XMP sidecar export — [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165) (historical [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117))
+- [x] S9.05 XMP sidecar export — [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165) (historical [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117))
 - [ ] S9.06 Optional system tray (D3.06) — [#169](https://github.com/joe-cheung-cae/frame-pilot/issues/169)
 - [ ] S9.07 Detached preview window — [#166](https://github.com/joe-cheung-cae/frame-pilot/issues/166)
 - [ ] S9.08 Opt-in import concurrency knobs — [#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)
@@ -229,9 +229,40 @@ Live sites that must observe pause (today cancel-only):
 
 ### S9.05 — XMP
 
-Optional export checkbox default off. Sidecars only under export output. Tests: original bytes unchanged; rating maps; ZIP includes sidecars when enabled.
+**Hole (live tree):** `ExportCreate` only has `mode` (`csv`/`folder`/`zip`) and `statuses` (`apps/api/app/schemas/api.py`). `create_export_endpoint` / `run_export_job` never accept or persist an XMP flag (`apps/api/app/api/routes.py`). `copy_selected_files` / `zip_selected_files` copy original bytes only; no `.xmp` members (`apps/api/app/services/exporting.py`). `ExportRecord` / `ExportRead` have no `include_xmp`. `ExportPanel` POSTs `{ mode, statuses }` with no checkbox (`apps/web/src/components/ExportPanel.tsx`, `api.exportSelection`). Path-import ZIP tests assert `namelist() == ["hero.jpg"]`. Docs say XMP is planned but not implemented (`docs/api.md`, `docs/export_interoperability.md`, `docs/v2_known_limitations.md` Export Limitations, README). No `xmp` tests. `_ensure_export_record_columns` runs only from already-applied migrations 1 and 3 (`CURRENT_SCHEMA_VERSION` is 5); a new export column will not appear on existing v5 DBs unless a new migration runs.
 
-**Non-goals:** writing next to `originals/` or the camera card.
+**Identity:** Optional **`include_xmp: bool = False`** on `ExportCreate` (omitted JSON key = false). **Not** a fourth export mode. Modes stay `{csv, folder, zip}`. Persist `include_xmp` BOOLEAN NOT NULL DEFAULT 0 on `ExportRecord`. Expose it on `ExportRead` and web `ExportRecord`. `create_export_endpoint` stores `payload.include_xmp` on the record. `run_export_job` reads `record.include_xmp`. `copy_selected_files` / `zip_selected_files` take `include_xmp: bool = False` so unit tests can pass it. Sidecars are derived export artifacts only.
+
+**Schema:** `_ensure_export_record_columns` adds `include_xmp INTEGER NOT NULL DEFAULT 0`. Bump `CURRENT_SCHEMA_VERSION` to **6** with `_migrate_to_6` that calls that ensure (same pattern as S9.02 `_migrate_to_5`). Also call `_ensure_export_record_columns` from `init_db` next to `_ensure_processing_job_columns` so leftover DBs still get the ALTER. `test_init_db_adds_missing_export_record_columns_to_existing_sqlite_table` must assert `include_xmp`.
+
+**Where:** Write `.xmp` **only** under the project export root (`{root_path}/exports/...`). Folder: `{exported_filename}.xmp` next to each copied file inside `exports/folders/selected-{id}/`. ZIP: include the same `{exported_filename}.xmp` members inside `exports/zip/selected-{id}.zip` (XML uses `ZIP_DEFLATED`; images stay `ZIP_STORED`). CSV: `include_xmp` is accepted and stored; **write no `.xmp` files** (CSV already has `status` / `star_rating`; extra files beside the CSV would leak on cancel because `remove_partial_export` only deletes `output_path`). **Never** write into `{root_path}/originals/`, beside `original_path` (camera card), or into image bytes (no embedded XMP packets).
+
+**Filename:** `{exported_file.name}.xmp` (append `.xmp` to the unique exported basename, e.g. `hero.jpg.xmp` / `hero-1.jpg.xmp`). Do **not** replace the image extension with `.xmp` (`hero.xmp`): JPEG+RAW pairs share a stem and would collide. Add the sidecar name to ZIP `used_names`. Document that Lightroom Classic auto-sidecar discovery often looks for `{stem}.xmp`; this slice guarantees unambiguous pairing and a Lightroom-readable **field**, not auto-discovery. Do not claim a tested Lightroom/Capture One GUI round-trip.
+
+**Packet (stdlib only):** New `apps/api/app/services/xmp_sidecar.py`. UTF-8 RDF/XML (`xml.etree.ElementTree` or equivalent stdlib; escape XML). Wrapper: `x:xmpmeta` / `rdf:RDF` / `rdf:Description`. **Do not** add `python-xmp-toolkit` / libxmp / ExifTool. Locked mapping (do **not** use `xmp:Rating = -1` for Reject — that would drop stars):
+
+| `user_status` | `xmp:Rating` | `xmp:Label` | `dc:subject` (`rdf:Bag` / `rdf:li`) |
+| -- | -- | -- | -- |
+| Pick | `star_rating` clamped 0–5 | Green | Pick |
+| Maybe | `star_rating` clamped 0–5 | Yellow | Maybe |
+| Reject | `star_rating` clamped 0–5 | Red | Reject |
+| Unreviewed | `star_rating` clamped 0–5 | omit `xmp:Label` | Unreviewed |
+
+Also write `dc:title` = exported filename and `dc:identifier` = project photo id. Namespaces: `x` `adobe:ns:meta/`, `xmp` `http://ns.adobe.com/xap/1.0/`, `dc` `http://purl.org/dc/elements/1.1/`, `rdf` `http://www.w3.org/1999/02/22-rdf-syntax-ns#`. `xmp:Rating` is the documented Lightroom-compatible rating field (#165). `xmp:Label` uses Adobe color-label strings so Pick/Maybe/Reject stay inspectable without clobbering stars. Do not copy camera EXIF, GPS, or scores into the sidecar.
+
+**Checkpoints:** write the sidecar in the **same per-photo loop** as the copy/zip member, then the existing `progress_callback`. Cancel/fail still `remove_partial_export` on `output_path` (folder rmtree and zip unlink already drop sidecars). Originals never modified or deleted.
+
+**UI:** `ExportPanel` checkbox **Write XMP sidecars**, default **unchecked**, React state only (**do not** persist in `localStorage`; export status preference stays separate). Disabled with other export controls while running. Helper: sidecars go next to folder copies and inside ZIP; never beside originals; CSV already includes status and stars. `api.exportSelection(projectId, mode, statuses, includeXmp = false)`. Unchecked POST omits the flag or sends `false` (both must default off). History may show `XMP` when `include_xmp` is true. `ExportRecord` type and ExportPanel test mocks gain `include_xmp?: boolean`. Mocked E2E export POST may send `include_xmp`.
+
+**Docs (implementation commit):** living pages that currently say XMP is not implemented must describe this optional export-directory sidecar: `docs/export_interoperability.md`, `docs/api.md`, `docs/v2_known_limitations.md` (Export Limitations; XMP writes stay out of import/`originals/`), `docs/architecture.md`, `README.md`, `docs/desktop_user_guide.md` (+ zh). CHANGELOG Unreleased: new S9.05 subsection. No `APP_VERSION` bump. Do not claim Lightroom/Capture One GUI certification, embedded XMP, or write-back next to camera files.
+
+**This plan (implementation commit only):** tick §3 S9.05 `[x]` (en+zh). Do not tick S9.06–S9.13.
+
+**Files:** `apps/api/app/services/xmp_sidecar.py` (new); `apps/api/app/services/exporting.py`; `apps/api/app/schemas/api.py` (`ExportCreate`/`ExportRead`); `apps/api/app/models/entities.py` (`ExportRecord.include_xmp`); `apps/api/app/db/session.py` (`_ensure_export_record_columns`, `init_db`); `apps/api/app/db/migrations.py` (`CURRENT_SCHEMA_VERSION` 6, `_migrate_to_6`); `apps/api/app/api/routes.py` (`create_export_endpoint`, `run_export_job`); `apps/api/tests/test_xmp_sidecar.py` (new) or extend `test_ranking_export.py`; `apps/api/tests/test_db_session.py`; `apps/api/tests/test_import_process_export_api.py`; `apps/api/tests/test_path_import_process_export_workflow.py`; `apps/api/tests/test_export_hardening.py`; `apps/web/src/lib/api.ts`; `apps/web/src/components/ExportPanel.tsx` (+ test); `tests/e2e/local-workflow.spec.ts` mocked `include_xmp`; docs listed above + CHANGELOG Unreleased (+ zh); this plan (+ zh) §3 S9.05 tick.
+
+**Tests first:** omit `include_xmp` and `include_xmp: false` → no `.xmp` under the project root; ZIP namelist stays images only; originals (project copy **and** camera-card `original_path`) size/mtime/bytes unchanged. Folder + `include_xmp: true` writes `{name}.xmp` next to each copy; packet maps Pick/Maybe/Reject/Unreviewed and stars 0 and 5 as the table; no `.xmp` under `originals/` or the camera-card directory. ZIP + `include_xmp: true` includes matching `.xmp` members; image member bytes equal the original; originals unchanged. CSV + `include_xmp: true` writes no `.xmp` files; CSV still has status/stars; originals unchanged. Duplicate filenames get matching `{unique-name}.xmp`. Schema v5 → v6 adds `include_xmp`. Cancel of a live folder/zip with `include_xmp: true` removes the partial artifact under export root and does not touch originals. ExportPanel checkbox default off; checked POST sends `include_xmp: true`. Existing csv/zip/folder/cancel tests stay green.
+
+**Non-goals:** writing next to `originals/` or the camera card; embedding XMP in image bytes; a fourth `mode="xmp"`; `python-xmp-toolkit` / ExifTool / libxmp; Lightroom/Capture One GUI round-trip CI; `xmp:Rating = -1` for Reject; write-back on import/review; S9.06–S9.13; `APP_VERSION`; signing.
 
 ### S9.06 — Tray
 

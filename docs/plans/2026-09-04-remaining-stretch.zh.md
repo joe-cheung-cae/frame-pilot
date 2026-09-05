@@ -47,7 +47,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 - [x] S9.02 J7.07 处理暂停/恢复 — [#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)
 - [x] S9.03 AVIF 静帧预览 — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
 - [x] S9.04 RAW 内嵌预览 — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
-- [ ] S9.05 XMP sidecar 导出 — [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165)（历史 [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117)）
+- [x] S9.05 XMP sidecar 导出 — [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165)（历史 [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117)）
 - [ ] S9.06 可选系统托盘（D3.06） — [#169](https://github.com/joe-cheung-cae/frame-pilot/issues/169)
 - [ ] S9.07 独立预览窗口 — [#166](https://github.com/joe-cheung-cae/frame-pilot/issues/166)
 - [ ] S9.08 可选导入并发旋钮 — [#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)
@@ -229,9 +229,40 @@ HTTP（比照处理取消，标志不同）：
 
 ### S9.05 — XMP
 
-可选导出勾选，默认关。sidecar 只在导出目录。测试：原片字节不变；评分映射；启用时 ZIP 含 sidecar。
+**现场空洞：** `ExportCreate` 只有 `mode`（`csv`/`folder`/`zip`）和 `statuses`（`apps/api/app/schemas/api.py`）。`create_export_endpoint` / `run_export_job` 不接受也不持久化 XMP 标志（`apps/api/app/api/routes.py`）。`copy_selected_files` / `zip_selected_files` 只拷原片字节，没有 `.xmp` 成员（`apps/api/app/services/exporting.py`）。`ExportRecord` / `ExportRead` 没有 `include_xmp`。`ExportPanel` POST `{ mode, statuses }`，没有勾选（`apps/web/src/components/ExportPanel.tsx`，`api.exportSelection`）。路径导入 ZIP 测试断言 `namelist() == ["hero.jpg"]`。文档写 XMP 已规划但未实现（`docs/api.md`、`docs/export_interoperability.md`、`docs/v2_known_limitations.md` 导出限制、README）。没有 `xmp` 测试。`_ensure_export_record_columns` 只在已经跑过的 migrations 1 和 3 里调用（`CURRENT_SCHEMA_VERSION` 为 5）；现有 v5 数据库不会自动加上新的导出列，除非再跑一次迁移。
 
-**非目标：** 写到 `originals/` 旁或相机卡上。
+**身份：** 在 `ExportCreate` 上可选 **`include_xmp: bool = False`**（JSON 省略该键 = false）。**不是**第四种导出模式。模式仍是 `{csv, folder, zip}`。在 `ExportRecord` 上持久化 `include_xmp` BOOLEAN NOT NULL DEFAULT 0。在 `ExportRead` 和前端 `ExportRecord` 上暴露。`create_export_endpoint` 把 `payload.include_xmp` 存到记录上。`run_export_job` 读 `record.include_xmp`。`copy_selected_files` / `zip_selected_files` 接受 `include_xmp: bool = False`，方便单元测试传入。sidecar 只是导出派生物。
+
+**Schema：** `_ensure_export_record_columns` 增加 `include_xmp INTEGER NOT NULL DEFAULT 0`。把 `CURRENT_SCHEMA_VERSION` 升到 **6**，新增 `_migrate_to_6` 调用该 ensure（比照 S9.02 的 `_migrate_to_5`）。同时在 `init_db` 里、`_ensure_processing_job_columns` 旁边调用 `_ensure_export_record_columns`，让残留库也能 ALTER。`test_init_db_adds_missing_export_record_columns_to_existing_sqlite_table` 必须断言 `include_xmp`。
+
+**位置：** `.xmp` **只**写在项目导出根下（`{root_path}/exports/...`）。文件夹：每个拷贝旁 `{exported_filename}.xmp`，位于 `exports/folders/selected-{id}/`。ZIP：在 `exports/zip/selected-{id}.zip` 内加入同样的 `{exported_filename}.xmp` 成员（XML 用 `ZIP_DEFLATED`；图像仍 `ZIP_STORED`）。CSV：接受并存储 `include_xmp`；**不写任何 `.xmp` 文件**（CSV 已有 `status` / `star_rating`；CSV 旁的额外文件在取消时会泄漏，因为 `remove_partial_export` 只删 `output_path`）。**永不**写入 `{root_path}/originals/`、`original_path`（相机卡）旁，或写入图像字节（不嵌 XMP 包）。
+
+**文件名：** `{exported_file.name}.xmp`（在已唯一化的导出 basename 后追加 `.xmp`，例如 `hero.jpg.xmp` / `hero-1.jpg.xmp`）。**不要**把图像扩展名替换成 `.xmp`（`hero.xmp`）：JPEG+RAW 成对共享 stem，会冲突。把 sidecar 名加入 ZIP `used_names`。写明 Lightroom Classic 自动发现 sidecar 常常找 `{stem}.xmp`；本切片保证无歧义配对和 Lightroom 可读的**字段**，不保证自动发现。不要声称已对 Lightroom/Capture One GUI 往返做过测试。
+
+**包（只用标准库）：** 新建 `apps/api/app/services/xmp_sidecar.py`。UTF-8 RDF/XML（`xml.etree.ElementTree` 或同等标准库；做 XML 转义）。包装：`x:xmpmeta` / `rdf:RDF` / `rdf:Description`。**不要**加 `python-xmp-toolkit` / libxmp / ExifTool。锁定映射（Reject **不要**写 `xmp:Rating = -1`——那会丢掉星级）：
+
+| `user_status` | `xmp:Rating` | `xmp:Label` | `dc:subject`（`rdf:Bag` / `rdf:li`） |
+| -- | -- | -- | -- |
+| Pick | `star_rating` 限制在 0–5 | Green | Pick |
+| Maybe | `star_rating` 限制在 0–5 | Yellow | Maybe |
+| Reject | `star_rating` 限制在 0–5 | Red | Reject |
+| Unreviewed | `star_rating` 限制在 0–5 | 省略 `xmp:Label` | Unreviewed |
+
+同时写 `dc:title` = 导出文件名，`dc:identifier` = 项目照片 id。命名空间：`x` `adobe:ns:meta/`，`xmp` `http://ns.adobe.com/xap/1.0/`，`dc` `http://purl.org/dc/elements/1.1/`，`rdf` `http://www.w3.org/1999/02/22-rdf-syntax-ns#`。`xmp:Rating` 是文档化的 Lightroom 兼容评分字段（#165）。`xmp:Label` 用 Adobe 色标字符串，让 Pick/Maybe/Reject 可检查且不覆盖星级。不要把相机 EXIF、GPS 或分数拷进 sidecar。
+
+**检查点：** 在拷贝/zip 成员的**同一按照片循环**里写 sidecar，然后走现有 `progress_callback`。取消/失败仍对 `output_path` 做 `remove_partial_export`（文件夹 rmtree 和 zip unlink 已会带走 sidecar）。永不修改或删除原片。
+
+**UI：** `ExportPanel` 勾选 **Write XMP sidecars**，默认**不勾**，只用 React state（**不要**写入 `localStorage`；导出状态偏好仍分开）。导出进行中与其他控件一起禁用。说明：sidecar 写在文件夹拷贝旁和 ZIP 内；永不写到原片旁；CSV 已含状态和星级。`api.exportSelection(projectId, mode, statuses, includeXmp = false)`。未勾选的 POST 省略该标志或发送 `false`（两者都必须默认关）。历史在 `include_xmp` 为 true 时可显示 `XMP`。`ExportRecord` 类型和 ExportPanel 测试 mock 增加 `include_xmp?: boolean`。模拟 E2E 的导出 POST 可发送 `include_xmp`。
+
+**文档（仅实现提交）：** 当前写 XMP 未实现的活文档要改成这种可选的导出目录 sidecar：`docs/export_interoperability.md`、`docs/api.md`、`docs/v2_known_limitations.md`（导出限制；XMP 仍不写入导入/`originals/`）、`docs/architecture.md`、`README.md`、`docs/desktop_user_guide.md`（+ zh）。CHANGELOG Unreleased 增加 S9.05 小节。不改 `APP_VERSION`。不要声称 Lightroom/Capture One GUI 认证、内嵌 XMP，或写回相机文件旁。
+
+**本计划（仅实现提交）：** 勾选 §3 S9.05 `[x]`（中英）。不要勾 S9.06–S9.13。
+
+**文件：** `apps/api/app/services/xmp_sidecar.py`（新建）；`apps/api/app/services/exporting.py`；`apps/api/app/schemas/api.py`（`ExportCreate`/`ExportRead`）；`apps/api/app/models/entities.py`（`ExportRecord.include_xmp`）；`apps/api/app/db/session.py`（`_ensure_export_record_columns`、`init_db`）；`apps/api/app/db/migrations.py`（`CURRENT_SCHEMA_VERSION` 6、`_migrate_to_6`）；`apps/api/app/api/routes.py`（`create_export_endpoint`、`run_export_job`）；`apps/api/tests/test_xmp_sidecar.py`（新建）或扩展 `test_ranking_export.py`；`apps/api/tests/test_db_session.py`；`apps/api/tests/test_import_process_export_api.py`；`apps/api/tests/test_path_import_process_export_workflow.py`；`apps/api/tests/test_export_hardening.py`；`apps/web/src/lib/api.ts`；`apps/web/src/components/ExportPanel.tsx`（+ 测试）；`tests/e2e/local-workflow.spec.ts` 模拟 `include_xmp`；上文文档 + CHANGELOG Unreleased（+ zh）；本计划（+ zh）§3 S9.05 勾选。
+
+**测试先行：** 省略 `include_xmp` 以及 `include_xmp: false` → 项目根下没有 `.xmp`；ZIP namelist 仍只有图像；原片（项目拷贝**以及**相机卡 `original_path`）size/mtime/bytes 不变。文件夹 + `include_xmp: true` 在每个拷贝旁写 `{name}.xmp`；包按表映射 Pick/Maybe/Reject/Unreviewed 以及星级 0 和 5；`originals/` 和相机卡目录下没有 `.xmp`。ZIP + `include_xmp: true` 含匹配的 `.xmp` 成员；图像成员字节等于原片；原片不变。CSV + `include_xmp: true` 不写 `.xmp` 文件；CSV 仍有状态/星级；原片不变。重复文件名得到匹配的 `{unique-name}.xmp`。Schema v5 → v6 加上 `include_xmp`。对启用 `include_xmp` 的进行中 folder/zip 取消会清掉导出根下的不完整产物且不碰原片。ExportPanel 勾选默认关；勾选后 POST 发送 `include_xmp: true`。现有 csv/zip/folder/取消测试仍绿。
+
+**非目标：** 写到 `originals/` 旁或相机卡上；把 XMP 嵌进图像字节；第四种 `mode="xmp"`；`python-xmp-toolkit` / ExifTool / libxmp；Lightroom/Capture One GUI 往返 CI；Reject 用 `xmp:Rating = -1`；导入/审阅时写回；S9.06–S9.13；`APP_VERSION`；签名。
 
 ### S9.06 — 托盘
 

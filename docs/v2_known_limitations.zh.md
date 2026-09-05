@@ -23,7 +23,7 @@ v2.0 支持以下格式的本地导入与处理：
 
 ## 延后的格式
 
-完整 RAW 显影（demosaic / `postprocess`）仍延后。没有内嵌预览的 RAW 以 `RAW file has no embedded preview; FramePilot does not demosaic` 跳过，不会拷进 `originals/`。不接受 `.cr2`、`.raf`、`.orf`、`.rw2` 等额外 RAW 扩展名。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、`.avifs` 序列、HDR/gain-map 色调映射或 XMP 写入。
+完整 RAW 显影（demosaic / `postprocess`）仍延后。没有内嵌预览的 RAW 以 `RAW file has no embedded preview; FramePilot does not demosaic` 跳过，不会拷进 `originals/`。不接受 `.cr2`、`.raf`、`.orf`、`.rw2` 等额外 RAW 扩展名。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、`.avifs` 序列或 HDR/gain-map 色调映射。导入、`originals/`、相机文件旁和图像字节都不会写入 XMP。
 
 `pillow-heif` 为 BSD-3-Clause。其 wheel 在 API/sidecar 运行时内带有 **LGPL** 的 `libheif`（及编码器）。FramePilot 不把 libheif 源码塞进本 MIT 树。
 
@@ -75,7 +75,7 @@ v2.0 支持以下格式的本地导入与处理：
 
 ## 导出限制
 
-CSV、ZIP 和文件夹导出作为带进度和过期检测的本地后台任务运行。XMP sidecar 导出已规划但尚未实现。文件夹导出暴露本地输出路径，而不是浏览器下载产物。导出的文件和 ZIP 是生成产物，不得提交到版本库。
+CSV、ZIP 和文件夹导出作为带进度和过期检测的本地后台任务运行。可选 XMP sidecar（`include_xmp`，默认关）只写在项目导出目录下：文件夹拷贝旁以及 ZIP 成员。CSV 会存储该标志但不写 `.xmp` 文件。sidecar 永不写入 `originals/`、相机原片旁，或图像字节。这不是经过测试的 Lightroom/Capture One GUI 往返。文件夹导出暴露本地输出路径，而不是浏览器下载产物。导出的文件和 ZIP 是生成产物，不得提交到版本库。
 
 ZIP 和文件夹导出要求所选源文件解析到项目 `originals/` 目录内部。这是针对损坏元数据的纵深防御；同时也意味着，如果本地已复制原图缺失或不再解析到项目存储内部，文件导出可能失败。
 

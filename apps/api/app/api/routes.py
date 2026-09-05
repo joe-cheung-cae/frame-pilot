@@ -1126,15 +1126,24 @@ def run_export_job(export_id: str, mode: str, photo_dicts: list[dict], project_r
 
         try:
             target = Path(record.output_path)
+            include_xmp = bool(record.include_xmp)
             if mode == "csv":
                 output_path = write_selection_csv(target, photo_dicts, progress_callback=progress_callback)
             elif mode == "folder":
                 output_path = copy_selected_files(
-                    target, photo_dicts, project_root=Path(project_root), progress_callback=progress_callback
+                    target,
+                    photo_dicts,
+                    project_root=Path(project_root),
+                    progress_callback=progress_callback,
+                    include_xmp=include_xmp,
                 )
             else:
                 output_path = zip_selected_files(
-                    target, photo_dicts, project_root=Path(project_root), progress_callback=progress_callback
+                    target,
+                    photo_dicts,
+                    project_root=Path(project_root),
+                    progress_callback=progress_callback,
+                    include_xmp=include_xmp,
                 )
             record.status = "complete"
             record.output_path = str(output_path)
@@ -1216,6 +1225,7 @@ def create_export_endpoint(
         processed_count=0,
         total_count=selected_count,
         statuses=json.dumps(payload.statuses),
+        include_xmp=payload.include_xmp,
         output_path="pending",
     )
     target = _export_target(export_root, record.id, payload.mode)

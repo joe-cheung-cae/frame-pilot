@@ -54,7 +54,7 @@ FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，
 
 1. 导入完成后运行分组与排序（**Process Project**）。
 2. 打开筛选工作区。键盘快捷键与 web 一致（P/M/X/U、星级、导航）。Help 将桌面菜单组合键（CmdOrCtrl+N/W/Q）与裸筛选键分开列出。
-3. 在 **Export Selection** 导出 CSV、ZIP 和/或文件夹。产物落在 `{root_path}/exports/...`。
+3. 在 **Export Selection** 导出 CSV、ZIP 和/或文件夹。产物落在 `{root_path}/exports/...`。可选 **Write XMP sidecars**（默认关）会在文件夹拷贝旁和 ZIP 内写 `.xmp`；永不写到原片旁。CSV 已含状态和星级。
 4. 使用 **Open export folder**（揭示）或 **Copy Path**。桌面不要求经浏览器下载锚点。
 
 ---

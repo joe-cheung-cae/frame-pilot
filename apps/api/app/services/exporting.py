@@ -7,6 +7,7 @@ from pathlib import Path
 from sqlmodel import Session
 
 from app.models.entities import ExportRecord, ProcessingJob, Project, utc_now
+from app.services.xmp_sidecar import build_xmp_packet, write_xmp_sidecar, xmp_sidecar_filename
 
 STORED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif", ".arw", ".cr3", ".dng", ".nef"}
 CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
@@ -298,6 +299,7 @@ def copy_selected_files(
     photos: Iterable[dict],
     project_root: Path | None = None,
     progress_callback: ExportProgressCallback | None = None,
+    include_xmp: bool = False,
 ) -> Path:
     photo_list: Sequence[dict] = _as_photo_list(photos)
     total = len(photo_list)
@@ -305,7 +307,16 @@ def copy_selected_files(
     target_dir.mkdir(parents=True, exist_ok=True)
     for index, photo in enumerate(photo_list, start=1):
         source = _existing_original_path(photo, project_root)
-        shutil.copy2(source, _unique_destination(target_dir, source.name))
+        destination = _unique_destination(target_dir, source.name)
+        shutil.copy2(source, destination)
+        if include_xmp:
+            write_xmp_sidecar(
+                destination.with_name(xmp_sidecar_filename(destination.name)),
+                photo_id=str(photo.get("id", "")),
+                exported_filename=destination.name,
+                user_status=str(photo.get("user_status", "Unreviewed")),
+                star_rating=photo.get("star_rating", 0),
+            )
         _report_progress(progress_callback, index, total)
     return target_dir
 
@@ -321,6 +332,7 @@ def zip_selected_files(
     photos: Iterable[dict],
     project_root: Path | None = None,
     progress_callback: ExportProgressCallback | None = None,
+    include_xmp: bool = False,
 ) -> Path:
     photo_list: Sequence[dict] = _as_photo_list(photos)
     total = len(photo_list)
@@ -330,10 +342,24 @@ def zip_selected_files(
     with zipfile.ZipFile(target_zip, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as archive:
         for index, photo in enumerate(photo_list, start=1):
             source = _existing_original_path(photo, project_root)
+            arcname = _unique_archive_name(used_names, source.name)
             archive.write(
                 source,
-                arcname=_unique_archive_name(used_names, source.name),
+                arcname=arcname,
                 compress_type=_zip_compression_for(source),
             )
+            if include_xmp:
+                sidecar_name = xmp_sidecar_filename(arcname)
+                used_names.add(sidecar_name)
+                archive.writestr(
+                    sidecar_name,
+                    build_xmp_packet(
+                        photo_id=str(photo.get("id", "")),
+                        exported_filename=arcname,
+                        user_status=str(photo.get("user_status", "Unreviewed")),
+                        star_rating=photo.get("star_rating", 0),
+                    ),
+                    compress_type=zipfile.ZIP_DEFLATED,
+                )
             _report_progress(progress_callback, index, total)
     return target_zip

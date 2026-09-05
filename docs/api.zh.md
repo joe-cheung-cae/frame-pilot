@@ -318,11 +318,12 @@ API 启动默认行为：残留的活动导入/处理作业标为 `interrupted`�
 ```json
 {
   "mode": "csv",
-  "statuses": ["Pick", "Maybe"]
+  "statuses": ["Pick", "Maybe"],
+  "include_xmp": false
 }
 ```
 
-支持的模式为 `csv`、`folder` 和 `zip`。支持的状态为 `Pick`、`Maybe`、`Reject` 和 `Unreviewed`。状态过滤器按该支持顺序去重存储。
+支持的模式为 `csv`、`folder` 和 `zip`。支持的状态为 `Pick`、`Maybe`、`Reject` 和 `Unreviewed`。状态过滤器按该支持顺序去重存储。可选的 `include_xmp` 在省略时默认为 `false`。它**不是**第四种导出模式。文件夹和 ZIP 导出会在项目导出目录下（或作为 ZIP 成员）写入 `{exported_filename}.xmp`。CSV 会存储该标志但不写 `.xmp` 文件。sidecar 永不写入 `originals/`、相机原片旁，或图像字节。
 
 响应包含导出的照片数量和本地输出路径：
 
@@ -336,6 +337,7 @@ API 启动默认行为：残留的活动导入/处理作业标为 `interrupted`�
   "processed_count": 12,
   "total_count": 12,
   "statuses": "[\"Pick\", \"Maybe\"]",
+  "include_xmp": false,
   "output_path": ".../exports/csv/selection-export-id.csv",
   "error_message": null,
   "completed_at": "2026-06-02T12:00:01Z",
@@ -367,6 +369,6 @@ GET /api/projects/{project_id}/exports/{export_id}/download
 失败或仍在运行的导出记录从下载端点返回 `409`。
 单数 `/api/projects/{project_id}/export` 路由仍作为向后兼容别名可用。
 
-XMP sidecar 导出在 v2.0 中未实现。计划中的做法记录在 [导出互操作](export_interoperability.zh.md)。
+可选的 XMP sidecar 导出记录在 [导出互操作](export_interoperability.zh.md)。`xmp:Rating` 映射星级（0–5）；Pick/Maybe/Reject 使用 Adobe `xmp:Label` 色标 Green/Yellow/Red；Unreviewed 省略标签。这不是经过测试的 Lightroom/Capture One GUI 往返，也不会写到原片旁。
 
 实验性的人脸和睁眼字段是来自简单颜色、形状、亮度和锐度检查的本地启发式分数。它们不是由捆绑的专业人脸检测模型生成的，应视为弱的 MVP 排序提示。

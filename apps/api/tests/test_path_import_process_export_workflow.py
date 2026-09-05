@@ -178,6 +178,85 @@ def test_path_import_process_pick_and_export_leaves_originals_unchanged(tmp_path
     assert other_source.read_bytes() == other_bytes
 
 
+def test_path_export_xmp_sidecars_stay_out_of_originals_and_camera_card(tmp_path, monkeypatch):
+    from tests.test_xmp_sidecar import parse_xmp_fields
+
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
+    client = TestClient(create_app())
+
+    source_dir = tmp_path / "camera-card"
+    source_dir.mkdir()
+    pick_source = source_dir / "hero.jpg"
+    pick_bytes = _jpeg((210, 180, 40))
+    pick_source.write_bytes(pick_bytes)
+    before = _fingerprint(pick_source)
+
+    created = client.post("/api/projects", json={"name": "Path xmp"})
+    assert created.status_code == 201
+    project = created.json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={"paths": [str(source_dir)], "finalize": True},
+    )
+    assert import_response.status_code == 201, import_response.text
+    import_job = _wait_for_job(client, project["id"], import_response.json()["job"])
+    assert import_job["status"] == "complete"
+
+    photos = client.get(f"/api/projects/{project['id']}/photos").json()
+    pick_photo = next(photo for photo in photos if photo["filename"] == "hero.jpg")
+    pick_response = client.patch(
+        f"/api/projects/{project['id']}/photos/{pick_photo['id']}",
+        json={"user_status": "Pick", "star_rating": 5},
+    )
+    assert pick_response.status_code == 200
+    project_copy = Path(pick_photo["project_copy_path"])
+    copy_before = _fingerprint(project_copy)
+
+    zip_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "zip", "statuses": ["Pick"], "include_xmp": True},
+    )
+    assert zip_response.status_code == 201
+    zip_export = _wait_for_export(client, project["id"], zip_response.json())
+    assert zip_export["status"] == "complete"
+    assert zip_export["include_xmp"] is True
+    with zipfile.ZipFile(zip_export["output_path"]) as archive:
+        assert sorted(archive.namelist()) == ["hero.jpg", "hero.jpg.xmp"]
+        assert archive.read("hero.jpg") == pick_bytes
+        fields = parse_xmp_fields(archive.read("hero.jpg.xmp").decode("utf-8"))
+    assert fields["identifier"] == pick_photo["id"]
+    assert fields["title"] == "hero.jpg"
+    assert fields["label"] == "Green"
+
+    folder_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "folder", "statuses": ["Pick"], "include_xmp": True},
+    )
+    assert folder_response.status_code == 201
+    folder_export = _wait_for_export(client, project["id"], folder_response.json())
+    folder_path = Path(folder_export["output_path"])
+    assert (folder_path / "hero.jpg").read_bytes() == pick_bytes
+    assert (folder_path / "hero.jpg.xmp").is_file()
+
+    csv_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "csv", "statuses": ["Pick"], "include_xmp": True},
+    )
+    assert csv_response.status_code == 201
+    csv_export = _wait_for_export(client, project["id"], csv_response.json())
+    assert csv_export["include_xmp"] is True
+    with Path(csv_export["output_path"]).open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [row["status"] for row in rows] == ["Pick"]
+    assert [row["star_rating"] for row in rows] == ["5"]
+
+    originals = Path(project["root_path"]) / "originals"
+    assert list(originals.rglob("*.xmp")) == []
+    assert list(source_dir.rglob("*.xmp")) == []
+    assert _fingerprint(pick_source) == before
+    assert _fingerprint(project_copy) == copy_before
+
+
 def test_path_import_process_export_heic_leaves_originals_unchanged(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
     client = TestClient(create_app())

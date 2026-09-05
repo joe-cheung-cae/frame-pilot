@@ -42,6 +42,7 @@ def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     run_migrations(engine)
     _ensure_processing_job_columns(engine)
+    _ensure_export_record_columns(engine)
 
 
 def _ensure_export_record_columns(engine) -> None:
@@ -63,6 +64,8 @@ def _ensure_export_record_columns(engine) -> None:
         statements.append("ALTER TABLE exportrecord ADD COLUMN processed_count INTEGER NOT NULL DEFAULT 0")
     if "total_count" not in existing:
         statements.append("ALTER TABLE exportrecord ADD COLUMN total_count INTEGER NOT NULL DEFAULT 0")
+    if "include_xmp" not in existing:
+        statements.append("ALTER TABLE exportrecord ADD COLUMN include_xmp INTEGER NOT NULL DEFAULT 0")
 
     if not statements:
         return

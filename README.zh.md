@@ -20,11 +20,11 @@ FramePilot 是一款本地优先的 AI 辅助照片筛选 Web 应用。当前 v2
 - 以组为中心的筛选，按推荐优先的复核顺序。
 - Pick、Maybe、Reject 和 Unreviewed 状态。
 - 键盘复核快捷键：方向键、P、M、X、U、1-5、0、Space、Z、C、G、F 和 E。
-- CSV、文件夹和 ZIP 导出模式，具有唯一的本地导出输出、导出历史，以及文件导出对项目原片的来源约束。
+- CSV、文件夹和 ZIP 导出模式，具有唯一的本地导出输出、导出历史、文件导出对项目原片的来源约束，以及可选的 XMP sidecar 勾选（默认关），只在项目导出目录下写 `.xmp`。
 
 已知的 v2.0 限制：
 
-- DNG、ARW、CR3、NEF 等 RAW 文件在有内嵌预览时导入（原样拷贝字节；用预览 RGB 生成 WebP；不 demosaic）。没有预览的 RAW 以明确的本地消息跳过。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、HDR gain-map 色调映射或 XMP 写入。
+- DNG、ARW、CR3、NEF 等 RAW 文件在有内嵌预览时导入（原样拷贝字节；用预览 RGB 生成 WebP；不 demosaic）。没有预览的 RAW 以明确的本地消息跳过。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov` 或 HDR gain-map 色调映射。可选 XMP sidecar 只写在导出目录（永不写到原片旁或图像字节内）。
 - 导入和处理任务运行在本地 API 进程或可选本地 worker（`npm run worker`）中。进度、协作式导入/处理/导出取消、过期任务检测、活动导入处理保护、安全导入重试和过期处理清理可用。默认情况下，下次启动会把残留的活动导入/处理任务标为 `interrupted` 并回收（`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认开启；设为 `0`/`false`/`no`/`off` 则回到失败并重试）。导出任务可取消，不会被回收（fail-and-cleanup）。
 - 实验性人脸与睁眼信号是确定性本地启发式，不是专业人脸检测、眼睛状态检测、身份识别或生物特征分析。
 - 分组和排序仍是推荐辅助。用户通过手工状态和星级保留最终控制。

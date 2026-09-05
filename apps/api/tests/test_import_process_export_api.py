@@ -1913,6 +1913,283 @@ def test_cancel_running_export_removes_partial_artifact_and_leaves_originals(tmp
         assert path.read_bytes() == payload
 
 
+def _fingerprint_path(path: Path) -> tuple[int, int, str]:
+    stat = path.stat()
+    return stat.st_size, stat.st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _plant_export_photo(
+    project: dict,
+    *,
+    filename: str = "frame.jpg",
+    user_status: str = "Pick",
+    star_rating: int = 5,
+    camera_dir: Path | None = None,
+) -> tuple[Path, Path, bytes, dict]:
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    payload = _image_bytes()
+    project_copy = originals / filename
+    project_copy.write_bytes(payload)
+    camera_path = project_copy
+    if camera_dir is not None:
+        camera_dir.mkdir(parents=True, exist_ok=True)
+        camera_path = camera_dir / filename
+        camera_path.write_bytes(payload)
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(camera_path),
+            project_copy_path=str(project_copy),
+            filename=filename,
+            user_status=user_status,
+            star_rating=star_rating,
+        )
+        session.add(photo)
+        session.commit()
+        session.refresh(photo)
+        planted = {"id": photo.id, "filename": photo.filename}
+    return project_copy, camera_path, payload, planted
+
+
+@pytest.mark.parametrize("payload", [{}, {"include_xmp": False}])
+def test_export_without_xmp_writes_no_sidecars_and_leaves_originals(tmp_path, monkeypatch, payload):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Export omit xmp"}).json()
+    camera_dir = tmp_path / "camera-card"
+    project_copy, camera_path, payload_bytes, _photo = _plant_export_photo(project, camera_dir=camera_dir)
+    copy_before = _fingerprint_path(project_copy)
+    camera_before = _fingerprint_path(camera_path)
+    project_root = Path(project["root_path"])
+
+    for mode in ("csv", "zip", "folder"):
+        response = client.post(
+            f"/api/projects/{project['id']}/exports",
+            json={"mode": mode, "statuses": ["Pick"], **payload},
+        )
+        assert response.status_code == 201
+        record = _wait_for_export(client, project["id"], response.json())
+        assert record["status"] == "complete"
+        assert record["include_xmp"] is False
+        if mode == "zip":
+            with zipfile.ZipFile(record["output_path"]) as archive:
+                assert archive.namelist() == ["frame.jpg"]
+                assert archive.read("frame.jpg") == payload_bytes
+
+    assert list(project_root.rglob("*.xmp")) == []
+    assert list(camera_dir.rglob("*.xmp")) == []
+    assert _fingerprint_path(project_copy) == copy_before
+    assert _fingerprint_path(camera_path) == camera_before
+
+
+def test_folder_export_include_xmp_maps_statuses_and_stays_off_originals(tmp_path, monkeypatch):
+    from tests.test_xmp_sidecar import parse_xmp_fields
+
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Folder xmp"}).json()
+    camera_dir = tmp_path / "camera-card"
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    camera_dir.mkdir()
+    planted: list[tuple[Path, Path, bytes]] = []
+    cases = [
+        ("pick.jpg", "Pick", 5),
+        ("maybe.jpg", "Maybe", 0),
+        ("reject.jpg", "Reject", 3),
+        ("unreviewed.jpg", "Unreviewed", 4),
+    ]
+    with Session(get_engine()) as session:
+        for filename, status, stars in cases:
+            payload = _image_bytes(color=(80 + stars * 20, 100, 90))
+            project_copy = originals / filename
+            camera_path = camera_dir / filename
+            project_copy.write_bytes(payload)
+            camera_path.write_bytes(payload)
+            session.add(
+                Photo(
+                    project_id=project["id"],
+                    original_path=str(camera_path),
+                    project_copy_path=str(project_copy),
+                    filename=filename,
+                    user_status=status,
+                    star_rating=stars,
+                )
+            )
+            planted.append((project_copy, camera_path, payload))
+        session.commit()
+    before = [(path, _fingerprint_path(path)) for pair in planted for path in pair[:2]]
+
+    response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={
+            "mode": "folder",
+            "statuses": ["Pick", "Maybe", "Reject", "Unreviewed"],
+            "include_xmp": True,
+        },
+    )
+    assert response.status_code == 201
+    record = _wait_for_export(client, project["id"], response.json())
+    assert record["status"] == "complete"
+    assert record["include_xmp"] is True
+    folder = Path(record["output_path"])
+    expected = {
+        "pick.jpg": ("5", "Green", "Pick"),
+        "maybe.jpg": ("0", "Yellow", "Maybe"),
+        "reject.jpg": ("3", "Red", "Reject"),
+        "unreviewed.jpg": ("4", None, "Unreviewed"),
+    }
+    for filename, (rating, label, subject) in expected.items():
+        sidecar = folder / f"{filename}.xmp"
+        assert (folder / filename).is_file()
+        fields = parse_xmp_fields(sidecar.read_text(encoding="utf-8"))
+        assert fields["rating"] == rating
+        assert fields["label"] == label
+        assert fields["subject"] == subject
+        assert fields["title"] == filename
+        assert "-1" not in sidecar.read_text(encoding="utf-8")
+    assert list(originals.rglob("*.xmp")) == []
+    assert list(camera_dir.rglob("*.xmp")) == []
+    for path, expected_fingerprint in before:
+        assert _fingerprint_path(path) == expected_fingerprint
+
+
+def test_zip_export_include_xmp_keeps_original_image_bytes(tmp_path, monkeypatch):
+    from tests.test_xmp_sidecar import parse_xmp_fields
+
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Zip xmp"}).json()
+    camera_dir = tmp_path / "camera-card"
+    project_copy, camera_path, payload, photo = _plant_export_photo(project, camera_dir=camera_dir)
+    copy_before = _fingerprint_path(project_copy)
+    camera_before = _fingerprint_path(camera_path)
+
+    response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "zip", "statuses": ["Pick"], "include_xmp": True},
+    )
+    assert response.status_code == 201
+    record = _wait_for_export(client, project["id"], response.json())
+    assert record["status"] == "complete"
+    assert record["include_xmp"] is True
+    with zipfile.ZipFile(record["output_path"]) as archive:
+        assert sorted(archive.namelist()) == ["frame.jpg", "frame.jpg.xmp"]
+        assert archive.read("frame.jpg") == payload
+        assert archive.getinfo("frame.jpg").compress_type == zipfile.ZIP_STORED
+        assert archive.getinfo("frame.jpg.xmp").compress_type == zipfile.ZIP_DEFLATED
+        fields = parse_xmp_fields(archive.read("frame.jpg.xmp").decode("utf-8"))
+    assert fields["identifier"] == photo["id"]
+    assert fields["title"] == "frame.jpg"
+    assert list((Path(project["root_path"]) / "originals").rglob("*.xmp")) == []
+    assert list(camera_dir.rglob("*.xmp")) == []
+    assert _fingerprint_path(project_copy) == copy_before
+    assert _fingerprint_path(camera_path) == camera_before
+
+
+def test_csv_export_include_xmp_writes_no_sidecar_files(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Csv xmp"}).json()
+    camera_dir = tmp_path / "camera-card"
+    project_copy, camera_path, _payload, _photo = _plant_export_photo(project, camera_dir=camera_dir, star_rating=2)
+    copy_before = _fingerprint_path(project_copy)
+    camera_before = _fingerprint_path(camera_path)
+
+    response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "csv", "statuses": ["Pick"], "include_xmp": True},
+    )
+    assert response.status_code == 201
+    record = _wait_for_export(client, project["id"], response.json())
+    assert record["status"] == "complete"
+    assert record["include_xmp"] is True
+    csv_path = Path(record["output_path"])
+    assert csv_path.is_file()
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [row["status"] for row in rows] == ["Pick"]
+    assert [row["star_rating"] for row in rows] == ["2"]
+    assert list(Path(project["root_path"]).rglob("*.xmp")) == []
+    assert list(camera_dir.rglob("*.xmp")) == []
+    assert _fingerprint_path(project_copy) == copy_before
+    assert _fingerprint_path(camera_path) == camera_before
+
+
+@pytest.mark.parametrize("mode", ["zip", "folder"])
+def test_cancel_running_xmp_export_removes_partial_artifact_and_leaves_originals(tmp_path, monkeypatch, mode):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    scheduled_tasks: list[tuple[object, tuple, dict]] = []
+
+    def capture_background_task(self, func, *args, **kwargs):
+        scheduled_tasks.append((func, args, kwargs))
+
+    monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
+    client = TestClient(create_app())
+    cancel_client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": f"Cancel xmp {mode}"}).json()
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    original_bytes_by_path: dict[Path, bytes] = {}
+    with Session(get_engine()) as session:
+        for index in range(2):
+            path = originals / f"frame-{index}.jpg"
+            payload = _image_bytes(color=(80 + index * 40, 120, 90))
+            path.write_bytes(payload)
+            original_bytes_by_path[path] = payload
+            session.add(
+                Photo(
+                    project_id=project["id"],
+                    original_path=str(path),
+                    project_copy_path=str(path),
+                    filename=path.name,
+                    user_status="Pick",
+                )
+            )
+        session.commit()
+
+    writer_name = {"zip": "zip_selected_files", "folder": "copy_selected_files"}[mode]
+    real_writer = getattr(routes, writer_name)
+
+    def cancel_after_first_photo(*args, **kwargs):
+        original_callback = kwargs.get("progress_callback")
+
+        def hooked_progress(processed: int, total: int) -> None:
+            if processed == 1:
+                response = cancel_client.post(f"/api/projects/{project['id']}/jobs/{record_id}/cancel")
+                assert response.status_code == 202
+                assert response.json()["cancellation_requested"] is True
+            if original_callback is not None:
+                original_callback(processed, total)
+
+        kwargs["progress_callback"] = hooked_progress
+        return real_writer(*args, **kwargs)
+
+    monkeypatch.setattr(routes, writer_name, cancel_after_first_photo)
+
+    create_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": mode, "statuses": ["Pick"], "include_xmp": True},
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["include_xmp"] is True
+    record_id = created["id"]
+    output_path = Path(created["output_path"])
+    task, args, kwargs = scheduled_tasks[0]
+    task(*args, **kwargs)
+
+    job = client.get(f"/api/projects/{project['id']}/jobs/{record_id}").json()
+    assert job["status"] == "cancelled"
+    export_record = client.get(f"/api/projects/{project['id']}/exports/{record_id}").json()
+    assert export_record["status"] == "failed"
+    assert not output_path.exists()
+    assert list(Path(project["root_path"]).rglob("*.xmp")) == []
+    for path, payload in original_bytes_by_path.items():
+        assert path.read_bytes() == payload
+
+
 def test_cancel_interrupted_processing_job_finalizes_and_resets_groups(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())

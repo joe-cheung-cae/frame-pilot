@@ -194,6 +194,7 @@ class GroupRead(BaseModel):
 class ExportCreate(BaseModel):
     mode: str = "csv"
     statuses: list[str] = ["Pick"]
+    include_xmp: bool = False
 
     @field_validator("mode")
     @classmethod
@@ -226,6 +227,7 @@ class ExportRead(BaseModel):
     processed_count: int = 0
     total_count: int = 0
     statuses: str
+    include_xmp: bool = False
     output_path: str
     error_message: str | None
     completed_at: datetime | None

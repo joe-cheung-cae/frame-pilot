@@ -136,6 +136,7 @@ export type ExportRecord = {
   processed_count: number;
   total_count: number;
   statuses: string;
+  include_xmp?: boolean;
   output_path: string;
   error_message: string | null;
   completed_at: string | null;
@@ -516,10 +517,15 @@ export const api = {
   listAllGroups,
   listExports,
   listAllExports,
-  exportSelection: (projectId: string, mode: "csv" | "folder" | "zip", statuses: string[]) =>
+  exportSelection: (
+    projectId: string,
+    mode: "csv" | "folder" | "zip",
+    statuses: string[],
+    includeXmp = false,
+  ) =>
     request<ExportRecord>(`/api/projects/${projectId}/exports`, {
       method: "POST",
-      body: JSON.stringify({ mode, statuses }),
+      body: JSON.stringify({ mode, statuses, include_xmp: includeXmp }),
     }),
 };
 

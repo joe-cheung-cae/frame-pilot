@@ -54,7 +54,7 @@ You can also drop files/folders on the import page only. Dropping elsewhere must
 
 1. When import finishes, run grouping and ranking (**Process Project**).
 2. Open the culling workspace. Keyboard shortcuts match the web app (P/M/X/U, stars, navigation). Help lists desktop menu chords (CmdOrCtrl+N/W/Q) separately from bare culling keys.
-3. On **Export Selection**, export CSV, ZIP, and/or folder. Outputs land under `{root_path}/exports/...`.
+3. On **Export Selection**, export CSV, ZIP, and/or folder. Outputs land under `{root_path}/exports/...`. Optional **Write XMP sidecars** (default off) writes `.xmp` next to folder copies and inside ZIP; never beside originals. CSV already includes status and stars.
 4. Use **Open export folder** (reveal) or **Copy Path**. Browser download anchors are not required on desktop.
 
 ---

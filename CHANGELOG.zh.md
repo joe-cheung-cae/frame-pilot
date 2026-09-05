@@ -6,6 +6,16 @@
 
 ## 未发布
 
+### 第九阶段 — S9.05 XMP sidecar 导出
+
+- CSV/ZIP/文件夹导出上的可选 `include_xmp`（默认关）；不是第四种导出模式
+- 文件夹和 ZIP 只在项目导出目录写 `{exported_filename}.xmp`（ZIP 中 XML 用 `ZIP_DEFLATED`；图像仍 `ZIP_STORED`）
+- CSV 存储该标志但不写 `.xmp` 文件；取消/失败仍对导出产物做 fail-and-cleanup
+- sidecar 永不进入 `originals/`、相机原片旁或图像字节；原片字节保持一致
+- 映射：`xmp:Rating` 为星级 0–5；Pick/Maybe/Reject 用 Green/Yellow/Red `xmp:Label`；Unreviewed 省略标签；Reject 不用 `xmp:Rating = -1`
+- 导出 UI 勾选 **Write XMP sidecars** 默认不勾，且不写入 `localStorage`
+- 不改 `APP_VERSION`、不签名、不声称 Lightroom/Capture One GUI 认证，导入/审阅不写回
+
 ### 第九阶段 — S9.04 RAW 内嵌预览
 
 - 本地导入带内嵌预览的 `.dng`、`.arw`、`.cr3`、`.nef`：原样拷贝字节，只走 `rawpy.extract_thumb`，WebP 缩略图/预览，在预览 RGB 上评分/分组

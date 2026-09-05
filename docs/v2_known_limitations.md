@@ -23,7 +23,7 @@ Unsupported files are reported locally instead of uploaded or decoded remotely.
 
 ## Deferred Formats
 
-Full RAW develop (demosaic / `postprocess`) remains deferred. RAW files without an embedded preview are skipped with `RAW file has no embedded preview; FramePilot does not demosaic` and are not copied into `originals/`. Extra RAW extensions such as `.cr2`, `.raf`, `.orf`, and `.rw2` are not accepted. HEIC/HEIF and AVIF stills import locally; Live Photo `.mov` companions, `.avifs` sequences, HDR/gain-map tone mapping, and XMP writes are not implemented.
+Full RAW develop (demosaic / `postprocess`) remains deferred. RAW files without an embedded preview are skipped with `RAW file has no embedded preview; FramePilot does not demosaic` and are not copied into `originals/`. Extra RAW extensions such as `.cr2`, `.raf`, `.orf`, and `.rw2` are not accepted. HEIC/HEIF and AVIF stills import locally; Live Photo `.mov` companions, `.avifs` sequences, and HDR/gain-map tone mapping are not implemented. XMP is not written on import, into `originals/`, beside camera files, or into image bytes.
 
 `pillow-heif` is BSD-3-Clause. Its wheels ship **LGPL** `libheif` (and codecs) inside the API/sidecar runtime. FramePilot does not vendor libheif source into this MIT tree.
 
@@ -75,7 +75,7 @@ Face and eye-open scores are lightweight local heuristics, not professional face
 
 ## Export Limitations
 
-CSV, ZIP, and folder exports run as local background jobs with progress and stale detection. XMP sidecar export is planned but not implemented. Folder exports expose a local output path rather than a browser download artifact. Exported files and ZIPs are generated artifacts and must not be committed.
+CSV, ZIP, and folder exports run as local background jobs with progress and stale detection. Optional XMP sidecars (`include_xmp`, default off) are written only under the project export directory: next to folder copies and as ZIP members. CSV stores the flag but writes no `.xmp` files. Sidecars are never written into `originals/`, beside camera originals, or into image bytes. This is not a tested Lightroom/Capture One GUI round-trip. Folder exports expose a local output path rather than a browser download artifact. Exported files and ZIPs are generated artifacts and must not be committed.
 
 ZIP and folder exports require selected source files to resolve inside the project `originals/` directory. This is a defense-in-depth guard for corrupted metadata; it also means file exports can fail if the local copied original is missing or no longer resolves inside project storage.
 
