@@ -48,6 +48,7 @@ def test_init_db_adds_missing_export_record_columns_to_existing_sqlite_table(tmp
     assert "completed_at" in columns
     assert "processed_count" in columns
     assert "total_count" in columns
+    assert "include_xmp" in columns
 
 
 def test_init_db_adds_large_project_query_indexes(tmp_path):
@@ -157,6 +158,7 @@ def test_run_migrations_upgrades_legacy_database_without_schema_meta(tmp_path):
     columns = {column["name"] for column in inspect(engine).get_columns("exportrecord")}
     assert "selected_count" in columns
     assert "error_message" in columns
+    assert "include_xmp" in columns
     project_columns = {column["name"] for column in inspect(engine).get_columns("project")}
     assert "schema_version" in project_columns
     # create_all may not have created processingjob on this minimal legacy DB; ensure helper path
@@ -200,6 +202,38 @@ def test_migrate_to_4_adds_job_lease_columns(tmp_path):
     assert "checkpoint_photo_id" in job_columns
     assert "worker_id" in job_columns
     assert "heartbeat_at" in job_columns
+    assert "pause_requested" in job_columns
+
+
+def test_migrate_to_6_adds_include_xmp_to_existing_export_record(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'xmp-upgrade.db'}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE exportrecord (
+                    id VARCHAR NOT NULL PRIMARY KEY,
+                    project_id VARCHAR NOT NULL,
+                    mode VARCHAR NOT NULL,
+                    status VARCHAR NOT NULL,
+                    selected_count INTEGER NOT NULL DEFAULT 0,
+                    processed_count INTEGER NOT NULL DEFAULT 0,
+                    total_count INTEGER NOT NULL DEFAULT 0,
+                    statuses VARCHAR NOT NULL DEFAULT '[]',
+                    output_path VARCHAR NOT NULL,
+                    error_message VARCHAR,
+                    completed_at DATETIME,
+                    created_at DATETIME NOT NULL
+                )
+                """
+            )
+        )
+    set_schema_version(engine, 5)
+    assert "include_xmp" not in {column["name"] for column in inspect(engine).get_columns("exportrecord")}
+    assert run_migrations(engine) == CURRENT_SCHEMA_VERSION
+    columns = {column["name"] for column in inspect(engine).get_columns("exportrecord")}
+    assert "include_xmp" in columns
+    assert get_schema_version(engine) == 6
 
 
 def test_run_migrations_rejects_future_schema_version(tmp_path):

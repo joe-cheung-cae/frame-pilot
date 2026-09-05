@@ -1,6 +1,7 @@
 //! Native application menu for the FramePilot desktop shell.
 
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use tauri::menu::{AboutMetadata, Menu, MenuBuilder, MenuEvent, MenuItemBuilder, SubmenuBuilder};
 use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
@@ -15,7 +16,29 @@ pub const QUIT_ACCELERATOR: &str = "CmdOrCtrl+Q";
 pub const CUSTOM_ACCELERATORS: &[&str] = &[NEW_ACCELERATOR, CLOSE_ACCELERATOR, QUIT_ACCELERATOR];
 
 pub struct DesktopPaths {
-    pub data_dir: PathBuf,
+    data_dir: Mutex<PathBuf>,
+}
+
+impl DesktopPaths {
+    pub fn new(data_dir: PathBuf) -> Self {
+        Self {
+            data_dir: Mutex::new(data_dir),
+        }
+    }
+
+    pub fn current(&self) -> PathBuf {
+        self.data_dir
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_else(|poisoned| poisoned.into_inner().clone())
+    }
+
+    pub fn set(&self, data_dir: PathBuf) {
+        match self.data_dir.lock() {
+            Ok(mut guard) => *guard = data_dir,
+            Err(poisoned) => *poisoned.into_inner() = data_dir,
+        }
+    }
 }
 
 fn about_metadata() -> AboutMetadata<'static> {
@@ -77,6 +100,7 @@ pub fn build_app_menu<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Result<M
 
     let view = SubmenuBuilder::new(manager, "View")
         .item(&MenuItemBuilder::with_id("fullscreen", "Fullscreen").build(manager)?)
+        .item(&MenuItemBuilder::with_id("detached-preview", "Detached preview").build(manager)?)
         .build()?;
 
     let project = SubmenuBuilder::new(manager, "Project")
@@ -86,6 +110,7 @@ pub fn build_app_menu<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Result<M
 
     let help = SubmenuBuilder::new(manager, "Help")
         .item(&MenuItemBuilder::with_id("shortcuts", "Shortcuts").build(manager)?)
+        .item(&MenuItemBuilder::with_id("check-for-updates", "Check for updates").build(manager)?)
         .about_with_text("About", Some(about_metadata()))
         .build()?;
 
@@ -127,12 +152,18 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
         }
         "open-data-folder" => {
             if let Some(paths) = app.try_state::<DesktopPaths>() {
-                let _ = app.opener().reveal_item_in_dir(&paths.data_dir);
+                let current = paths.current();
+                let _ = app.opener().reveal_item_in_dir(&current);
             }
         }
         "close" => {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.close();
+            let focused = crate::preview::focused_webview_label(app);
+            if crate::preview::file_close_targets_app_quit(focused.as_deref()) {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.close();
+                }
+            } else if let Err(err) = crate::preview::close_preview_window(app) {
+                eprintln!("FramePilot could not close detached preview: {err}");
             }
         }
         "quit" => {
@@ -142,6 +173,14 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
             if let Some(window) = app.get_webview_window("main") {
                 toggle_fullscreen(&window);
             }
+        }
+        "detached-preview" => {
+            if let Err(err) = crate::preview::toggle_preview_window(app) {
+                eprintln!("FramePilot detached preview is unavailable: {err}");
+            }
+        }
+        "check-for-updates" => {
+            crate::updater::request_check_for_updates(app);
         }
         _ => {}
     }
@@ -173,5 +212,40 @@ mod tests {
     #[test]
     fn about_version_comes_from_package_metadata() {
         assert_eq!(env!("CARGO_PKG_VERSION"), "2.1.0-desktop");
+    }
+
+    #[test]
+    fn detached_preview_menu_id_has_no_accelerator() {
+        assert_eq!(crate::preview::DETACHED_PREVIEW_MENU_ID, "detached-preview");
+        assert!(crate::preview::DETACHED_PREVIEW_ACCELERATOR.is_none());
+        assert!(!CUSTOM_ACCELERATORS.iter().any(|accel| accel.contains("detached")));
+    }
+
+    #[test]
+    fn check_for_updates_menu_id_has_no_accelerator() {
+        assert_eq!(
+            crate::updater::CHECK_FOR_UPDATES_MENU_ID,
+            "check-for-updates"
+        );
+        assert_eq!(
+            crate::updater::CHECK_FOR_UPDATES_LABEL,
+            "Check for updates"
+        );
+        assert!(crate::updater::CHECK_FOR_UPDATES_ACCELERATOR.is_none());
+        assert!(!CUSTOM_ACCELERATORS
+            .iter()
+            .any(|accel| accel.to_lowercase().contains("update")));
+        let catalog = include_str!("menu.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("menu catalog");
+        let idx = catalog
+            .find(r#"with_id("check-for-updates", "Check for updates")"#)
+            .expect("Help must include check-for-updates");
+        let slice = &catalog[idx..(idx + 180).min(catalog.len())];
+        assert!(
+            !slice.contains("accelerator"),
+            "check-for-updates must have no accelerator: {slice}"
+        );
     }
 }

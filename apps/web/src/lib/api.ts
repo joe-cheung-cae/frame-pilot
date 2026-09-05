@@ -108,11 +108,19 @@ export type AppMeta = {
   desktop_mode: boolean;
 };
 
+export type AppSettings = {
+  import_workers: number;
+};
+
+export type AppSettingsPatch = {
+  import_workers?: number;
+};
+
 export type ProcessingJob = {
   id: string;
   project_id: string;
   job_type: string;
-  status: "queued" | "running" | "complete" | "complete_with_errors" | "failed" | "cancelled";
+  status: "queued" | "running" | "complete" | "complete_with_errors" | "failed" | "cancelled" | "paused";
   current_step: string;
   total_items: number;
   processed_items: number;
@@ -120,6 +128,7 @@ export type ProcessingJob = {
   progress_percent: number;
   error_message: string | null;
   cancellation_requested: boolean;
+  pause_requested: boolean;
   cancelled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -135,6 +144,7 @@ export type ExportRecord = {
   processed_count: number;
   total_count: number;
   statuses: string;
+  include_xmp?: boolean;
   output_path: string;
   error_message: string | null;
   completed_at: string | null;
@@ -323,8 +333,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ path }),
     }),
+  changeDesktopDataDir: (path: string) =>
+    request<{ data_dir: string }>("/api/desktop/data-dir", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    }),
   getHealth: () => request<HealthStatus>("/api/health"),
   getMeta: () => request<AppMeta>("/api/meta"),
+  getSettings: () => request<AppSettings>("/api/settings"),
+  patchSettings: (patch: AppSettingsPatch) =>
+    request<AppSettings>("/api/settings", { method: "PATCH", body: JSON.stringify(patch) }),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   getPhoto: (projectId: string, photoId: string) => request<Photo>(`/api/projects/${projectId}/photos/${photoId}`),
   importPhotosBatch: (
@@ -490,6 +508,8 @@ export const api = {
   getJob: (projectId: string, jobId: string) => request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}`),
   cancelJob: (projectId: string, jobId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}/cancel`, { method: "POST" }),
+  pauseJob: (projectId: string, jobId: string) =>
+    request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}/pause`, { method: "POST" }),
   retryJob: (projectId: string, jobId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}/retry`, { method: "POST" }),
   listPhotos,
@@ -513,10 +533,15 @@ export const api = {
   listAllGroups,
   listExports,
   listAllExports,
-  exportSelection: (projectId: string, mode: "csv" | "folder" | "zip", statuses: string[]) =>
+  exportSelection: (
+    projectId: string,
+    mode: "csv" | "folder" | "zip",
+    statuses: string[],
+    includeXmp = false,
+  ) =>
     request<ExportRecord>(`/api/projects/${projectId}/exports`, {
       method: "POST",
-      body: JSON.stringify({ mode, statuses }),
+      body: JSON.stringify({ mode, statuses, include_xmp: includeXmp }),
     }),
 };
 

@@ -6,6 +6,123 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.13 docs leftover repair
+
+- Align `docs/desktop_development_plan.md` §2.2 DoD ticks with shipped 2.1 evidence; Windows-pass / macOS-skip on dual-platform installer GUI; do not tick packaged-desktop ≥500
+- Retarget leftover 2.2 items to S9.06–S9.10 `[x]`; remaining Target = unscheduled (cache knobs, auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, macOS GUI pass)
+- §10 no longer lists shipped S9 leftovers or HEIC/RAW/XMP as unshipped 3.x
+- Living pointer: Phase 9 remaining-stretch is closed (S9.00–S9.13); no unfinished S9 id; stop
+- No `APP_VERSION` bump, no production app change, no certs
+
+### Phase 9 — S9.12 macOS DMG GUI lifecycle QA
+
+- Recorded **skip, not pass** at `2026-09-05T12:31:10Z` — no Darwin host; packaged DMG GUI rows in [docs/desktop_testing.md](docs/desktop_testing.md) are dated skip, none `[x]`
+- Linux HTTP smoke / frozen sidecar / Playwright staying green does not convert the skip into a macOS GUI pass
+- Unsigned DMG Gatekeeper warnings remain expected; this slice does not claim a signed or Gatekeeper-clean Mac pass
+- No `APP_VERSION` bump, no production app change, no certs
+
+### Phase 9 — S9.11 signing-ready CI
+
+- `.github/workflows/desktop.yml` signs Windows NSIS (Authenticode) and macOS DMG (Developer ID + notarization + staple) when the full per-platform GitHub Actions secret set is non-empty
+- Missing or empty secrets keep the unsigned upload path green; a sign / notarize failure with secrets present is red
+- Exact secret names are in [docs/desktop_signing.md](docs/desktop_signing.md); `APPLE_API_KEY_PATH` is a runner temp path, not a GitHub secret
+- Tracked `.pfx` / `.p12` / `.p8` are rejected by `check:artifacts`; those globs are gitignored
+- No `tauri-action` Release publish, `TAURI_SIGNING_PRIVATE_KEY`, `latest.json`, or `APP_VERSION` bump
+
+### Phase 9 — S9.10 optional check for updates
+
+- Desktop Help → **Check for updates** (no accelerator) queries GitHub Releases on that click only
+- Compare `tag_name` core (MAJOR.MINOR.PATCH) with `2.1.0-desktop`; newer remote shows current vs latest plus the release URL as text
+- Missing manifest (404 / empty / unparseable) is a non-fatal no-op; 403 / 429 / timeout / 5xx show a local dialog and do not crash
+- No launch-time or periodic network, no `tauri-plugin-updater`, no download-and-install, no extra `fs:` / `shell:` capabilities
+- Unsigned builds still launch; originals are never read or uploaded; no telemetry, login, payment, GitHub token, or `APP_VERSION` bump
+
+### Phase 9 — S9.09 change data directory
+
+- Desktop Settings **Change data directory** copies the current app data directory into an empty folder authorized with D2.00 `POST /api/desktop/project-roots`, then `POST /api/desktop/data-dir`
+- Stored `root_path` / photo copy / derivative / export paths under the old data dir are rewritten in the destination database only; the old tree stays byte-identical
+- Camera-card originals and `Project.source_root_path` are never rewritten; custom D2.00 project folders outside the old data dir stay put
+- The shell persists `{anchor}/data_dir.json` after `FRAMEPILOT_DATA_DIR` and before the default app-support / `.framepilot-desktop-dev` path, then respawns the sidecar
+- No extra `fs:` / `shell:` capabilities; old data dir is not deleted; no `APP_VERSION` bump or signing
+
+### Phase 9 — S9.08 opt-in import worker concurrency
+
+- Settings **Import workers** 1–4 (default 1) persist in `{data_dir}/app_settings.json` via `GET`/`PATCH /api/settings`
+- Import derivative jobs snapshot the value at start; `n==1` stays sequential, `n=2–4` uses an in-process `ThreadPoolExecutor` with one session per task
+- Peak concurrent `process_registered_import_photo` is ≤ n; cancel waits for in-flight photos and does not kill threads
+- Processing stays one job per project; no Redis/Celery, ProcessPool, extra OS workers, or cache knobs
+- Originals are never modified; the value applies to the next import job
+- No `APP_VERSION` bump or signing
+
+### Phase 9 — S9.07 detached preview window
+
+- Desktop View → Detached preview (no accelerator) and the culling toolbar toggle open a second WebView labeled `preview`
+- Selection is shared with the main culling workspace; the satellite window shows derivative previews only (no `fs:` read of originals)
+- Bare culling keys apply to the focused window; preview forwards commands to main and does not call `api.updatePhoto`
+- Create failure is non-fatal and keeps the in-shell preview; closing the preview window does not quit the app or shut down the sidecar
+- No extra `fs:` or `shell:` capabilities; no auto-reopen on launch; Space and Eye still toggle in-shell preview
+- No `APP_VERSION` bump or signing
+
+### Phase 9 — S9.06 optional system tray
+
+- Desktop shell always attempts a system tray icon (Show + Quit); create failure is non-fatal on headless or some Linux desktops
+- Tooltip (and tray title where the host shows one) reports active job progress: `Import · {step} · {n}%`, grouping and ranking, or export; idle is `No active job`
+- Show or a primary click restores the main window; Quit uses the same running-job dialog as File → Quit
+- Window close and minimize are unchanged (not hide-to-tray)
+- No extra `fs:` or `shell:` capabilities; no Settings toggle; no OS notifications
+- No `APP_VERSION` bump or signing
+
+### Phase 9 — S9.05 XMP sidecar export
+
+- Optional `include_xmp` on CSV/ZIP/folder export (default off); not a fourth export mode
+- Folder and ZIP write `{exported_filename}.xmp` only under the project export directory (ZIP XML uses `ZIP_DEFLATED`; images stay `ZIP_STORED`)
+- CSV stores the flag but writes no `.xmp` files; cancel/fail still fail-and-cleanup the export artifact
+- Sidecars never land in `originals/`, beside camera originals, or inside image bytes; original bytes stay identical
+- Mapping: `xmp:Rating` is stars 0–5; Pick/Maybe/Reject use Green/Yellow/Red `xmp:Label`; Unreviewed omits the label; Reject does not use `xmp:Rating = -1`
+- Export UI checkbox **Write XMP sidecars** is unchecked by default and is not persisted in `localStorage`
+- No `APP_VERSION` bump, signing, Lightroom/Capture One GUI certification, or write-back on import/review
+
+### Phase 9 — S9.04 RAW embedded preview
+
+- Local RAW import for `.dng`, `.arw`, `.cr3`, and `.nef` when an embedded preview exists: copy original bytes, extract with `rawpy.extract_thumb` only, WebP thumbnails/previews, and score/group on preview RGB
+- RAW without an embedded preview is skipped with `RAW file has no embedded preview; FramePilot does not demosaic`; no Photo row and no leftover copy under `originals/`
+- Original RAW bytes are exported (ZIP uses `ZIP_STORED`); source files are never modified; no demosaic / `postprocess`
+- Frozen sidecar collects `rawpy` / LibRaw; `rawpy` is MIT and its wheels ship LGPL-2.1 / CDDL LibRaw (documented in known limitations)
+- No `APP_VERSION` bump, signing, XMP, extra RAW extensions, or camera fixtures in git
+
+### Phase 9 — S9.03 AVIF still preview
+
+- Local AVIF still import (`.avif` only, not `.avifs` sequences), decode with Pillow’s native `AvifImagePlugin`, WebP thumbnails/previews, and score/group on decoded RGB
+- Original AVIF bytes are copied into `originals/` and exported (ZIP uses `ZIP_STORED`); source files are never modified
+- Garbage AVIF fails that file after copy; RAW, Live Photo `.mov`, HDR gain-map tone mapping, and XMP stay out of this slice
+- Frozen sidecar collects `PIL.AvifImagePlugin` / `PIL._avif`; HEIC still uses `pillow-heif`
+- No `APP_VERSION` bump, signing, or packaged GUI
+
+### Phase 9 — S9.02 processing job pause
+
+- Cooperative processing pause on `POST /api/projects/{project_id}/jobs/{job_id}/pause` with a distinct `pause_requested` flag (queued/running persist the flag with 202; terminal is a 200 no-op; interrupted finalizes `paused` and resets groups)
+- Worker checkpoints then group reset without a `cancelled` finalize; originals, import derivatives, `user_status`, and `star_rating` stay
+- Resume is clear-and-rerun via a new `POST /process`; `paused` does not block a replacement job
+- Processing UI can request **Pause Grouping and Ranking** and shows checkpoint copy
+- Reclaim honors a pending processing pause and does not re-queue; cancel still wins if both flags are set
+- Import and export jobs cannot be paused; in-place continue-hash-mid-batch is not implemented
+- No `APP_VERSION` bump, signing, or packaged GUI
+
+### Phase 9 — S9.01 export job cancel
+
+- Cooperative export cancel on the existing `POST /api/projects/{project_id}/jobs/{job_id}/cancel` route (queued/running persist `cancellation_requested` with 202; terminal is a 200 no-op; interrupted finalizes `cancelled`)
+- Create export also persists `ProcessingJob` `job_type="export"` with the same id as the `ExportRecord`
+- Checkpoints abort CSV/ZIP/folder writers; partial artifacts under the project export root are fail-and-cleanup; originals are never modified or deleted
+- Desktop quit can **Quit and cancel export** (POST cancel, wait up to 10s, then SIGTERM)
+- Export jobs are still not reclaimed on startup
+- No `APP_VERSION` bump, signing, or packaged GUI
+
+### Docs — schedule remaining stretch (S9.00)
+
+- Name Phase 9 remaining-stretch close-out in `develop_plan.md` §1.1 (one GitHub issue per run; do not invent Phase 10)
+- Living plan: `docs/plans/2026-09-04-remaining-stretch.md`; umbrella [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160); next product issue is S9.01 export cancel ([#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164))
+- No `APP_VERSION` bump, signing, or product behavior change in S9.00
+
 ### Docs — bilingual desktop shell pages
 
 - Add Chinese counterparts for `apps/desktop/README.md` and `tests/desktop/workflow.md`

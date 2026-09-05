@@ -3,8 +3,35 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+class AppSettingsRead(BaseModel):
+    import_workers: int = Field(ge=1, le=4)
+
+
+class AppSettingsUpdate(BaseModel):
+    import_workers: int | None = None
+
+    @field_validator("import_workers", mode="before")
+    @classmethod
+    def import_workers_must_be_int(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("import_workers must be an integer from 1 to 4")
+        if type(value) is not int:
+            raise ValueError("import_workers must be an integer from 1 to 4")
+        if value < 1 or value > 4:
+            raise ValueError("import_workers must be an integer from 1 to 4")
+        return value
+
+
 class DesktopProjectRootCreate(BaseModel):
     path: str = Field(min_length=1)
+
+
+class DesktopDataDirChange(BaseModel):
+    path: str = Field(min_length=1)
+
+
+class DesktopDataDirRead(BaseModel):
+    data_dir: str
 
 
 class ProjectCreate(BaseModel):
@@ -41,6 +68,7 @@ class JobRead(BaseModel):
     progress_percent: float
     error_message: str | None
     cancellation_requested: bool = False
+    pause_requested: bool = False
     cancelled_at: datetime | None = None
     checkpoint_photo_id: str | None = None
     checkpoint_stage: str | None = None
@@ -193,6 +221,7 @@ class GroupRead(BaseModel):
 class ExportCreate(BaseModel):
     mode: str = "csv"
     statuses: list[str] = ["Pick"]
+    include_xmp: bool = False
 
     @field_validator("mode")
     @classmethod
@@ -225,6 +254,7 @@ class ExportRead(BaseModel):
     processed_count: int = 0
     total_count: int = 0
     statuses: str
+    include_xmp: bool = False
     output_path: str
     error_message: str | None
     completed_at: datetime | None

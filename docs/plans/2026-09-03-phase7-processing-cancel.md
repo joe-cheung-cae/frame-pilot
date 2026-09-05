@@ -50,7 +50,7 @@ Phase 7 — processing job cancel (post Phase 6.1)
 - [x] J7.04 Processing UI cancel
 - [x] J7.05 Desktop quit cancel processing
 - [x] J7.06 Docs close-out
-- [-] J7.07 Optional pause/resume — **not DoD**; 2026-09-03: not Phase 7 DoD; not implemented (in-place pause vs clear-and-rerun).
+- [x] J7.07 Optional pause/resume — 2026-09-05: S9.02 / #161; cooperative pause_requested; worker exits without cancelled finalize; resume is POST /process clear-and-rerun; not in-place.
 
 ---
 

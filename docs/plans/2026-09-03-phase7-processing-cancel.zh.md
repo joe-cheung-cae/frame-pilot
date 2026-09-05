@@ -50,7 +50,7 @@ Goal Mode：一次只实现**一个任务 id**。当前任务未完成实现、�
 - [x] J7.04 处理页 UI 取消
 - [x] J7.05 桌面退出取消处理
 - [x] J7.06 文档收尾
-- [-] J7.07 可选暂停/恢复 — **非 DoD**；2026-09-03: 非第七阶段 DoD；未实现（原地暂停 vs clear-and-rerun）。
+- [x] J7.07 可选暂停/恢复 — 2026-09-05: S9.02 / #161; cooperative pause_requested; worker exits without cancelled finalize; resume is POST /process clear-and-rerun; not in-place.
 
 ---
 

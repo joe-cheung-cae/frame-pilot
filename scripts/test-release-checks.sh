@@ -443,6 +443,114 @@ expect_success \
   ' '$repo_root/.github/workflows/desktop.yml'"
 
 expect_success \
+  "desktop.yml copies locked Windows signing secrets into env" \
+  bash -c "awk '
+    /secrets\\.WINDOWS_CERTIFICATE }}/ { saw_cert = 1 }
+    /secrets\\.WINDOWS_CERTIFICATE_PASSWORD }}/ { saw_pass = 1 }
+    END { exit (saw_cert && saw_pass) ? 0 : 1 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "desktop.yml copies locked macOS signing secrets into env" \
+  bash -c "awk '
+    /secrets\\.APPLE_CERTIFICATE }}/ { saw_cert = 1 }
+    /secrets\\.APPLE_CERTIFICATE_PASSWORD }}/ { saw_pass = 1 }
+    /secrets\\.APPLE_SIGNING_IDENTITY }}/ { saw_id = 1 }
+    /secrets\\.APPLE_TEAM_ID }}/ { saw_team = 1 }
+    /secrets\\.APPLE_API_ISSUER }}/ { saw_issuer = 1 }
+    /secrets\\.APPLE_API_KEY }}/ { saw_key = 1 }
+    /secrets\\.APPLE_API_KEY_CONTENT }}/ { saw_content = 1 }
+    END {
+      exit (saw_cert && saw_pass && saw_id && saw_team && saw_issuer && saw_key && saw_content) ? 0 : 1
+    }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "desktop.yml does not treat APPLE_API_KEY_PATH as a GitHub secret" \
+  bash -c "awk '
+    /secrets\\.APPLE_API_KEY_PATH/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "desktop.yml Windows import and sign are gated on non-empty env" \
+  bash -c "awk '
+    /WINDOWS_CERTIFICATE:-/ { gated = 1 }
+    /Import-PfxCertificate|certificateThumbprint/ { if (gated) saw_sign = 1 }
+    /npx tauri build --bundles nsis/ && /--config/ { if (gated) saw_config = 1 }
+    /npx tauri build --bundles nsis/ && !/--config/ { saw_unsigned = 1 }
+    END { exit (gated && saw_sign && saw_config && saw_unsigned) ? 0 : 1 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "desktop.yml macOS notarize is gated on non-empty env" \
+  bash -c "awk '
+    /APPLE_CERTIFICATE:-/ { gated = 1 }
+    /APPLE_API_KEY_PATH|AuthKey_/ { if (gated) saw_key = 1 }
+    /export APPLE_CERTIFICATE/ { if (gated) saw_export = 1 }
+    /npx tauri build --bundles dmg/ { if (gated) saw_signed = 1 }
+    END { exit (gated && saw_key && saw_export && saw_signed) ? 0 : 1 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "desktop.yml missing-secret path has no exit 1" \
+  bash -c "awk '
+    /name: Build Tauri installer/ { in_step = 1 }
+    in_step && /^      - name:/ && !/Build Tauri installer/ { in_step = 0 }
+    in_step && /exit 1/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "desktop.yml does not export empty APPLE_CERTIFICATE" \
+  bash -c "awk '
+    /unset APPLE_CERTIFICATE/ { saw_unset = 1 }
+    /export APPLE_CERTIFICATE/ { saw_export = 1 }
+    /APPLE_CERTIFICATE:-/ { saw_gate = 1 }
+    END { exit (saw_unset && saw_export && saw_gate) ? 0 : 1 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "desktop.yml keeps unsigned fallback and does not use tauri-action" \
+  bash -c "awk '
+    /tauri-apps\\/tauri-action/ { action = 1 }
+    /TAURI_SIGNING_PRIVATE_KEY|secrets\\.APPLE_ID|secrets\\.APPLE_PASSWORD|KEYCHAIN_PASSWORD/ { extra = 1 }
+    /contents: read/ { read_perm = 1 }
+    END { exit (!action && !extra && read_perm) ? 0 : 1 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "verify.yml still has no codesign or notarize" \
+  bash -c "awk '
+    /codesign|notariz|APPLE_CERTIFICATE|WINDOWS_CERTIFICATE|certificateThumbprint/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/.github/workflows/verify.yml'"
+
+cert_repo="$tmpdir/cert-repo"
+mkdir -p "$cert_repo"
+git -C "$cert_repo" init -q
+printf 'pfx' > "$cert_repo/secret.pfx"
+git -C "$cert_repo" add secret.pfx
+expect_failure \
+  "tracked pfx fails the artifact check" \
+  "secret.pfx" \
+  bash -c "cd '$cert_repo' && bash '$repo_root/scripts/check-release-artifacts.sh'"
+
+printf 'p12' > "$cert_repo/secret.p12"
+git -C "$cert_repo" add secret.p12
+expect_failure \
+  "tracked p12 fails the artifact check" \
+  "secret.p12" \
+  bash -c "cd '$cert_repo' && bash '$repo_root/scripts/check-release-artifacts.sh'"
+
+printf 'p8' > "$cert_repo/secret.p8"
+git -C "$cert_repo" add secret.p8
+expect_failure \
+  "tracked p8 fails the artifact check" \
+  "secret.p8" \
+  bash -c "cd '$cert_repo' && bash '$repo_root/scripts/check-release-artifacts.sh'"
+
+expect_success \
   "repository validation decision is closed" \
   bash scripts/check-validation-decision.sh
 

@@ -1,25 +1,31 @@
+from __future__ import annotations
+
 import hashlib
 import json
 import math
 import os
 import stat
+import threading
 import time
 import uuid
 from collections.abc import Callable, Iterator
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO
 
-from PIL import ExifTags, Image, ImageOps, UnidentifiedImageError
+from PIL import AvifImagePlugin, ExifTags, Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.ai.embeddings import image_embedding, perceptual_hash
+from app.core.app_settings import load_import_workers
 from app.core.local_paths import normalize_user_path
 from app.db.session import get_engine
 from app.image.heif_support import ensure_heif_opener
+from app.image.raw_preview import RAW_NO_PREVIEW_REASON, RawPreviewError, extract_raw_preview_image
 from app.image.scoring import compute_quality_scores_for_image
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.services.jobs import (
@@ -34,8 +40,8 @@ from app.services.jobs import (
     release_stale_interrupted_lease,
 )
 
-SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
-PLANNED_RAW_EXTENSIONS = {".arw", ".cr3", ".dng", ".nef"}
+RAW_EXTENSIONS = {".arw", ".cr3", ".dng", ".nef"}
+SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif"} | RAW_EXTENSIONS
 EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 CONTENT_HASH_CHUNK_SIZE = 1024 * 1024
 IMPORT_COPY_CHUNK_SIZE = 1024 * 1024
@@ -52,6 +58,8 @@ PATH_IMPORT_MAX_INPUT_ENTRIES = 5000
 PATH_IMPORT_MAX_EXPANDED_FILES = 20000
 
 ensure_heif_opener()
+if not AvifImagePlugin.SUPPORTED:
+    raise RuntimeError("Pillow AVIF support is required")
 
 ImportProgressCallback = Callable[[str], None]
 
@@ -132,6 +140,13 @@ def expand_import_paths(paths: list[str], project_root: Path) -> ExpandedImportP
         if not is_supported_image(resolved.name):
             skipped.append({"filename": resolved.name, "reason": unsupported_image_reason(resolved.name)})
             return
+        if resolved.suffix.lower() in RAW_EXTENSIONS:
+            try:
+                preview = extract_raw_preview_image(resolved)
+            except RawPreviewError:
+                skipped.append({"filename": resolved.name, "reason": RAW_NO_PREVIEW_REASON})
+                return
+            preview.close()
         collected.append(resolved)
         if len(collected) > PATH_IMPORT_MAX_EXPANDED_FILES:
             raise ValueError(f"Expansion exceeded {PATH_IMPORT_MAX_EXPANDED_FILES} files")
@@ -428,9 +443,15 @@ def is_supported_image(filename: str) -> bool:
 
 def unsupported_image_reason(filename: str) -> str:
     extension = Path(filename).suffix.lower()
-    if extension in PLANNED_RAW_EXTENSIONS:
-        return "RAW files are not supported yet; import JPEG, PNG, or WebP files for this release"
+    if extension in RAW_EXTENSIONS:
+        return RAW_NO_PREVIEW_REASON
     return "Only JPEG, PNG, and WebP files are supported"
+
+
+def _open_imported_image(path: Path) -> Image.Image:
+    if path.suffix.lower() in RAW_EXTENSIONS:
+        return extract_raw_preview_image(path)
+    return Image.open(path)
 
 
 def _unique_path(directory: Path, filename: str) -> Path:
@@ -615,7 +636,7 @@ def ensure_photo_derivatives(project: Project, photo: Photo) -> list[str]:
         raise ValueError("Copied original file is missing")
 
     project_root = Path(project.root_path)
-    with Image.open(source_path) as opened:
+    with _open_imported_image(source_path) as opened:
         image = ImageOps.exif_transpose(opened).convert("RGB")
         regenerated_thumbnail, regenerated_preview = _save_derivatives(project_root, source_path, image)
 
@@ -773,7 +794,7 @@ def import_image_file(
             if progress_callback:
                 progress_callback("image_open")
             with import_timing_stage(timing, "image_open"):
-                opened_image = Image.open(source_path)
+                opened_image = _open_imported_image(source_path)
             with opened_image as opened:
                 if progress_callback:
                     progress_callback("metadata_extraction")
@@ -803,6 +824,9 @@ def import_image_file(
                     progress_callback("perceptual_hash")
                 with import_timing_stage(timing, "perceptual_hash"):
                     p_hash = perceptual_hash(image)
+        except RawPreviewError:
+            _cleanup_paths(source_path, thumbnail_path, preview_path)
+            raise
         except (UnidentifiedImageError, OSError) as error:
             _cleanup_paths(source_path, thumbnail_path, preview_path)
             raise ValueError("Uploaded file could not be opened as a supported image") from error
@@ -882,6 +906,14 @@ def register_import_file(
     with import_timing_stage(timing, "file_copy"):
         _copy_file_to_path(file, source_path)
 
+    if Path(safe_name).suffix.lower() in RAW_EXTENSIONS:
+        try:
+            preview = extract_raw_preview_image(source_path)
+        except RawPreviewError:
+            _cleanup_paths(source_path)
+            raise
+        preview.close()
+
     if progress_callback:
         progress_callback("content_hash")
     with import_timing_stage(timing, "content_hash"):
@@ -939,7 +971,7 @@ def process_registered_import_photo(
         if progress_callback:
             progress_callback("image_open")
         with import_timing_stage(timing, "image_open"):
-            opened_image = Image.open(source_path)
+            opened_image = _open_imported_image(source_path)
         with opened_image as opened:
             if progress_callback:
                 progress_callback("metadata_extraction")
@@ -969,6 +1001,9 @@ def process_registered_import_photo(
                 progress_callback("perceptual_hash")
             with import_timing_stage(timing, "perceptual_hash"):
                 p_hash = perceptual_hash(image)
+    except RawPreviewError:
+        _cleanup_paths(thumbnail_path, preview_path)
+        raise
     except (UnidentifiedImageError, OSError) as error:
         _cleanup_paths(thumbnail_path, preview_path)
         raise ValueError("Uploaded file could not be opened as a supported image") from error
@@ -1071,6 +1106,121 @@ def reset_import_photos_after_interrupt(session: Session, project_id: str, reaso
     _reset_import_photos_after_crash(session, photo_ids, reason)
 
 
+@dataclass(frozen=True, slots=True)
+class _ImportDerivativeTaskResult:
+    index: int
+    photo_id: str
+    kind: str
+    filename: str | None = None
+    reason: str | None = None
+
+
+def _run_one_import_derivative_task(project_id: str, photo_id: str, index: int) -> _ImportDerivativeTaskResult:
+    with Session(get_engine()) as session:
+        photo = session.get(Photo, photo_id)
+        project = session.get(Project, project_id)
+        if photo is None or project is None or photo.project_id != project.id:
+            return _ImportDerivativeTaskResult(index=index, photo_id=photo_id, kind="missing")
+        if _photo_derivatives_exist(photo):
+            photo.processing_state = "imported"
+            photo.processing_error = None
+            photo.recommendation_explanation = "Import derivatives are available."
+            photo.updated_at = utc_now()
+            session.add(photo)
+            session.commit()
+            return _ImportDerivativeTaskResult(index=index, photo_id=photo.id, kind="already")
+        try:
+            process_registered_import_photo(session, project, photo)
+            return _ImportDerivativeTaskResult(index=index, photo_id=photo.id, kind="processed")
+        except ValueError as error:
+            _mark_import_photo_failed(session, photo, str(error))
+            return _ImportDerivativeTaskResult(
+                index=index,
+                photo_id=photo.id,
+                kind="failed",
+                filename=photo.filename,
+                reason=str(error),
+            )
+
+
+def _run_import_derivatives_parallel(
+    session: Session,
+    job: ProcessingJob,
+    project: Project,
+    photo_ids: list[str],
+    skipped: list[dict[str, str]],
+    processed_count: int,
+    failed_count: int,
+    worker_count: int,
+) -> None:
+    job_lock = threading.Lock()
+    total = len(photo_ids)
+    remaining = list(enumerate(photo_ids, start=1))
+    next_index = 0
+    cancelled = False
+
+    def cancel_requested() -> bool:
+        with job_lock:
+            return _import_job_cancellation_requested(session, job)
+
+    def record_progress(step: str, processed: int, failed: int) -> None:
+        with job_lock:
+            update_import_job(session, job, step, processed, failed, force=True)
+
+    def apply_checkpoint(photo_id: str) -> None:
+        with job_lock:
+            apply_job_checkpoint(session, job, photo_id=photo_id, stage="derivative_generation")
+
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        in_flight: set[Future[_ImportDerivativeTaskResult]] = set()
+
+        def submit_available() -> None:
+            nonlocal next_index
+            while (not cancelled) and next_index < len(remaining) and len(in_flight) < worker_count:
+                index, photo_id = remaining[next_index]
+                next_index += 1
+                in_flight.add(executor.submit(_run_one_import_derivative_task, project.id, photo_id, index))
+
+        submit_available()
+        while in_flight:
+            if cancel_requested():
+                cancelled = True
+            done, pending = wait(in_flight, return_when=FIRST_COMPLETED)
+            in_flight = set(pending)
+            for future in done:
+                result = future.result()
+                if result.kind in {"processed", "already"}:
+                    processed_count += 1
+                    record_progress(
+                        f"derivative_generation {result.index} of {total}",
+                        processed_count,
+                        failed_count,
+                    )
+                    apply_checkpoint(result.photo_id)
+                elif result.kind == "missing":
+                    skipped.append({"filename": result.photo_id, "reason": "Registered photo was not found"})
+                    failed_count += 1
+                    record_progress(f"photo_missing {result.index} of {total}", processed_count, failed_count)
+                else:
+                    skipped.append(
+                        {
+                            "filename": result.filename or result.photo_id,
+                            "reason": result.reason or "Import derivative generation failed",
+                        }
+                    )
+                    failed_count += 1
+                    record_progress(f"file_failed {result.index} of {total}", processed_count, failed_count)
+            if not cancelled and cancel_requested():
+                cancelled = True
+            if not cancelled:
+                submit_available()
+
+    if cancelled or cancel_requested():
+        _cancel_import_job(session, job, processed_count, failed_count)
+        return
+    complete_import_job(session, job, processed_count, skipped)
+
+
 def run_import_derivative_job(
     job_id: str,
     photo_ids: list[str],
@@ -1078,6 +1228,7 @@ def run_import_derivative_job(
     *,
     worker_id: str | None = None,
 ) -> None:
+    import_workers = load_import_workers()
     skipped = list(initial_skipped or [])
     with Session(get_engine()) as session:
         job = session.get(ProcessingJob, job_id)
@@ -1116,6 +1267,19 @@ def run_import_derivative_job(
             )
             if _import_job_cancellation_requested(session, job):
                 _cancel_import_job(session, job, processed_count, failed_count)
+                return
+
+            if import_workers > 1:
+                _run_import_derivatives_parallel(
+                    session,
+                    job,
+                    project,
+                    photo_ids,
+                    skipped,
+                    processed_count,
+                    failed_count,
+                    import_workers,
+                )
                 return
 
             for index, photo_id in enumerate(photo_ids, start=1):

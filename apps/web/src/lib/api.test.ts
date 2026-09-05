@@ -207,6 +207,27 @@ test("registerDesktopProjectRoot posts the picked path", async () => {
   assert.deepEqual(calls[0]?.body, { path: "/picked/folder" });
 });
 
+test("changeDesktopDataDir posts the authorized path", async () => {
+  const calls: { url: string; body: unknown }[] = [];
+  await withMockedFetch(
+    async (url, init) => {
+      calls.push({ url, body: JSON.parse(String(init?.body)) });
+      return new Response(JSON.stringify({ data_dir: "/picked/data" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    async () => {
+      const moved = await api.changeDesktopDataDir("/picked/data");
+      assert.deepEqual(moved, { data_dir: "/picked/data" });
+    },
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.url.endsWith("/api/desktop/data-dir"), true);
+  assert.deepEqual(calls[0]?.body, { path: "/picked/data" });
+});
+
 test("assetUrl and exportDownloadUrl reread the API base on each call", () => {
   const first = "http://127.0.0.1:18000";
   const second = "http://127.0.0.1:18001";

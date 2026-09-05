@@ -98,6 +98,7 @@ pub enum CloseJobKind {
     None,
     Import,
     Processing,
+    Export,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -120,6 +121,8 @@ pub struct ActiveJobRef {
     pub job_id: String,
     pub job_type: String,
     pub status: String,
+    pub progress_percent: i32,
+    pub current_step: String,
 }
 
 pub fn shutdown_action(term_sent: bool, elapsed: Duration, grace: Duration) -> ShutdownAction {
@@ -136,6 +139,7 @@ pub fn close_job_kind(job: Option<&ActiveJobRef>) -> CloseJobKind {
     match job.map(|job| job.job_type.as_str()) {
         Some("import") => CloseJobKind::Import,
         Some("processing") => CloseJobKind::Processing,
+        Some("export") => CloseJobKind::Export,
         Some(_) => CloseJobKind::Processing,
         None => CloseJobKind::None,
     }
@@ -146,7 +150,9 @@ pub fn close_decision(kind: CloseJobKind, choice: CloseChoice) -> CloseDecision 
         CloseChoice::Stay => CloseDecision::Stay,
         CloseChoice::QuitAnyway => CloseDecision::Terminate,
         CloseChoice::CancelAndQuit => match kind {
-            CloseJobKind::Import | CloseJobKind::Processing => CloseDecision::CancelThenTerminate,
+            CloseJobKind::Import | CloseJobKind::Processing | CloseJobKind::Export => {
+                CloseDecision::CancelThenTerminate
+            }
             CloseJobKind::None => CloseDecision::Terminate,
         },
     }
@@ -250,6 +256,11 @@ pub fn quit_dialog_script_with_reclaim(kind: CloseJobKind, reclaim_on_startup: b
             },
             r#"<button type=\"button\" data-choice=cancel_and_quit>Quit and cancel processing</button>"#,
         ),
+        CloseJobKind::Export => (
+            "Export is still running",
+            "You can keep working, quit and cancel the export, or quit anyway. Cancelled exports clean partial CSV, ZIP, and folder artifacts under the project export directory. Original photos stay unchanged. Quit anyway SIGTERMs the sidecar; the next launch still fail-and-cleanup leftover exports (they are not reclaimed).",
+            r#"<button type=\"button\" data-choice=cancel_and_quit>Quit and cancel export</button>"#,
+        ),
         CloseJobKind::None => return String::new(),
     };
     format!(
@@ -348,9 +359,19 @@ pub fn api_base_url(port: u16) -> String {
 }
 
 pub fn initialization_script(port: u16) -> String {
+    initialization_script_for_window(port, "main")
+}
+
+pub fn initialization_script_for_window(port: u16, window_label: &str) -> String {
+    let label = if window_label == "preview" {
+        "preview"
+    } else {
+        "main"
+    };
     format!(
-        "window.__FRAMEPILOT_API_BASE__ = \"{}\";\nwindow.__FRAMEPILOT_DESKTOP__ = true;",
-        api_base_url(port)
+        "window.__FRAMEPILOT_API_BASE__ = \"{}\";\nwindow.__FRAMEPILOT_DESKTOP__ = true;\nwindow.__FRAMEPILOT_WINDOW__ = \"{}\";",
+        api_base_url(port),
+        label
     )
 }
 
@@ -705,6 +726,7 @@ pub struct SidecarState {
     child: Mutex<Option<Child>>,
     shutdown: AtomicBool,
     pub close_in_progress: AtomicBool,
+    pub relocate_in_progress: AtomicBool,
 }
 
 impl SidecarState {
@@ -713,6 +735,7 @@ impl SidecarState {
             child: Mutex::new(None),
             shutdown: AtomicBool::new(false),
             close_in_progress: AtomicBool::new(false),
+            relocate_in_progress: AtomicBool::new(false),
         })
     }
 
@@ -798,6 +821,29 @@ fn job_is_active(status: &str) -> bool {
     status == "queued" || status == "running"
 }
 
+fn job_progress_percent_from_json(job: &serde_json::Value) -> i32 {
+    job.get("progress_percent")
+        .and_then(|value| value.as_f64())
+        .map(|value| value.round().clamp(0.0, 100.0) as i32)
+        .unwrap_or(0)
+}
+
+fn job_current_step_from_json(job: &serde_json::Value, status: &str) -> String {
+    let trimmed = job
+        .get("current_step")
+        .and_then(|value| value.as_str())
+        .unwrap_or("")
+        .trim();
+    if !trimmed.is_empty() {
+        return trimmed.to_string();
+    }
+    if status == "queued" {
+        "Queued".to_string()
+    } else {
+        "Running".to_string()
+    }
+}
+
 pub fn first_active_job_from_projects_json(body: &str) -> Option<ActiveJobRef> {
     let value: serde_json::Value = serde_json::from_str(body).ok()?;
     for project in value.as_array()? {
@@ -819,6 +865,8 @@ pub fn first_active_job_from_projects_json(body: &str) -> Option<ActiveJobRef> {
                 .unwrap_or("import")
                 .to_string(),
             status: status.to_string(),
+            progress_percent: job_progress_percent_from_json(job),
+            current_step: job_current_step_from_json(job, status),
         });
     }
     None
@@ -840,6 +888,8 @@ pub fn first_active_job_from_jobs_json(project_id: &str, body: &str) -> Option<A
             job_id: job.get("id")?.as_str()?.to_string(),
             job_type: job.get("job_type")?.as_str()?.to_string(),
             status: status.to_string(),
+            progress_percent: job_progress_percent_from_json(job),
+            current_step: job_current_step_from_json(job, status),
         });
     }
     None
@@ -1163,6 +1213,12 @@ mod tests {
         assert!(script.contains("window.__FRAMEPILOT_DESKTOP__ = true;"));
         assert!(!script.contains("__FRAMEPILOT_DESKTOP__ = \"true\""));
         assert!(!script.contains("__FRAMEPILOT_DESKTOP__ = 1"));
+        assert!(script.contains("window.__FRAMEPILOT_WINDOW__ = \"main\";"));
+        assert!(!script.contains("__FRAMEPILOT_WINDOW__ = true"));
+        assert!(initialization_script_for_window(4242, "preview")
+            .contains("window.__FRAMEPILOT_WINDOW__ = \"preview\";"));
+        assert!(initialization_script_for_window(4242, "preview")
+            .contains("window.__FRAMEPILOT_DESKTOP__ = true;"));
     }
 
     #[test]
@@ -1205,6 +1261,10 @@ mod tests {
             CloseDecision::CancelThenTerminate
         );
         assert_eq!(
+            close_decision(CloseJobKind::Export, CloseChoice::CancelAndQuit),
+            CloseDecision::CancelThenTerminate
+        );
+        assert_eq!(
             close_decision(CloseJobKind::None, CloseChoice::CancelAndQuit),
             CloseDecision::Terminate
         );
@@ -1226,6 +1286,8 @@ mod tests {
                 job_id: "j".into(),
                 job_type: "import".into(),
                 status: "running".into(),
+                progress_percent: 0,
+                current_step: String::new(),
             })),
             CloseJobKind::Import
         );
@@ -1235,8 +1297,21 @@ mod tests {
                 job_id: "j".into(),
                 job_type: "processing".into(),
                 status: "queued".into(),
+                progress_percent: 0,
+                current_step: String::new(),
             })),
             CloseJobKind::Processing
+        );
+        assert_eq!(
+            close_job_kind(Some(&ActiveJobRef {
+                project_id: "p".into(),
+                job_id: "j".into(),
+                job_type: "export".into(),
+                status: "running".into(),
+                progress_percent: 0,
+                current_step: String::new(),
+            })),
+            CloseJobKind::Export
         );
         assert_eq!(parse_quit_choice("\"cancel_and_quit\""), Some(CloseChoice::CancelAndQuit));
         assert_eq!(parse_quit_choice("stay"), Some(CloseChoice::Stay));
@@ -1258,6 +1333,15 @@ mod tests {
         assert!(processing_script.contains("Keep working"));
         assert!(processing_script.contains("Quit anyway"));
         assert!(!processing_script.contains("cannot be cancelled"));
+        let export_script = quit_dialog_script(CloseJobKind::Export);
+        assert!(export_script.contains("Quit and cancel export"));
+        assert!(export_script.contains("data-choice=cancel_and_quit"));
+        assert!(export_script.contains("Keep working"));
+        assert!(export_script.contains("Quit anyway"));
+        assert!(export_script.contains("fail-and-cleanup") || export_script.contains("fail and cleanup"));
+        assert!(!export_script.contains("Quit and cancel processing"));
+        assert!(!export_script.contains("cannot be cancelled"));
+        assert!(!export_script.contains("reclaim leftover"));
     }
 
     #[test]
@@ -1274,6 +1358,13 @@ mod tests {
         assert!(!processing_disabled.contains("cannot be cancelled"));
         let import_disabled = quit_dialog_script_with_reclaim(CloseJobKind::Import, false);
         assert!(import_disabled.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled"));
+        let export_enabled = quit_dialog_script_with_reclaim(CloseJobKind::Export, true);
+        let export_disabled = quit_dialog_script_with_reclaim(CloseJobKind::Export, false);
+        assert!(export_enabled.contains("Quit and cancel export"));
+        assert!(export_disabled.contains("Quit and cancel export"));
+        assert!(export_enabled.contains("Original photos stay unchanged") || export_enabled.contains("originals"));
+        assert!(!export_enabled.contains("interrupt and reclaim leftover"));
+        assert!(!export_disabled.contains("interrupt and reclaim leftover"));
     }
 
     #[test]
@@ -1338,6 +1429,20 @@ mod tests {
     }
 
     #[test]
+    fn quit_dialog_script_export_is_valid_javascript_with_cancel() {
+        let export_script = quit_dialog_script(CloseJobKind::Export);
+        assert!(
+            export_script.contains("data-choice=cancel_and_quit"),
+            "export overlay must keep data-choice=cancel_and_quit: {export_script}"
+        );
+        assert!(export_script.contains("Quit and cancel export"));
+        assert!(export_script.contains("Quit anyway"));
+        assert!(!export_script.contains("Quit and cancel processing"));
+        assert!(!export_script.contains("cannot be cancelled"));
+        assert_javascript_parses(&export_script);
+    }
+
+    #[test]
     fn close_choice_from_handshake_unresolved_stays() {
         assert_eq!(close_choice_from_handshake(None), CloseChoice::Stay);
         assert_eq!(
@@ -1398,6 +1503,13 @@ mod tests {
             ),
             CloseDecision::CancelThenTerminate
         );
+        assert_eq!(
+            close_decision(
+                CloseJobKind::Export,
+                close_choice_from_handshake(Some("cancel_and_quit"))
+            ),
+            CloseDecision::CancelThenTerminate
+        );
     }
 
     #[test]
@@ -1424,7 +1536,7 @@ mod tests {
             AppQuitAction::RequestShutdown
         );
 
-        for kind in [CloseJobKind::Import, CloseJobKind::Processing] {
+        for kind in [CloseJobKind::Import, CloseJobKind::Processing, CloseJobKind::Export] {
             let stay = close_decision(kind, CloseChoice::Stay);
             assert_eq!(stay, CloseDecision::Stay);
             assert!(!close_decision_requests_shutdown(stay));
@@ -1445,6 +1557,10 @@ mod tests {
             CloseJobKind::Processing,
             CloseChoice::CancelAndQuit
         )));
+        assert!(close_decision_requests_shutdown(close_decision(
+            CloseJobKind::Export,
+            CloseChoice::CancelAndQuit
+        )));
     }
 
     #[test]
@@ -1453,12 +1569,26 @@ mod tests {
         let import_job = first_active_job_from_projects_json(projects).expect("import job");
         assert_eq!(import_job.job_id, "job-1");
         assert_eq!(import_job.job_type, "import");
+        assert_eq!(import_job.progress_percent, 0);
+        assert_eq!(import_job.current_step, "Running");
         let idle = r#"[{"id":"proj-1","active_import_job":null}]"#;
         assert_eq!(first_active_job_from_projects_json(idle), None);
-        let jobs = r#"[{"id":"job-2","project_id":"proj-1","job_type":"processing","status":"queued"}]"#;
+        let jobs = r#"[{"id":"job-2","project_id":"proj-1","job_type":"processing","status":"queued","current_step":"Building groups","progress_percent":42.4}]"#;
         let processing = first_active_job_from_jobs_json("proj-1", jobs).expect("processing job");
         assert_eq!(processing.job_id, "job-2");
         assert_eq!(processing.job_type, "processing");
+        assert_eq!(processing.progress_percent, 42);
+        assert_eq!(processing.current_step, "Building groups");
+        let export_jobs = r#"[{"id":"job-3","project_id":"proj-1","job_type":"export","status":"running","progress_percent":130}]"#;
+        let export_job = first_active_job_from_jobs_json("proj-1", export_jobs).expect("export job");
+        assert_eq!(export_job.job_id, "job-3");
+        assert_eq!(export_job.job_type, "export");
+        assert_eq!(export_job.progress_percent, 100);
+        assert_eq!(export_job.current_step, "Running");
+        let missing = r#"[{"id":"proj-1","active_import_job":{"id":"job-4","job_type":"import","status":"queued","current_step":"  "}}]"#;
+        let queued = first_active_job_from_projects_json(missing).expect("queued import");
+        assert_eq!(queued.progress_percent, 0);
+        assert_eq!(queued.current_step, "Queued");
     }
 
     fn wait_until_listening(port: u16, timeout: Duration) {

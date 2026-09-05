@@ -12,6 +12,9 @@ const navigationRouter = path.resolve(desktopRoot, "src/navigation.router.tsx");
 const webNativeFs = path.resolve(webSrc, "lib/nativeFs.ts");
 const webNativeFsBare = webNativeFs.replace(/\.ts$/, "");
 const desktopNativeFs = path.resolve(desktopRoot, "src/lib/nativeFs.ts");
+const webDetachedPreview = path.resolve(webSrc, "lib/detachedPreview.ts");
+const webDetachedPreviewBare = webDetachedPreview.replace(/\.ts$/, "");
+const desktopDetachedPreview = path.resolve(desktopRoot, "src/lib/detachedPreview.ts");
 const reactPkg = path.resolve(desktopRoot, "node_modules/react");
 const reactDomPkg = path.resolve(desktopRoot, "node_modules/react-dom");
 
@@ -87,8 +90,42 @@ function aliasNativeFs(): Plugin {
   };
 }
 
+function isWebDetachedPreview(id: string): boolean {
+  const normalized = id.replace(/\\/g, "/");
+  const previewPath = webDetachedPreview.replace(/\\/g, "/");
+  const previewBare = webDetachedPreviewBare.replace(/\\/g, "/");
+  return (
+    normalized === previewPath ||
+    normalized === previewBare ||
+    normalized.endsWith("/web/src/lib/detachedPreview") ||
+    normalized.endsWith("/web/src/lib/detachedPreview.ts")
+  );
+}
+
+function aliasDetachedPreview(): Plugin {
+  return {
+    name: "alias-detached-preview",
+    enforce: "pre",
+    resolveId(source, importer) {
+      if (isWebDetachedPreview(source)) {
+        return desktopDetachedPreview;
+      }
+      if (!importer) {
+        return null;
+      }
+      if (source === "./detachedPreview" || source === "./detachedPreview.ts") {
+        const resolved = path.resolve(path.dirname(importer), source);
+        if (isWebDetachedPreview(resolved)) {
+          return desktopDetachedPreview;
+        }
+      }
+      return null;
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), aliasNavigationNext(), aliasNativeFs()],
+  plugins: [react(), aliasNavigationNext(), aliasNativeFs(), aliasDetachedPreview()],
   clearScreen: false,
   resolve: {
     alias: [
@@ -102,6 +139,11 @@ export default defineConfig({
         replacement: desktopNativeFs,
       },
       { find: webNativeFs, replacement: desktopNativeFs },
+      {
+        find: new RegExp(`^${escapeRegExp(webDetachedPreviewBare)}(?:\\.ts)?$`),
+        replacement: desktopDetachedPreview,
+      },
+      { find: webDetachedPreview, replacement: desktopDetachedPreview },
       { find: "@", replacement: webSrc },
       { find: /^react$/, replacement: reactPkg },
       { find: /^react-dom$/, replacement: reactDomPkg },

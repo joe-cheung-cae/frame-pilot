@@ -18,6 +18,8 @@ const NATIVE_OWNED = [
   "close",
   "quit",
   "fullscreen",
+  "detached-preview",
+  "check-for-updates",
   "about",
   "undo",
   "redo",
@@ -101,4 +103,14 @@ test("rust menu source remains the native catalog and avoids reserved bare-key a
       assert.doesNotMatch(source, new RegExp(String.raw`accelerator\("${key.toLowerCase()}"\)`));
     }
   }
+  assert.match(source, /with_id\("detached-preview", "Detached preview"\)/);
+  const detachedIndex = source.indexOf('with_id("detached-preview"');
+  assert.notEqual(detachedIndex, -1);
+  const detachedSlice = source.slice(detachedIndex, detachedIndex + 180);
+  assert.doesNotMatch(detachedSlice, /accelerator/);
+  assert.match(source, /with_id\("check-for-updates", "Check for updates"\)/);
+  const updateIndex = source.indexOf('with_id("check-for-updates"');
+  assert.notEqual(updateIndex, -1);
+  const updateSlice = source.slice(updateIndex, updateIndex + 180);
+  assert.doesNotMatch(updateSlice, /accelerator/);
 });

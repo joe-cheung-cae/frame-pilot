@@ -78,7 +78,15 @@ test("apps/web source does not import Tauri plugins", () => {
 });
 
 test("desktop capabilities grant dialog and reveal-scoped opener without fs or shell", () => {
-  const capabilities = JSON.parse(fs.readFileSync(capabilitiesPath, "utf8")) as { permissions?: unknown[] };
+  const capabilities = JSON.parse(fs.readFileSync(capabilitiesPath, "utf8")) as {
+    windows?: unknown;
+    permissions?: unknown[];
+  };
+  const windows = Array.isArray(capabilities.windows)
+    ? capabilities.windows.filter((label): label is string => typeof label === "string")
+    : [];
+  assert.ok(windows.includes("main"));
+  assert.ok(windows.includes("preview"));
   const permissions = (capabilities.permissions ?? []).map((permission) =>
     typeof permission === "string" ? permission : JSON.stringify(permission),
   );

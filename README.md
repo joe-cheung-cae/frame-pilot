@@ -9,10 +9,10 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 - Next.js, React, TypeScript, Tailwind CSS frontend.
 - FastAPI, Pydantic, SQLModel, SQLite backend.
 - Local project folders with originals, thumbnails, previews, structured export/cache subdirectories, and logs.
-- JPEG, PNG, WebP, and HEIC/HEIF still imports. Originals are copied unchanged; thumbnails and previews are WebP; scoring and grouping run on decoded RGB via local `pillow-heif`. RAW files are still skipped with explicit local messages.
+- JPEG, PNG, WebP, HEIC/HEIF, AVIF, and RAW-with-embedded-preview still imports. Originals are copied unchanged; thumbnails and previews are WebP; scoring and grouping run on decoded RGB (HEIC/HEIF via local `pillow-heif`, AVIF via Pillow’s native `AvifImagePlugin`, RAW via LibRaw `extract_thumb` only). RAW without an embedded preview is skipped with an explicit local message.
 - Import jobs return after local upload/register work and continue derivative generation in a queryable, cooperatively cancellable local background task.
 - Processing is blocked while import derivative work is still active, and project navigation routes users back to import progress until the import job reaches a terminal state.
-- Processing (grouping and ranking) is cooperatively cancellable on the same job cancel route. Desktop quit can cancel an active processing job, then SIGTERM the sidecar.
+- Processing (grouping and ranking) and export jobs are cooperatively cancellable on the same job cancel route. Desktop quit can cancel an active processing or export job, then SIGTERM the sidecar.
 - Deterministic thumbnail and preview generation.
 - Basic metadata extraction and explainable image quality scoring.
 - Experimental local face and eye-open heuristic signals.
@@ -20,12 +20,12 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 - Group-focused culling with recommendation-first review ordering.
 - Pick, Maybe, Reject, and Unreviewed statuses.
 - Keyboard review shortcuts: arrows, P, M, X, U, 1-5, 0, Space, Z, C, G, F, and E.
-- CSV, folder, and ZIP export modes with unique local export outputs, export history, and project-originals source containment for file exports.
+- CSV, folder, and ZIP export modes with unique local export outputs, export history, project-originals source containment for file exports, and an optional XMP sidecar checkbox (default off) that writes `.xmp` only under the project export directory.
 
 Known v2.0 limitations:
 
-- RAW files such as DNG, ARW, CR3, and NEF are skipped with explicit local messages. HEIC/HEIF stills import locally; Live Photo `.mov` companions, AVIF, HDR gain-map tone mapping, and XMP writes are not implemented.
-- Import and processing jobs run in the local API process or the optional local worker (`npm run worker`). Progress, cooperative import and processing cancellation, stale-job detection, active-import processing guards, safe import retry, and stale-processing cleanup are available. By default leftover active import/processing jobs are marked `interrupted` on the next startup and reclaimed (`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on; set `0`/`false`/`no`/`off` for fail-and-retry). Export jobs are not cancellable and are not reclaimed.
+- RAW files such as DNG, ARW, CR3, and NEF import when they have an embedded preview (copy original bytes; WebP from the preview RGB; no demosaic). RAW without a preview is skipped with an explicit local message. HEIC/HEIF and AVIF stills import locally; Live Photo `.mov` companions and HDR gain-map tone mapping are not implemented. Optional XMP sidecars are export-directory only (never beside originals or in image bytes).
+- Import and processing jobs run in the local API process or the optional local worker (`npm run worker`). Progress, cooperative import, processing, and export cancellation, stale-job detection, active-import processing guards, safe import retry, and stale-processing cleanup are available. By default leftover active import/processing jobs are marked `interrupted` on the next startup and reclaimed (`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on; set `0`/`false`/`no`/`off` for fail-and-retry). Export jobs are cancellable and are not reclaimed (fail-and-cleanup).
 - Experimental face and eye-open signals are deterministic local heuristics, not professional face detection, eye-state detection, identity recognition, or biometric analysis.
 - Grouping and ranking remain recommendation aids. The user keeps final control through manual statuses and star ratings.
 
@@ -52,7 +52,7 @@ Installable Windows (NSIS) and macOS (DMG) builds start the UI and a local API s
 Typical workflow:
 
 1. Create a project.
-2. Import JPEG, PNG, WebP, or HEIC/HEIF stills. Valid files are registered locally, preview generation continues through a visible import job, and a running import can be cancelled at safe checkpoints without deleting originals or completed previews. Same-file reimports or import retries can reuse existing local records and generated previews. RAW stays skipped.
+2. Import JPEG, PNG, WebP, HEIC/HEIF, AVIF, or RAW stills with an embedded preview. Valid files are registered locally, preview generation continues through a visible import job, and a running import can be cancelled at safe checkpoints without deleting originals or completed previews. Same-file reimports or import retries can reuse existing local records and generated previews. RAW without a preview is skipped.
 3. Run processing after the import job completes. If import is still running, FramePilot keeps the project on import progress and rejects direct process requests.
 4. Review photos by group and mark Pick, Maybe, Reject, or Unreviewed.
 5. Export one or more selected statuses to CSV, folder, or ZIP. CSV and ZIP exports can be downloaded from the browser, and previous exports remain visible in export history.
@@ -148,7 +148,7 @@ See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for groupi
 
 ## Desktop packaging
 
-CI may upload **unsigned** Windows NSIS and macOS DMG installers for internal testing. Expect SmartScreen / Gatekeeper warnings; do not treat unsigned packages as public releases. See [Desktop Code Signing Runbook](docs/desktop_signing.md) and the [Desktop User Guide](docs/desktop_user_guide.md). Missing certificates must not block the first desktop RC. Manual checks: [Desktop Testing Matrix](docs/desktop_testing.md).
+CI is signing-ready: Windows Authenticode and macOS Developer ID + notarization run when the full GitHub Actions secret set is present. Missing secrets keep the **unsigned** NSIS/DMG upload green for internal testing. Expect SmartScreen / Gatekeeper warnings on unsigned packages; do not treat them as public releases. See [Desktop Code Signing Runbook](docs/desktop_signing.md) and the [Desktop User Guide](docs/desktop_user_guide.md). Missing certificates must not block the first desktop RC. Manual checks: [Desktop Testing Matrix](docs/desktop_testing.md). Phase 9 leftover desktop-plan 2.2 items shipped except cache knobs, auto-download/install, and macOS GUI pass; dual-platform installer GUI DoD is not claimed (Windows NSIS pass; macOS DMG skip). See [Known Limitations](docs/v2_known_limitations.md).
 
 ## Privacy
 

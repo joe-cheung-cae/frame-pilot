@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
+import { DetachedPreviewPane } from "@/components/DetachedPreviewPane";
+import { isPreviewWindow } from "@/lib/detachedPreview";
 import { MENU_EVENT, resolveMenuCommand } from "@/lib/menuRoutes";
 import { useNavigator } from "@/lib/navigation";
 import { loadLastOpenedProjectId } from "@/lib/recentProjects";
@@ -29,6 +31,13 @@ function NativeMenuListener() {
 export function App() {
   const [queryClient] = useState(() => new QueryClient());
   applyShellDataset();
+  if (isPreviewWindow()) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <DetachedPreviewPane />
+      </QueryClientProvider>
+    );
+  }
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>

@@ -27,6 +27,8 @@ FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，
   - Windows：`%APPDATA%\FramePilot`
   - Linux（开发壳）：`~/.local/share/FramePilot`
 - 打开 **Settings** 确认数据目录（`GET /api/meta`）。仅在明确需要时用绝对路径的 `FRAMEPILOT_DATA_DIR` 覆盖。
+- **Change data directory**（仅桌面）把当前应用数据目录拷贝到你选择并授权的空文件夹（`POST /api/desktop/project-roots`，然后 `POST /api/desktop/data-dir`）。该目录内的已存项目路径会被改写。相机卡和其他源文件夹不移动、不修改。旧数据目录留在磁盘。绝对路径的 `FRAMEPILOT_DATA_DIR` 仍优先于指针文件。
+- **Import workers**（1–4，默认 1）可加快大导入的缩略图和预览。分组和排序仍是每个项目一个作业。原片不变。该值作用于下一次导入作业（`GET`/`PATCH /api/settings`）。
 
 ---
 
@@ -43,7 +45,7 @@ FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，
 
 - 优先 **Choose a folder** 或 **Choose image files**（原生对话框）。桌面使用路径导入（`POST .../imports/from-paths`），不会经 WebView File API 上传成千上万字节。
 - 每次 HTTP 请求最多消费 **100** 个展开后的文件。大文件夹用同一 `job_id` 继续，直到最后一片 `finalize`。
-- 支持：JPEG、PNG、WebP 以及 HEIC/HEIF 静帧。原片原样拷贝；预览为 WebP。RAW 会以本地提示跳过。
+- 支持：JPEG、PNG、WebP、HEIC/HEIF、AVIF 静帧，以及带内嵌预览的 RAW（`.dng`、`.arw`、`.cr3`、`.nef`）。原片原样拷贝；预览为静帧 RGB 或 RAW 内嵌预览生成的 WebP。没有预览的 RAW 会以本地提示跳过。
 - 有效文件**复制**到 `{root_path}/originals`。源卡与源文件夹保持不动（size、mtime、字节）。
 
 也可以仅在导入页拖放文件/文件夹。在其他页面拖放不得开始导入。
@@ -53,15 +55,33 @@ FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，
 ## 处理、筛选、导出
 
 1. 导入完成后运行分组与排序（**Process Project**）。
-2. 打开筛选工作区。键盘快捷键与 web 一致（P/M/X/U、星级、导航）。Help 将桌面菜单组合键（CmdOrCtrl+N/W/Q）与裸筛选键分开列出。
-3. 在 **Export Selection** 导出 CSV、ZIP 和/或文件夹。产物落在 `{root_path}/exports/...`。
+2. 打开筛选工作区。键盘快捷键与 web 一致（P/M/X/U、星级、导航）。Help 将桌面菜单组合键（CmdOrCtrl+N/W/Q）与裸筛选键分开列出。裸筛选键只作用于聚焦窗口。
+3. 在 **Export Selection** 导出 CSV、ZIP 和/或文件夹。产物落在 `{root_path}/exports/...`。可选 **Write XMP sidecars**（默认关）会在文件夹拷贝旁和 ZIP 内写 `.xmp`；永不写到原片旁。CSV 已含状态和星级。
 4. 使用 **Open export folder**（揭示）或 **Copy Path**。桌面不要求经浏览器下载锚点。
+
+---
+
+## 独立预览
+
+**View → Detached preview**（或筛选工具栏的 **Toggle detached preview**）打开第二个窗口，显示当前筛选照片；compare 打开时显示 compare 集合。选中与主工作区共享。Space 和 Eye 仍切换壳内预览，不会被替换。裸筛选键（P/M/X/U、星级、方向键、Space 等）只作用于聚焦窗口。若第二个 WebView 无法创建，壳内预览仍在，应用不崩溃。关闭预览窗（或预览聚焦时 File → Close）不会退出 FramePilot。
+
+---
+
+## 检查更新
+
+在桌面壳中，**Help → Check for updates**（无快捷键）会向 GitHub Releases 查询是否有更新的 tag。FramePilot 不会在启动时或定时检查，也不会下载或安装构建。若 GitHub 没有可用的发布清单，检查是静默 no-op。HTTP 403 / 429 / 超时 / 5xx 显示本地对话框，不会让应用崩溃。浏览器/web 没有对应菜单项。请从 GitHub Actions 或已打 tag 的发布手动安装新构建。
+
+---
+
+## 系统托盘
+
+桌面壳在 FramePilot 运行时会尝试创建系统托盘图标。无头主机或部分 Linux 桌面可能创建失败；这是非致命的，主窗口仍会启动。Tooltip 与状态栏作业行一致（`Import · {step} · {n}%`、分组与排序、或导出；空闲为 `No active job`）。**Show**（或左键单击图标）恢复主窗口。**Quit** 走与 File → Quit 同一套进行中作业对话框。关窗口或 File → Close 仍是退出，不会藏到托盘。最小化仍留在任务栏或程序坞。
 
 ---
 
 ## 有任务时退出
 
-活跃**导入**时关闭，可选继续工作 / 退出并取消导入 / 仍要退出。活跃**处理**时关闭，可选继续工作 / 退出并取消处理 / 仍要退出。取消会 POST 同一 job cancel API，最多等待 10 秒，再对 sidecar 发送 SIGTERM。取消处理会清部分分组；原图不变。仍要退出会直接 SIGTERM sidecar，不等待取消完成。默认下次启动会将残留任务标为中断并回收；设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可改为标为失败以便手动重试。硬杀死不会被标记为 `cancelled`。细节见 [apps/desktop/README.zh.md](../apps/desktop/README.zh.md)。
+活跃**导入**时关闭，可选继续工作 / 退出并取消导入 / 仍要退出。活跃**处理**时关闭，可选继续工作 / 退出并取消处理 / 仍要退出。活跃**导出**时关闭，可选继续工作 / 退出并取消导出 / 仍要退出。取消会 POST 同一 job cancel API，最多等待 10 秒，再对 sidecar 发送 SIGTERM。取消处理会清部分分组；取消导出会清理不完整的 CSV/ZIP/文件夹产物；原图不变。仍要退出会直接 SIGTERM sidecar，不等待取消完成。默认下次启动会将残留导入/处理任务标为中断并回收；残留导出仍 fail-and-cleanup。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可改为将残留导入/处理任务标为失败以便手动重试。硬杀死不会被标记为 `cancelled`。细节见 [apps/desktop/README.zh.md](../apps/desktop/README.zh.md)。
 
 ---
 

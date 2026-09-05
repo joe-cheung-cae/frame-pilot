@@ -8,12 +8,16 @@ Base URL during development: `http://127.0.0.1:8000`.
 
 `GET /api/meta` returns `version`, `service`, `data_dir`, and `desktop_mode`. `data_dir` is the resolved `FRAMEPILOT_DATA_DIR` path. `desktop_mode` is `true` only when `FRAMEPILOT_DESKTOP=1`. This payload is not added to `/health`.
 
+`GET /api/settings` returns `{ "import_workers": 1 }` (default). `PATCH /api/settings` with `{ "import_workers": 2 }` persists an integer **1–4** in `{data_dir}/app_settings.json` (atomic tmp + replace). Omitted key or `{}` returns the current value. `0`, `5`, non-integers, and `null` return `422`. This knob is API-owned (not `localStorage`, not `/api/meta`) and applies to the **next** import derivative job. Processing stays one job per project.
+
 Implemented endpoints:
 
 ```text
 GET    /health
 GET    /api/health
 GET    /api/meta
+GET    /api/settings
+PATCH  /api/settings
 
 POST   /api/projects
 GET    /api/projects
@@ -22,6 +26,7 @@ DELETE /api/projects/{project_id}
 
 GET    /api/desktop/project-roots
 POST   /api/desktop/project-roots
+POST   /api/desktop/data-dir
 
 POST   /api/projects/{project_id}/imports
 POST   /api/projects/{project_id}/imports/from-paths
@@ -78,6 +83,8 @@ Project responses include image totals and processing metadata:
 When `POST /api/projects` omits `root_path` or sends it blank, FramePilot uses the default managed project directory. The project creation UI exposes this as an optional local project data folder field. Custom `root_path` values must be a usable local directory under `{data_dir}/projects`, a `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` entry, or a folder registered with `POST /api/desktop/project-roots`. Invalid storage paths return `422` before project metadata is created. Env allowlist entries are filtered with the same helpers as `register_root`: `$HOME`, `/`, drive roots, the data directory and its parents, and other blocked system names are ignored.
 
 `GET` and `POST /api/desktop/project-roots` exist only when `FRAMEPILOT_DESKTOP=1`; otherwise they return `404`. `POST` accepts `{"path": "/absolute/folder"}` for an existing directory, rejects blocked system paths, filesystem anchors, the current home directory (`Path.home()` / `$HOME`) by name, the data directory, and parents of the data directory, and stores at most 50 resolved paths in `{data_dir}/desktop_project_roots.json`. `GET` returns `{"roots": [...]}`. The registry is file-backed and is not stored in Settings.
+
+`POST /api/desktop/data-dir` exists only when `FRAMEPILOT_DESKTOP=1`; otherwise it returns `404`. The body is `{"path": "/absolute/empty-folder"}`. The destination must already be registered with `POST /api/desktop/project-roots`. Blocked, unregistered, nested, missing, and nonempty destinations return `422`. A job in `BLOCKING_JOB_STATUSES` returns `409`. Success copies the current data-directory tree (including SQLite `-wal`/`-shm`) into the destination, rewrites stored project/photo/export paths whose prefix is the old data directory in the **destination** database only, leaves the old tree byte-identical, never rewrites `Project.source_root_path`, and never copies or rewrites camera-card originals. The copied `desktop_project_roots.json` drops the new data directory (it is now the data dir). The response is `{"data_dir": "<new>"}`. The desktop shell then writes `{anchor}/data_dir.json` and respawns the sidecar with the new `--data-dir`.
 
 `DELETE /api/projects/{project_id}` removes the project and related local metadata records from the app database. It does not delete the project folder, copied originals, generated previews, or exports from disk.
 
@@ -145,6 +152,7 @@ The response contains accepted photo records, synchronously skipped files, impor
     "progress_percent": 50.0,
     "error_message": null,
     "cancellation_requested": false,
+    "pause_requested": false,
     "cancelled_at": null,
     "started_at": "2026-06-02T12:00:00Z",
     "completed_at": null,
@@ -196,11 +204,11 @@ Client loop with one `job_id`:
 
 Job control matches multipart import: a new import without that `job_id` returns `409` while another import is active; `expected_total` updates `job.total_items`. Each consumed file is opened `rb` and copied through the existing register/copy path. Sources are never modified, deleted, or hard-linked. When `finalize` is true, a single input directory was given, and `source_root_path` is empty, the API stores that directory as read-only project metadata. It does not rescan the folder.
 When EXIF data is available, the background derivative job records basic capture time, camera, lens, focal length, aperture, shutter speed, and ISO metadata. Numeric EXIF rationals are normalized into stable display strings.
-Supported still formats are JPEG, PNG, WebP, HEIC, and HEIF. HEIC/HEIF files are copied into `originals/` unchanged, decoded locally with `pillow-heif`, and given WebP thumbnails/previews. Scoring and grouping use that decoded RGB. ZIP and folder export ship the original HEIC/HEIF bytes (`ZIP_STORED`). RAW extensions such as `.dng`, `.arw`, `.cr3`, and `.nef` are still skipped with an explicit unsupported-format reason. Garbage HEIC bytes fail that file after copy instead of being treated as an unsupported extension. AVIF is not accepted.
+Supported still formats are JPEG, PNG, WebP, HEIC, HEIF, AVIF (`.avif` stills only, not `.avifs` sequences), and RAW with an embedded preview (`.dng`, `.arw`, `.cr3`, `.nef`). HEIC/HEIF files are copied into `originals/` unchanged, decoded locally with `pillow-heif`, and given WebP thumbnails/previews. AVIF stills use the same copy-and-WebP-derivative path, decoded with Pillow’s native `AvifImagePlugin` (not the HEIF opener). RAW files are copied unchanged; FramePilot extracts the LibRaw embedded preview only (`rawpy.extract_thumb`), never demosaics, and builds WebP derivatives from that preview RGB. Scoring and grouping use the decoded still RGB or RAW preview RGB. ZIP and folder export ship the original HEIC/HEIF/AVIF/RAW bytes (`ZIP_STORED`). RAW without an embedded preview is skipped with `RAW file has no embedded preview; FramePilot does not demosaic` and is not copied into `originals/`. Garbage HEIC or AVIF bytes fail that file after copy instead of being treated as an unsupported extension.
 
 ## Jobs
 
-`POST /api/projects/{project_id}/process` creates a local background processing job and returns a `ProcessingJob` with `202 Accepted`. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the job reaches `complete`, `failed`, or `cancelled`.
+`POST /api/projects/{project_id}/process` creates a local background processing job and returns a `ProcessingJob` with `202 Accepted`. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the job reaches `complete`, `failed`, `cancelled`, or `paused`.
 If the same project has a queued or running import job, the process endpoint returns `409 Conflict` instead of starting processing:
 
 ```json
@@ -217,17 +225,23 @@ Stale detection for queued or running jobs prefers a worker lease when `heartbea
 
 API startup default: leftover active import/processing jobs are marked `interrupted` (`current_step` `interrupted - restart`, `interrupted_at` set) and scheduled for in-process reclaim, so a restart cannot leave the workspace blocked for the full stale window. Set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` to instead mark leftover active jobs failed immediately on startup. Exports still fail-and-cleanup either way. Reclaim does not run on `GET /api/projects`.
 
-While a job is `interrupted`, active-job guards treat it like queued/running work: a new import or process request for the same project returns `409` (or reuses the existing row) instead of racing the pending reclaim, and the job is not `retryable` until reclaim or a cancel request finalizes it to a terminal status. If cancellation was requested before the restart, reclaim finalizes the job as `cancelled` instead of resuming it. Reclaim claims are atomic (a single guarded `UPDATE`), so an in-process reclaim thread and a separately running `python -m app.worker` cannot both execute the same job.
+While a job is `interrupted`, active-job guards treat it like queued/running work: a new import or process request for the same project returns `409` (or reuses the existing row) instead of racing the pending reclaim, and the job is not `retryable` until reclaim or a cancel request finalizes it to a terminal status. If cancellation was requested before the restart, reclaim finalizes the job as `cancelled` instead of resuming it. If pause was requested, reclaim finalizes the job as `paused` instead of re-queuing it. Cancel wins when both flags are set. Reclaim claims are atomic (a single guarded `UPDATE`), so an in-process reclaim thread and a separately running `python -m app.worker` cannot both execute the same job.
 
-`GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import` and `processing` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls the returned import job after upload/register returns, and the processing UI uses job history to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job goes stale, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
+`GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import`, `processing`, and `export` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls the returned import job after upload/register returns, and the processing UI uses job history to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job goes stale, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
 
-`POST /api/projects/{project_id}/jobs/{job_id}/cancel` requests cooperative cancellation for a queued or running import or processing job. It sets `cancellation_requested` and `current_step` to `cancellation_requested`, and returns the updated job with `202 Accepted`; `status` stays queued or running until the worker finalizes. Terminal jobs (`complete`, `complete_with_errors`, `failed`, `cancelled`) return as a safe no-op with `200 OK`. This endpoint does not kill the API process, delete original files, delete copied originals, or remove generated derivatives.
+`POST /api/projects/{project_id}/jobs/{job_id}/cancel` requests cooperative cancellation for a queued or running import, processing, or export job. It sets `cancellation_requested` and `current_step` to `cancellation_requested`, and returns the updated job with `202 Accepted`; `status` stays queued or running until the worker finalizes. Terminal jobs (`complete`, `complete_with_errors`, `failed`, `cancelled`, `paused`) return as a safe no-op with `200 OK`. This endpoint does not kill the API process, delete original files, or delete copied originals.
 
 For import jobs, the background worker checks the request before each photo and after each photo-level derivative/scoring/hash pass, then marks the job `cancelled` with `cancelled_at` and `completed_at` once it reaches a safe checkpoint. Already completed photo derivatives remain cached, while unprocessed photos stay retryable. Cancelling an `interrupted` import (no worker is currently executing it) finalizes it to `cancelled` immediately and also returns `200 OK`.
 
 For processing jobs, cancellation is cooperative: the worker stops at a safe checkpoint (the current `group_similar_photos` call has no progress callback and may finish first), then resets groups and marks the job `cancelled` with `cancelled_at` and `completed_at`. Groups are empty, `processed_images` is 0, in-flight photos return to `imported`, `user_status` and `star_rating` stay, import derivatives stay, and originals are never modified or deleted. Cancelling an `interrupted` processing job (no in-flight worker) finalizes `cancelled` and resets groups immediately with `200 OK`. Re-run grouping with `POST /process`; `POST .../retry` remains import-only.
 
-Other `job_type` values still return `422`. A planted `ProcessingJob(job_type="export")` is 422; posting this route with an `ExportRecord.id` stays `404` because live exports are not `ProcessingJob` rows. The live 422 detail string is still `"Only import jobs can be cancelled"` even though processing jobs are allowed.
+For export jobs, `POST /export` also persists a `ProcessingJob` with `job_type="export"` and the same `id` as the `ExportRecord`. Cancellation is cooperative at per-photo checkpoints in CSV, ZIP, and folder writers. The job finalizes as `cancelled`; the linked export record uses existing fail-and-cleanup (`failed`, partial artifacts under the project export root are removed, paths outside that root stay). Originals are never modified or deleted. Cancelling an `interrupted` export (no in-flight worker) finalizes immediately with `200 OK`. Re-run export with a new `POST /export`. Export jobs are not reclaimed on startup.
+
+Other `job_type` values still return `422` with detail `"Only import, processing, and export jobs can be cancelled"`.
+
+`POST /api/projects/{project_id}/jobs/{job_id}/pause` requests cooperative pause for a queued or running **processing** job only. It sets a distinct `pause_requested` flag (not `cancellation_requested`) and `current_step` to `pause_requested`, and returns `202 Accepted`; `status` stays queued or running until the worker finalizes. If `cancellation_requested` is already true, pause does not overwrite `current_step`; cancel stays in charge. Terminal jobs (`complete`, `complete_with_errors`, `failed`, `cancelled`, `paused`) return as a safe no-op with `200 OK` and do not set the flag on a completed success. Import, export, and other `job_type` values return `422` with detail `"Only processing jobs can be paused"`. Missing jobs or a mismatched `project_id` return `404`.
+
+Pause is cooperative at the same processing checkpoints as cancel. The worker checks cancel first, then pause. On pause it resets groups and marks the job `paused` (not `cancelled` or `failed`) with `completed_at`. Groups are empty, `processed_images` is 0, in-flight photos return to `imported`, `user_status` and `star_rating` stay, import derivatives stay, and originals are never modified or deleted. Pausing an `interrupted` processing job (no in-flight worker) finalizes `paused` and resets groups immediately with `200 OK`. `paused` is terminal for that job row: stale sweeps no-op it, and it does not block a new `POST /process`. Resume is clear-and-rerun: `POST /process` creates a **new** processing job and rebuilds groups. Do not resume the paused row in place. `POST .../retry` remains import-only.
 
 `POST /api/projects/{project_id}/jobs/{job_id}/retry` retries failed, `complete_with_errors`, or `cancelled` import jobs. It creates a new local import job and reruns derivative/scoring/hash/embedding work for project photos whose generated thumbnail or preview is missing, or whose import state is still `processing` or `failed`. It does not re-register uploaded files, duplicate photo records, reset `user_status`, reset `star_rating`, delete generated derivatives, delete copied originals, or modify source photos. Existing valid thumbnail and preview files are reused; missing derivatives are regenerated from the local copied original when possible. If some photos recover and others cannot be rebuilt, the retry job finishes as `complete_with_errors` and records failed items on the affected photos. If another import job is already queued or running, retry returns `409`.
 
@@ -246,6 +260,7 @@ A job (`JobRead`) includes:
   "progress_percent": 33.33,
   "error_message": null,
   "cancellation_requested": false,
+  "pause_requested": false,
   "cancelled_at": null,
   "checkpoint_photo_id": null,
   "checkpoint_stage": null,
@@ -313,11 +328,12 @@ Example group response:
 ```json
 {
   "mode": "csv",
-  "statuses": ["Pick", "Maybe"]
+  "statuses": ["Pick", "Maybe"],
+  "include_xmp": false
 }
 ```
 
-Supported modes are `csv`, `folder`, and `zip`. Supported statuses are `Pick`, `Maybe`, `Reject`, and `Unreviewed`. Status filters are stored without duplicates in that supported order.
+Supported modes are `csv`, `folder`, and `zip`. Supported statuses are `Pick`, `Maybe`, `Reject`, and `Unreviewed`. Status filters are stored without duplicates in that supported order. Optional `include_xmp` defaults to `false` when omitted. It is **not** a fourth export mode. Folder and ZIP exports then write `{exported_filename}.xmp` under the project export directory (or as ZIP members). CSV stores the flag but writes no `.xmp` files. Sidecars are never written into `originals/`, beside camera originals, or into image bytes.
 
 The response includes the number of exported photos and the local output path:
 
@@ -331,6 +347,7 @@ The response includes the number of exported photos and the local output path:
   "processed_count": 12,
   "total_count": 12,
   "statuses": "[\"Pick\", \"Maybe\"]",
+  "include_xmp": false,
   "output_path": ".../exports/csv/selection-export-id.csv",
   "error_message": null,
   "completed_at": "2026-06-02T12:00:01Z",
@@ -362,6 +379,6 @@ Folder exports are available at their local output path and are not downloaded a
 Failed or still-running export records return `409` from the download endpoint.
 The singular `/api/projects/{project_id}/export` routes remain available as backward-compatible aliases.
 
-XMP sidecar export is not implemented in v2.0. The planned approach is documented in [Export Interoperability](export_interoperability.md).
+Optional XMP sidecar export is documented in [Export Interoperability](export_interoperability.md). `xmp:Rating` maps the star rating (0–5); Pick/Maybe/Reject use Adobe `xmp:Label` colors Green/Yellow/Red; Unreviewed omits the label. This is not a tested Lightroom/Capture One GUI round-trip and does not write beside originals.
 
 Experimental face and eye-open fields are local heuristic scores derived from simple color, shape, luminance, and sharpness checks. They are not generated by a bundled professional face detection model and should be treated as weak MVP ranking hints.

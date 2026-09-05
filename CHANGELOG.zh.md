@@ -6,6 +6,123 @@
 
 ## 未发布
 
+### 第九阶段 — S9.13 文档残留修复
+
+- 对齐 `docs/desktop_development_plan.zh.md` §2.2 已交付的 2.1 DoD 勾选；双平台安装包 GUI 为 Windows-pass / macOS-skip；不勾包装桌面 ≥500
+- 已交付的 2.2 残留改指向 S9.06–S9.10 `[x]`；剩余 Target = 未排期（cache 旋钮、自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、macOS GUI pass）
+- §10 不再把已交付的 S9 残留或 HEIC/RAW/XMP 写成未交付的 3.x
+- 活指针：第九阶段 remaining-stretch 已关闭（S9.00–S9.13）；没有未完成的 S9 id；停止
+- 不改 `APP_VERSION`，不改生产应用，无证书
+
+### 第九阶段 — S9.12 macOS DMG GUI 生命周期 QA
+
+- 于 `2026-09-05T12:31:10Z` 记为 **skip，不是 pass** — 没有 Darwin 主机；[docs/desktop_testing.zh.md](docs/desktop_testing.zh.md) 中包装 DMG GUI 行为带日期 skip，无一 `[x]`
+- Linux HTTP 冒烟 / 冻结 sidecar / Playwright 绿灯不能把 skip 变成 macOS GUI pass
+- 未签名 DMG 的 Gatekeeper 警告仍是预期；本切片不声称已签名或 Gatekeeper 干净的 Mac pass
+- 不改 `APP_VERSION`，不改生产应用，无证书
+
+### 第九阶段 — S9.11 签名就绪 CI
+
+- `.github/workflows/desktop.yml` 在每平台完整 GitHub Actions secret 集都非空时签署 Windows NSIS（Authenticode）与 macOS DMG（Developer ID + 公证 + staple）
+- 缺少或为空的 secrets 保持未签名上传路径绿灯；secrets 在场但签名 / 公证失败则为红灯
+- 确切 secret 名见 [docs/desktop_signing.zh.md](docs/desktop_signing.zh.md)；`APPLE_API_KEY_PATH` 是 runner 临时路径，不是 GitHub secret
+- `check:artifacts` 拒绝已跟踪的 `.pfx` / `.p12` / `.p8`；这些 glob 已写入 `.gitignore`
+- 没有 `tauri-action` Release 发布、`TAURI_SIGNING_PRIVATE_KEY`、`latest.json`，也不改 `APP_VERSION`
+
+### 第九阶段 — S9.10 可选检查更新
+
+- 桌面 Help → **Check for updates**（无快捷键）仅在该点击时查询 GitHub Releases
+- 用 `tag_name` 的 MAJOR.MINOR.PATCH 核心与 `2.1.0-desktop` 比较；远端更新则显示当前 vs 最新，并把发布 URL 作为文本
+- 清单缺失（404 / 空 / 无法解析）为非致命 no-op；403 / 429 / 超时 / 5xx 显示本地对话框，不崩溃
+- 启动时或周期性不联网；不加 `tauri-plugin-updater`、不下载安装、不加额外 `fs:` / `shell:` 能力
+- 未签名构建仍可启动；永不读取或上传原片；无遥测、登录、支付、GitHub token，也不改 `APP_VERSION`
+
+### 第九阶段 — S9.09 更改数据目录
+
+- 桌面设置中的 **Change data directory** 把当前应用数据目录拷贝到经 D2.00 `POST /api/desktop/project-roots` 授权的空文件夹，再调用 `POST /api/desktop/data-dir`
+- 只在目标数据库里改写位于旧 data dir 下的已存 `root_path` / 项目拷贝 / 衍生件 / 导出路径；旧树保持字节不变
+- 永不改写相机卡上的原片和 `Project.source_root_path`；旧 data dir 之外的自定义 D2.00 项目文件夹不动
+- 壳层在 `FRAMEPILOT_DATA_DIR` 之后、默认 app-support / `.framepilot-desktop-dev` 之前读取 `{anchor}/data_dir.json`，并重新拉起 sidecar
+- 不添加额外的 `fs:` / `shell:` 能力；不删除旧数据目录；不改 `APP_VERSION`、不签名
+
+### 第九阶段 — S9.08 可选导入 worker 并发
+
+- 设置中的 **Import workers** 为 1–4（默认 1），经 `GET`/`PATCH /api/settings` 持久化到 `{data_dir}/app_settings.json`
+- 导入衍生作业在开始时快照该值；`n==1` 保持顺序，`n=2–4` 使用进程内 `ThreadPoolExecutor`，每个任务一个 session
+- 并发 `process_registered_import_photo` 峰值 ≤ n；取消等待在飞照片，不杀线程
+- 处理仍是每个项目一个作业；没有 Redis/Celery、ProcessPool、额外操作系统 worker 或 cache 旋钮
+- 永不修改原片；该值作用于下一次导入作业
+- 不改 `APP_VERSION`、不签名
+
+### 第九阶段 — S9.07 独立预览窗口
+
+- 桌面 View → Detached preview（无加速键）以及筛选工具栏切换打开标签为 `preview` 的第二个 WebView
+- 选中与主筛选工作区共享；卫星窗口只显示衍生预览（不用 `fs:` 读原片）
+- 裸筛选键作用于聚焦窗口；preview 把命令转发给 main，自己不调用 `api.updatePhoto`
+- 创建失败为非致命并保持壳内预览；关闭预览窗不会退出应用或关掉 sidecar
+- 不加额外的 `fs:` 或 `shell:` capabilities；启动不自动重开；Space 和 Eye 仍切换壳内预览
+- 不改 `APP_VERSION`、不签名
+
+### 第九阶段 — S9.06 可选系统托盘
+
+- 桌面壳总是尝试创建系统托盘图标（Show + Quit）；无头或部分 Linux 桌面创建失败为非致命
+- Tooltip（以及主机若显示的托盘 title）报告进行中作业进度：`Import · {step} · {n}%`、分组与排序、或导出；空闲为 `No active job`
+- Show 或左键单击恢复主窗口；Quit 走与 File → Quit 同一套进行中作业对话框
+- 关窗口与最小化不变（不是藏到托盘）
+- 不加额外的 `fs:` 或 `shell:` capabilities；无设置页开关；无操作系统通知
+- 不改 `APP_VERSION`、不签名
+
+### 第九阶段 — S9.05 XMP sidecar 导出
+
+- CSV/ZIP/文件夹导出上的可选 `include_xmp`（默认关）；不是第四种导出模式
+- 文件夹和 ZIP 只在项目导出目录写 `{exported_filename}.xmp`（ZIP 中 XML 用 `ZIP_DEFLATED`；图像仍 `ZIP_STORED`）
+- CSV 存储该标志但不写 `.xmp` 文件；取消/失败仍对导出产物做 fail-and-cleanup
+- sidecar 永不进入 `originals/`、相机原片旁或图像字节；原片字节保持一致
+- 映射：`xmp:Rating` 为星级 0–5；Pick/Maybe/Reject 用 Green/Yellow/Red `xmp:Label`；Unreviewed 省略标签；Reject 不用 `xmp:Rating = -1`
+- 导出 UI 勾选 **Write XMP sidecars** 默认不勾，且不写入 `localStorage`
+- 不改 `APP_VERSION`、不签名、不声称 Lightroom/Capture One GUI 认证，导入/审阅不写回
+
+### 第九阶段 — S9.04 RAW 内嵌预览
+
+- 本地导入带内嵌预览的 `.dng`、`.arw`、`.cr3`、`.nef`：原样拷贝字节，只走 `rawpy.extract_thumb`，WebP 缩略图/预览，在预览 RGB 上评分/分组
+- 没有内嵌预览的 RAW 以 `RAW file has no embedded preview; FramePilot does not demosaic` 跳过；没有 Photo 行，`originals/` 下不留拷贝
+- 原始 RAW 字节可导出（ZIP 使用 `ZIP_STORED`）；永不修改源文件；不 demosaic / `postprocess`
+- 冻结 sidecar 收集 `rawpy` / LibRaw；`rawpy` 为 MIT，其 wheel 带 LGPL-2.1 / CDDL 的 LibRaw（写在已知限制里）
+- 不改 `APP_VERSION`、不签名、不做 XMP、不加额外 RAW 扩展名、不把相机样张提交进 git
+
+### 第九阶段 — S9.03 AVIF 静帧预览
+
+- 本地 AVIF 静帧导入（仅 `.avif`，不含 `.avifs` 序列），用 Pillow 自带的 `AvifImagePlugin` 解码，WebP 缩略图/预览，在解码 RGB 上评分/分组
+- 原始 AVIF 字节拷进 `originals/` 并导出（ZIP 使用 `ZIP_STORED`）；永不修改源文件
+- 垃圾 AVIF 在拷贝后只让该文件失败；RAW、Live Photo `.mov`、HDR gain-map 色调映射和 XMP 不在本切片
+- 冻结 sidecar 收集 `PIL.AvifImagePlugin` / `PIL._avif`；HEIC 仍用 `pillow-heif`
+- 不改 `APP_VERSION`、不签名、不打包 GUI
+
+### 第九阶段 — S9.02 处理作业暂停
+
+- `POST /api/projects/{project_id}/jobs/{job_id}/pause` 上的协作式处理暂停，使用独立的 `pause_requested` 标志（queued/running 持久化标志并返回 202；终态 200 空操作；interrupted 终态 `paused` 并清分组）
+- worker 在检查点清分组后退出，不 finalize 为 `cancelled`；原片、导入衍生件、`user_status` 与 `star_rating` 保留
+- 恢复是经新的 `POST /process` 做 clear-and-rerun；`paused` 不挡住替换作业
+- 处理 UI 可请求 **Pause Grouping and Ranking** 并显示检查点文案
+- 回收尊重已请求的处理暂停，不重新入队；两标志同时存在时取消优先
+- 导入和导出作业不能暂停；原地从半批次哈希继续未实现
+- 不改 `APP_VERSION`、不签名、不打包 GUI
+
+### 第九阶段 — S9.01 导出作业取消
+
+- 现有 `POST /api/projects/{project_id}/jobs/{job_id}/cancel` 路由上的协作式导出取消（queued/running 持久化 `cancellation_requested` 并返回 202；终态 200 空操作；interrupted 终态 `cancelled`）
+- 创建导出同时持久化 `job_type="export"` 的 `ProcessingJob`，id 与 `ExportRecord` 相同
+- 检查点中止 CSV/ZIP/文件夹写入；项目导出根下的不完整产物走 fail-and-cleanup；永不修改或删除原片
+- 桌面退出可 **退出并取消导出**（POST cancel，最多等 10 秒，再 SIGTERM）
+- 导出作业启动时仍不回收
+- 不改 `APP_VERSION`、不签名、不打包 GUI
+
+### 文档 — 排期剩余 stretch（S9.00）
+
+- 在 `develop_plan.zh.md` §1.1 点名第九阶段剩余 stretch 收口（每次运行一个 GitHub issue；不要发明第十阶段）
+- 活计划：`docs/plans/2026-09-04-remaining-stretch.zh.md`；总览 [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160)；下一个产品 issue 是 S9.01 导出取消（[#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)）
+- S9.00 不改 `APP_VERSION`、不签名、不改产品行为
+
 ### 文档 — 桌面壳双语页
 
 - 为 `apps/desktop/README.md` 和 `tests/desktop/workflow.md` 补中文对应页

@@ -16,14 +16,18 @@ v2.0 supports local import and processing for:
 - PNG
 - WebP
 - HEIC / HEIF stills (local `pillow-heif` decode; WebP derivatives; original bytes exported)
+- AVIF stills (`.avif` only; Pillow native `AvifImagePlugin`; WebP derivatives; original bytes exported)
+- RAW with an embedded preview (`.dng`, `.arw`, `.cr3`, `.nef`; copy original bytes; LibRaw `extract_thumb` only; WebP derivatives from preview RGB; original bytes exported)
 
 Unsupported files are reported locally instead of uploaded or decoded remotely.
 
 ## Deferred Formats
 
-RAW formats such as DNG, ARW, CR3, and NEF remain deferred. FramePilot skips those extensions with an explicit unsupported-format message and does not extract embedded RAW previews or write RAW sidecars. HEIC/HEIF stills import locally; Live Photo `.mov` companions, AVIF, HDR/gain-map tone mapping, and XMP writes are not implemented.
+Full RAW develop (demosaic / `postprocess`) remains deferred. RAW files without an embedded preview are skipped with `RAW file has no embedded preview; FramePilot does not demosaic` and are not copied into `originals/`. Extra RAW extensions such as `.cr2`, `.raf`, `.orf`, and `.rw2` are not accepted. HEIC/HEIF and AVIF stills import locally; Live Photo `.mov` companions, `.avifs` sequences, and HDR/gain-map tone mapping are not implemented. XMP is not written on import, into `originals/`, beside camera files, or into image bytes.
 
 `pillow-heif` is BSD-3-Clause. Its wheels ship **LGPL** `libheif` (and codecs) inside the API/sidecar runtime. FramePilot does not vendor libheif source into this MIT tree.
+
+`rawpy` is MIT. Its wheels ship **LGPL-2.1 / CDDL** LibRaw inside the API/sidecar runtime. FramePilot does not vendor LibRaw source into this MIT tree.
 
 ## Background Job Durability
 
@@ -37,9 +41,11 @@ If a processing job becomes stale after committing partial groups, cleanup clear
 
 ## Cancellation Semantics
 
-Import and processing cancellation is cooperative. A cancel request persists a flag and the background worker checks it at safe checkpoints. Cancellation is not a hard process kill, may not stop immediately, and never modifies or deletes source originals. Import cancel keeps completed derivatives and leaves unprocessed photos retryable. Processing cancel then resets groups: in-flight photos return to `imported`, `user_status` and `star_rating` stay, and import derivatives stay. Re-run grouping with `POST /process`; `/retry` remains import-only.
+Import, processing, and export cancellation is cooperative. A cancel request persists a flag and the background worker checks it at safe checkpoints. Cancellation is not a hard process kill, may not stop immediately, and never modifies or deletes source originals. Import cancel keeps completed derivatives and leaves unprocessed photos retryable. Processing cancel then resets groups: in-flight photos return to `imported`, `user_status` and `star_rating` stay, and import derivatives stay. Re-run grouping with `POST /process`; `/retry` remains import-only. Export cancel finalizes the job as `cancelled` and fail-and-cleanup the linked export record (`failed`): partial CSV/ZIP/folder artifacts under the project export root are removed; paths outside that root stay. Re-run export with a new `POST /export`. Export jobs are not reclaimed.
 
-Desktop close with an active import or processing job can POST that same cancel route, wait up to 10 seconds, then SIGTERM the sidecar (Keep working / Quit and cancel import or Quit and cancel processing / Quit anyway). By default the next launch marks leftover jobs `interrupted` and reclaims them; with `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` they are instead marked `failed` via the legacy startup sweep. A hard kill is not labelled `cancelled`. Export jobs stay uncancellable (`POST .../cancel` returns 422; live detail is still `"Only import jobs can be cancelled"`). Pause/resume of in-flight grouping is not implemented.
+Desktop close with an active import, processing, or export job can POST that same cancel route, wait up to 10 seconds, then SIGTERM the sidecar (Keep working / Quit and cancel import or processing or export / Quit anyway). By default the next launch marks leftover import/processing jobs `interrupted` and reclaims them; leftover exports still fail-and-cleanup. With `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` leftover import/processing jobs are instead marked `failed` via the legacy startup sweep. A hard kill is not labelled `cancelled`.
+
+Processing pause is cooperative and distinct from cancel (`POST .../jobs/{job_id}/pause`, `pause_requested`). The worker stops at a safe checkpoint without a `cancelled` finalize, clears partial groups, and marks the job `paused`. Resume is clear-and-rerun via a new `POST /process`; in-place continue-hash-mid-batch is not implemented. Import and export jobs cannot be paused. Desktop quit still cancels rather than pauses.
 
 ## Retry Semantics
 
@@ -69,7 +75,7 @@ Face and eye-open scores are lightweight local heuristics, not professional face
 
 ## Export Limitations
 
-CSV, ZIP, and folder exports run as local background jobs with progress and stale detection. XMP sidecar export is planned but not implemented. Folder exports expose a local output path rather than a browser download artifact. Exported files and ZIPs are generated artifacts and must not be committed.
+CSV, ZIP, and folder exports run as local background jobs with progress and stale detection. Optional XMP sidecars (`include_xmp`, default off) are written only under the project export directory: next to folder copies and as ZIP members. CSV stores the flag but writes no `.xmp` files. Sidecars are never written into `originals/`, beside camera originals, or into image bytes. This is not a tested Lightroom/Capture One GUI round-trip. Folder exports expose a local output path rather than a browser download artifact. Exported files and ZIPs are generated artifacts and must not be committed.
 
 ZIP and folder exports require selected source files to resolve inside the project `originals/` directory. This is a defense-in-depth guard for corrupted metadata; it also means file exports can fail if the local copied original is missing or no longer resolves inside project storage.
 
@@ -90,13 +96,16 @@ v2.0 does not support cloud libraries, shared team projects, automatic original 
 The installable desktop app (`2.1.0-desktop`) shares the same local API and culling UI with extra shell constraints:
 
 - Import and processing jobs are durable by default across sidecar kill or app quit: leftover jobs are marked `interrupted` and reclaimed on the next launch. Set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` to opt back into marking stale jobs failed on the next launch instead (exports still fail-and-cleanup either way).
-- HEIC/HEIF stills import locally (same as the web app). RAW remains skipped with a local message.
-- **Auto-update is deferred**; users install new builds manually.
-- CI installers may be **unsigned** until certificates exist; see [Desktop Code Signing Runbook](desktop_signing.md).
+- HEIC/HEIF stills and RAW with an embedded preview import locally (same as the web app). RAW without a preview is skipped with a local message.
+- **Check for updates** is Help-menu only (no launch-time network). It queries GitHub Releases and does not download or install. A missing manifest is a non-fatal no-op. Unsigned builds still launch. Users still install new builds manually.
+- CI is **signing-ready**: Authenticode / Developer ID + notarization run when the full GitHub Actions secret set is present. Missing secrets keep the **unsigned** upload green. See [Desktop Code Signing Runbook](desktop_signing.md).
+- Leftover desktop-plan 2.2 items shipped in Phase 9 (tray S9.06, detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10) except cache knobs, auto-download/install, and macOS GUI pass. Dual-platform installer GUI DoD is not claimed.
+- **Packaged macOS DMG GUI lifecycle is skip, not pass** (S9.12, [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172), `2026-09-05T12:31:10Z`). The 开发 host was Linux/WSL2 (`uname -s` not Darwin); the DMG was not mounted or launched. Skip is not a macOS pass. Windows NSIS GUI lifecycle is recorded on [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) (Windows-only). See [Desktop Testing Matrix](desktop_testing.md).
 - **WSL may not run the GUI** (needs rustc ≥1.88 and a display); HTTP/API smoke still works. See [Desktop Testing Matrix](desktop_testing.md).
 - Storage is **copy mode only** (no reference-in-place of camera cards).
-- There is **no detached preview** window outside the main shell.
-- There are **no concurrency knobs** for import/process workers beyond the existing local job model.
-- Optional **system tray is deferred** (D3.06); no tray-related `fs:` / `shell:` capabilities were added.
+- Desktop **detached preview** (View → Detached preview, or the culling toolbar) opens a second WebView for the current culling photo and shared selection. Bare culling keys apply to the focused window only. Create failure is non-fatal and keeps the in-shell preview. Closing the preview window does not quit the app. No extra `fs:` / `shell:` capabilities were added.
+- Import derivative workers default to **1**. Settings may raise that to **2–4** for the next import job (`GET`/`PATCH /api/settings`, `{data_dir}/app_settings.json`). Processing stays one job per project. There is no processing-worker pool, Redis, or Celery.
+- Desktop **Change data directory** copies the current app data directory into an empty D2.00-authorized folder and rewrites stored paths whose prefix is the old data dir. The old tree is not deleted. Camera cards and other source folders are not moved or modified. `FRAMEPILOT_DATA_DIR` still wins over `{anchor}/data_dir.json`. No extra `fs:` / `shell:` capabilities.
+- Optional **system tray** (D3.06) shows job progress in the tooltip. **Show** restores the main window; **Quit** uses the same running-job dialog as File → Quit. Window close is still quit, not hide-to-tray. Tray create may fail on headless or some Linux desktops and is non-fatal. No tray-related `fs:` / `shell:` capabilities were added.
 
 End-user steps: [Desktop User Guide](desktop_user_guide.md).

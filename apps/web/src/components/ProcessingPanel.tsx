@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Play, Rows3, StopCircle, Upload } from "lucide-react";
+import { Loader2, PauseCircle, Play, Rows3, StopCircle, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import { Link } from "@/lib/navigation";
 import {
   activeJobOfType,
   canCancelProcessing,
+  canPauseProcessing,
   hasActiveProcessingJob,
   processingActionBlockMessage,
   processingCancelPendingMessage,
@@ -16,6 +17,7 @@ import {
   processingJobHasReviewableResults,
   processingJobTypeLabel,
   processingLoadRecoveryMessage,
+  processingPausePendingMessage,
   processingProgressPercent,
   processingProgressSummary,
   processingRecoveryMessage,
@@ -43,6 +45,15 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
   });
   const cancelMutation = useMutation({
     mutationFn: (jobId: string) => api.cancelJob(projectId, jobId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      await queryClient.invalidateQueries({ queryKey: ["jobs", projectId] });
+      await queryClient.invalidateQueries({ queryKey: ["job", projectId] });
+    },
+  });
+  const pauseMutation = useMutation({
+    mutationFn: (jobId: string) => api.pauseJob(projectId, jobId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
@@ -81,9 +92,15 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
     cancelMutation.isPending ||
     Boolean(job?.cancellation_requested && (job.status === "queued" || job.status === "running"));
   const canCancel = canCancelProcessing(job, cancelMutation.isPending);
+  const canPause = canPauseProcessing(job, pauseMutation.isPending);
   const cancelPendingMessage = processingCancelPendingMessage({
     cancellationRequested: Boolean(job?.cancellation_requested),
     isCancelPending: cancelMutation.isPending,
+    status: job?.status,
+  });
+  const pausePendingMessage = processingPausePendingMessage({
+    isPausePending: pauseMutation.isPending,
+    pauseRequested: Boolean(job?.pause_requested),
     status: job?.status,
   });
   const processingActionLabel = job?.status === "failed" ? "Retry Grouping and Ranking" : "Run Grouping and Ranking";
@@ -139,7 +156,18 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
           </p>
         ) : null}
         {jobRecoveryMessage ? <p className="mt-3 text-sm text-muted">{jobRecoveryMessage}</p> : null}
+        {pausePendingMessage ? <p className="mt-3 text-sm text-muted">{pausePendingMessage}</p> : null}
         {cancelPendingMessage ? <p className="mt-3 text-sm text-muted">{cancelPendingMessage}</p> : null}
+        {canPause && job?.id ? (
+          <button
+            className="focus-ring mt-3 inline-flex w-fit items-center gap-2 rounded border border-line bg-surface px-3 py-2 font-medium"
+            onClick={() => pauseMutation.mutate(job.id)}
+            type="button"
+          >
+            <PauseCircle size={16} />
+            Pause Grouping and Ranking
+          </button>
+        ) : null}
         {canCancel && job?.id ? (
           <button
             className="focus-ring mt-3 inline-flex w-fit items-center gap-2 rounded border border-line bg-surface px-3 py-2 font-medium"
@@ -218,6 +246,12 @@ export function ProcessingPanel({ projectId }: { projectId: string }) {
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{cancelMutation.error.message}</p>
           <p className="text-muted">{processingLoadRecoveryMessage("cancel")}</p>
+        </div>
+      ) : null}
+      {pauseMutation.isError ? (
+        <div className="grid gap-1 text-sm">
+          <p className="text-coral">{pauseMutation.error.message}</p>
+          <p className="text-muted">{processingLoadRecoveryMessage("pause")}</p>
         </div>
       ) : null}
       {jobQuery.isError ? (

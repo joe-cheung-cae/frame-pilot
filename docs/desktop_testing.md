@@ -53,6 +53,7 @@ No extra npm alias is required for this matrix; use the scripts above directly.
 | Quit clean | Close window with no active import/processing job | Sidecar exits; no orphan uvicorn on that port | Manual GUI |
 | Quit + import | Close during an active import | Dialogs per [apps/desktop/README.md](../apps/desktop/README.md) (Keep working / cancel import / Quit anyway); source originals unchanged | Manual GUI |
 | Quit + processing | Close during grouping/ranking | Dialogs per [apps/desktop/README.md](../apps/desktop/README.md) (Keep working / Quit and cancel processing / Quit anyway); cancelled processing clears partial groups; source originals unchanged | Manual GUI |
+| Quit + export | Close during an active export | Dialogs per [apps/desktop/README.md](../apps/desktop/README.md) (Keep working / Quit and cancel export / Quit anyway); partial export artifacts cleaned; source originals unchanged | Manual GUI |
 | Sidecar crash | Kill sidecar while UI is open | UI shows failure / unreachable API; restarting the app recovers or documents retry; originals untouched | Manual |
 | Port in use | Force bind conflict on the intended loopback port | Clear error; process must **not** listen on `0.0.0.0` | Manual / note |
 
@@ -93,3 +94,34 @@ When you run a GUI or install pass, record:
 - Confirmation that source originals were not modified
 
 Do not commit photos, databases, or export trees.
+
+---
+
+## S9.12 macOS DMG GUI results
+
+**Verdict: skip, not pass.** Dated `2026-09-05T12:31:10Z` (UTC). Skip is not a macOS GUI pass.
+
+| Field | Value |
+| ----- | ----- |
+| Date | `2026-09-05T12:31:10Z` |
+| OS | Linux / WSL2 — `uname -s` = `Linux`, host `TFSZD-zhangc`, kernel `6.6.87.2-microsoft-standard-WSL2`. Not Darwin. This host cannot mount or launch a `.dmg`. |
+| `APP_VERSION` | Not obtained (no packaged macOS window; no DMG sidecar `GET /health`) |
+| CI artifact | Not launched. `.github/workflows/desktop.yml` uploads `FramePilot-macos-dmg` and does **not** start the packaged GUI. `verify.yml` is rust-free and also does not. |
+| Originals | Not involved (no import-quit session; no camera files) |
+
+Manual GUI rows from the lifecycle + install/uninstall matrix — **none `[x]`**:
+
+| Row | Result |
+| --- | ------ |
+| Start (installed) | skip `2026-09-05T12:31:10Z` — no macOS GUI host |
+| Quit clean | skip — same |
+| Quit + import | skip — same |
+| Quit + processing | skip — same |
+| Quit + export | skip — same |
+| Sidecar crash | skip — same |
+| Port in use | skip — same |
+| Install / uninstall | skip — same |
+
+Linux `npm run test:desktop:smoke` stayed green on this host (`2.1.0-desktop` from a loopback sidecar, not a DMG). That HTTP smoke, frozen sidecar `/health`, and Playwright staying green do **not** convert this skip into a macOS GUI pass.
+
+Windows NSIS GUI lifecycle is already recorded on [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) (Windows-only, 2026-09-04). This slice does not re-run Windows. Unsigned DMG Gatekeeper warnings remain expected; this record does not claim a signed or Gatekeeper-clean Mac pass. Issue: [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172).

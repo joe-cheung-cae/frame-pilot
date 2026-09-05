@@ -13,6 +13,7 @@ import {
   Eye,
   ImageOff,
   Loader2,
+  PictureInPicture2,
   Play,
   Star,
   StarOff,
@@ -22,6 +23,17 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { api, assetUrl, DEFAULT_LIST_PAGE_LIMIT, Photo, PhotoPatch } from "@/lib/api";
+import {
+  emitReviewSync,
+  isPreviewWindow,
+  requestDetachedPreviewClose,
+  requestDetachedPreviewToggle,
+  subscribePreviewClosed,
+  subscribePreviewOpened,
+  subscribeReviewCommand,
+  subscribeReviewSyncRequest,
+  toReviewSyncPayload,
+} from "@/lib/detachedPreview";
 import { isDesktopShell } from "@/lib/shell";
 import { copyForShell } from "@/lib/shellCopy";
 import { Link, useNavigator, useQueryParams } from "@/lib/navigation";
@@ -50,7 +62,11 @@ import {
   windowedCompareRefs,
 } from "@/lib/reviewNavigation";
 import { reviewScoreRows } from "@/lib/reviewScores";
-import { reviewShortcutCommandFromEvent, reviewShortcutNeedsPreventDefault } from "@/lib/reviewShortcuts";
+import {
+  reviewShortcutCommandFromEvent,
+  reviewShortcutNeedsPreventDefault,
+  type ReviewShortcutCommand,
+} from "@/lib/reviewShortcuts";
 import { photosQueryKey } from "@/lib/reviewPhotosQuery";
 import {
   mergeLoadedPhotosWithCurrentReviews,
@@ -78,6 +94,9 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
   const [, setAllGroupsLoaded] = useState(false);
   const [failedAssetUrls, setFailedAssetUrls] = useState<Set<string>>(() => new Set());
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
+  const [detachedPreviewOpen, setDetachedPreviewOpen] = useState(false);
+  const applyReviewCommandRef = useRef<(command: ReviewShortcutCommand) => void>(() => {});
+  const reviewSyncPayloadRef = useRef(toReviewSyncPayload({ projectId, compareMode: false, compare: [], previewZoom: 1 }));
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => api.getProject(projectId), retry: false });
   const activeImportJob = project.data?.active_import_job ?? null;
   const isImportRunning = activeImportJob?.status === "queued" || activeImportJob?.status === "running";
@@ -165,6 +184,25 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     () => windowedCompareRefs(compareCandidates, activePhoto?.id ?? null, COMPARE_WINDOW_SIZE),
     [activePhoto?.id, compareCandidates],
   );
+  const reviewSyncPayload = useMemo(
+    () =>
+      toReviewSyncPayload({
+        projectId,
+        activePhotoId: activePhoto?.id ?? null,
+        activeGroupId: activeGroup?.id ?? null,
+        filename: activePhoto?.filename ?? null,
+        previewPath: activePhoto?.preview_path ?? null,
+        compareMode,
+        compare: comparePhotos.map((photo) => ({
+          photoId: photo.id,
+          filename: photo.filename,
+          previewPath: photo.preview_path,
+        })),
+        previewZoom,
+      }),
+    [activeGroup?.id, activePhoto, compareMode, comparePhotos, previewZoom, projectId],
+  );
+  reviewSyncPayloadRef.current = reviewSyncPayload;
   const filmstripParentRef = useRef<HTMLDivElement | null>(null);
   const groupListParentRef = useRef<HTMLDivElement | null>(null);
   const filmstripVirtualizer = useVirtualizer({
@@ -506,6 +544,24 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
     }
   }, [activeGroup?.id, groupVirtualizer, groups]);
 
+  function applyReviewShortcut(command: ReviewShortcutCommand) {
+    if (command.type === "move_photo") move(command.delta);
+    if (command.type === "move_group") moveGroup(command.delta);
+    if (command.type === "mark") mark(command.status);
+    if (command.type === "rate") rate(command.rating);
+    if (command.type === "toggle_large_preview") toggleLargePreview();
+    if (command.type === "reset_zoom") resetPreviewZoom();
+    if (command.type === "zoom_in") zoomPreviewIn();
+    if (command.type === "zoom_out") zoomPreviewOut();
+    if (command.type === "toggle_compare") toggleCompareMode();
+    if (command.type === "cycle_group") cycleGroup();
+    if (command.type === "focus_filters") focusFilterControls();
+    if (command.type === "export") {
+      navigator.push(`/projects/${projectId}/export`);
+    }
+  }
+  applyReviewCommandRef.current = applyReviewShortcut;
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const command = reviewShortcutCommandFromEvent(event);
@@ -513,25 +569,71 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
       if (reviewShortcutNeedsPreventDefault(command)) {
         event.preventDefault();
       }
-
-      if (command.type === "move_photo") move(command.delta);
-      if (command.type === "move_group") moveGroup(command.delta);
-      if (command.type === "mark") mark(command.status);
-      if (command.type === "rate") rate(command.rating);
-      if (command.type === "toggle_large_preview") toggleLargePreview();
-      if (command.type === "reset_zoom") resetPreviewZoom();
-      if (command.type === "zoom_in") zoomPreviewIn();
-      if (command.type === "zoom_out") zoomPreviewOut();
-      if (command.type === "toggle_compare") toggleCompareMode();
-      if (command.type === "cycle_group") cycleGroup();
-      if (command.type === "focus_filters") focusFilterControls();
-      if (command.type === "export") {
-        navigator.push(`/projects/${projectId}/export`);
-      }
+      applyReviewCommandRef.current(command);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   });
+
+  useEffect(() => {
+    if (!isDesktopShell() || isPreviewWindow()) {
+      return;
+    }
+    void emitReviewSync(reviewSyncPayload);
+  }, [reviewSyncPayload]);
+
+  useEffect(() => {
+    if (!isDesktopShell() || isPreviewWindow()) {
+      return;
+    }
+    let cancelled = false;
+    const unlistens: Array<() => void> = [];
+    void subscribeReviewCommand((command) => applyReviewCommandRef.current(command)).then((fn) => {
+      if (cancelled) {
+        fn();
+        return;
+      }
+      unlistens.push(fn);
+    });
+    void subscribeReviewSyncRequest(() => {
+      void emitReviewSync(reviewSyncPayloadRef.current);
+    }).then((fn) => {
+      if (cancelled) {
+        fn();
+        return;
+      }
+      unlistens.push(fn);
+    });
+    void subscribePreviewOpened(() => setDetachedPreviewOpen(true)).then((fn) => {
+      if (cancelled) {
+        fn();
+        return;
+      }
+      unlistens.push(fn);
+    });
+    void subscribePreviewClosed(() => setDetachedPreviewOpen(false)).then((fn) => {
+      if (cancelled) {
+        fn();
+        return;
+      }
+      unlistens.push(fn);
+    });
+    return () => {
+      cancelled = true;
+      for (const unlisten of unlistens) {
+        unlisten();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopShell() || isPreviewWindow()) {
+      return;
+    }
+    return () => {
+      void requestDetachedPreviewClose();
+    };
+  }, []);
 
   const preview = activePhoto ? assetUrl(projectId, activePhoto.preview_path) : null;
   const previewFallback = reviewAssetFallbackMessage({
@@ -1151,6 +1253,25 @@ export function CullingWorkspace({ projectId }: { projectId: string }) {
         >
           {largePreview ? <X size={18} /> : <Eye size={18} />}
         </button>
+        {isDesktopShell() && !isPreviewWindow() ? (
+          <button
+            className={`focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border ${
+              detachedPreviewOpen ? "border-leaf bg-mist text-leaf" : "border-line"
+            }`}
+            onClick={() => {
+              void requestDetachedPreviewToggle().then((result) => {
+                if (result.ok) {
+                  setDetachedPreviewOpen(result.open);
+                }
+              });
+            }}
+            aria-label="Toggle detached preview"
+            aria-pressed={detachedPreviewOpen}
+            type="button"
+          >
+            <PictureInPicture2 size={18} />
+          </button>
+        ) : null}
         <button
           className={`focus-ring grid h-10 w-10 shrink-0 place-items-center rounded border ${
             compareMode ? "border-leaf bg-mist text-leaf" : "border-line"

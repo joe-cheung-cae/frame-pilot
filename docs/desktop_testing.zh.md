@@ -53,6 +53,7 @@ FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。�
 | 干净退出 | 无活跃导入/处理任务时关窗 | sidecar 退出；该端口无残留 uvicorn | 手工 GUI |
 | 导入中退出 | 活跃导入时关闭 | 对话框见 [apps/desktop/README.zh.md](../apps/desktop/README.zh.md)；源原图未改 | 手工 GUI |
 | 处理中退出 | 分组/排序进行中关闭 | 对话框见 [apps/desktop/README.zh.md](../apps/desktop/README.zh.md)（继续工作 / 退出并取消处理 / 仍要退出）；取消处理清部分分组；源原图未改 | 手工 GUI |
+| 导出中退出 | 活跃导出时关闭 | 对话框见 [apps/desktop/README.zh.md](../apps/desktop/README.zh.md)（继续工作 / 退出并取消导出 / 仍要退出）；不完整导出物清理；源原图未改 | 手工 GUI |
 | Sidecar 崩溃 | UI 打开时杀 sidecar | UI 显示失败/不可达；重启可恢复或文档说明重试；原图未动 | 手工 |
 | 端口占用 | 目标回环端口冲突 | 明确错误；**不得**监听 `0.0.0.0` | 手工 / 备注 |
 
@@ -93,3 +94,34 @@ FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。�
 - 确认源原图未被修改
 
 不要提交照片、数据库或导出目录。
+
+---
+
+## S9.12 macOS DMG GUI 结果
+
+**结论：skip，不是 pass。** 日期 `2026-09-05T12:31:10Z`（UTC）。skip 不是 macOS GUI pass。
+
+| 字段 | 值 |
+| ---- | -- |
+| 日期 | `2026-09-05T12:31:10Z` |
+| OS | Linux / WSL2 — `uname -s` = `Linux`，主机 `TFSZD-zhangc`，内核 `6.6.87.2-microsoft-standard-WSL2`。不是 Darwin。本机无法挂载或启动 `.dmg`。 |
+| `APP_VERSION` | 未取得（没有包装后的 macOS 窗口；没有 DMG sidecar 的 `GET /health`） |
+| CI 产物 | 未启动。`.github/workflows/desktop.yml` 上传 `FramePilot-macos-dmg` 且**不**启动打包 GUI。`verify.yml` 无 Rust，也不启动。 |
+| 原片 | 未涉及（没有导入中退出会话；没有相机文件） |
+
+生命周期 + 安装/卸载矩阵的手工 GUI 行 — **全部未标 `[x]`**：
+
+| 行 | 结果 |
+| -- | ---- |
+| 启动（安装包） | skip `2026-09-05T12:31:10Z` — 没有 macOS GUI 主机 |
+| 干净退出 | skip — 同上 |
+| 导入中退出 | skip — 同上 |
+| 处理中退出 | skip — 同上 |
+| 导出中退出 | skip — 同上 |
+| Sidecar 崩溃 | skip — 同上 |
+| 端口占用 | skip — 同上 |
+| 安装 / 卸载 | skip — 同上 |
+
+本机 Linux 上 `npm run test:desktop:smoke` 保持绿灯（回环 sidecar 的 `2.1.0-desktop`，不是 DMG）。该 HTTP 冒烟、冻结 sidecar `/health` 与 Playwright 绿灯**不能**把本次 skip 变成 macOS GUI pass。
+
+Windows NSIS GUI 生命周期已记在 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)（仅 Windows，2026-09-04）。本切片不重跑 Windows。未签名 DMG 的 Gatekeeper 警告仍是预期；本记录不声称已签名或 Gatekeeper 干净的 Mac pass。Issue：[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)。

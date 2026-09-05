@@ -13,14 +13,18 @@ type ProcessingRecoveryReason = {
   status: ProcessingJob["status"] | null | undefined;
 };
 
-type ProcessingLoadScope = "cancel" | "history" | "job" | "project";
+type ProcessingLoadScope = "cancel" | "history" | "job" | "pause" | "project";
 
 type ProcessingProgressProject = Pick<Project, "processed_images" | "total_images">;
 
 type ProcessingJobCandidate = Pick<ProcessingJob, "job_type" | "status">;
 type ProcessingDisplayJobCandidate = ProcessingJobCandidate & Pick<ProcessingJob, "id">;
 
-type ProcessingCancelJobCandidate = Pick<ProcessingJob, "cancellation_requested" | "job_type" | "status">;
+type ProcessingCancelJobCandidate = Pick<
+  ProcessingJob,
+  "cancellation_requested" | "job_type" | "pause_requested" | "status"
+>;
+type ProcessingPauseJobCandidate = ProcessingCancelJobCandidate;
 
 type ProcessingActionBlockReason = {
   hasImportedPhotos: boolean;
@@ -32,6 +36,12 @@ type ProcessingActionBlockReason = {
 type ProcessingCancelPendingReason = {
   cancellationRequested?: boolean;
   isCancelPending?: boolean;
+  status?: ProcessingJob["status"] | null;
+};
+
+type ProcessingPausePendingReason = {
+  isPausePending?: boolean;
+  pauseRequested?: boolean;
   status?: ProcessingJob["status"] | null;
 };
 
@@ -163,6 +173,10 @@ export function processingRecoveryMessage({ failedItems, retryable, status }: Pr
     return "Processing stopped at a safe checkpoint. Run grouping and ranking again when you are ready.";
   }
 
+  if (status === "paused") {
+    return "Processing paused at a safe checkpoint. Partial groups were cleared. Run grouping and ranking again when you are ready. Originals are unchanged.";
+  }
+
   if (status === "complete_with_errors" && failedItems > 0) {
     return `Successfully processed photos are ready for culling. Review ${failedItems} failed ${pluralize(
       failedItems,
@@ -186,6 +200,10 @@ export function processingLoadRecoveryMessage(scope: ProcessingLoadScope): strin
     return "Confirm the local FramePilot API is running. If cancellation did not reach the job, FramePilot will keep the original files unchanged.";
   }
 
+  if (scope === "pause") {
+    return "Confirm the local FramePilot API is running. If pause did not reach the job, FramePilot will keep the original files unchanged.";
+  }
+
   return "Confirm the local FramePilot API is running, then reload this processing page. Imported originals remain unchanged.";
 }
 
@@ -198,7 +216,22 @@ export function canCancelProcessing(
     job.job_type === "processing" &&
     (job.status === "queued" || job.status === "running") &&
     !job.cancellation_requested &&
+    !job.pause_requested &&
     !isCancelPending,
+  );
+}
+
+export function canPauseProcessing(
+  job: ProcessingPauseJobCandidate | null | undefined,
+  isPausePending: boolean,
+): boolean {
+  return Boolean(
+    job &&
+    job.job_type === "processing" &&
+    (job.status === "queued" || job.status === "running") &&
+    !job.pause_requested &&
+    !job.cancellation_requested &&
+    !isPausePending,
   );
 }
 
@@ -214,6 +247,20 @@ export function processingCancelPendingMessage({
     return "";
   }
   return "Cancellation requested. FramePilot will stop after a safe checkpoint.";
+}
+
+export function processingPausePendingMessage({
+  isPausePending = false,
+  pauseRequested = false,
+  status,
+}: ProcessingPausePendingReason): string {
+  if (status !== "queued" && status !== "running") {
+    return "";
+  }
+  if (!isPausePending && !pauseRequested) {
+    return "";
+  }
+  return "Pause requested. FramePilot will stop after a safe checkpoint.";
 }
 
 export function processingActionBlockMessage({
@@ -235,7 +282,7 @@ export function processingActionBlockMessage({
   }
 
   if (!hasImportedPhotos) {
-    return "Import JPEG, PNG, WebP, or HEIC/HEIF images before running grouping and ranking.";
+    return "Import JPEG, PNG, WebP, HEIC/HEIF, AVIF, or RAW images before running grouping and ranking.";
   }
 
   return "";
