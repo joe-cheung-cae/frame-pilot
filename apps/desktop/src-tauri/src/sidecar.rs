@@ -98,6 +98,7 @@ pub enum CloseJobKind {
     None,
     Import,
     Processing,
+    Export,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,6 +137,7 @@ pub fn close_job_kind(job: Option<&ActiveJobRef>) -> CloseJobKind {
     match job.map(|job| job.job_type.as_str()) {
         Some("import") => CloseJobKind::Import,
         Some("processing") => CloseJobKind::Processing,
+        Some("export") => CloseJobKind::Export,
         Some(_) => CloseJobKind::Processing,
         None => CloseJobKind::None,
     }
@@ -146,7 +148,9 @@ pub fn close_decision(kind: CloseJobKind, choice: CloseChoice) -> CloseDecision 
         CloseChoice::Stay => CloseDecision::Stay,
         CloseChoice::QuitAnyway => CloseDecision::Terminate,
         CloseChoice::CancelAndQuit => match kind {
-            CloseJobKind::Import | CloseJobKind::Processing => CloseDecision::CancelThenTerminate,
+            CloseJobKind::Import | CloseJobKind::Processing | CloseJobKind::Export => {
+                CloseDecision::CancelThenTerminate
+            }
             CloseJobKind::None => CloseDecision::Terminate,
         },
     }
@@ -249,6 +253,11 @@ pub fn quit_dialog_script_with_reclaim(kind: CloseJobKind, reclaim_on_startup: b
                 "You can keep working, quit and cancel grouping and ranking, or quit anyway. Cancelled processing clears partial groups. Quit anyway SIGTERMs the sidecar; the next launch marks the job failed and keeps original photos unchanged (FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled)."
             },
             r#"<button type=\"button\" data-choice=cancel_and_quit>Quit and cancel processing</button>"#,
+        ),
+        CloseJobKind::Export => (
+            "Export is still running",
+            "You can keep working, quit and cancel the export, or quit anyway. Cancelled exports clean partial CSV, ZIP, and folder artifacts under the project export directory. Original photos stay unchanged. Quit anyway SIGTERMs the sidecar; the next launch still fail-and-cleanup leftover exports (they are not reclaimed).",
+            r#"<button type=\"button\" data-choice=cancel_and_quit>Quit and cancel export</button>"#,
         ),
         CloseJobKind::None => return String::new(),
     };
@@ -1205,6 +1214,10 @@ mod tests {
             CloseDecision::CancelThenTerminate
         );
         assert_eq!(
+            close_decision(CloseJobKind::Export, CloseChoice::CancelAndQuit),
+            CloseDecision::CancelThenTerminate
+        );
+        assert_eq!(
             close_decision(CloseJobKind::None, CloseChoice::CancelAndQuit),
             CloseDecision::Terminate
         );
@@ -1238,6 +1251,15 @@ mod tests {
             })),
             CloseJobKind::Processing
         );
+        assert_eq!(
+            close_job_kind(Some(&ActiveJobRef {
+                project_id: "p".into(),
+                job_id: "j".into(),
+                job_type: "export".into(),
+                status: "running".into(),
+            })),
+            CloseJobKind::Export
+        );
         assert_eq!(parse_quit_choice("\"cancel_and_quit\""), Some(CloseChoice::CancelAndQuit));
         assert_eq!(parse_quit_choice("stay"), Some(CloseChoice::Stay));
         assert!(job_status_is_terminal("cancelled"));
@@ -1258,6 +1280,15 @@ mod tests {
         assert!(processing_script.contains("Keep working"));
         assert!(processing_script.contains("Quit anyway"));
         assert!(!processing_script.contains("cannot be cancelled"));
+        let export_script = quit_dialog_script(CloseJobKind::Export);
+        assert!(export_script.contains("Quit and cancel export"));
+        assert!(export_script.contains("data-choice=cancel_and_quit"));
+        assert!(export_script.contains("Keep working"));
+        assert!(export_script.contains("Quit anyway"));
+        assert!(export_script.contains("fail-and-cleanup") || export_script.contains("fail and cleanup"));
+        assert!(!export_script.contains("Quit and cancel processing"));
+        assert!(!export_script.contains("cannot be cancelled"));
+        assert!(!export_script.contains("reclaim leftover"));
     }
 
     #[test]
@@ -1274,6 +1305,13 @@ mod tests {
         assert!(!processing_disabled.contains("cannot be cancelled"));
         let import_disabled = quit_dialog_script_with_reclaim(CloseJobKind::Import, false);
         assert!(import_disabled.contains("FRAMEPILOT_JOB_RECLAIM_ON_STARTUP is explicitly disabled"));
+        let export_enabled = quit_dialog_script_with_reclaim(CloseJobKind::Export, true);
+        let export_disabled = quit_dialog_script_with_reclaim(CloseJobKind::Export, false);
+        assert!(export_enabled.contains("Quit and cancel export"));
+        assert!(export_disabled.contains("Quit and cancel export"));
+        assert!(export_enabled.contains("Original photos stay unchanged") || export_enabled.contains("originals"));
+        assert!(!export_enabled.contains("interrupt and reclaim leftover"));
+        assert!(!export_disabled.contains("interrupt and reclaim leftover"));
     }
 
     #[test]
@@ -1338,6 +1376,20 @@ mod tests {
     }
 
     #[test]
+    fn quit_dialog_script_export_is_valid_javascript_with_cancel() {
+        let export_script = quit_dialog_script(CloseJobKind::Export);
+        assert!(
+            export_script.contains("data-choice=cancel_and_quit"),
+            "export overlay must keep data-choice=cancel_and_quit: {export_script}"
+        );
+        assert!(export_script.contains("Quit and cancel export"));
+        assert!(export_script.contains("Quit anyway"));
+        assert!(!export_script.contains("Quit and cancel processing"));
+        assert!(!export_script.contains("cannot be cancelled"));
+        assert_javascript_parses(&export_script);
+    }
+
+    #[test]
     fn close_choice_from_handshake_unresolved_stays() {
         assert_eq!(close_choice_from_handshake(None), CloseChoice::Stay);
         assert_eq!(
@@ -1398,6 +1450,13 @@ mod tests {
             ),
             CloseDecision::CancelThenTerminate
         );
+        assert_eq!(
+            close_decision(
+                CloseJobKind::Export,
+                close_choice_from_handshake(Some("cancel_and_quit"))
+            ),
+            CloseDecision::CancelThenTerminate
+        );
     }
 
     #[test]
@@ -1424,7 +1483,7 @@ mod tests {
             AppQuitAction::RequestShutdown
         );
 
-        for kind in [CloseJobKind::Import, CloseJobKind::Processing] {
+        for kind in [CloseJobKind::Import, CloseJobKind::Processing, CloseJobKind::Export] {
             let stay = close_decision(kind, CloseChoice::Stay);
             assert_eq!(stay, CloseDecision::Stay);
             assert!(!close_decision_requests_shutdown(stay));
@@ -1445,6 +1504,10 @@ mod tests {
             CloseJobKind::Processing,
             CloseChoice::CancelAndQuit
         )));
+        assert!(close_decision_requests_shutdown(close_decision(
+            CloseJobKind::Export,
+            CloseChoice::CancelAndQuit
+        )));
     }
 
     #[test]
@@ -1459,6 +1522,10 @@ mod tests {
         let processing = first_active_job_from_jobs_json("proj-1", jobs).expect("processing job");
         assert_eq!(processing.job_id, "job-2");
         assert_eq!(processing.job_type, "processing");
+        let export_jobs = r#"[{"id":"job-3","project_id":"proj-1","job_type":"export","status":"running"}]"#;
+        let export_job = first_active_job_from_jobs_json("proj-1", export_jobs).expect("export job");
+        assert_eq!(export_job.job_id, "job-3");
+        assert_eq!(export_job.job_type, "export");
     }
 
     fn wait_until_listening(port: u16, timeout: Duration) {

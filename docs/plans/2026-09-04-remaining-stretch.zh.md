@@ -43,7 +43,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 第九阶段 — 剩余 stretch（第八阶段之后）
 
 - [x] S9.00 排期切片、GitHub issue、§1.1 指针、workflow — [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160)
-- [ ] S9.01 导出作业取消 — [#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)
+- [x] S9.01 导出作业取消 — [#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)
 - [ ] S9.02 J7.07 处理暂停/恢复 — [#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)
 - [ ] S9.03 AVIF 静帧预览 — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
 - [ ] S9.04 RAW 内嵌预览 — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
@@ -88,11 +88,31 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 
 ### S9.01 — 导出取消
 
-**文件：** `apps/api/app/api/routes.py` `cancel_job_endpoint`；导出/作业服务；导出循环检查点；把 `apps/api/tests/test_import_process_export_api.py` 里导出 422 倒过来；若有进行中的导出，桌面退出可取消。
+**现场空洞：** `create_export_endpoint` 只写 `ExportRecord` + `run_export_job`。`cancel_job_endpoint` 查的是 `ProcessingJob`，`job_type` 不是 `import`/`processing` 就 422，detail 为 `"Only import jobs can be cancelled"`（`apps/api/app/api/routes.py`）。`test_cancel_export_job_is_still_rejected` 植入 `ProcessingJob(job_type="export")`。用 `ExportRecord.id` 打取消是 404。桌面 `find_active_job` 列的是 `/jobs` 不是 `/exports`；`close_job_kind` 把未知类型映射成处理退出文案（`apps/desktop/src-tauri/src/sidecar.rs`）。
 
-**测试先行：** 排队/运行中的导出取消 → 202 + 标志；终态 → 200 no-op；不完整产物删除；原片未动；导入/处理取消仍绿。
+**身份：** 创建导出时同时持久化 `ProcessingJob`，`job_type="export"`，**id 与 `ExportRecord` 相同**，状态 `running`。complete / fail / cancel / stale 时两行保持同步。不要把导出送进持久 worker 队列。启动时仍对残留 `ExportRecord` 做 fail-and-cleanup，并把非导入/处理的 `ProcessingJob` 标失败；**不要回收导出**。
 
-**非目标：** S9.02–S9.13；导出持久恢复；`APP_VERSION`；签名。
+**路由：** `POST /api/projects/{project_id}/jobs/{job_id}/cancel` 允许 `{import, processing, export}`。导出分发到 `request_export_job_cancellation`（不要复用导入/处理 helper）。422 detail 改成点名这三种允许类型。其他 `job_type` 仍 422。
+
+HTTP（比照处理）：
+
+| 作业状态 | 持久化 | HTTP |
+| -- | -- | -- |
+| queued 或 running | `cancellation_requested`；`current_step=cancellation_requested`；status 不变 | `202` |
+| 终态（`complete`、`complete_with_errors`、`failed`、`cancelled`） | 空操作 | `200` |
+| interrupted（没有在飞 worker） | 立即 finalize | `200` |
+
+**检查点：** 协作式，在 `write_selection_csv` / `copy_selected_files` / `zip_selected_files` 现有 `progress_callback` 处按照片检查。不是硬杀。见到标志：中止，然后 `_remove_partial_export`（只删项目导出根下的 csv/zip/文件夹）。根外路径保留。**永不修改或删除原片。**
+
+**Finalize：** `ProcessingJob` → `cancelled` + `cancelled_at`。对应 `ExportRecord` → 现有 fail-and-cleanup（`failed`，不加新的导出状态，无持久恢复）。再导出走新的 `POST /export`。
+
+**桌面：** 增加 `CloseJobKind::Export`。`job_type=="export"` 不得复用处理对话框。CancelAndQuit → CancelThenTerminate（POST 同一取消路由，最多等 10 秒，再 SIGTERM）。按钮：退出并取消导出 / 继续工作 / 仍要退出。文案：不完整导出物会清理；原片不变；下次启动仍 fail-and-cleanup（不回收）。
+
+**文件：** `apps/api/app/api/routes.py`（`cancel_job_endpoint`、`create_export_endpoint`、`run_export_job`）；`apps/api/app/services/exporting.py` 检查点；`apps/api/app/services/jobs.py`（导出仍不回收）；倒转 `apps/api/tests/test_import_process_export_api.py`；`apps/desktop/src-tauri/src/sidecar.rs`。当前仍写导出 422 的文档（`docs/api.md`、`docs/v2_known_limitations.md`、桌面 README / 用户指南、CHANGELOG Unreleased；及中文对应页）。只在实现提交里勾选 §3 S9.01。
+
+**测试先行：** 倒转 `test_cancel_export_job_is_still_rejected`。queued/running → 202 + 标志；终态 → 200 no-op；原片未动。真实 csv/zip/folder 取消会删掉导出根下的不完整产物且不碰原片。导入/处理取消测试仍绿。桌面 Rust：export kind + cancel-and-quit。
+
+**非目标：** S9.02–S9.13；导出持久恢复 / worker 回收；ExportPanel 取消按钮（UI 是桌面退出）；`APP_VERSION`；签名。
 
 ### S9.02 — J7.07 暂停
 

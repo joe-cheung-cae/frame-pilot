@@ -1604,17 +1604,99 @@ def test_cancel_terminal_processing_job_is_safe_noop(tmp_path, monkeypatch, job_
     assert body["cancelled_at"] is None
 
 
-def test_cancel_export_job_is_still_rejected(tmp_path, monkeypatch):
+@pytest.mark.parametrize("job_status", ["queued", "running"])
+def test_cancel_export_job_persists_request_and_leaves_originals(tmp_path, monkeypatch, job_status):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
     client = TestClient(create_app())
-    project = client.post("/api/projects", json={"name": "Cancel export"}).json()
+    project = client.post("/api/projects", json={"name": "Cancel export request"}).json()
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    original_path = originals / "frame.jpg"
+    original_bytes = _image_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            project_copy_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="processed",
+            user_status="Pick",
+        )
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="export",
+            status=job_status,
+            current_step="exporting" if job_status == "running" else "queued",
+            total_items=1,
+            processed_items=0,
+            started_at=datetime.now(UTC) if job_status == "running" else None,
+            updated_at=datetime.now(UTC),
+        )
+        session.add(photo)
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    cancel_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
+
+    assert cancel_response.status_code == 202
+    cancelled = cancel_response.json()
+    assert cancelled["id"] == job_id
+    assert cancelled["job_type"] == "export"
+    assert cancelled["status"] == job_status
+    assert cancelled["cancellation_requested"] is True
+    assert cancelled["current_step"] == "cancellation_requested"
+    assert cancelled["cancelled_at"] is None
+    assert cancelled["retryable"] is False
+    assert original_path.read_bytes() == original_bytes
+
+    polled = client.get(f"/api/projects/{project['id']}/jobs/{job_id}").json()
+    assert polled["status"] == job_status
+    assert polled["cancellation_requested"] is True
+    assert original_path.read_bytes() == original_bytes
+
+
+@pytest.mark.parametrize("job_status", ["complete", "complete_with_errors", "failed", "cancelled"])
+def test_cancel_terminal_export_job_is_safe_noop(tmp_path, monkeypatch, job_status):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel complete export"}).json()
 
     with Session(get_engine()) as session:
         job = ProcessingJob(
             project_id=project["id"],
             job_type="export",
+            status=job_status,
+            current_step=job_status,
+            cancellation_requested=False,
+            total_items=1,
+        )
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    cancel_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
+
+    assert cancel_response.status_code == 200
+    body = cancel_response.json()
+    assert body["status"] == job_status
+    assert body["cancellation_requested"] is False
+    assert body["cancelled_at"] is None
+
+
+def test_cancel_unknown_job_type_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel unknown job"}).json()
+
+    with Session(get_engine()) as session:
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="other",
             status="running",
-            current_step="exporting",
+            current_step="working",
             total_items=1,
             updated_at=datetime.now(UTC),
         )
@@ -1625,7 +1707,203 @@ def test_cancel_export_job_is_still_rejected(tmp_path, monkeypatch):
     cancel_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
 
     assert cancel_response.status_code == 422
-    assert cancel_response.json()["detail"] == "Only import jobs can be cancelled"
+    assert cancel_response.json()["detail"] == "Only import, processing, and export jobs can be cancelled"
+
+
+def test_cancel_interrupted_export_job_finalizes_and_cleans_partial(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel interrupted export"}).json()
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    original_path = originals / "frame.jpg"
+    original_bytes = _image_bytes()
+    original_path.write_bytes(original_bytes)
+    export_root = Path(project["root_path"]) / "exports" / "zip"
+    export_root.mkdir(parents=True, exist_ok=True)
+    partial_zip = export_root / "partial.zip"
+    partial_zip.write_bytes(b"partial-export")
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            project_copy_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="processed",
+            user_status="Pick",
+        )
+        record = ExportRecord(
+            project_id=project["id"],
+            mode="zip",
+            status="running",
+            selected_count=1,
+            processed_count=0,
+            total_count=1,
+            statuses='["Pick"]',
+            output_path=str(partial_zip),
+        )
+        job = ProcessingJob(
+            id=record.id,
+            project_id=project["id"],
+            job_type="export",
+            status="interrupted",
+            current_step="interrupted - restart",
+            interrupted_at=datetime.now(UTC),
+            worker_id="stale-export-worker",
+            heartbeat_at=datetime.now(UTC),
+            total_items=1,
+        )
+        session.add(photo)
+        session.add(record)
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    cancel_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/cancel")
+
+    assert cancel_response.status_code == 200
+    body = cancel_response.json()
+    assert body["id"] == job_id
+    assert body["job_type"] == "export"
+    assert body["status"] == "cancelled"
+    assert body["current_step"] == "cancelled"
+    assert body["cancellation_requested"] is True
+    assert body["cancelled_at"] is not None
+    assert body["retryable"] is False
+    assert original_path.read_bytes() == original_bytes
+    assert not partial_zip.exists()
+
+    persisted = client.get(f"/api/projects/{project['id']}/jobs/{job_id}").json()
+    assert persisted["status"] == "cancelled"
+    assert persisted["cancellation_requested"] is True
+    export_record = client.get(f"/api/projects/{project['id']}/exports/{job_id}").json()
+    assert export_record["status"] == "failed"
+    assert export_record["completed_at"] is not None
+
+
+def test_create_export_persists_job_with_same_id(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    scheduled_tasks: list[tuple[object, tuple, dict]] = []
+
+    def capture_background_task(self, func, *args, **kwargs):
+        scheduled_tasks.append((func, args, kwargs))
+
+    monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Export job identity"}).json()
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    original_path = originals / "frame.jpg"
+    original_bytes = _image_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        session.add(
+            Photo(
+                project_id=project["id"],
+                original_path=str(original_path),
+                project_copy_path=str(original_path),
+                filename="frame.jpg",
+                user_status="Pick",
+            )
+        )
+        session.commit()
+
+    response = client.post(f"/api/projects/{project['id']}/exports", json={"mode": "csv", "statuses": ["Pick"]})
+    assert response.status_code == 201
+    record = response.json()
+    job_response = client.get(f"/api/projects/{project['id']}/jobs/{record['id']}")
+    assert job_response.status_code == 200
+    job = job_response.json()
+    assert job["id"] == record["id"]
+    assert job["job_type"] == "export"
+    assert job["status"] == "running"
+    assert job["cancellation_requested"] is False
+    assert original_path.read_bytes() == original_bytes
+    assert len(scheduled_tasks) == 1
+
+
+@pytest.mark.parametrize("mode", ["csv", "zip", "folder"])
+def test_cancel_running_export_removes_partial_artifact_and_leaves_originals(tmp_path, monkeypatch, mode):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    scheduled_tasks: list[tuple[object, tuple, dict]] = []
+
+    def capture_background_task(self, func, *args, **kwargs):
+        scheduled_tasks.append((func, args, kwargs))
+
+    monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
+    client = TestClient(create_app())
+    cancel_client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": f"Cancel live {mode} export"}).json()
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    original_bytes_by_path: dict[Path, bytes] = {}
+    with Session(get_engine()) as session:
+        for index in range(2):
+            path = originals / f"frame-{index}.jpg"
+            payload = _image_bytes(color=(80 + index * 40, 120, 90))
+            path.write_bytes(payload)
+            original_bytes_by_path[path] = payload
+            session.add(
+                Photo(
+                    project_id=project["id"],
+                    original_path=str(path),
+                    project_copy_path=str(path),
+                    filename=path.name,
+                    user_status="Pick",
+                )
+            )
+        session.commit()
+
+    writer_name = {"csv": "write_selection_csv", "zip": "zip_selected_files", "folder": "copy_selected_files"}[mode]
+    real_writer = getattr(routes, writer_name)
+
+    def cancel_after_first_photo(*args, **kwargs):
+        original_callback = kwargs.get("progress_callback")
+
+        def hooked_progress(processed: int, total: int) -> None:
+            if processed == 1:
+                response = cancel_client.post(f"/api/projects/{project['id']}/jobs/{record_id}/cancel")
+                assert response.status_code == 202
+                assert response.json()["cancellation_requested"] is True
+            if original_callback is not None:
+                original_callback(processed, total)
+
+        kwargs["progress_callback"] = hooked_progress
+        return real_writer(*args, **kwargs)
+
+    monkeypatch.setattr(routes, writer_name, cancel_after_first_photo)
+
+    create_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": mode, "statuses": ["Pick"]},
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+    record_id = created["id"]
+    output_path = Path(created["output_path"])
+    assert created["status"] == "running"
+    assert len(scheduled_tasks) == 1
+
+    task, args, kwargs = scheduled_tasks[0]
+    task(*args, **kwargs)
+
+    job = client.get(f"/api/projects/{project['id']}/jobs/{record_id}").json()
+    assert job["id"] == record_id
+    assert job["job_type"] == "export"
+    assert job["status"] == "cancelled"
+    assert job["current_step"] == "cancelled"
+    assert job["cancellation_requested"] is True
+    assert job["cancelled_at"] is not None
+    assert job["retryable"] is False
+
+    export_record = client.get(f"/api/projects/{project['id']}/exports/{record_id}").json()
+    assert export_record["status"] == "failed"
+    assert export_record["completed_at"] is not None
+    assert not output_path.exists()
+    for path, payload in original_bytes_by_path.items():
+        assert path.read_bytes() == payload
 
 
 def test_cancel_interrupted_processing_job_finalizes_and_resets_groups(tmp_path, monkeypatch):

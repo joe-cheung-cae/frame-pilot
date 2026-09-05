@@ -6,6 +6,15 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.01 export job cancel
+
+- Cooperative export cancel on the existing `POST /api/projects/{project_id}/jobs/{job_id}/cancel` route (queued/running persist `cancellation_requested` with 202; terminal is a 200 no-op; interrupted finalizes `cancelled`)
+- Create export also persists `ProcessingJob` `job_type="export"` with the same id as the `ExportRecord`
+- Checkpoints abort CSV/ZIP/folder writers; partial artifacts under the project export root are fail-and-cleanup; originals are never modified or deleted
+- Desktop quit can **Quit and cancel export** (POST cancel, wait up to 10s, then SIGTERM)
+- Export jobs are still not reclaimed on startup; pause/resume of in-flight grouping is not implemented
+- No `APP_VERSION` bump, signing, or packaged GUI
+
 ### Docs — schedule remaining stretch (S9.00)
 
 - Name Phase 9 remaining-stretch close-out in `develop_plan.md` §1.1 (one GitHub issue per run; do not invent Phase 10)

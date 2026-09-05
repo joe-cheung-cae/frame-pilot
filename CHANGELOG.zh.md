@@ -6,6 +6,15 @@
 
 ## 未发布
 
+### 第九阶段 — S9.01 导出作业取消
+
+- 现有 `POST /api/projects/{project_id}/jobs/{job_id}/cancel` 路由上的协作式导出取消（queued/running 持久化 `cancellation_requested` 并返回 202；终态 200 空操作；interrupted 终态 `cancelled`）
+- 创建导出同时持久化 `job_type="export"` 的 `ProcessingJob`，id 与 `ExportRecord` 相同
+- 检查点中止 CSV/ZIP/文件夹写入；项目导出根下的不完整产物走 fail-and-cleanup；永不修改或删除原片
+- 桌面退出可 **退出并取消导出**（POST cancel，最多等 10 秒，再 SIGTERM）
+- 导出作业启动时仍不回收；进行中分组的暂停/恢复未实现
+- 不改 `APP_VERSION`、不签名、不打包 GUI
+
 ### 文档 — 排期剩余 stretch（S9.00）
 
 - 在 `develop_plan.zh.md` §1.1 点名第九阶段剩余 stretch 收口（每次运行一个 GitHub issue；不要发明第十阶段）

@@ -43,7 +43,7 @@ S9.00 is this document, the §1.1 pointer, GitHub issues, and the workflow file.
 Phase 9 — remaining stretch (post Phase 8)
 
 - [x] S9.00 Schedule slices, GitHub issues, §1.1 pointer, workflow — [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160)
-- [ ] S9.01 Export job cancel — [#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)
+- [x] S9.01 Export job cancel — [#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)
 - [ ] S9.02 J7.07 processing pause/resume — [#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)
 - [ ] S9.03 AVIF still preview — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
 - [ ] S9.04 RAW embedded preview — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
@@ -88,11 +88,31 @@ Docs + GitHub issues + `.grok/workflows/remaining-stretch.rhai`. No product beha
 
 ### S9.01 — Export cancel
 
-**Files:** `apps/api/app/api/routes.py` `cancel_job_endpoint`; export/job services; export loop checkpoints; invert export 422 in `apps/api/tests/test_import_process_export_api.py`; desktop quit if an export job is active.
+**Hole (live tree):** `create_export_endpoint` writes `ExportRecord` + `run_export_job` only. `cancel_job_endpoint` loads `ProcessingJob` and 422s unless `job_type` is `import` or `processing`, with detail `"Only import jobs can be cancelled"` (`apps/api/app/api/routes.py`). `test_cancel_export_job_is_still_rejected` plants `ProcessingJob(job_type="export")`. Cancel with `ExportRecord.id` is 404. Desktop `find_active_job` lists `/jobs`, not `/exports`; `close_job_kind` maps unknown types to the processing quit copy (`apps/desktop/src-tauri/src/sidecar.rs`).
 
-**Tests first:** queued/running export cancel → 202 + flag; terminal → 200 no-op; partial artifacts removed; originals untouched; import/processing cancel still green.
+**Identity:** On export create, also persist `ProcessingJob` with `job_type="export"` and **the same `id` as the `ExportRecord`**, status `running`. Keep the two rows in sync on complete / fail / cancel / stale. Do not enqueue export on the durable worker. Startup still fail-and-cleanup leftover `ExportRecord` rows and fail non-import/processing `ProcessingJob` rows; **do not reclaim export**.
 
-**Non-goals:** S9.02–S9.13; export durable resume; `APP_VERSION`; signing.
+**Route:** `POST /api/projects/{project_id}/jobs/{job_id}/cancel` allows `{import, processing, export}`. Dispatch export to `request_export_job_cancellation` (do not overload import/processing helpers). Replace the 422 detail so it names the three allowed types. Other `job_type` values stay 422.
+
+HTTP (mirror processing):
+
+| Job state | Persist | HTTP |
+| -- | -- | -- |
+| queued or running | `cancellation_requested`; `current_step=cancellation_requested`; status unchanged | `202` |
+| terminal (`complete`, `complete_with_errors`, `failed`, `cancelled`) | no-op | `200` |
+| interrupted (no in-flight worker) | finalize immediately | `200` |
+
+**Checkpoints:** cooperative, per photo at the existing `progress_callback` sites in `write_selection_csv` / `copy_selected_files` / `zip_selected_files`. Not a hard kill. On flag: abort, then `_remove_partial_export` (csv/zip/folder under the project export root only). Paths outside that root stay. **Originals are never modified or deleted.**
+
+**Finalize:** `ProcessingJob` → `cancelled` + `cancelled_at`. Linked `ExportRecord` → existing fail-and-cleanup (`failed`, no new export status, no durable resume). Re-run is a new `POST /export`.
+
+**Desktop:** add `CloseJobKind::Export`. `job_type=="export"` must not reuse the processing dialog. CancelAndQuit → CancelThenTerminate (POST the same cancel route, wait ≤10s, SIGTERM). Buttons: Quit and cancel export / Keep working / Quit anyway. Copy: partial export artifacts are cleaned; originals unchanged; next launch still fail-and-cleanup (not reclaim).
+
+**Files:** `apps/api/app/api/routes.py` (`cancel_job_endpoint`, `create_export_endpoint`, `run_export_job`); `apps/api/app/services/exporting.py` checkpoints; `apps/api/app/services/jobs.py` (export stays non-reclaim); invert `apps/api/tests/test_import_process_export_api.py`; `apps/desktop/src-tauri/src/sidecar.rs`. Docs that currently assert export 422 (`docs/api.md`, `docs/v2_known_limitations.md`, desktop README / user guide, CHANGELOG Unreleased; + zh). Tick §3 S9.01 only in the implementation commit.
+
+**Tests first:** invert `test_cancel_export_job_is_still_rejected`. queued/running → 202 + flag; terminal → 200 no-op; originals untouched. Live csv/zip/folder cancel removes the partial artifact under export root and does not touch originals. Import/processing cancel tests stay green. Desktop rust: export kind + cancel-and-quit.
+
+**Non-goals:** S9.02–S9.13; export durable resume / worker reclaim; ExportPanel cancel button (desktop quit is the UI); `APP_VERSION`; signing.
 
 ### S9.02 — J7.07 pause
 

@@ -39,7 +39,7 @@ FramePilot 是一个本地 Web 应用，分为两个应用：
 失败、`complete_with_errors` 和 `cancelled` 的导入作业可通过本地重试端点重试。重试会创建新的导入作业，并且只对缺少生成衍生文件、或导入状态仍为 `processing` 或 `failed` 的照片执行恢复工作。它保留现有照片 ID、审阅状态、星级评分、已复制的原始文件以及已经有效的缩略图/预览文件。缺失的衍生文件会尽可能从本地已复制的原始文件重新生成；无法恢复的照片保持 `failed` 状态并带有 `processing_error`，计入重试作业。重试不会引入外部或云队列。启动回收默认开启（设 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可关闭），中断的导入作业会在重启后通过进程内回收完成，而无需重新上传。
 
 处理同样使用本地 FastAPI 后台任务。`POST /api/projects/{project_id}/process` 创建 `ProcessingJob` 并立即返回，随后工作器在 SQLite 中更新状态、当前步骤、条目计数、失败计数、进度百分比、开始时间和完成时间。处理界面轮询 `GET /api/projects/{project_id}/jobs/{job_id}`，直到作业完成、失败或被取消。
-处理取消走同一条 `POST /api/projects/{project_id}/jobs/{job_id}/cancel` 路由，是协作式的，不是硬杀进程。取消处理后清分组，在飞照片回到 `imported`；原图、导入衍生件、`user_status` 与 `star_rating` 保留。回收尊重已请求的取消，不重新入队。重跑分组走 `POST /process`；`/retry` 仍仅导入。导出作业仍不可取消（`422`）。
+处理取消走同一条 `POST /api/projects/{project_id}/jobs/{job_id}/cancel` 路由，是协作式的，不是硬杀进程。取消处理后清分组，在飞照片回到 `imported`；原图、导入衍生件、`user_status` 与 `star_rating` 保留。回收尊重已请求的取消，不重新入队。重跑分组走 `POST /process`；`/retry` 仍仅导入。导出取消走同一路由：创建时持久化 `job_type="export"` 的 `ProcessingJob`，id 与 `ExportRecord` 相同；检查点中止后对项目导出根下的不完整产物做 fail-and-cleanup。导出作业不会被回收。
 当同一项目存在排队或正在运行的导入作业时，处理会被阻塞。项目详情/列表响应将活动导入作业作为轻量工作流状态暴露；处理端点在导入进行中对直接请求返回 `409 Conflict`；项目列表、仪表板、处理页和筛选工作区会把用户导回导入进度，直到衍生生成达到终态。
 如果排队或正在运行的处理作业过期（存在租约心跳时超过 2 分钟未刷新，否则 `updated_at` 超过 10 分钟），项目和作业端点会将其标记为失败，清除任何部分分组，移除照片分组分配，将已处理或进行中的照片重置为可重试的已导入状态，并将项目已处理计数设回零。之后的处理请求可以启动替换作业并干净地重建分组。只有显式关闭回收（`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0`）时，API 进程启动才会立即将任何残留的排队/运行中/已中断作业标记为失败；默认情况下（见下方第 6.1 阶段更新）残留工作会被标为 `interrupted` 并回收，因此无论哪种方式，重启都不会让工作区在整个过期窗口内被阻塞。
 
@@ -49,7 +49,9 @@ FramePilot 是一个本地 Web 应用，分为两个应用：
 
 2026-08-31 更新（第 6.1 阶段，[#105](https://github.com/joe-cheung-cae/frame-pilot/issues/105)）：启动回收现在默认开启。`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 未设置（或设为任何真值）即启用回收；设为 `0`/`false`/`no`/`off` 可退回旧的失败并重试启动流程。第六阶段的其余行为（检查点、租约、worker 入口、导出重启后失败）均未改变。
 
-2026-09-03 更新（第七阶段，[#145](https://github.com/joe-cheung-cae/frame-pilot/issues/145) / [#146](https://github.com/joe-cheung-cae/frame-pilot/issues/146)）：同一取消路由现可协作取消处理作业与导入作业。取消处理会清分组；原图不变。导出取消仍为 422。进行中分组的暂停/恢复未实现。
+2026-09-03 更新（第七阶段，[#145](https://github.com/joe-cheung-cae/frame-pilot/issues/145) / [#146](https://github.com/joe-cheung-cae/frame-pilot/issues/146)）：同一取消路由现可协作取消处理作业与导入作业。取消处理会清分组；原图不变。进行中分组的暂停/恢复未实现。
+
+2026-09-05 更新（第九阶段 S9.01，[#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)）：同一取消路由现可协作取消导出作业。不完整的 CSV/ZIP/文件夹走 fail-and-cleanup；原片不变；残留导出仍不会被回收。
 
 对未变更的已完成项目，处理是幂等的：如果所有照片已标记为 `processed`，项目计数匹配，生成的缩略图和预览仍然存在，且分组覆盖全部照片集，则新的处理作业会完成且不清除或重建分组。新导入或缺失的生成文件仍会使该捷径失效，并在分组/排序完成前需要本地校验。导入在保守的相同上传情形下是幂等的：如果所选文件的上传文件名和 SHA-256 内容哈希与项目中已有照片相同，且该照片的缩略图和预览仍然存在，则复用现有记录和衍生文件，不重置用户状态，也不再创建一份副本。文件名不同但字节相同的文件仍视为不同的导入。
 

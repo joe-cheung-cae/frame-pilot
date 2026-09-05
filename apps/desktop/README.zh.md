@@ -32,8 +32,8 @@ Windows NSIS 和 macOS DMG 安装包由 `.github/workflows/desktop.yml` 产出�
 
 ## 有任务时退出
 
-关闭窗口时若有活跃导入，显示继续工作 / 退出并取消导入 / 仍要退出。取消复用 `POST /api/projects/{id}/jobs/{job_id}/cancel`，最多等 10 秒，再 SIGTERM。活跃分组/排序任务则显示继续工作 / 退出并取消处理 / 仍要退出，同样是 POST cancel + 最多 10 秒等待 + SIGTERM。仍要退出会对 sidecar 发 SIGTERM，5 秒后杀掉。
+关闭窗口时若有活跃导入，显示继续工作 / 退出并取消导入 / 仍要退出。取消复用 `POST /api/projects/{id}/jobs/{job_id}/cancel`，最多等 10 秒，再 SIGTERM。活跃分组/排序任务则显示继续工作 / 退出并取消处理 / 仍要退出，同样是 POST cancel + 最多 10 秒等待 + SIGTERM。活跃导出则显示继续工作 / 退出并取消导出 / 仍要退出；取消导出会清理不完整的 CSV/ZIP/文件夹产物，原片不变。仍要退出会对 sidecar 发 SIGTERM，5 秒后杀掉。
 
-下次启动时，残留导入/处理任务默认变为 `interrupted` 并自动回收（第六阶段 6.1，[#105](https://github.com/joe-cheung-cae/frame-pilot/issues/105)）。在环境里设 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0`（sidecar 会继承）则改为把残留活跃任务标为 **failed**，以便手动重试。永不修改原图。见 [第六阶段计划](../../docs/plans/2026-08-29-phase6-durable-jobs.zh.md)。
+下次启动时，残留导入/处理任务默认变为 `interrupted` 并自动回收（第六阶段 6.1，[#105](https://github.com/joe-cheung-cae/frame-pilot/issues/105)）。残留导出仍 fail-and-cleanup，不会被回收。在环境里设 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0`（sidecar 会继承）则改为把残留导入/处理任务标为 **failed**，以便手动重试。永不修改原图。见 [第六阶段计划](../../docs/plans/2026-08-29-phase6-durable-jobs.zh.md)。
 
 HTTP 冒烟：从仓库根目录 `npm run test:desktop:smoke`（PR 和 `main` 的默认 CI 门）。该冒烟不含 WebView 渲染对话框。

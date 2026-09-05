@@ -53,6 +53,7 @@ No extra npm alias is required for this matrix; use the scripts above directly.
 | Quit clean | Close window with no active import/processing job | Sidecar exits; no orphan uvicorn on that port | Manual GUI |
 | Quit + import | Close during an active import | Dialogs per [apps/desktop/README.md](../apps/desktop/README.md) (Keep working / cancel import / Quit anyway); source originals unchanged | Manual GUI |
 | Quit + processing | Close during grouping/ranking | Dialogs per [apps/desktop/README.md](../apps/desktop/README.md) (Keep working / Quit and cancel processing / Quit anyway); cancelled processing clears partial groups; source originals unchanged | Manual GUI |
+| Quit + export | Close during an active export | Dialogs per [apps/desktop/README.md](../apps/desktop/README.md) (Keep working / Quit and cancel export / Quit anyway); partial export artifacts cleaned; source originals unchanged | Manual GUI |
 | Sidecar crash | Kill sidecar while UI is open | UI shows failure / unreachable API; restarting the app recovers or documents retry; originals untouched | Manual |
 | Port in use | Force bind conflict on the intended loopback port | Clear error; process must **not** listen on `0.0.0.0` | Manual / note |
 

@@ -4,10 +4,140 @@ import zipfile
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 
+from sqlmodel import Session
+
+from app.models.entities import ExportRecord, ProcessingJob, Project, utc_now
+
 STORED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+EXPORT_CANCEL_REASON = "Export job was cancelled by user request"
+TERMINAL_EXPORT_CANCEL_NOOP = frozenset({"complete", "complete_with_errors", "failed", "cancelled"})
 
 ExportProgressCallback = Callable[[int, int], None]
+
+
+class ExportCancelled(Exception):
+    """Raised at a cooperative export checkpoint when cancellation was requested."""
+
+
+def remove_partial_export(target: Path, export_root: Path) -> None:
+    try:
+        resolved_target = target.resolve(strict=True)
+        resolved_export_root = export_root.resolve(strict=True)
+    except FileNotFoundError:
+        return
+    if not resolved_target.is_relative_to(resolved_export_root):
+        return
+    if target.is_symlink():
+        target.unlink()
+    elif resolved_target.is_dir():
+        shutil.rmtree(resolved_target)
+    else:
+        resolved_target.unlink()
+
+
+def fail_and_cleanup_export_record(
+    session: Session,
+    record: ExportRecord,
+    reason: str,
+    *,
+    commit: bool = False,
+) -> ExportRecord:
+    try:
+        from app.services.processing import project_export_root
+
+        project = session.get(Project, record.project_id)
+        if project is not None:
+            export_root = project_export_root(project)
+            remove_partial_export(Path(record.output_path), export_root)
+    except Exception:
+        pass
+    record.status = "failed"
+    record.error_message = reason
+    record.completed_at = utc_now()
+    session.add(record)
+    if commit:
+        session.commit()
+        session.refresh(record)
+    return record
+
+
+def finalize_cancelled_export_job(session: Session, job: ProcessingJob) -> ProcessingJob:
+    now = utc_now()
+    record = session.get(ExportRecord, job.id)
+    if record is not None and record.status == "running":
+        fail_and_cleanup_export_record(session, record, EXPORT_CANCEL_REASON, commit=False)
+    job.status = "cancelled"
+    job.current_step = "cancelled"
+    job.cancellation_requested = True
+    job.cancelled_at = now
+    job.completed_at = now
+    job.interrupted_at = None
+    job.worker_id = None
+    job.heartbeat_at = None
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def request_export_job_cancellation(session: Session, job: ProcessingJob) -> ProcessingJob:
+    if job.job_type != "export":
+        return job
+    if job.status == "interrupted":
+        return finalize_cancelled_export_job(session, job)
+    if job.status in TERMINAL_EXPORT_CANCEL_NOOP:
+        return job
+    now = utc_now()
+    job.cancellation_requested = True
+    job.current_step = "cancellation_requested"
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def sync_export_job(
+    session: Session,
+    export_id: str,
+    *,
+    status: str,
+    current_step: str,
+    processed_items: int | None = None,
+    total_items: int | None = None,
+    error_message: str | None = None,
+    commit: bool = False,
+) -> ProcessingJob | None:
+    job = session.get(ProcessingJob, export_id)
+    if job is None or job.job_type != "export":
+        return None
+    now = utc_now()
+    job.status = status
+    job.current_step = current_step
+    if processed_items is not None:
+        job.processed_items = processed_items
+    if total_items is not None:
+        job.total_items = total_items
+    if job.total_items:
+        job.progress_percent = round(min(100.0, (job.processed_items / job.total_items) * 100), 2)
+    if error_message is not None:
+        job.error_message = error_message
+    if status in {"complete", "failed", "cancelled"}:
+        job.completed_at = now
+        job.worker_id = None
+        job.heartbeat_at = None
+        job.interrupted_at = None
+    if status == "cancelled":
+        job.cancellation_requested = True
+        job.cancelled_at = now
+    job.updated_at = now
+    session.add(job)
+    if commit:
+        session.commit()
+        session.refresh(job)
+    return job
 
 
 def _unique_destination(directory: Path, filename: str) -> Path:
@@ -79,6 +209,7 @@ def write_selection_csv(
 ) -> Path:
     photo_list: Sequence[dict] = _as_photo_list(photos)
     total = len(photo_list)
+    _report_progress(progress_callback, 0, total)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
@@ -170,6 +301,7 @@ def copy_selected_files(
 ) -> Path:
     photo_list: Sequence[dict] = _as_photo_list(photos)
     total = len(photo_list)
+    _report_progress(progress_callback, 0, total)
     target_dir.mkdir(parents=True, exist_ok=True)
     for index, photo in enumerate(photo_list, start=1):
         source = _existing_original_path(photo, project_root)
@@ -192,6 +324,7 @@ def zip_selected_files(
 ) -> Path:
     photo_list: Sequence[dict] = _as_photo_list(photos)
     total = len(photo_list)
+    _report_progress(progress_callback, 0, total)
     target_zip.parent.mkdir(parents=True, exist_ok=True)
     used_names: set[str] = set()
     with zipfile.ZipFile(target_zip, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as archive:

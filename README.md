@@ -12,7 +12,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 - JPEG, PNG, WebP, and HEIC/HEIF still imports. Originals are copied unchanged; thumbnails and previews are WebP; scoring and grouping run on decoded RGB via local `pillow-heif`. RAW files are still skipped with explicit local messages.
 - Import jobs return after local upload/register work and continue derivative generation in a queryable, cooperatively cancellable local background task.
 - Processing is blocked while import derivative work is still active, and project navigation routes users back to import progress until the import job reaches a terminal state.
-- Processing (grouping and ranking) is cooperatively cancellable on the same job cancel route. Desktop quit can cancel an active processing job, then SIGTERM the sidecar.
+- Processing (grouping and ranking) and export jobs are cooperatively cancellable on the same job cancel route. Desktop quit can cancel an active processing or export job, then SIGTERM the sidecar.
 - Deterministic thumbnail and preview generation.
 - Basic metadata extraction and explainable image quality scoring.
 - Experimental local face and eye-open heuristic signals.
@@ -25,7 +25,7 @@ FramePilot is a local-first AI-assisted photo culling web app. The current v2 lo
 Known v2.0 limitations:
 
 - RAW files such as DNG, ARW, CR3, and NEF are skipped with explicit local messages. HEIC/HEIF stills import locally; Live Photo `.mov` companions, AVIF, HDR gain-map tone mapping, and XMP writes are not implemented.
-- Import and processing jobs run in the local API process or the optional local worker (`npm run worker`). Progress, cooperative import and processing cancellation, stale-job detection, active-import processing guards, safe import retry, and stale-processing cleanup are available. By default leftover active import/processing jobs are marked `interrupted` on the next startup and reclaimed (`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on; set `0`/`false`/`no`/`off` for fail-and-retry). Export jobs are not cancellable and are not reclaimed.
+- Import and processing jobs run in the local API process or the optional local worker (`npm run worker`). Progress, cooperative import, processing, and export cancellation, stale-job detection, active-import processing guards, safe import retry, and stale-processing cleanup are available. By default leftover active import/processing jobs are marked `interrupted` on the next startup and reclaimed (`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` defaults on; set `0`/`false`/`no`/`off` for fail-and-retry). Export jobs are cancellable and are not reclaimed (fail-and-cleanup).
 - Experimental face and eye-open signals are deterministic local heuristics, not professional face detection, eye-state detection, identity recognition, or biometric analysis.
 - Grouping and ranking remain recommendation aids. The user keeps final control through manual statuses and star ratings.
 
