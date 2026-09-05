@@ -18,7 +18,7 @@ This file remains the **v2.0 RC decision record** (verification run dated 2026-0
 - Unsigned Windows NSIS GUI lifecycle QA ([#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144), Windows-only)
 - Phase 8 local HEIC/HEIF still preview (H8.01–H8.06)
 
-**Next on `main`:** Phase 9 remaining-stretch close-out (S9.00–S9.13), one GitHub issue per run. S9.00–S9.06 are landed; start at S9.07. Do not invent Phase 10. Job durability, desktop packaging, processing cancel, and HEIC preview in the sections below describe the 2026-06-05 rc2 product unless a later-slice note says otherwise. See `develop_plan.md` §1.1 and `docs/plans/2026-09-04-remaining-stretch.md`.
+**Next on `main`:** Phase 9 remaining-stretch close-out (S9.00–S9.13), one GitHub issue per run. S9.00–S9.07 are landed; start at S9.08. Do not invent Phase 10. Job durability, desktop packaging, processing cancel, and HEIC preview in the sections below describe the 2026-06-05 rc2 product unless a later-slice note says otherwise. See `develop_plan.md` §1.1 and `docs/plans/2026-09-04-remaining-stretch.md`.
 
 ## Implemented v2.0 Features
 
