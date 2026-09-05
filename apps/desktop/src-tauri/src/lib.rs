@@ -5,6 +5,7 @@ mod menu;
 mod preview;
 mod sidecar;
 mod tray;
+mod updater;
 
 use std::path::PathBuf;
 use std::process::Child;

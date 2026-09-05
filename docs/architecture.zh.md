@@ -36,6 +36,8 @@ FramePilot 是一个本地 Web 应用，分为两个应用：
 
 桌面设置可更改 FramePilot **应用数据目录**（先走 D2.00 `POST /api/desktop/project-roots`，再 `POST /api/desktop/data-dir`）。当前 data-dir 树拷贝到已授权的空文件夹；只在目标数据库里改写前缀为旧 data dir 的已存 `root_path` / 项目拷贝 / 衍生件 / 导出路径。旧树留在磁盘。永不改写 `Project.source_root_path`，也不打开、拷贝、移动或 chmod 相机卡上的原片。旧 data dir 之外的自定义 D2.00 项目文件夹不动。桌面壳把指针写到 `{anchor}/data_dir.json`（环境变量 `FRAMEPILOT_DATA_DIR` 之后、默认 app-support / `.framepilot-desktop-dev` 之前），并用新的 `--data-dir` 重新拉起 sidecar。不添加额外的 `fs:` / `shell:` 能力。
 
+桌面 Help → **Check for updates**（S9.10 / [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)）是原生菜单动作。辅助线程对 GitHub Releases latest 做未认证 `GET`；WebView CSP 仍仅 loopback。Releases JSON 就是清单。缺少 `tag_name` 为非致命 no-op。壳比较 MAJOR.MINOR.PATCH 核心（`2.1.0-desktop` vs `v2.2.0`）并显示本地对话框。没有启动时检查、自动安装、`tauri-plugin-updater`、额外的 `fs:` / `shell:` 能力、遥测或 GitHub token。
+
 导入页面在响应后轮询返回的作业 id，因此长时间导入会显示衍生进度，而不是让用户等待一个不透明的请求。它还会加载最新的导入作业历史，以便过期、失败、`complete_with_errors`、`cancelled` 以及可回收的 `interrupted` 导入作业在导航或页面重新加载后仍然可见。过期检测在存在工作器租约心跳时优先使用 2 分钟窗口，否则使用 `updated_at` 的 10 分钟窗口。默认仍是本地进程内后台任务；启动回收默认开启（自第 6.1 阶段起），因此衍生工作会在 API 进程重启后进程内续跑，而不是直接失败。
 
 导入取消是协作式的。`POST /api/projects/{project_id}/jobs/{job_id}/cancel` 会为排队或正在运行的导入作业持久化 `cancellation_requested`，后台衍生工作器在每张照片之前以及每次完成照片级衍生/评分/哈希处理后检查该标志。取消不是硬性杀死进程。工作器只在安全检查点退出，将作业标记为 `cancelled`，记录 `cancelled_at`，保留已完成的衍生文件，将未处理的照片留在可重试状态，并且从不删除或修改原始文件。

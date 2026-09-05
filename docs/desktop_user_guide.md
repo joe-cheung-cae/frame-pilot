@@ -67,6 +67,12 @@ You can also drop files/folders on the import page only. Dropping elsewhere must
 
 ---
 
+## Check for updates
+
+On the desktop shell, **Help → Check for updates** (no accelerator) asks GitHub Releases whether a newer tag exists. FramePilot does not check on launch or on a timer, and it does not download or install the build. If GitHub has no usable release manifest, the check is a silent no-op. HTTP 403 / 429 / timeout / 5xx show a local dialog and do not crash the app. The browser/web app has no equivalent item. Install new builds manually from GitHub Actions or a tagged release.
+
+---
+
 ## System tray
 
 The desktop shell attempts to create a system tray icon while FramePilot is running. Creation can fail on headless hosts or some Linux desktops; that is non-fatal and the main window still starts. The tooltip matches the status bar job line (`Import · {step} · {n}%`, grouping and ranking, or export; idle is `No active job`). **Show** (or a primary click on the icon) restores the main window. **Quit** uses the same running-job dialog as File → Quit. Closing the window or File → Close still quits; it does not hide to the tray. Minimize stays in the taskbar or dock.

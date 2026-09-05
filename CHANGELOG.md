@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.10 optional check for updates
+
+- Desktop Help → **Check for updates** (no accelerator) queries GitHub Releases on that click only
+- Compare `tag_name` core (MAJOR.MINOR.PATCH) with `2.1.0-desktop`; newer remote shows current vs latest plus the release URL as text
+- Missing manifest (404 / empty / unparseable) is a non-fatal no-op; 403 / 429 / timeout / 5xx show a local dialog and do not crash
+- No launch-time or periodic network, no `tauri-plugin-updater`, no download-and-install, no extra `fs:` / `shell:` capabilities
+- Unsigned builds still launch; originals are never read or uploaded; no telemetry, login, payment, GitHub token, or `APP_VERSION` bump
+
 ### Phase 9 — S9.09 change data directory
 
 - Desktop Settings **Change data directory** copies the current app data directory into an empty folder authorized with D2.00 `POST /api/desktop/project-roots`, then `POST /api/desktop/data-dir`

@@ -52,7 +52,7 @@ Phase 9 — remaining stretch (post Phase 8)
 - [x] S9.07 Detached preview window — [#166](https://github.com/joe-cheung-cae/frame-pilot/issues/166)
 - [x] S9.08 Opt-in import concurrency knobs — [#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)
 - [x] S9.09 Change data directory — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
-- [ ] S9.10 Optional check for updates — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
+- [x] S9.10 Optional check for updates — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
 - [ ] S9.11 Signing-ready CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
 - [ ] S9.12 macOS DMG GUI lifecycle QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
 - [ ] S9.13 Docs leftover repair — [#173](https://github.com/joe-cheung-cae/frame-pilot/issues/173)
@@ -137,6 +137,26 @@ Explicit authorize (D2.00 allowlist). Rewrite stored project paths. Never rewrit
 ### S9.10 — Check for updates
 
 Menu only. GitHub Releases. No launch network.
+
+**Hole (live tree):** Help is Shortcuts + About only (`apps/desktop/src-tauri/src/menu.rs`). `Cargo.toml` has window-state, single-instance, dialog, opener — no updater plugin. `tauri.conf.json` has no `plugins.updater`. CSP `connect-src` is loopback only. Capabilities are `opener:allow-reveal-item-in-dir` only. `lib.rs` setup never networks except sidecar `/health`. Known limitations: **Auto-update is deferred**; users install new builds manually. `.github/workflows/desktop.yml` uploads unsigned NSIS/DMG artifacts and does not publish GitHub Release assets or Tauri `latest.json`. #167: menu click only; GitHub Releases query; no launch-time network; no telemetry; missing manifest = non-fatal no-op; unsigned builds must still launch.
+
+**Identity:** Desktop-only **check**, not auto-install. Help → **Check for updates** (id `check-for-updates`, no accelerator). Native-owned like About; JS `menuRoutes` ignores it. Query GitHub Releases on that click only. Do **not** add `tauri-plugin-updater`, download-and-install, or `bundle.createUpdaterArtifacts` (signing / updater artifacts stay S9.11). Missing certs / pubkey / `TAURI_SIGNING_PRIVATE_KEY` must not prevent `Builder`/`run`. Originals are never read or uploaded. No telemetry, login, payment, or GitHub token.
+
+**Network:** Rust helper thread, not WebView. Unauthenticated `GET https://api.github.com/repos/joe-cheung-cae/frame-pilot/releases/latest`. User-Agent `FramePilot/{CARGO_PKG_VERSION}`. Timeout ~10s. Small sync client (`ureq`). No launch / Ready / timer / Settings poll. A second click while in-flight is ignored. CSP unchanged. No extra `fs:` / `shell:` capabilities; do not add `opener:default`.
+
+**Manifest:** The Releases JSON is the manifest (`tag_name` required; `html_url` optional). 404 / empty body / missing `tag_name` / unparseable version → missing manifest → **non-fatal no-op** (no panic, no blocking error; optional stderr). 403 / 429 / timeout / 5xx → non-fatal local dialog, not a crash. Do not require a Tauri `latest.json` asset in this slice.
+
+**Compare:** Normalize `tag_name` and `CARGO_PKG_VERSION` (`2.1.0-desktop`): strip leading `v`, take MAJOR.MINOR.PATCH before `-`/`+`. Remote core > local → update available. Else up to date. Live latest tag `v2.0.0` is older than `2.1.0-desktop` → up to date. Do not bump `APP_VERSION`.
+
+**UI:** Existing `tauri-plugin-dialog` message. Update available: current vs latest (releases URL as text). Up to date: current version. Browser/web has no item. Not SettingsPanel. This slice does not open a URL.
+
+**This plan (implementation commit only):** tick §3 S9.10 `[x]` (en+zh). Do not tick S9.11–S9.13.
+
+**Files:** `apps/desktop/src-tauri/src/updater.rs` (new); `apps/desktop/src-tauri/src/menu.rs`; `apps/desktop/src-tauri/src/lib.rs`; `apps/desktop/src-tauri/Cargo.toml` (+ lock for `ureq`); `apps/web/src/lib/menuRoutes.test.ts`; `docs/v2_known_limitations.md`, user guide, architecture, CHANGELOG Unreleased (+ zh). Do not rewrite `docs/desktop_development_plan.md` §2.2 / §5.4 / §5.6 as shipped (S9.13). Do not edit `desktop.yml` (S9.11).
+
+**Tests first:** menu id present, no accelerator, not a reserved culling key; `check-for-updates` is native-owned in `menuRoutes.test.ts`; `lib.rs` setup does not call the check; 404/empty JSON → no-op enum, no panic; `v2.2.0` vs `2.1.0-desktop` → available; `v2.0.0` / `v2.1.0` vs `2.1.0-desktop` → current; timeout/403 do not panic; tests inject status/body (no live GitHub). `npm run verify` stays rust-free.
+
+**Non-goals:** launch-time / periodic check; auto-download/install; `tauri-plugin-updater`; publishing `latest.json` or signing (S9.11); extra `fs:`/`shell:`/`opener:default`; telemetry; GitHub token; Settings toggle; `APP_VERSION`; rewriting §2.2 as done; S9.11–S9.13.
 
 ### S9.11 — Signing-ready CI
 

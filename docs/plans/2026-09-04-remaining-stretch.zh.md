@@ -52,7 +52,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 - [x] S9.07 独立预览窗口 — [#166](https://github.com/joe-cheung-cae/frame-pilot/issues/166)
 - [x] S9.08 可选导入并发旋钮 — [#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)
 - [x] S9.09 更改数据目录 — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
-- [ ] S9.10 可选检查更新 — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
+- [x] S9.10 可选检查更新 — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
 - [ ] S9.11 签名就绪 CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
 - [ ] S9.12 macOS DMG GUI 生命周期 QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
 - [ ] S9.13 文档残留修复 — [#173](https://github.com/joe-cheung-cae/frame-pilot/issues/173)
@@ -137,6 +137,26 @@ S9.01–S9.07 合同未改、已经交付。锁定的导出取消、暂停、AVI
 ### S9.10 — 检查更新
 
 仅菜单。GitHub Releases。启动不联网。
+
+**现场空洞：** Help 只有 Shortcuts + About（`apps/desktop/src-tauri/src/menu.rs`）。`Cargo.toml` 仅有 window-state、single-instance、dialog、opener — 无 updater 插件。`tauri.conf.json` 没有 `plugins.updater`。CSP `connect-src` 仅 loopback。能力只有 `opener:allow-reveal-item-in-dir`。`lib.rs` setup 除 sidecar `/health` 外不联网。已知限制：**自动更新已推迟**；用户手动安装新构建。`.github/workflows/desktop.yml` 上传未签名 NSIS/DMG 产物，不发布 GitHub Release 资源或 Tauri `latest.json`。#167：仅菜单点击；查询 GitHub Releases；启动时不联网；无遥测；清单缺失 = 非致命 no-op；未签名构建仍须能启动。
+
+**身份：** 仅桌面**检查**，不是自动安装。Help → **Check for updates**（id `check-for-updates`，无快捷键）。与 About 一样由原生拥有；JS `menuRoutes` 忽略它。只在该点击时查询 GitHub Releases。**不要**加 `tauri-plugin-updater`、download-and-install 或 `bundle.createUpdaterArtifacts`（签名 / 更新产物留给 S9.11）。缺少证书 / pubkey / `TAURI_SIGNING_PRIVATE_KEY` 不得阻止 `Builder`/`run`。永不读取或上传原片。无遥测、登录、支付或 GitHub token。
+
+**网络：** Rust 辅助线程，不是 WebView。未认证 `GET https://api.github.com/repos/joe-cheung-cae/frame-pilot/releases/latest`。User-Agent `FramePilot/{CARGO_PKG_VERSION}`。超时约 10s。小型同步客户端（`ureq`）。不要在启动 / Ready / 定时器 / 设置页轮询。检查进行中时忽略第二次点击。CSP 不变。不要额外 `fs:` / `shell:` 能力；不要加 `opener:default`。
+
+**清单：** Releases JSON 就是清单（必须有 `tag_name`；`html_url` 可选）。404 / 空 body / 缺 `tag_name` / 版本无法解析 → 清单缺失 → **非致命 no-op**（不 panic、不做阻塞错误；可选 stderr）。403 / 429 / 超时 / 5xx → 非致命本地对话框，不是崩溃。本切片不要求 Tauri `latest.json` 资源。
+
+**比较：** 规范化 `tag_name` 与 `CARGO_PKG_VERSION`（`2.1.0-desktop`）：去掉前导 `v`，取 `-`/`+` 之前的 MAJOR.MINOR.PATCH。远端 core > 本地 → 有更新。否则已是最新。现场最新 tag `v2.0.0` 比 `2.1.0-desktop` 旧 → 已是最新。不改 `APP_VERSION`。
+
+**UI：** 现有 `tauri-plugin-dialog` 消息。有更新：当前 vs 最新（Releases URL 作为文本）。已是最新：当前版本。浏览器/web 没有该项。不是 SettingsPanel。本切片不打开 URL。
+
+**本计划（仅实现提交）：** 勾选 §3 S9.10 `[x]`（中英）。不要勾 S9.11–S9.13。
+
+**文件：** `apps/desktop/src-tauri/src/updater.rs`（新建）；`apps/desktop/src-tauri/src/menu.rs`；`apps/desktop/src-tauri/src/lib.rs`；`apps/desktop/src-tauri/Cargo.toml`（+ `ureq` 的 lock）；`apps/web/src/lib/menuRoutes.test.ts`；`docs/v2_known_limitations.md`、用户指南、architecture、CHANGELOG Unreleased（+ zh）。不要把 `docs/desktop_development_plan.md` §2.2 / §5.4 / §5.6 改写成已交付（留给 S9.13）。不要改 `desktop.yml`（S9.11）。
+
+**测试先行：** 菜单 id 存在、无快捷键、不是保留的精修键；`menuRoutes.test.ts` 里 `check-for-updates` 为 native-owned；`lib.rs` setup 不调用检查；404/空 JSON → no-op 枚举、不 panic；`v2.2.0` vs `2.1.0-desktop` → 有更新；`v2.0.0` / `v2.1.0` vs `2.1.0-desktop` → 当前；超时/403 不 panic；测试注入 status/body（不访问现场 GitHub）。`npm run verify` 仍不依赖 Rust。
+
+**非目标：** 启动时 / 周期性检查；自动下载安装；`tauri-plugin-updater`；发布 `latest.json` 或签名（S9.11）；额外 `fs:`/`shell:`/`opener:default`；遥测；GitHub token；设置开关；`APP_VERSION`；把 §2.2 改写成已完成；S9.11–S9.13。
 
 ### S9.11 — 签名就绪 CI
 

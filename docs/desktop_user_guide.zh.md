@@ -67,6 +67,12 @@ FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，
 
 ---
 
+## 检查更新
+
+在桌面壳中，**Help → Check for updates**（无快捷键）会向 GitHub Releases 查询是否有更新的 tag。FramePilot 不会在启动时或定时检查，也不会下载或安装构建。若 GitHub 没有可用的发布清单，检查是静默 no-op。HTTP 403 / 429 / 超时 / 5xx 显示本地对话框，不会让应用崩溃。浏览器/web 没有对应菜单项。请从 GitHub Actions 或已打 tag 的发布手动安装新构建。
+
+---
+
 ## 系统托盘
 
 桌面壳在 FramePilot 运行时会尝试创建系统托盘图标。无头主机或部分 Linux 桌面可能创建失败；这是非致命的，主窗口仍会启动。Tooltip 与状态栏作业行一致（`Import · {step} · {n}%`、分组与排序、或导出；空闲为 `No active job`）。**Show**（或左键单击图标）恢复主窗口。**Quit** 走与 File → Quit 同一套进行中作业对话框。关窗口或 File → Close 仍是退出，不会藏到托盘。最小化仍留在任务栏或程序坞。

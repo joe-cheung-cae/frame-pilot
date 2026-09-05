@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 第九阶段 — S9.10 可选检查更新
+
+- 桌面 Help → **Check for updates**（无快捷键）仅在该点击时查询 GitHub Releases
+- 用 `tag_name` 的 MAJOR.MINOR.PATCH 核心与 `2.1.0-desktop` 比较；远端更新则显示当前 vs 最新，并把发布 URL 作为文本
+- 清单缺失（404 / 空 / 无法解析）为非致命 no-op；403 / 429 / 超时 / 5xx 显示本地对话框，不崩溃
+- 启动时或周期性不联网；不加 `tauri-plugin-updater`、不下载安装、不加额外 `fs:` / `shell:` 能力
+- 未签名构建仍可启动；永不读取或上传原片；无遥测、登录、支付、GitHub token，也不改 `APP_VERSION`
+
 ### 第九阶段 — S9.09 更改数据目录
 
 - 桌面设置中的 **Change data directory** 把当前应用数据目录拷贝到经 D2.00 `POST /api/desktop/project-roots` 授权的空文件夹，再调用 `POST /api/desktop/data-dir`

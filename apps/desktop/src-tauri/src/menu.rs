@@ -110,6 +110,7 @@ pub fn build_app_menu<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Result<M
 
     let help = SubmenuBuilder::new(manager, "Help")
         .item(&MenuItemBuilder::with_id("shortcuts", "Shortcuts").build(manager)?)
+        .item(&MenuItemBuilder::with_id("check-for-updates", "Check for updates").build(manager)?)
         .about_with_text("About", Some(about_metadata()))
         .build()?;
 
@@ -178,6 +179,9 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
                 eprintln!("FramePilot detached preview is unavailable: {err}");
             }
         }
+        "check-for-updates" => {
+            crate::updater::request_check_for_updates(app);
+        }
         _ => {}
     }
 }
@@ -215,5 +219,33 @@ mod tests {
         assert_eq!(crate::preview::DETACHED_PREVIEW_MENU_ID, "detached-preview");
         assert!(crate::preview::DETACHED_PREVIEW_ACCELERATOR.is_none());
         assert!(!CUSTOM_ACCELERATORS.iter().any(|accel| accel.contains("detached")));
+    }
+
+    #[test]
+    fn check_for_updates_menu_id_has_no_accelerator() {
+        assert_eq!(
+            crate::updater::CHECK_FOR_UPDATES_MENU_ID,
+            "check-for-updates"
+        );
+        assert_eq!(
+            crate::updater::CHECK_FOR_UPDATES_LABEL,
+            "Check for updates"
+        );
+        assert!(crate::updater::CHECK_FOR_UPDATES_ACCELERATOR.is_none());
+        assert!(!CUSTOM_ACCELERATORS
+            .iter()
+            .any(|accel| accel.to_lowercase().contains("update")));
+        let catalog = include_str!("menu.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("menu catalog");
+        let idx = catalog
+            .find(r#"with_id("check-for-updates", "Check for updates")"#)
+            .expect("Help must include check-for-updates");
+        let slice = &catalog[idx..(idx + 180).min(catalog.len())];
+        assert!(
+            !slice.contains("accelerator"),
+            "check-for-updates must have no accelerator: {slice}"
+        );
     }
 }
