@@ -8,11 +8,13 @@ from PIL import Image
 from app.services import importing
 from app.services.importing import (
     PATH_IMPORT_MAX_INPUT_ENTRIES,
+    RAW_NO_PREVIEW_REASON,
     expand_import_paths,
     unsupported_image_reason,
 )
 from tests.avif_helpers import tiny_avif_bytes
 from tests.heic_helpers import tiny_heic_bytes
+from tests.raw_helpers import tiny_dng_bytes, tiny_dng_without_preview_bytes
 
 
 def _write_jpeg(path: Path, color=(80, 120, 40)) -> None:
@@ -35,6 +37,7 @@ def test_expand_nested_jpegs_and_skips(tmp_path):
     assert [path.name.lower() for path in expanded.files] == ["a.jpg", "b.jpg", "shot.heic"]
     reasons = {item["filename"]: item["reason"] for item in expanded.skipped}
     assert reasons["notes.txt"] == "Only JPEG, PNG, and WebP files are supported"
+    assert reasons["frame.dng"] == RAW_NO_PREVIEW_REASON
     assert reasons["frame.dng"] == unsupported_image_reason("frame.dng")
     assert "shot.heic" not in reasons
 
@@ -53,8 +56,26 @@ def test_expand_includes_avif_and_still_skips_raw(tmp_path):
     assert [path.name.lower() for path in expanded.files] == ["a.jpg", "still.avif"]
     reasons = {item["filename"]: item["reason"] for item in expanded.skipped}
     assert reasons["clip.avifs"] == "Only JPEG, PNG, and WebP files are supported"
-    assert reasons["frame.dng"] == unsupported_image_reason("frame.dng")
+    assert reasons["frame.dng"] == RAW_NO_PREVIEW_REASON
     assert "still.avif" not in reasons
+
+
+def test_expand_includes_dng_with_preview_and_skips_without(tmp_path):
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    source = tmp_path / "card"
+    _write_jpeg(source / "a.jpg")
+    (source / "frame.dng").write_bytes(tiny_dng_bytes())
+    (source / "empty.dng").write_bytes(tiny_dng_without_preview_bytes())
+    (source / "garbage.dng").write_bytes(b"not-a-real-raw")
+
+    expanded = expand_import_paths([str(source)], project_root)
+
+    assert [path.name.lower() for path in expanded.files] == ["a.jpg", "frame.dng"]
+    reasons = {item["filename"]: item["reason"] for item in expanded.skipped}
+    assert reasons["empty.dng"] == RAW_NO_PREVIEW_REASON
+    assert reasons["garbage.dng"] == RAW_NO_PREVIEW_REASON
+    assert "frame.dng" not in reasons
 
 
 def test_expand_rejects_relative_missing_and_empty(tmp_path):

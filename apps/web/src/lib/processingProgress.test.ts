@@ -261,7 +261,7 @@ test("explains why processing action is blocked", () => {
   );
   assert.equal(
     processingActionBlockMessage({ hasImportedPhotos: false, isImportRunning: false, isProcessing: false }),
-    "Import JPEG, PNG, WebP, HEIC/HEIF, or AVIF images before running grouping and ranking.",
+    "Import JPEG, PNG, WebP, HEIC/HEIF, AVIF, or RAW images before running grouping and ranking.",
   );
 });
 

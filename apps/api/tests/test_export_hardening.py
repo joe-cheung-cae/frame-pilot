@@ -87,6 +87,23 @@ def test_zip_selected_files_stores_avif_without_deflate(tmp_path):
         assert archive.read("still.avif") == source.read_bytes()
 
 
+def test_zip_selected_files_stores_dng_without_deflate(tmp_path):
+    originals = tmp_path / "originals"
+    originals.mkdir()
+    source = originals / "still.dng"
+    source.write_bytes(b"II*\x00" + b"0" * 1000)
+    target = tmp_path / "out.zip"
+    zip_selected_files(
+        target,
+        [{"filename": "still.dng", "original_path": str(source), "project_copy_path": str(source)}],
+        project_root=tmp_path,
+    )
+    with zipfile.ZipFile(target) as archive:
+        info = archive.getinfo("still.dng")
+        assert info.compress_type == zipfile.ZIP_STORED
+        assert archive.read("still.dng") == source.read_bytes()
+
+
 def test_zip_selected_files_uses_allow_zip64_for_large_members(tmp_path):
     """Practical Zip64/large-member smoke for #71 / legacy #13.
 

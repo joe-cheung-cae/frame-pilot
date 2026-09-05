@@ -20,6 +20,7 @@ from app.ai.embeddings import image_embedding, perceptual_hash
 from app.core.local_paths import normalize_user_path
 from app.db.session import get_engine
 from app.image.heif_support import ensure_heif_opener
+from app.image.raw_preview import RAW_NO_PREVIEW_REASON, RawPreviewError, extract_raw_preview_image
 from app.image.scoring import compute_quality_scores_for_image
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.services.jobs import (
@@ -34,8 +35,8 @@ from app.services.jobs import (
     release_stale_interrupted_lease,
 )
 
-SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif"}
-PLANNED_RAW_EXTENSIONS = {".arw", ".cr3", ".dng", ".nef"}
+RAW_EXTENSIONS = {".arw", ".cr3", ".dng", ".nef"}
+SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif"} | RAW_EXTENSIONS
 EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 CONTENT_HASH_CHUNK_SIZE = 1024 * 1024
 IMPORT_COPY_CHUNK_SIZE = 1024 * 1024
@@ -134,6 +135,13 @@ def expand_import_paths(paths: list[str], project_root: Path) -> ExpandedImportP
         if not is_supported_image(resolved.name):
             skipped.append({"filename": resolved.name, "reason": unsupported_image_reason(resolved.name)})
             return
+        if resolved.suffix.lower() in RAW_EXTENSIONS:
+            try:
+                preview = extract_raw_preview_image(resolved)
+            except RawPreviewError:
+                skipped.append({"filename": resolved.name, "reason": RAW_NO_PREVIEW_REASON})
+                return
+            preview.close()
         collected.append(resolved)
         if len(collected) > PATH_IMPORT_MAX_EXPANDED_FILES:
             raise ValueError(f"Expansion exceeded {PATH_IMPORT_MAX_EXPANDED_FILES} files")
@@ -430,9 +438,15 @@ def is_supported_image(filename: str) -> bool:
 
 def unsupported_image_reason(filename: str) -> str:
     extension = Path(filename).suffix.lower()
-    if extension in PLANNED_RAW_EXTENSIONS:
-        return "RAW files are not supported yet; import JPEG, PNG, or WebP files for this release"
+    if extension in RAW_EXTENSIONS:
+        return RAW_NO_PREVIEW_REASON
     return "Only JPEG, PNG, and WebP files are supported"
+
+
+def _open_imported_image(path: Path) -> Image.Image:
+    if path.suffix.lower() in RAW_EXTENSIONS:
+        return extract_raw_preview_image(path)
+    return Image.open(path)
 
 
 def _unique_path(directory: Path, filename: str) -> Path:
@@ -617,7 +631,7 @@ def ensure_photo_derivatives(project: Project, photo: Photo) -> list[str]:
         raise ValueError("Copied original file is missing")
 
     project_root = Path(project.root_path)
-    with Image.open(source_path) as opened:
+    with _open_imported_image(source_path) as opened:
         image = ImageOps.exif_transpose(opened).convert("RGB")
         regenerated_thumbnail, regenerated_preview = _save_derivatives(project_root, source_path, image)
 
@@ -775,7 +789,7 @@ def import_image_file(
             if progress_callback:
                 progress_callback("image_open")
             with import_timing_stage(timing, "image_open"):
-                opened_image = Image.open(source_path)
+                opened_image = _open_imported_image(source_path)
             with opened_image as opened:
                 if progress_callback:
                     progress_callback("metadata_extraction")
@@ -805,6 +819,9 @@ def import_image_file(
                     progress_callback("perceptual_hash")
                 with import_timing_stage(timing, "perceptual_hash"):
                     p_hash = perceptual_hash(image)
+        except RawPreviewError:
+            _cleanup_paths(source_path, thumbnail_path, preview_path)
+            raise
         except (UnidentifiedImageError, OSError) as error:
             _cleanup_paths(source_path, thumbnail_path, preview_path)
             raise ValueError("Uploaded file could not be opened as a supported image") from error
@@ -884,6 +901,14 @@ def register_import_file(
     with import_timing_stage(timing, "file_copy"):
         _copy_file_to_path(file, source_path)
 
+    if Path(safe_name).suffix.lower() in RAW_EXTENSIONS:
+        try:
+            preview = extract_raw_preview_image(source_path)
+        except RawPreviewError:
+            _cleanup_paths(source_path)
+            raise
+        preview.close()
+
     if progress_callback:
         progress_callback("content_hash")
     with import_timing_stage(timing, "content_hash"):
@@ -941,7 +966,7 @@ def process_registered_import_photo(
         if progress_callback:
             progress_callback("image_open")
         with import_timing_stage(timing, "image_open"):
-            opened_image = Image.open(source_path)
+            opened_image = _open_imported_image(source_path)
         with opened_image as opened:
             if progress_callback:
                 progress_callback("metadata_extraction")
@@ -971,6 +996,9 @@ def process_registered_import_photo(
                 progress_callback("perceptual_hash")
             with import_timing_stage(timing, "perceptual_hash"):
                 p_hash = perceptual_hash(image)
+    except RawPreviewError:
+        _cleanup_paths(thumbnail_path, preview_path)
+        raise
     except (UnidentifiedImageError, OSError) as error:
         _cleanup_paths(thumbnail_path, preview_path)
         raise ValueError("Uploaded file could not be opened as a supported image") from error

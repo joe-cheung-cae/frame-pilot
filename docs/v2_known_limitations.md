@@ -17,14 +17,17 @@ v2.0 supports local import and processing for:
 - WebP
 - HEIC / HEIF stills (local `pillow-heif` decode; WebP derivatives; original bytes exported)
 - AVIF stills (`.avif` only; Pillow native `AvifImagePlugin`; WebP derivatives; original bytes exported)
+- RAW with an embedded preview (`.dng`, `.arw`, `.cr3`, `.nef`; copy original bytes; LibRaw `extract_thumb` only; WebP derivatives from preview RGB; original bytes exported)
 
 Unsupported files are reported locally instead of uploaded or decoded remotely.
 
 ## Deferred Formats
 
-RAW formats such as DNG, ARW, CR3, and NEF remain deferred. FramePilot skips those extensions with an explicit unsupported-format message and does not extract embedded RAW previews or write RAW sidecars. HEIC/HEIF and AVIF stills import locally; Live Photo `.mov` companions, `.avifs` sequences, HDR/gain-map tone mapping, and XMP writes are not implemented.
+Full RAW develop (demosaic / `postprocess`) remains deferred. RAW files without an embedded preview are skipped with `RAW file has no embedded preview; FramePilot does not demosaic` and are not copied into `originals/`. Extra RAW extensions such as `.cr2`, `.raf`, `.orf`, and `.rw2` are not accepted. HEIC/HEIF and AVIF stills import locally; Live Photo `.mov` companions, `.avifs` sequences, HDR/gain-map tone mapping, and XMP writes are not implemented.
 
 `pillow-heif` is BSD-3-Clause. Its wheels ship **LGPL** `libheif` (and codecs) inside the API/sidecar runtime. FramePilot does not vendor libheif source into this MIT tree.
+
+`rawpy` is MIT. Its wheels ship **LGPL-2.1 / CDDL** LibRaw inside the API/sidecar runtime. FramePilot does not vendor LibRaw source into this MIT tree.
 
 ## Background Job Durability
 
@@ -93,7 +96,7 @@ v2.0 does not support cloud libraries, shared team projects, automatic original 
 The installable desktop app (`2.1.0-desktop`) shares the same local API and culling UI with extra shell constraints:
 
 - Import and processing jobs are durable by default across sidecar kill or app quit: leftover jobs are marked `interrupted` and reclaimed on the next launch. Set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` to opt back into marking stale jobs failed on the next launch instead (exports still fail-and-cleanup either way).
-- HEIC/HEIF stills import locally (same as the web app). RAW remains skipped with a local message.
+- HEIC/HEIF stills and RAW with an embedded preview import locally (same as the web app). RAW without a preview is skipped with a local message.
 - **Auto-update is deferred**; users install new builds manually.
 - CI installers may be **unsigned** until certificates exist; see [Desktop Code Signing Runbook](desktop_signing.md).
 - **WSL may not run the GUI** (needs rustc ≥1.88 and a display); HTTP/API smoke still works. See [Desktop Testing Matrix](desktop_testing.md).

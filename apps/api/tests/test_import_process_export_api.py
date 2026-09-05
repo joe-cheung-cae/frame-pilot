@@ -33,6 +33,12 @@ from app.services.importing import (
 )
 from tests.avif_helpers import tiny_avif_bytes
 from tests.heic_helpers import tiny_heic_bytes
+from tests.raw_helpers import (
+    TINY_DNG_CAMERA_MODEL,
+    TINY_DNG_PREVIEW_SIZE,
+    tiny_dng_bytes,
+    tiny_dng_without_preview_bytes,
+)
 
 
 def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
@@ -3638,7 +3644,7 @@ def test_import_accepts_heic_and_still_skips_raw(tmp_path, monkeypatch):
     assert result["skipped"] == [
         {
             "filename": "frame.dng",
-            "reason": "RAW files are not supported yet; import JPEG, PNG, or WebP files for this release",
+            "reason": importing.RAW_NO_PREVIEW_REASON,
         },
     ]
     originals = Path(project["root_path"]) / "originals"
@@ -3728,7 +3734,7 @@ def test_import_accepts_avif_and_still_skips_raw(tmp_path, monkeypatch):
     assert result["skipped"] == [
         {
             "filename": "frame.dng",
-            "reason": "RAW files are not supported yet; import JPEG, PNG, or WebP files for this release",
+            "reason": importing.RAW_NO_PREVIEW_REASON,
         },
     ]
     originals = Path(project["root_path"]) / "originals"
@@ -3788,6 +3794,125 @@ def test_import_garbage_avif_fails_that_file_like_broken_jpeg(tmp_path, monkeypa
     photos = {photo["filename"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
     assert photos["good.jpg"]["processing_state"] == "imported"
     assert photos["shot.avif"]["processing_state"] == "failed"
+
+
+def test_import_accepts_dng_embedded_preview_and_skips_garbage_raw(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "RAW formats"}).json()
+    dng_payload = tiny_dng_bytes()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[
+            ("files", ("good.jpg", _image_bytes(), "image/jpeg")),
+            ("files", ("frame.dng", dng_payload, "image/x-adobe-dng")),
+            ("files", ("broken.dng", b"not-a-real-raw", "image/x-adobe-dng")),
+        ],
+    )
+
+    assert response.status_code == 201
+    result = response.json()
+    assert [photo["filename"] for photo in result["imported"]] == ["good.jpg", "frame.dng"]
+    assert result["skipped"] == [
+        {
+            "filename": "broken.dng",
+            "reason": importing.RAW_NO_PREVIEW_REASON,
+        },
+    ]
+    originals = Path(project["root_path"]) / "originals"
+    assert (originals / "good.jpg").exists()
+    assert (originals / "frame.dng").read_bytes() == dng_payload
+    assert not (originals / "broken.dng").exists()
+    photos = {photo["filename"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
+    assert "broken.dng" not in photos
+
+
+def test_import_dng_writes_webp_derivatives_from_embedded_preview(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "RAW import"}).json()
+    payload = tiny_dng_bytes()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("still.dng", payload, "image/x-adobe-dng"))],
+    )
+    assert response.status_code == 201
+    result = response.json()
+    job, photo = _wait_for_imported_photo(client, project["id"], result)
+    assert job["status"] == "complete"
+    assert photo["filename"] == "still.dng"
+    assert photo["file_ext"] == ".dng"
+    assert photo["processing_state"] == "imported"
+    assert photo["capture_time"] == "2026-01-02T03:04:05"
+    assert photo["camera_model"] == TINY_DNG_CAMERA_MODEL
+    assert (photo["width"], photo["height"]) == TINY_DNG_PREVIEW_SIZE
+    assert Path(photo["project_copy_path"]).read_bytes() == payload
+    assert Path(photo["thumbnail_path"]).suffix == ".webp"
+    assert Path(photo["preview_path"]).suffix == ".webp"
+    assert Path(photo["thumbnail_path"]).is_file()
+    assert Path(photo["preview_path"]).is_file()
+
+
+def test_import_dng_without_preview_is_skipped_without_copy(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "RAW no preview"}).json()
+    payload = tiny_dng_without_preview_bytes()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[
+            ("files", ("good.jpg", _image_bytes(), "image/jpeg")),
+            ("files", ("frame.dng", payload, "image/x-adobe-dng")),
+        ],
+    )
+    assert response.status_code == 201
+    result = response.json()
+    assert [photo["filename"] for photo in result["imported"]] == ["good.jpg"]
+    assert result["skipped"] == [
+        {
+            "filename": "frame.dng",
+            "reason": importing.RAW_NO_PREVIEW_REASON,
+        },
+    ]
+    originals = Path(project["root_path"]) / "originals"
+    assert (originals / "good.jpg").exists()
+    assert not (originals / "frame.dng").exists()
+    photos = {photo["filename"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
+    assert "frame.dng" not in photos
+
+
+def test_import_raw_extensions_accept_synthetic_dng_payload(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "RAW aliases"}).json()
+    payload = tiny_dng_bytes()
+    mime_by_name = {
+        "shot.arw": "image/x-sony-arw",
+        "shot.cr3": "image/x-canon-cr3",
+        "shot.nef": "image/x-nikon-nef",
+    }
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", (name, payload, mime)) for name, mime in mime_by_name.items()],
+    )
+    assert response.status_code == 201
+    result = response.json()
+    imported_names = {photo["filename"] for photo in result["imported"]}
+    skipped_names = {item["filename"] for item in result["skipped"]}
+    assert imported_names | skipped_names == set(mime_by_name)
+    assert importing.RAW_EXTENSIONS == {".arw", ".cr3", ".dng", ".nef"}
+    originals = Path(project["root_path"]) / "originals"
+    for name in imported_names:
+        assert (originals / name).read_bytes() == payload
+    for name in skipped_names:
+        assert not (originals / name).exists()
+        assert next(item["reason"] for item in result["skipped"] if item["filename"] == name) == (
+            importing.RAW_NO_PREVIEW_REASON
+        )
 
 
 def test_export_rejects_invalid_status(tmp_path, monkeypatch):

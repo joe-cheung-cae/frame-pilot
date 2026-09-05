@@ -10,9 +10,15 @@ from sqlmodel import Session, select
 from app.db.session import get_engine
 from app.main import create_app
 from app.models.entities import Photo
-from app.services.importing import IMPORT_COPY_CHUNK_SIZE, IMPORT_MAX_FILES_PER_REQUEST, unsupported_image_reason
+from app.services.importing import (
+    IMPORT_COPY_CHUNK_SIZE,
+    IMPORT_MAX_FILES_PER_REQUEST,
+    RAW_NO_PREVIEW_REASON,
+    unsupported_image_reason,
+)
 from tests.avif_helpers import tiny_avif_bytes
 from tests.heic_helpers import tiny_heic_bytes
+from tests.raw_helpers import tiny_dng_bytes, tiny_dng_without_preview_bytes
 
 
 def _jpeg(color=(120, 150, 90)) -> bytes:
@@ -450,9 +456,10 @@ def test_import_from_paths_accepts_avif_and_still_skips_raw(tmp_path, monkeypatc
     body = response.json()
     assert {item["filename"] for item in body["imported"]} == {"keep.jpg", "still.avif"}
     reasons = {item["filename"]: item["reason"] for item in body["skipped"]}
-    assert reasons["frame.dng"] == unsupported_image_reason("frame.dng")
+    assert reasons["frame.dng"] == RAW_NO_PREVIEW_REASON
     originals = Path(project["root_path"]) / "originals"
     assert (originals / "still.avif").read_bytes() == avif_payload
+    assert not (originals / "frame.dng").exists()
     assert _source_fingerprint(avif) == before
     job = _wait_for_job(client, project["id"], body["job"])
     assert job["status"] in {"complete", "complete_with_errors"}
@@ -482,6 +489,40 @@ def test_import_from_paths_garbage_avif_fails_that_file(tmp_path, monkeypatch):
     photos = {photo["filename"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
     assert photos["keep.jpg"]["processing_state"] == "imported"
     assert photos["shot.avif"]["processing_state"] == "failed"
+
+
+def test_import_from_paths_accepts_dng_and_skips_no_preview(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    project = client.post("/api/projects", json={"name": "RAW path"}).json()
+    jpeg = tmp_path / "keep.jpg"
+    dng = tmp_path / "frame.dng"
+    missing = tmp_path / "empty.dng"
+    dng_payload = tiny_dng_bytes()
+    _write_jpeg(jpeg)
+    dng.write_bytes(dng_payload)
+    missing.write_bytes(tiny_dng_without_preview_bytes())
+    before = _source_fingerprint(dng)
+    missing_before = _source_fingerprint(missing)
+    response = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={"paths": [str(jpeg), str(dng), str(missing)]},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert {item["filename"] for item in body["imported"]} == {"keep.jpg", "frame.dng"}
+    reasons = {item["filename"]: item["reason"] for item in body["skipped"]}
+    assert reasons["empty.dng"] == RAW_NO_PREVIEW_REASON
+    originals = Path(project["root_path"]) / "originals"
+    assert (originals / "frame.dng").read_bytes() == dng_payload
+    assert not (originals / "empty.dng").exists()
+    assert _source_fingerprint(dng) == before
+    assert _source_fingerprint(missing) == missing_before
+    job = _wait_for_job(client, project["id"], body["job"])
+    assert job["status"] in {"complete", "complete_with_errors"}
+    photos = {photo["filename"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
+    assert photos["frame.dng"]["processing_state"] == "imported"
+    assert Path(photos["frame.dng"]["thumbnail_path"]).suffix == ".webp"
+    assert "empty.dng" not in photos
 
 
 def test_import_from_paths_records_source_root(tmp_path, monkeypatch):

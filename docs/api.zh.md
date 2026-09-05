@@ -194,7 +194,7 @@ API 先将目录展开为普通文件，然后在该 HTTP 请求中最多消费 
 
 作业控制与 multipart 导入一致：没有该 `job_id` 的新导入在另一个导入活动时返回 `409`；`expected_total` 会更新 `job.total_items`。每个被消费的文件以 `rb` 打开，并经过现有的登记/复制路径复制。源文件永不被修改、删除或硬链接。当 `finalize` 为 true、给定的是单个输入目录、且 `source_root_path` 为空时，API 将该目录存为只读项目元数据。它不会重新扫描该文件夹。
 当 EXIF 数据可用时，后台衍生作业会记录基本的拍摄时间、相机、镜头、焦距、光圈、快门速度和 ISO 元数据。数值型 EXIF 有理数会规范化为稳定的显示字符串。
-支持的静帧格式为 JPEG、PNG、WebP、HEIC、HEIF 和 AVIF（仅 `.avif` 静帧，不含 `.avifs` 序列）。HEIC/HEIF 文件原样拷进 `originals/`，用本地 `pillow-heif` 解码，并生成 WebP 缩略图/预览。AVIF 静帧走同一拷贝与 WebP 衍生路径，用 Pillow 自带的 `AvifImagePlugin` 解码（不是 HEIF opener）。评分和分组使用该解码 RGB。ZIP 和文件夹导出带上原始 HEIC/HEIF/AVIF 字节（`ZIP_STORED`）。`.dng`、`.arw`、`.cr3`、`.nef` 等 RAW 扩展名仍以明确的不支持格式原因跳过。垃圾 HEIC 或 AVIF 字节会在拷贝后让该文件失败，而不是当成不支持的扩展名。
+支持的静帧格式为 JPEG、PNG、WebP、HEIC、HEIF、AVIF（仅 `.avif` 静帧，不含 `.avifs` 序列），以及带内嵌预览的 RAW（`.dng`、`.arw`、`.cr3`、`.nef`）。HEIC/HEIF 文件原样拷进 `originals/`，用本地 `pillow-heif` 解码，并生成 WebP 缩略图/预览。AVIF 静帧走同一拷贝与 WebP 衍生路径，用 Pillow 自带的 `AvifImagePlugin` 解码（不是 HEIF opener）。RAW 文件原样拷贝；FramePilot 只抽 LibRaw 内嵌预览（`rawpy.extract_thumb`），不 demosaic，并用该预览 RGB 生成 WebP 衍生件。评分和分组使用解码后的静帧 RGB 或 RAW 预览 RGB。ZIP 和文件夹导出带上原始 HEIC/HEIF/AVIF/RAW 字节（`ZIP_STORED`）。没有内嵌预览的 RAW 以 `RAW file has no embedded preview; FramePilot does not demosaic` 跳过，不会拷进 `originals/`。垃圾 HEIC 或 AVIF 字节会在拷贝后让该文件失败，而不是当成不支持的扩展名。
 
 ## 作业
 

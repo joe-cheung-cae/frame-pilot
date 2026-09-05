@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 第九阶段 — S9.04 RAW 内嵌预览
+
+- 本地导入带内嵌预览的 `.dng`、`.arw`、`.cr3`、`.nef`：原样拷贝字节，只走 `rawpy.extract_thumb`，WebP 缩略图/预览，在预览 RGB 上评分/分组
+- 没有内嵌预览的 RAW 以 `RAW file has no embedded preview; FramePilot does not demosaic` 跳过；没有 Photo 行，`originals/` 下不留拷贝
+- 原始 RAW 字节可导出（ZIP 使用 `ZIP_STORED`）；永不修改源文件；不 demosaic / `postprocess`
+- 冻结 sidecar 收集 `rawpy` / LibRaw；`rawpy` 为 MIT，其 wheel 带 LGPL-2.1 / CDDL 的 LibRaw（写在已知限制里）
+- 不改 `APP_VERSION`、不签名、不做 XMP、不加额外 RAW 扩展名、不把相机样张提交进 git
+
 ### 第九阶段 — S9.03 AVIF 静帧预览
 
 - 本地 AVIF 静帧导入（仅 `.avif`，不含 `.avifs` 序列），用 Pillow 自带的 `AvifImagePlugin` 解码，WebP 缩略图/预览，在解码 RGB 上评分/分组

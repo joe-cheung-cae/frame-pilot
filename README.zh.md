@@ -9,7 +9,7 @@ FramePilot 是一款本地优先的 AI 辅助照片筛选 Web 应用。当前 v2
 - Next.js、React、TypeScript、Tailwind CSS 前端。
 - FastAPI、Pydantic、SQLModel、SQLite 后端。
 - 本地项目文件夹，包含原片、缩略图、预览、结构化的导出/缓存子目录和日志。
-- 导入 JPEG、PNG、WebP、HEIC/HEIF 以及 AVIF 静帧。原片原样拷贝；缩略图和预览为 WebP；评分和分组在解码后的 RGB 上运行（HEIC/HEIF 用本地 `pillow-heif`，AVIF 用 Pillow 自带的 `AvifImagePlugin`）。RAW 文件仍以明确的本地消息跳过。
+- 导入 JPEG、PNG、WebP、HEIC/HEIF、AVIF 以及带内嵌预览的 RAW 静帧。原片原样拷贝；缩略图和预览为 WebP；评分和分组在解码后的 RGB 上运行（HEIC/HEIF 用本地 `pillow-heif`，AVIF 用 Pillow 自带的 `AvifImagePlugin`，RAW 只走 LibRaw `extract_thumb`）。没有内嵌预览的 RAW 以明确的本地消息跳过。
 - 导入任务在完成本地上传/登记工作后返回，并在可查询、可协作取消的本地后台任务中继续生成派生文件。
 - 导入派生工作仍在进行时会阻止处理，项目导航会把用户带回导入进度，直到导入任务到达终态。
 - 处理（分组和排序）以及导出作业也可通过同一取消路由协作取消。桌面退出可以取消活动处理或导出任务，再 SIGTERM sidecar。
@@ -24,7 +24,7 @@ FramePilot 是一款本地优先的 AI 辅助照片筛选 Web 应用。当前 v2
 
 已知的 v2.0 限制：
 
-- DNG、ARW、CR3、NEF 等 RAW 文件仍以明确的本地消息跳过。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、HDR gain-map 色调映射或 XMP 写入。
+- DNG、ARW、CR3、NEF 等 RAW 文件在有内嵌预览时导入（原样拷贝字节；用预览 RGB 生成 WebP；不 demosaic）。没有预览的 RAW 以明确的本地消息跳过。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、HDR gain-map 色调映射或 XMP 写入。
 - 导入和处理任务运行在本地 API 进程或可选本地 worker（`npm run worker`）中。进度、协作式导入/处理/导出取消、过期任务检测、活动导入处理保护、安全导入重试和过期处理清理可用。默认情况下，下次启动会把残留的活动导入/处理任务标为 `interrupted` 并回收（`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认开启；设为 `0`/`false`/`no`/`off` 则回到失败并重试）。导出任务可取消，不会被回收（fail-and-cleanup）。
 - 实验性人脸与睁眼信号是确定性本地启发式，不是专业人脸检测、眼睛状态检测、身份识别或生物特征分析。
 - 分组和排序仍是推荐辅助。用户通过手工状态和星级保留最终控制。
@@ -52,7 +52,7 @@ Web 应用运行在 `http://localhost:3000`。本地 API 运行在 `http://127.0
 典型工作流：
 
 1. 创建项目。
-2. 导入 JPEG、PNG、WebP、HEIC/HEIF 或 AVIF 静帧。有效文件在本地登记，预览生成通过可见的导入任务继续，运行中的导入可在安全检查点取消，而不会删除原片或已完成的预览。同一文件再次导入或导入重试可以复用现有本地记录和已生成预览。RAW 仍跳过。
+2. 导入 JPEG、PNG、WebP、HEIC/HEIF、AVIF 或带内嵌预览的 RAW 静帧。有效文件在本地登记，预览生成通过可见的导入任务继续，运行中的导入可在安全检查点取消，而不会删除原片或已完成的预览。同一文件再次导入或导入重试可以复用现有本地记录和已生成预览。没有预览的 RAW 会跳过。
 3. 导入任务完成后再运行处理。若导入仍在运行，FramePilot 会把项目留在导入进度上，并拒绝直接的处理请求。
 4. 按组复核照片，并标记 Pick、Maybe、Reject 或 Unreviewed。
 5. 将一个或多个所选状态导出为 CSV、文件夹或 ZIP。CSV 和 ZIP 导出可从浏览器下载，此前的导出仍显示在导出历史中。

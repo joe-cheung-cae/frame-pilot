@@ -17,14 +17,17 @@ v2.0 支持以下格式的本地导入与处理：
 - WebP
 - HEIC / HEIF 静帧（本地 `pillow-heif` 解码；WebP 衍生件；导出原始字节）
 - AVIF 静帧（仅 `.avif`；Pillow 自带 `AvifImagePlugin`；WebP 衍生件；导出原始字节）
+- 带内嵌预览的 RAW（`.dng`、`.arw`、`.cr3`、`.nef`；原样拷贝；只走 LibRaw `extract_thumb`；用预览 RGB 生成 WebP 衍生件；导出原始字节）
 
 不受支持的文件会在本地报告，而不是远程上传或解码。
 
 ## 延后的格式
 
-DNG、ARW、CR3、NEF 等 RAW 格式仍延后。FramePilot 会以明确的不支持格式消息跳过这些扩展名，不会提取内嵌 RAW 预览，也不会写入 RAW sidecar。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、`.avifs` 序列、HDR/gain-map 色调映射或 XMP 写入。
+完整 RAW 显影（demosaic / `postprocess`）仍延后。没有内嵌预览的 RAW 以 `RAW file has no embedded preview; FramePilot does not demosaic` 跳过，不会拷进 `originals/`。不接受 `.cr2`、`.raf`、`.orf`、`.rw2` 等额外 RAW 扩展名。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、`.avifs` 序列、HDR/gain-map 色调映射或 XMP 写入。
 
 `pillow-heif` 为 BSD-3-Clause。其 wheel 在 API/sidecar 运行时内带有 **LGPL** 的 `libheif`（及编码器）。FramePilot 不把 libheif 源码塞进本 MIT 树。
+
+`rawpy` 为 MIT。其 wheel 在 API/sidecar 运行时内带 **LGPL-2.1 / CDDL** 的 LibRaw。FramePilot 不把 LibRaw 源码塞进本 MIT 树。
 
 ## 后台任务持久性
 
@@ -93,7 +96,7 @@ v2.0 不支持云图库、共享团队项目、自动删除原图、远程 AI �
 可安装桌面应用（`2.1.0-desktop`）共用同一套本地 API 与筛选 UI，并带有额外壳层约束：
 
 - 导入与处理任务在 sidecar 被杀或应用退出后**默认持久**：残留的导入/处理任务会标为 `interrupted`，并在下次启动时回收。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可退回旧行为，把过期任务标为失败以便用户重试（无论哪种方式，导出仍失败并清理）。
-- HEIC/HEIF 静帧可本地导入（与 web 应用相同）。RAW 仍以本地提示跳过。
+- HEIC/HEIF 静帧以及带内嵌预览的 RAW 可本地导入（与 web 应用相同）。没有预览的 RAW 以本地提示跳过。
 - **自动更新延期**；用户需手动安装新构建。
 - 在配置证书之前，CI 安装包可能是**未签名**的；见 [桌面代码签名手册](desktop_signing.zh.md)。
 - **WSL 可能无法运行 GUI**（需要 rustc ≥1.88 与显示）；HTTP/API 冒烟仍可用。见 [桌面测试矩阵](desktop_testing.zh.md)。

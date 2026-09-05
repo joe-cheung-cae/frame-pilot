@@ -40,8 +40,9 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
 }
 
 export const IMPORT_IMAGE_ACCEPT =
-  "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,image/avif,.avif";
-const IMPORT_FORMAT_COPY = "JPEG, PNG, WebP, HEIC/HEIF, and AVIF are supported. RAW files are skipped.";
+  "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,image/avif,.avif,image/x-adobe-dng,.dng,image/x-sony-arw,.arw,image/x-canon-cr3,.cr3,image/x-nikon-nef,.nef";
+const IMPORT_FORMAT_COPY =
+  "JPEG, PNG, WebP, HEIC/HEIF, AVIF, and RAW with an embedded preview are supported. RAW without a preview is skipped.";
 
 const IMPORT_MESSAGE_CLASS: Record<ImportFeedbackTone, string> = {
   neutral: "text-muted",

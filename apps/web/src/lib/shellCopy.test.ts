@@ -10,7 +10,7 @@ test("copyForShell(false) keeps current browser empty and recovery copy", () => 
   assert.equal(copy.projectListEmptyDetail, "Create a local project before importing photos.");
   assert.equal(
     copy.cullingEmptyImportDetail,
-    "Import JPEG, PNG, WebP, HEIC/HEIF, or AVIF images before opening the culling workspace.",
+    "Import JPEG, PNG, WebP, HEIC/HEIF, AVIF, or RAW images before opening the culling workspace.",
   );
   assert.equal(
     copy.importLoadRetryHint,
@@ -30,7 +30,7 @@ test("copyForShell(true) uses native folder language and never says choose files
   assert.equal(copy.projectListEmptyDetail, "Create a local project, then choose a folder to import photos.");
   assert.equal(
     copy.cullingEmptyImportDetail,
-    "Choose a folder of JPEG, PNG, WebP, HEIC/HEIF, or AVIF images before opening the culling workspace.",
+    "Choose a folder of JPEG, PNG, WebP, HEIC/HEIF, AVIF, or RAW images before opening the culling workspace.",
   );
   assert.equal(
     copy.importLoadRetryHint,

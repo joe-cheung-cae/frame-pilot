@@ -101,7 +101,7 @@ describe("ImportPanel desktop path import", () => {
     expect(screen.queryByRole("button", { name: /Choose image files/ })).toBeNull();
   });
 
-  it("accepts HEIC/HEIF and AVIF on file inputs in addition to JPEG PNG WebP", () => {
+  it("accepts HEIC/HEIF, AVIF, and RAW with an embedded preview on file inputs", () => {
     const { container } = render(<ImportPanel projectId="project-1" />);
     const inputs = [...container.querySelectorAll('input[type="file"]')];
     expect(inputs).toHaveLength(2);
@@ -118,8 +118,18 @@ describe("ImportPanel desktop path import", () => {
     expect(IMPORT_IMAGE_ACCEPT).toContain(".heif");
     expect(IMPORT_IMAGE_ACCEPT).toContain(".avif");
     expect(IMPORT_IMAGE_ACCEPT).not.toContain(".avifs");
+    expect(IMPORT_IMAGE_ACCEPT).toContain("image/x-adobe-dng");
+    expect(IMPORT_IMAGE_ACCEPT).toContain(".dng");
+    expect(IMPORT_IMAGE_ACCEPT).toContain("image/x-sony-arw");
+    expect(IMPORT_IMAGE_ACCEPT).toContain(".arw");
+    expect(IMPORT_IMAGE_ACCEPT).toContain("image/x-canon-cr3");
+    expect(IMPORT_IMAGE_ACCEPT).toContain(".cr3");
+    expect(IMPORT_IMAGE_ACCEPT).toContain("image/x-nikon-nef");
+    expect(IMPORT_IMAGE_ACCEPT).toContain(".nef");
     expect(
-      screen.getByText("JPEG, PNG, WebP, HEIC/HEIF, and AVIF are supported. RAW files are skipped."),
+      screen.getByText(
+        "JPEG, PNG, WebP, HEIC/HEIF, AVIF, and RAW with an embedded preview are supported. RAW without a preview is skipped.",
+      ),
     ).toBeTruthy();
   });
 

@@ -103,7 +103,7 @@ if [[ "$use_frozen" -eq 1 ]]; then
   elif [[ -f "$repo_root/.venv/Scripts/python.exe" ]]; then
     gen_python="$repo_root/.venv/Scripts/python.exe"
   else
-    echo "Need .venv python to generate tiny HEIC and AVIF for frozen decode smoke" >&2
+    echo "Need .venv python to generate tiny HEIC, AVIF, and DNG for frozen decode smoke" >&2
     exit 1
   fi
 
@@ -223,6 +223,62 @@ assert job["status"] == "complete", job
 photo = request("GET", f"/api/projects/{project['id']}/photos/{imported['imported'][0]['id']}")
 assert photo["processing_state"] == "imported", photo
 assert photo["file_ext"] == ".avif", photo
+print(json.dumps({"job": job["status"], "photo": photo["filename"], "state": photo["processing_state"]}))
+PY
+
+  dng_path="$data_dir/still.dng"
+  "$gen_python" - "$dng_path" "$repo_root/apps/api" << 'PY'
+from pathlib import Path
+import sys
+
+sys.path.insert(0, sys.argv[2])
+from tests.raw_helpers import tiny_dng_bytes
+
+payload = tiny_dng_bytes()
+Path(sys.argv[1]).write_bytes(payload)
+print(f"wrote {sys.argv[1]} bytes={len(payload)}")
+PY
+
+  python3 - "$port" "$dng_path" << 'PY'
+import json
+import sys
+import time
+import urllib.request
+
+port = sys.argv[1]
+dng_path = sys.argv[2]
+base = f"http://127.0.0.1:{port}"
+
+
+def request(method: str, path: str, payload: dict | None = None) -> dict:
+    data = None if payload is None else json.dumps(payload).encode()
+    req = urllib.request.Request(
+        f"{base}{path}",
+        data=data,
+        method=method,
+        headers={"Content-Type": "application/json", "Host": f"127.0.0.1:{port}"},
+    )
+    with urllib.request.urlopen(req, timeout=30) as response:
+        return json.loads(response.read().decode())
+
+
+project = request("POST", "/api/projects", {"name": "sidecar-dng"})
+imported = request(
+    "POST",
+    f"/api/projects/{project['id']}/imports/from-paths",
+    {"paths": [dng_path], "finalize": True},
+)
+assert imported["imported"] and imported["imported"][0]["filename"] == "still.dng", imported
+job = imported["job"]
+for _ in range(50):
+    if job["status"] in {"complete", "complete_with_errors", "failed", "cancelled"}:
+        break
+    time.sleep(0.1)
+    job = request("GET", f"/api/projects/{project['id']}/jobs/{job['id']}")
+assert job["status"] == "complete", job
+photo = request("GET", f"/api/projects/{project['id']}/photos/{imported['imported'][0]['id']}")
+assert photo["processing_state"] == "imported", photo
+assert photo["file_ext"] == ".dng", photo
 print(json.dumps({"job": job["status"], "photo": photo["filename"], "state": photo["processing_state"]}))
 PY
 fi

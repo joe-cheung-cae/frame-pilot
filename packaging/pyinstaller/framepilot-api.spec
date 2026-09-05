@@ -32,11 +32,14 @@ hiddenimports = [
     "PIL._avif",
     "pillow_heif",
     "_pillow_heif",
+    "rawpy",
+    "_rawpy",
     "imagehash",
     "numpy",
 ]
 hiddenimports += collect_submodules("scipy")
 hiddenimports += collect_submodules("pillow_heif")
+hiddenimports += collect_submodules("rawpy")
 
 a = Analysis(
     [str(api_root / "app" / "sidecar_main.py")],

@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.04 RAW embedded preview
+
+- Local RAW import for `.dng`, `.arw`, `.cr3`, and `.nef` when an embedded preview exists: copy original bytes, extract with `rawpy.extract_thumb` only, WebP thumbnails/previews, and score/group on preview RGB
+- RAW without an embedded preview is skipped with `RAW file has no embedded preview; FramePilot does not demosaic`; no Photo row and no leftover copy under `originals/`
+- Original RAW bytes are exported (ZIP uses `ZIP_STORED`); source files are never modified; no demosaic / `postprocess`
+- Frozen sidecar collects `rawpy` / LibRaw; `rawpy` is MIT and its wheels ship LGPL-2.1 / CDDL LibRaw (documented in known limitations)
+- No `APP_VERSION` bump, signing, XMP, extra RAW extensions, or camera fixtures in git
+
 ### Phase 9 — S9.03 AVIF still preview
 
 - Local AVIF still import (`.avif` only, not `.avifs` sequences), decode with Pillow’s native `AvifImagePlugin`, WebP thumbnails/previews, and score/group on decoded RGB

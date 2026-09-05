@@ -282,7 +282,7 @@ export function processingActionBlockMessage({
   }
 
   if (!hasImportedPhotos) {
-    return "Import JPEG, PNG, WebP, HEIC/HEIF, or AVIF images before running grouping and ranking.";
+    return "Import JPEG, PNG, WebP, HEIC/HEIF, AVIF, or RAW images before running grouping and ranking.";
   }
 
   return "";

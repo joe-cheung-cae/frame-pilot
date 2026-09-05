@@ -43,7 +43,7 @@ Uninstall removes the application binary. The app data directory may remain on d
 
 - Prefer **Choose a folder** or **Choose image files** (native dialogs). Desktop uses path import (`POST .../imports/from-paths`), not uploading thousands of bytes through the WebView File API.
 - Each HTTP request consumes at most **100** expanded files. Large folders continue with the same `job_id` until `finalize` on the last slice.
-- Supported: JPEG, PNG, WebP, HEIC/HEIF, and AVIF stills. Originals are copied unchanged; previews are WebP. RAW is skipped with a local message.
+- Supported: JPEG, PNG, WebP, HEIC/HEIF, AVIF stills, and RAW with an embedded preview (`.dng`, `.arw`, `.cr3`, `.nef`). Originals are copied unchanged; previews are WebP from the still RGB or RAW embedded preview. RAW without a preview is skipped with a local message.
 - Valid files are **copied** into `{root_path}/originals`. Source cards and folders stay untouched (size, mtime, and bytes).
 
 You can also drop files/folders on the import page only. Dropping elsewhere must not start import.

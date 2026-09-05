@@ -46,7 +46,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 - [x] S9.01 导出作业取消 — [#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)
 - [x] S9.02 J7.07 处理暂停/恢复 — [#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)
 - [x] S9.03 AVIF 静帧预览 — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
-- [ ] S9.04 RAW 内嵌预览 — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
+- [x] S9.04 RAW 内嵌预览 — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
 - [ ] S9.05 XMP sidecar 导出 — [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165)（历史 [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117)）
 - [ ] S9.06 可选系统托盘（D3.06） — [#169](https://github.com/joe-cheung-cae/frame-pilot/issues/169)
 - [ ] S9.07 独立预览窗口 — [#166](https://github.com/joe-cheung-cae/frame-pilot/issues/166)
@@ -199,9 +199,33 @@ HTTP（比照处理取消，标志不同）：
 
 ### S9.04 — RAW 内嵌预览
 
-当存在 thumb 时，`.arw/.cr3/.dng/.nef` 不再无条件跳过。拷贝原片；抽 thumb；WebP 衍生件。无 thumb 时带原因跳过。
+**现场空洞：** `.arw` / `.cr3` / `.dng` / `.nef` 只在 `PLANNED_RAW_EXTENSIONS`，不在 `SUPPORTED_EXTENSIONS`（`apps/api/app/services/importing.py`）也不在 `STORED_IMAGE_EXTENSIONS`（`apps/api/app/services/exporting.py`）。`unsupported_image_reason` 返回 `"RAW files are not supported yet; import JPEG, PNG, or WebP files for this release"`。`expand_import_paths` 与 `register_import_file` 按扩展名在**拷贝前**跳过。衍生路径（`process_registered_import_photo`、`import_image_file`、`ensure_photo_derivatives`）对拷贝后的原片调用 `Image.open`——Pillow 不能解码 RAW。`apps/api/pyproject.toml` 没有 `rawpy` / LibRaw。PyInstaller 列了 JPEG/PNG/WebP/AVIF 插件和 `pillow_heif`，没有 `rawpy`。Sidecar 冒烟只覆盖 HEIC 与 AVIF。ImportPanel 的 `IMPORT_IMAGE_ACCEPT` / `IMPORT_FORMAT_COPY` 以及桌面 `IMAGE_EXTENSIONS` 都没有 RAW；文案写 RAW 跳过。测试把跳过写死：`test_import_accepts_heic_and_still_skips_raw`、`test_import_accepts_avif_and_still_skips_raw`、`test_import_from_paths_accepts_avif_and_still_skips_raw`、`test_expand_includes_avif_and_still_skips_raw`、`test_expand_nested_jpegs_and_skips`（`frame.dng` / `b"not-raw"` 从不拷贝）。文档（`docs/api.md`、`docs/architecture.md`、`docs/v2_known_limitations.md` 延后格式、README、桌面用户指南、`docs/v2_algorithm_strategy.md`）仍写 RAW 跳过。已知限制写了 LGPL libheif，没有 LibRaw。
 
-**非目标：** 完整 demosaic；XMP；把相机样张提交进 git。
+**身份：** 比照 HEIC 静帧预览的拷贝与 WebP 路径，**不是** RAW 显影器。只把 **`.arw`、`.cr3`、`.dng`、`.nef`** 加进 `SUPPORTED_EXTENSIONS` 和 `STORED_IMAGE_EXTENSIONS`。把 `PLANNED_RAW_EXTENSIONS` 改名为 `RAW_EXTENSIONS`（仍是这四个）。原片 RAW 字节原样拷进 `{root_path}/originals/`。用 **`rawpy.extract_thumb()`**（LibRaw 内嵌预览）得到 Pillow `Image`，再走现有 `ImageOps.exif_transpose` / `.convert("RGB")`。JPEG thumb：`Image.open(BytesIO(thumb.data))`。BITMAP thumb：`Image.fromarray(thumb.data)`。缩略图和预览仍是 **WebP**。在该**预览 RGB** 上评分/分组（不是 demosaic 后的 CFA）。ZIP/文件夹导出带上**原始 RAW 字节**（`ZIP_STORED`）。元数据来自预览图 EXIF（若有）；不解析 RAW maker notes；不写 XMP。
+
+**解码器：** 把 `rawpy` 加进 `apps/api/pyproject.toml`（MIT 包装；wheel 带 LibRaw）。选带 CPython 3.11 manylinux / macOS / win_amd64 wheel 的版本。新建 `apps/api/app/image/raw_preview.py`，提供 `extract_raw_preview_image(path) -> Image.Image`。只调用 **`extract_thumb`**。**不要**调用 `raw.postprocess`、`raw.raw_image` 或任何 demosaic。把 `rawpy.LibRawNoThumbnailError`、`rawpy.LibRawUnsupportedThumbnailError` 以及 LibRaw 打开失败映射成「无预览」。**不要**对 RAW 文件 `Image.open`。**不要**把 RAW 送进 `ensure_heif_opener()` / `AvifImagePlugin`。缺 `rawpy` / 自带 LibRaw 是**失败**，不是 skip（与缺 Pillow `_avif` 同类）。
+
+**跳过 vs 失败：** 没有内嵌预览 → 用明确本地原因**跳过**，**不是**拷贝后的失败 Photo（那是垃圾 HEIC/AVIF 的路径）。没有 Photo 行。`originals/` 下不留拷贝。用户源文件 bytes/mtime/size 不变。锁定原因（helper；替换旧的 “not supported yet” 字符串）：
+
+`RAW file has no embedded preview; FramePilot does not demosaic`
+
+`expand_import_paths` 对 RAW 源做**只读**探测，无预览的文件在拷贝前进入 `skipped`。`register_import_file` / `import_image_file` 做纵深防御：若 RAW 拷贝抽不出 thumb，`_cleanup_paths` 该拷贝并抛出同一原因（multipart 进入 `skipped[]`）。`process_registered_import_photo` 与 `ensure_photo_derivatives` 对 `RAW_EXTENSIONS` 必须走 extract helper，以便 retry/reclaim 能从已拷原片重建 WebP。
+
+**UI：** `ImportPanel` 的 `accept` 加上 `.dng,.arw,.cr3,.nef`（若现有 accept 风格含 MIME，则同时加 `image/x-adobe-dng` / `image/x-sony-arw` / `image/x-canon-cr3` / `image/x-nikon-nef`）。格式文案在 JPEG/PNG/WebP/HEIC/HEIF/AVIF 旁点名带内嵌预览的 RAW；无预览的 RAW 跳过。更新空状态 / 处理文案（`shellCopy.ts`、`processingProgress.ts`）。桌面 `apps/desktop/src/lib/nativeFs.ts` 的 `IMAGE_EXTENSIONS` 加上 `"dng"`、`"arw"`、`"cr3"`、`"nef"`。路径导入仍用 API 列表。
+
+**打包：** `framepilot-api.spec` hiddenimports 加上 `rawpy`；新增 `packaging/pyinstaller/hooks/hook-rawpy.py`，比照 `hook-pillow_heif.py`（`collect_all` + `collect_dynamic_libs`）。保留 pillow-heif / AVIF 收集。冻结 sidecar 冒烟：进程内生成带内嵌 JPEG 预览的小 DNG，经冻结二进制做 path-import（保留 HEIC 与 AVIF 冒烟）。保持在 400 MB 未打包 D4.06 阈值以下。不签名。
+
+**许可证（仅实现提交）：** 在 `docs/v2_known_limitations.md`（+ zh）比照 libheif 写明：`rawpy` 为 MIT；其 wheel 在 API/sidecar 运行时内带 **LGPL-2.1 / CDDL** 的 LibRaw。FramePilot 不把 LibRaw 源码塞进本 MIT 树。CHANGELOG Unreleased 增加 S9.04 小节。不改 `APP_VERSION`。
+
+**文档（仅实现提交）：** 当前否认 RAW 的活文档要写上内嵌预览导入：`docs/api.md`、`docs/architecture.md`、`docs/v2_known_limitations.md`（支持格式；完整 RAW 显影仍延后）、`README.md`、`docs/desktop_user_guide.md`、`docs/v2_algorithm_strategy.md`（+ zh）。不要声称 demosaic、XMP、额外 RAW 扩展名或已签名构建。评分/分组使用内嵌预览 RGB。
+
+**本计划（仅实现提交）：** 勾选 §3 S9.04 `[x]`（中英）。不要勾 S9.05–S9.13。
+
+**文件：** `apps/api/pyproject.toml`；`apps/api/app/image/raw_preview.py`（新建）；`apps/api/app/services/importing.py`；`apps/api/app/services/exporting.py`；`apps/api/tests/raw_helpers.py`（新建，`tiny_dng_bytes`）；`apps/api/tests/test_raw_preview.py`（新建）或扩展 `test_heif_support.py`；`apps/api/tests/test_import_process_export_api.py`；`apps/api/tests/test_import_from_paths.py`；`apps/api/tests/test_import_path_expansion.py`；`apps/api/tests/test_path_import_process_export_workflow.py`；`apps/api/tests/test_export_hardening.py`；`apps/web/src/components/ImportPanel.tsx`（+ 测试）；`apps/web/src/lib/shellCopy.ts`（+ 测试）；`apps/web/src/lib/processingProgress.ts`（+ 测试）；`apps/desktop/src/lib/nativeFs.ts`（+ 测试）；`packaging/pyinstaller/framepilot-api.spec`；`packaging/pyinstaller/hooks/hook-rawpy.py`；`scripts/sidecar-smoke.sh`；上文文档 + CHANGELOG Unreleased（+ zh）；本计划（+ zh）§3 S9.04 勾选。
+
+**测试先行：** 倒转 RAW 跳过测试，让 `.arw/.cr3/.dng/.nef` 属于 `SUPPORTED_EXTENSIONS`。进程内生成带内嵌 JPEG 预览的小 DNG（`tiny_dng_bytes` 用标准库 + Pillow；必要时补上极小 CFA + `DNGVersion`，直到 `rawpy.extract_thumb` 成功）。**不要把相机文件提交进 git。** 单元：`extract_raw_preview_image` 返回预期尺寸的 RGB；不调用 `raw.postprocess`。Multipart 与 from-paths：有效小 DNG 拷进 `originals/`，WebP 衍生件，源文件 size/mtime/bytes 不变。同一载荷存成 `.arw`/`.cr3`/`.nef` 要么能导入（若 LibRaw 按内容识别），要么在 LibRaw 拒绝该合成 DNG 扩展名时仍属于 `SUPPORTED_EXTENSIONS`，而垃圾字节跳过。垃圾 `.dng`（`b"not-a-real-raw"`）以及没有预览 IFD 的 DNG 以无预览原因**跳过**，**不是**拷贝后 `processing_state=failed`；不得存在 `originals/frame.dng`。路径导入 + 处理 + CSV/ZIP/文件夹：ZIP 成员是原始 DNG 字节且 `ZIP_STORED`；相机卡源文件不变。ImportPanel accept + 文案；桌面选择器扩展名含 `dng`/`arw`/`cr3`/`nef`。现有 JPEG/HEIC/AVIF 测试仍绿。
+
+**非目标：** 完整 demosaic / `postprocess`；XMP；额外 RAW 扩展名（`.cr2`、`.raf`、`.orf`、`.rw2` 等）；把相机样张提交进 git；把 LibRaw 源码塞进仓库；`APP_VERSION`；签名；S9.05–S9.13。
 
 ### S9.05 — XMP
 
