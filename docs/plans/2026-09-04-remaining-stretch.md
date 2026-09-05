@@ -53,7 +53,7 @@ Phase 9 — remaining stretch (post Phase 8)
 - [x] S9.08 Opt-in import concurrency knobs — [#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)
 - [x] S9.09 Change data directory — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
 - [x] S9.10 Optional check for updates — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
-- [ ] S9.11 Signing-ready CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
+- [x] S9.11 Signing-ready CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
 - [ ] S9.12 macOS DMG GUI lifecycle QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
 - [ ] S9.13 Docs leftover repair — [#173](https://github.com/joe-cheung-cae/frame-pilot/issues/173)
 
@@ -161,6 +161,30 @@ Menu only. GitHub Releases. No launch network.
 ### S9.11 — Signing-ready CI
 
 `desktop.yml` steps gated on secrets. Unsigned path remains green. Update `docs/desktop_signing.md` (+ zh) with secret names. No certs in git.
+
+**Hole (live tree):** `.github/workflows/desktop.yml` header says **Unsigned builds only (signing is D4.05)**; `npx tauri build --bundles nsis|dmg` has no signing env; uploads `FramePilot-windows-nsis` / `FramePilot-macos-dmg` with `if-no-files-found: error`. `apps/desktop/src-tauri/tauri.conf.json` has identifier `com.framepilot.app`, NSIS `currentUser`, no `certificateThumbprint` / `signingIdentity` / notarization fields. `docs/desktop_signing.md` lists typical material as **examples only**, not exact GitHub secret names. `scripts/check-release-artifacts.sh` blocks zip/sqlite/photos but not `.pfx` / `.p12` / `.p8`. D4.05 shipped the runbook only. #171: wire Authenticode / notarization gated on secrets; missing secrets keep today’s unsigned upload; DoD is signing-ready, not a SmartScreen-clean public release; no certs in git; document exact secret names.
+
+**Identity:** CI **signing-ready**, not a store release. Keep the existing `npx tauri build` path (do **not** switch to `tauri-apps/tauri-action`; do not raise `contents: write`; do not publish GitHub Releases or Tauri `latest.json`). When a platform’s **full** secret set is non-empty, sign that platform’s installer during the existing build step (Windows Authenticode on the NSIS `.exe`; macOS Developer ID + notary + staple on the `.app` / DMG). When any required secret for that platform is missing or empty, skip signing for that platform and upload the same unsigned artifact as today; the job stays **green**. If the full set is present and sign / notarize fails, the job is **red** (do not silently fall back to unsigned). Windows and macOS gate independently (`fail-fast: false` stays). Originals are never read or uploaded. No telemetry, login, payment, or bundled models.
+
+**Secrets (locked GitHub Actions names):** Windows signs only when **both** `WINDOWS_CERTIFICATE` (base64 Authenticode `.pfx`) and `WINDOWS_CERTIFICATE_PASSWORD` are non-empty. macOS signs + notarizes only when **all** of `APPLE_CERTIFICATE` (base64 Developer ID Application `.p12`), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_TEAM_ID`, `APPLE_API_ISSUER`, `APPLE_API_KEY` (App Store Connect Key ID), and `APPLE_API_KEY_CONTENT` (`.p8` file contents) are non-empty. `APPLE_API_KEY_PATH` is a runner temp path derived from `APPLE_API_KEY_CONTENT`, not a GitHub secret. Copy secrets into `env:` then test non-empty; never echo values. Do **not** export empty `APPLE_CERTIFICATE` (Tauri would try to import and fail). Do **not** add `APPLE_ID` / `APPLE_PASSWORD` / `KEYCHAIN_PASSWORD` / Azure Trusted Signing / `TAURI_SIGNING_PRIVATE_KEY` in this slice.
+
+**Windows:** Full set present → decode PFX on the runner, import into `Cert:\CurrentUser\My`, derive thumbprint, `npx tauri build --bundles nsis` with a **local** `--config` overlay for `digestAlgorithm=sha256`, public DigiCert timestamp URL, and that thumbprint. Delete the decoded PFX before upload. Do **not** commit thumbprint or PFX. Either secret missing → current unsigned `npx tauri build --bundles nsis`.
+
+**macOS:** Full set present → write `AuthKey_${APPLE_API_KEY}.p8` under `$RUNNER_TEMP`, export the APPLE_* env vars, `npx tauri build --bundles dmg` (Tauri imports the p12, signs, notarizes, staples). Delete p12 / p8 from the runner before upload. Any required secret missing → current unsigned `npx tauri build --bundles dmg` with those env vars unset.
+
+**CI shape:** Keep `on:` (`workflow_dispatch` + push `main` path filters), matrix `windows-latest` / `macos-latest`, sidecar build + `npm run test:sidecar`, stage sidecar, existing artifact names. Do not launch the packaged GUI. Do not attach photos. `permissions.contents: read` stays. Header comment: signing-ready, gated on secrets, unsigned fallback must stay green.
+
+**Docs:** Replace the “examples only” table in `docs/desktop_signing.md` (+ zh) with the exact names above (names and purpose only; never sample values). State: missing secrets → unsigned green; complete secrets → sign; sign failure with secrets present → red. Keep internal-tester unsigned guidance.
+
+**Git hygiene:** Never commit `.pfx` / `.p12` / `.p8` / private keys / base64 cert blobs. Extend `scripts/check-release-artifacts.sh` to reject tracked `\.(pfx|p12|p8)$`. Add those globs to `.gitignore`.
+
+**This plan (implementation commit only):** tick §3 S9.11 `[x]` (en+zh). Do not tick S9.12–S9.13.
+
+**Files:** `.github/workflows/desktop.yml`; `docs/desktop_signing.md` (+ zh); `scripts/check-release-artifacts.sh`; `scripts/test-release-checks.sh`; `.gitignore`; `docs/v2_known_limitations.md`, README, CHANGELOG Unreleased (+ zh). Do not edit `verify.yml`. Do not bump `APP_VERSION`. Do not rewrite `docs/desktop_development_plan.md` §2.2 / §5.4 / §5.6 as shipped (S9.13). Do not commit certs.
+
+**Tests first:** `scripts/test-release-checks.sh` asserts `desktop.yml` references the locked secret names; Windows import/sign and macOS notarize are gated on non-empty env (not unconditional); missing-secret path has no `exit 1`; empty `APPLE_CERTIFICATE` is not exported; `verify.yml` still has no codesign/notarize; `check:artifacts` rejects a tracked `.pfx` / `.p12` / `.p8`. `npm run verify` stays rust-free and does not run `desktop.yml`.
+
+**Non-goals:** SmartScreen reputation / public store listing; Mac App Store; Azure / DigiCert cloud signing; `tauri-action` Release publish; `tauri-plugin-updater` / `createUpdaterArtifacts` / `TAURI_SIGNING_PRIVATE_KEY` / `latest.json`; Apple ID + app-specific password auth; launching packaged GUI; S9.12 macOS DMG GUI QA; S9.13 leftover docs; `APP_VERSION`; certs in git.
 
 ### S9.12 — macOS DMG QA
 

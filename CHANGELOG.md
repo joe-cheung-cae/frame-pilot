@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.11 signing-ready CI
+
+- `.github/workflows/desktop.yml` signs Windows NSIS (Authenticode) and macOS DMG (Developer ID + notarization + staple) when the full per-platform GitHub Actions secret set is non-empty
+- Missing or empty secrets keep the unsigned upload path green; a sign / notarize failure with secrets present is red
+- Exact secret names are in [docs/desktop_signing.md](docs/desktop_signing.md); `APPLE_API_KEY_PATH` is a runner temp path, not a GitHub secret
+- Tracked `.pfx` / `.p12` / `.p8` are rejected by `check:artifacts`; those globs are gitignored
+- No `tauri-action` Release publish, `TAURI_SIGNING_PRIVATE_KEY`, `latest.json`, or `APP_VERSION` bump
+
 ### Phase 9 — S9.10 optional check for updates
 
 - Desktop Help → **Check for updates** (no accelerator) queries GitHub Releases on that click only

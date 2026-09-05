@@ -2,33 +2,45 @@
 
 > Language: **English** | [中文](desktop_signing.zh.md)
 
-This runbook describes how FramePilot desktop installers are signed (Windows Authenticode) and notarized (macOS Developer ID), where secrets must live, and how internal testers should treat **unsigned** builds until certificates are configured.
+This runbook describes how FramePilot desktop installers are signed (Windows Authenticode) and notarized (macOS Developer ID), the exact GitHub Actions secret names, and how internal testers should treat **unsigned** builds when those secrets are missing.
 
-It is documentation only. It does not add signing secrets to the repository or require certificates for the first release candidate.
+CI is **signing-ready**, not a store release. Do not commit certificates, private keys, or base64 cert blobs.
 
 ## Current status
 
 - Tauri product name: `FramePilot`
 - Bundle identifier: `com.framepilot.app` (see `apps/desktop/src-tauri/tauri.conf.json`)
 - Installer targets: Windows NSIS (`.exe`) and macOS DMG (`.dmg`)
-- CI workflow: `.github/workflows/desktop.yml` builds and **uploads unsigned** installer artifacts on `windows-latest` and `macos-latest`
+- CI workflow: `.github/workflows/desktop.yml` builds installers on `windows-latest` and `macos-latest`
+- Signing is gated on the secret names below. Missing or empty secrets keep the **unsigned** upload path **green**. The full secret set present and a sign / notarize failure makes that platform job **red** (no silent unsigned fallback). Windows and macOS gate independently.
 - No code-signing certificates or Apple notarization credentials are stored in this repository
 - Missing certificates must **not** fail the first desktop RC; unsigned installers remain acceptable for internal testing
 
 ## Secrets and certificate storage
 
-Never commit private keys, `.p12` / `.pfx` files, Apple API keys, notarization passwords, or base64-encoded cert blobs to Git.
+Never commit private keys, `.p12` / `.pfx` / `.p8` files, Apple API keys, notarization passwords, or base64-encoded cert blobs to Git. `scripts/check-release-artifacts.sh` rejects tracked `\.(pfx|p12|p8)$`.
 
-When signing is enabled later, store credentials only as GitHub Actions secrets (or an equivalent CI secret store), for example:
+Store credentials only as GitHub Actions secrets (Settings → Secrets and variables → Actions). Names are exact; never paste values into issues, PRs, feasibility notes, or this runbook.
 
-| Platform | Typical secret material (examples only) |
-| -------- | ---------------------------------------- |
-| Windows  | Authenticode certificate (PFX) + password, or a cloud signing service token |
-| macOS    | Developer ID Application certificate, Apple ID / App Store Connect API key, team ID, notarization credentials |
+| Secret | Purpose |
+| ------ | ------- |
+| `WINDOWS_CERTIFICATE` | Base64 Authenticode `.pfx` |
+| `WINDOWS_CERTIFICATE_PASSWORD` | Password for that `.pfx` |
+| `APPLE_CERTIFICATE` | Base64 Developer ID Application `.p12` |
+| `APPLE_CERTIFICATE_PASSWORD` | Password for that `.p12` |
+| `APPLE_SIGNING_IDENTITY` | Developer ID Application identity string |
+| `APPLE_TEAM_ID` | Apple Developer Team ID |
+| `APPLE_API_ISSUER` | App Store Connect API issuer ID |
+| `APPLE_API_KEY` | App Store Connect Key ID |
+| `APPLE_API_KEY_CONTENT` | `.p8` private key file contents |
+
+`APPLE_API_KEY_PATH` is a runner temp path derived from `APPLE_API_KEY_CONTENT` (`$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8`). It is **not** a GitHub secret.
+
+Windows signs only when **both** `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD` are non-empty. macOS signs and notarizes only when **all** Apple secrets in the table are non-empty. CI copies secrets into `env:` then tests non-empty; it never echoes values and does not export an empty `APPLE_CERTIFICATE`.
+
+CI does **not** use `APPLE_ID`, `APPLE_PASSWORD`, `KEYCHAIN_PASSWORD`, Azure Trusted Signing, or `TAURI_SIGNING_PRIVATE_KEY`.
 
 Local developer machines may use the OS keychain for one-off signed builds. Production release signing should run in CI so keys stay off laptops and out of the tree.
-
-Do not paste secret values into issues, PRs, feasibility notes, or this runbook.
 
 ## Windows Authenticode (overview)
 
@@ -42,7 +54,7 @@ High-level flow when certificates exist:
 4. Optionally timestamp the signature so it remains valid after the cert expires.
 5. Verify the signature locally (`signtool verify` or Properties → Digital Signatures) before publishing.
 
-Until those secrets exist, CI continues to upload **unsigned** NSIS installers. Windows may show SmartScreen / “Unknown publisher” warnings; that is expected for internal builds.
+Until those two Windows secrets exist, CI continues to upload **unsigned** NSIS installers. Windows may show SmartScreen / “Unknown publisher” warnings; that is expected for internal builds.
 
 ## macOS Developer ID and notarization (overview)
 
@@ -56,7 +68,7 @@ High-level flow when credentials exist:
 4. Staple the notarization ticket to the DMG / app so offline Gatekeeper checks succeed.
 5. Verify with `spctl --assess` / `xcrun stapler validate` before publishing.
 
-Until those credentials exist, CI continues to upload **unsigned** DMGs. macOS may block open with Gatekeeper (“cannot be opened because the developer cannot be verified”); that is expected for internal builds.
+Until the full Apple secret set exists, CI continues to upload **unsigned** DMGs. macOS may block open with Gatekeeper (“cannot be opened because the developer cannot be verified”); that is expected for internal builds.
 
 ## Internal testers: unsigned installers
 
@@ -80,7 +92,7 @@ The first desktop release candidate may ship or be validated with **unsigned** i
 
 ## Related files
 
-- `.github/workflows/desktop.yml` — unsigned Windows/macOS installer CI
+- `.github/workflows/desktop.yml` — Windows/macOS installer CI (signing gated on secrets; unsigned fallback stays green)
 - `apps/desktop/src-tauri/tauri.conf.json` — `identifier`, NSIS, and DMG bundle config
 - `docs/plans/2026-08-18-desktop-packaging.md` — D4.05 task definition
 

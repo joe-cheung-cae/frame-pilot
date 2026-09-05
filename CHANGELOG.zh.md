@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 第九阶段 — S9.11 签名就绪 CI
+
+- `.github/workflows/desktop.yml` 在每平台完整 GitHub Actions secret 集都非空时签署 Windows NSIS（Authenticode）与 macOS DMG（Developer ID + 公证 + staple）
+- 缺少或为空的 secrets 保持未签名上传路径绿灯；secrets 在场但签名 / 公证失败则为红灯
+- 确切 secret 名见 [docs/desktop_signing.zh.md](docs/desktop_signing.zh.md)；`APPLE_API_KEY_PATH` 是 runner 临时路径，不是 GitHub secret
+- `check:artifacts` 拒绝已跟踪的 `.pfx` / `.p12` / `.p8`；这些 glob 已写入 `.gitignore`
+- 没有 `tauri-action` Release 发布、`TAURI_SIGNING_PRIVATE_KEY`、`latest.json`，也不改 `APP_VERSION`
+
 ### 第九阶段 — S9.10 可选检查更新
 
 - 桌面 Help → **Check for updates**（无快捷键）仅在该点击时查询 GitHub Releases

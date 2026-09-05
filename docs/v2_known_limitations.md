@@ -98,7 +98,7 @@ The installable desktop app (`2.1.0-desktop`) shares the same local API and cull
 - Import and processing jobs are durable by default across sidecar kill or app quit: leftover jobs are marked `interrupted` and reclaimed on the next launch. Set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` to opt back into marking stale jobs failed on the next launch instead (exports still fail-and-cleanup either way).
 - HEIC/HEIF stills and RAW with an embedded preview import locally (same as the web app). RAW without a preview is skipped with a local message.
 - **Check for updates** is Help-menu only (no launch-time network). It queries GitHub Releases and does not download or install. A missing manifest is a non-fatal no-op. Unsigned builds still launch. Users still install new builds manually.
-- CI installers may be **unsigned** until certificates exist; see [Desktop Code Signing Runbook](desktop_signing.md).
+- CI is **signing-ready**: Authenticode / Developer ID + notarization run when the full GitHub Actions secret set is present. Missing secrets keep the **unsigned** upload green. See [Desktop Code Signing Runbook](desktop_signing.md).
 - **WSL may not run the GUI** (needs rustc ≥1.88 and a display); HTTP/API smoke still works. See [Desktop Testing Matrix](desktop_testing.md).
 - Storage is **copy mode only** (no reference-in-place of camera cards).
 - Desktop **detached preview** (View → Detached preview, or the culling toolbar) opens a second WebView for the current culling photo and shared selection. Bare culling keys apply to the focused window only. Create failure is non-fatal and keeps the in-shell preview. Closing the preview window does not quit the app. No extra `fs:` / `shell:` capabilities were added.

@@ -148,7 +148,7 @@ npm run perf:api -- --output /tmp/framepilot-perf-targets --counts 100 500 2000
 
 ## 桌面打包
 
-CI 可能上传**未签名**的 Windows NSIS 与 macOS DMG 安装包供内部测试。请预期 SmartScreen / Gatekeeper 警告；不要把未签名包当作公开发布。详见 [桌面代码签名手册](docs/desktop_signing.zh.md) 与 [桌面用户指南](docs/desktop_user_guide.zh.md)。缺少证书不得阻塞第一个桌面 RC。手工检查见 [桌面测试矩阵](docs/desktop_testing.zh.md)。
+CI 已签名就绪：当完整 GitHub Actions secret 集在场时，会做 Windows Authenticode 与 macOS Developer ID + 公证。缺少 secrets 时保持**未签名** NSIS/DMG 上传绿灯，供内部测试。请预期未签名包会出现 SmartScreen / Gatekeeper 警告；不要把它们当作公开发布。详见 [桌面代码签名手册](docs/desktop_signing.zh.md) 与 [桌面用户指南](docs/desktop_user_guide.zh.md)。缺少证书不得阻塞第一个桌面 RC。手工检查见 [桌面测试矩阵](docs/desktop_testing.zh.md)。
 
 ## 隐私
 

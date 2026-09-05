@@ -53,7 +53,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 - [x] S9.08 可选导入并发旋钮 — [#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)
 - [x] S9.09 更改数据目录 — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
 - [x] S9.10 可选检查更新 — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
-- [ ] S9.11 签名就绪 CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
+- [x] S9.11 签名就绪 CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
 - [ ] S9.12 macOS DMG GUI 生命周期 QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
 - [ ] S9.13 文档残留修复 — [#173](https://github.com/joe-cheung-cae/frame-pilot/issues/173)
 
@@ -160,7 +160,31 @@ S9.01–S9.07 合同未改、已经交付。锁定的导出取消、暂停、AVI
 
 ### S9.11 — 签名就绪 CI
 
-`desktop.yml` 步骤按 secrets 门控。未签名路径保持绿灯。更新 `docs/desktop_signing.zh.md` 中的 secret 名。git 里不要证书。
+`desktop.yml` 步骤按 secrets 门控。未签名路径保持绿灯。更新 `docs/desktop_signing.md`（+ zh）中的 secret 名。git 里不要证书。
+
+**现场空洞：** `.github/workflows/desktop.yml` 文件头写着 **Unsigned builds only (signing is D4.05)**；`npx tauri build --bundles nsis|dmg` 没有签名环境变量；上传 `FramePilot-windows-nsis` / `FramePilot-macos-dmg`，`if-no-files-found: error`。`apps/desktop/src-tauri/tauri.conf.json` 的 identifier 是 `com.framepilot.app`，NSIS `currentUser`，没有 `certificateThumbprint` / `signingIdentity` / 公证字段。`docs/desktop_signing.md` 把典型材料标成**仅作示例**，不是确切的 GitHub secret 名。`scripts/check-release-artifacts.sh` 拦截 zip/sqlite/照片，但不拦 `.pfx` / `.p12` / `.p8`。D4.05 只交付了手册。#171：把 Authenticode / 公证接到 secrets 门控上；缺少 secrets 时保持今天的未签名上传；DoD 是 signing-ready，不是 SmartScreen 干净的公开发布；git 里不要证书；写明确切 secret 名。
+
+**身份：** CI **签名就绪**，不是商店发行。保留现有 `npx tauri build` 路径（**不要**改成 `tauri-apps/tauri-action`；不要把 `contents` 升为 `write`；不要发布 GitHub Releases 或 Tauri `latest.json`）。当某平台的**完整** secret 集都非空时，在现有构建步骤里签署该平台安装包（Windows Authenticode 签 NSIS `.exe`；macOS Developer ID + 公证 + staple 签 `.app` / DMG）。当该平台任一必需 secret 缺失或为空时，跳过该平台签名，上传与今天相同的未签名产物；作业保持**绿灯**。若完整集已在场但签名 / 公证失败，作业为**红灯**（不要悄悄回退到未签名）。Windows 与 macOS 独立门控（`fail-fast: false` 保持）。永不读取或上传原片。无遥测、登录、支付或捆绑模型。
+
+**Secrets（锁定的 GitHub Actions 名）：** Windows 仅在 **两个** `WINDOWS_CERTIFICATE`（base64 Authenticode `.pfx`）和 `WINDOWS_CERTIFICATE_PASSWORD` 都非空时签名。macOS 仅在 **全部** `APPLE_CERTIFICATE`（base64 Developer ID Application `.p12`）、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_SIGNING_IDENTITY`、`APPLE_TEAM_ID`、`APPLE_API_ISSUER`、`APPLE_API_KEY`（App Store Connect Key ID）、`APPLE_API_KEY_CONTENT`（`.p8` 文件内容）都非空时签名并公证。`APPLE_API_KEY_PATH` 是由 `APPLE_API_KEY_CONTENT` 写出的 runner 临时路径，不是 GitHub secret。把 secrets 拷进 `env:` 再测非空；永不 echo 值。**不要**在空的时候 export `APPLE_CERTIFICATE`（Tauri 会尝试导入并失败）。本切片**不要**加 `APPLE_ID` / `APPLE_PASSWORD` / `KEYCHAIN_PASSWORD` / Azure Trusted Signing / `TAURI_SIGNING_PRIVATE_KEY`。
+
+**Windows：** 完整集在场 → 在 runner 上解码 PFX，导入 `Cert:\CurrentUser\My`，算出 thumbprint，用**本地** `--config` 覆盖 `digestAlgorithm=sha256`、公开 DigiCert 时间戳 URL 和该 thumbprint 后执行 `npx tauri build --bundles nsis`。上传前删除解码出的 PFX。**不要**把 thumbprint 或 PFX 提交进 git。任一 secret 缺失 → 保持现在的未签名 `npx tauri build --bundles nsis`。
+
+**macOS：** 完整集在场 → 在 `$RUNNER_TEMP` 下写 `AuthKey_${APPLE_API_KEY}.p8`，export APPLE_* 环境变量，执行 `npx tauri build --bundles dmg`（Tauri 导入 p12、签名、公证、staple）。上传前从 runner 删除 p12 / p8。任一必需 secret 缺失 → 保持现在的未签名 `npx tauri build --bundles dmg`，且不设置那些环境变量。
+
+**CI 形态：** 保留 `on:`（`workflow_dispatch` + push `main` 路径过滤）、矩阵 `windows-latest` / `macos-latest`、sidecar 构建 + `npm run test:sidecar`、stage sidecar、现有产物名。不要启动打包 GUI。不要附加照片。`permissions.contents: read` 保持。文件头注释：signing-ready，按 secrets 门控，未签名回退必须绿灯。
+
+**文档：** 把 `docs/desktop_signing.md`（+ zh）里「仅作示例」的表换成上面的确切名称（只写名称和用途；不要示例值）。写明：缺少 secrets → 未签名绿灯；完整 secrets → 签名；secrets 在场但签名失败 → 红灯。保留给内部测试者的未签名说明。
+
+**Git 卫生：** 永不提交 `.pfx` / `.p12` / `.p8` / 私钥 / base64 证书内容。扩展 `scripts/check-release-artifacts.sh`，拒绝已跟踪的 `\.(pfx|p12|p8)$`。把这些 glob 加进 `.gitignore`。
+
+**本计划（仅实现提交）：** 勾选 §3 S9.11 `[x]`（中英）。不要勾 S9.12–S9.13。
+
+**文件：** `.github/workflows/desktop.yml`；`docs/desktop_signing.md`（+ zh）；`scripts/check-release-artifacts.sh`；`scripts/test-release-checks.sh`；`.gitignore`；`docs/v2_known_limitations.md`、README、CHANGELOG Unreleased（+ zh）。不要改 `verify.yml`。不要改 `APP_VERSION`。不要把 `docs/desktop_development_plan.md` §2.2 / §5.4 / §5.6 改写成已交付（留给 S9.13）。不要提交证书。
+
+**测试先行：** `scripts/test-release-checks.sh` 断言 `desktop.yml` 引用锁定的 secret 名；Windows 导入/签名与 macOS 公证按非空 env 门控（不是无条件）；缺 secret 路径没有 `exit 1`；空的 `APPLE_CERTIFICATE` 不会被 export；`verify.yml` 仍无 codesign/notarize；`check:artifacts` 拒绝已跟踪的 `.pfx` / `.p12` / `.p8`。`npm run verify` 仍不依赖 Rust，也不跑 `desktop.yml`。
+
+**非目标：** SmartScreen 信誉 / 公开商店上架；Mac App Store；Azure / DigiCert 云签名；`tauri-action` Release 发布；`tauri-plugin-updater` / `createUpdaterArtifacts` / `TAURI_SIGNING_PRIVATE_KEY` / `latest.json`；Apple ID + 应用专用密码认证；启动打包 GUI；S9.12 macOS DMG GUI QA；S9.13 残留文档；`APP_VERSION`；git 里的证书。
 
 ### S9.12 — macOS DMG QA
 

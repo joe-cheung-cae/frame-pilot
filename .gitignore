@@ -25,3 +25,7 @@ build/
 coverage/
 test-results/
 framepilot-import-smoke.png
+# Code-signing material (never commit)
+*.pfx
+*.p12
+*.p8
