@@ -39,8 +39,9 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
   return count === 1 ? singular : plural;
 }
 
-export const IMPORT_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif";
-const IMPORT_FORMAT_COPY = "JPEG, PNG, WebP, and HEIC/HEIF are supported. RAW files are skipped.";
+export const IMPORT_IMAGE_ACCEPT =
+  "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,image/avif,.avif";
+const IMPORT_FORMAT_COPY = "JPEG, PNG, WebP, HEIC/HEIF, and AVIF are supported. RAW files are skipped.";
 
 const IMPORT_MESSAGE_CLASS: Record<ImportFeedbackTone, string> = {
   neutral: "text-muted",

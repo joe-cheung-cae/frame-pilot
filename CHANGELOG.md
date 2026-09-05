@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.03 AVIF still preview
+
+- Local AVIF still import (`.avif` only, not `.avifs` sequences), decode with Pillow’s native `AvifImagePlugin`, WebP thumbnails/previews, and score/group on decoded RGB
+- Original AVIF bytes are copied into `originals/` and exported (ZIP uses `ZIP_STORED`); source files are never modified
+- Garbage AVIF fails that file after copy; RAW, Live Photo `.mov`, HDR gain-map tone mapping, and XMP stay out of this slice
+- Frozen sidecar collects `PIL.AvifImagePlugin` / `PIL._avif`; HEIC still uses `pillow-heif`
+- No `APP_VERSION` bump, signing, or packaged GUI
+
 ### Phase 9 — S9.02 processing job pause
 
 - Cooperative processing pause on `POST /api/projects/{project_id}/jobs/{job_id}/pause` with a distinct `pause_requested` flag (queued/running persist the flag with 202; terminal is a 200 no-op; interrupted finalizes `paused` and resets groups)

@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO
 
-from PIL import ExifTags, Image, ImageOps, UnidentifiedImageError
+from PIL import AvifImagePlugin, ExifTags, Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -34,7 +34,7 @@ from app.services.jobs import (
     release_stale_interrupted_lease,
 )
 
-SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
+SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif"}
 PLANNED_RAW_EXTENSIONS = {".arw", ".cr3", ".dng", ".nef"}
 EXIF_DATETIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 CONTENT_HASH_CHUNK_SIZE = 1024 * 1024
@@ -52,6 +52,8 @@ PATH_IMPORT_MAX_INPUT_ENTRIES = 5000
 PATH_IMPORT_MAX_EXPANDED_FILES = 20000
 
 ensure_heif_opener()
+if not AvifImagePlugin.SUPPORTED:
+    raise RuntimeError("Pillow AVIF support is required")
 
 ImportProgressCallback = Callable[[str], None]
 

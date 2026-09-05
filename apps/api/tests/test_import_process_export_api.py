@@ -31,6 +31,7 @@ from app.services.importing import (
     import_image_file,
     invalidate_project_processing,
 )
+from tests.avif_helpers import tiny_avif_bytes
 from tests.heic_helpers import tiny_heic_bytes
 
 
@@ -3697,6 +3698,96 @@ def test_import_garbage_heic_fails_that_file_like_broken_jpeg(tmp_path, monkeypa
     photos = {photo["filename"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
     assert photos["good.jpg"]["processing_state"] == "imported"
     assert photos["shot.heic"]["processing_state"] == "failed"
+
+
+def _tiny_avif_with_exif() -> bytes:
+    exif = Image.Exif()
+    exif[ExifTags.Base.DateTimeOriginal] = "2026:01:02 03:04:05"
+    exif[ExifTags.Base.Model] = "FramePilotCam"
+    return tiny_avif_bytes(exif=exif)
+
+
+def test_import_accepts_avif_and_still_skips_raw(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "AVIF formats"}).json()
+    avif_payload = tiny_avif_bytes()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[
+            ("files", ("good.jpg", _image_bytes(), "image/jpeg")),
+            ("files", ("still.avif", avif_payload, "image/avif")),
+            ("files", ("frame.dng", b"not decoded in v2", "image/x-adobe-dng")),
+        ],
+    )
+
+    assert response.status_code == 201
+    result = response.json()
+    assert [photo["filename"] for photo in result["imported"]] == ["good.jpg", "still.avif"]
+    assert result["skipped"] == [
+        {
+            "filename": "frame.dng",
+            "reason": "RAW files are not supported yet; import JPEG, PNG, or WebP files for this release",
+        },
+    ]
+    originals = Path(project["root_path"]) / "originals"
+    assert (originals / "good.jpg").exists()
+    assert (originals / "still.avif").read_bytes() == avif_payload
+    assert not (originals / "frame.dng").exists()
+
+
+def test_import_avif_writes_webp_derivatives_and_exif(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "AVIF import"}).json()
+    payload = _tiny_avif_with_exif()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("still.avif", payload, "image/avif"))],
+    )
+    assert response.status_code == 201
+    result = response.json()
+    job, photo = _wait_for_imported_photo(client, project["id"], result)
+    assert job["status"] == "complete"
+    assert photo["filename"] == "still.avif"
+    assert photo["file_ext"] == ".avif"
+    assert photo["processing_state"] == "imported"
+    assert photo["capture_time"] == "2026-01-02T03:04:05"
+    assert photo["camera_model"] == "FramePilotCam"
+    assert Path(photo["project_copy_path"]).read_bytes() == payload
+    assert Path(photo["thumbnail_path"]).suffix == ".webp"
+    assert Path(photo["preview_path"]).suffix == ".webp"
+    assert Path(photo["thumbnail_path"]).is_file()
+    assert Path(photo["preview_path"]).is_file()
+
+
+def test_import_garbage_avif_fails_that_file_like_broken_jpeg(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Garbage AVIF"}).json()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[
+            ("files", ("good.jpg", _image_bytes(), "image/jpeg")),
+            ("files", ("shot.avif", b"not-a-real-avif", "image/avif")),
+        ],
+    )
+    assert response.status_code == 201
+    result = response.json()
+    assert [photo["filename"] for photo in result["imported"]] == ["good.jpg", "shot.avif"]
+    assert result["skipped"] == []
+    originals = Path(project["root_path"]) / "originals"
+    assert (originals / "shot.avif").read_bytes() == b"not-a-real-avif"
+    job = _wait_for_job(client, project["id"], result["job"])
+    assert job["status"] == "complete_with_errors"
+    assert job["processed_items"] == 1
+    assert job["failed_items"] == 1
+    photos = {photo["filename"]: photo for photo in client.get(f"/api/projects/{project['id']}/photos").json()}
+    assert photos["good.jpg"]["processing_state"] == "imported"
+    assert photos["shot.avif"]["processing_state"] == "failed"
 
 
 def test_export_rejects_invalid_status(tmp_path, monkeypatch):

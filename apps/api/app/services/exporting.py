@@ -8,7 +8,7 @@ from sqlmodel import Session
 
 from app.models.entities import ExportRecord, ProcessingJob, Project, utc_now
 
-STORED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
+STORED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif"}
 CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 EXPORT_CANCEL_REASON = "Export job was cancelled by user request"
 TERMINAL_EXPORT_CANCEL_NOOP = frozenset({"complete", "complete_with_errors", "failed", "cancelled"})

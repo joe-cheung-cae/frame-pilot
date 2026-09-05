@@ -24,7 +24,7 @@ S9.00 is this document, the §1.1 pointer, GitHub issues, and the workflow file.
 3. **One GitHub issue per workflow `phase()` / run.** Do not pack S9.01–S9.13 into one 开发 stage.
 4. **J7.07:** cooperative `pause_requested` at existing processing checkpoints; worker exits without `cancelled` finalize and without reviewable partial groups. **Resume = clear-and-rerun** via `POST /process`. Do not keep half-built groups.
 5. **Export cancel:** allow `job_type == "export"` on the existing cancel route. Cooperative checkpoints. Partial ZIP/folder uses fail-and-cleanup. Fix `"Only import jobs can be cancelled"`. Desktop quit can cancel an active export.
-6. **AVIF:** add `.avif` via the HEIC `pillow-heif` opener. Tiny in-process tests. Not RAW.
+6. **AVIF:** add `.avif` to the existing still import/export pipeline. Decode with Pillow’s native `AvifImagePlugin` (live `pillow-heif` 1.6 dropped AVIF; do not make the HEIF opener claim `.avif`). Tiny in-process tests. Not RAW.
 7. **RAW:** copy original bytes; extract **embedded preview only**. No thumb → skip with an explicit local message. No demosaic. No camera files in git. Document LibRaw license like libheif.
 8. **XMP:** implement on [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165). Write `.xmp` only in the export directory. Never write into `originals/` or beside camera originals. Optional, default off.
 9. **Concurrency knobs:** default remains one import/processing worker. Settings may raise import workers to 2–4 opt-in. One processing job per project. No Redis/Celery.
@@ -45,7 +45,7 @@ Phase 9 — remaining stretch (post Phase 8)
 - [x] S9.00 Schedule slices, GitHub issues, §1.1 pointer, workflow — [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160)
 - [x] S9.01 Export job cancel — [#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)
 - [x] S9.02 J7.07 processing pause/resume — [#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)
-- [ ] S9.03 AVIF still preview — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
+- [x] S9.03 AVIF still preview — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
 - [ ] S9.04 RAW embedded preview — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
 - [ ] S9.05 XMP sidecar export — [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165) (historical [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117))
 - [ ] S9.06 Optional system tray (D3.06) — [#169](https://github.com/joe-cheung-cae/frame-pilot/issues/169)
@@ -179,9 +179,23 @@ Live sites that must observe pause (today cancel-only):
 
 ### S9.03 — AVIF
 
-Mirror HEIC: `SUPPORTED_EXTENSIONS`, `STORED_IMAGE_EXTENSIONS`, ImportPanel `accept`, PyInstaller collect, tiny AVIF generated in pytest.
+**Hole (live tree):** `.avif` is not in `SUPPORTED_EXTENSIONS` (`apps/api/app/services/importing.py`) or `STORED_IMAGE_EXTENSIONS` (`apps/api/app/services/exporting.py`). `ensure_heif_opener()` calls only `pillow_heif.register_heif_opener()` and its docstring says it does not register AVIF (`apps/api/app/image/heif_support.py`). Live `pillow-heif` 1.6.0 dropped AVIF: `register_heif_opener` registers `.heic`/`.heif`/… as format `"HEIF"` and `_is_supported_heif` rejects `avif`/`avis` brands. `register_avif_opener` does not exist. The HEIF wheel ships libheif/libde265/libx265, not an AV1 codec. `test_supported_extensions_include_heic_not_avif` and `test_heif_opener_does_not_claim_avif` encode that skip. ImportPanel `IMPORT_IMAGE_ACCEPT` / `IMPORT_FORMAT_COPY` and desktop `IMAGE_EXTENSIONS` omit avif. PyInstaller lists `PIL.JpegImagePlugin` / `PngImagePlugin` / `WebPImagePlugin` plus `pillow_heif`, not `PIL.AvifImagePlugin`. Docs say “AVIF is not accepted”. Pillow 12 already ships `PIL.AvifImagePlugin` + `_avif` and auto-registers `.avif` as format `"AVIF"` when `_avif` is present.
 
-**Non-goals:** RAW, XMP, gain-map HDR.
+**Identity:** Mirror HEIC still preview, not RAW. Add **only** `.avif` (not `.avifs` sequences) to `SUPPORTED_EXTENSIONS` and `STORED_IMAGE_EXTENSIONS`. Copy original AVIF bytes into `{root_path}/originals/` unchanged. Decode with **Pillow’s native `AvifImagePlugin`** via the existing `Image.open` / `ImageOps.exif_transpose` / `.convert("RGB")` path. Thumbnails and previews stay **WebP**. Score/group on that RGB. Export ZIP/folder ships the **original AVIF bytes** (`ZIP_STORED`). Primary still only. HDR/gain-map: decode whatever primary RGB Pillow gives; do not implement tone mapping. **Do not** make the HEIF opener claim `.avif`. **Do not** add `pillow-avif-plugin`. **Do not** call a missing `register_avif_opener`. **Do not** bump `pillow-heif` for AVIF. Keep `ensure_heif_opener()` for HEIC/HEIF. Missing `_avif` in a wheel is a fail, not a skip.
+
+**UI:** `ImportPanel` `accept` adds `image/avif,.avif`. Format copy names AVIF next to JPEG/PNG/WebP/HEIC/HEIF; RAW stays skipped. Update empty-state / processing strings that currently say “JPEG, PNG, WebP, or HEIC/HEIF” (`shellCopy.ts`, `processingProgress.ts`). Desktop `apps/desktop/src/lib/nativeFs.ts` `IMAGE_EXTENSIONS` adds `"avif"`. Path-import still uses the API list.
+
+**Packaging:** `framepilot-api.spec` hiddenimports add `PIL.AvifImagePlugin` and `_avif` (same family as WebP). Keep pillow-heif collect for HEIC. Frozen sidecar smoke: generate a tiny AVIF in-process and path-import it through the frozen binary (keep the existing HEIC smoke). Stay under the 400 MB unpacked D4.06 threshold. Do not sign.
+
+**Docs (implementation commit):** living pages that currently deny AVIF must name still AVIF: `docs/api.md`, `docs/architecture.md`, `docs/v2_known_limitations.md` (Supported File Formats; remove AVIF from Deferred), `README.md`, `docs/desktop_user_guide.md` (+ zh). CHANGELOG Unreleased: new S9.03 subsection. No `APP_VERSION` bump. Do not claim RAW, XMP, gain-map HDR, `.avifs`, or signed builds.
+
+**This plan (implementation commit only):** tick §3 S9.03 `[x]` (en+zh). Do not tick S9.04–S9.13.
+
+**Files:** `apps/api/app/services/importing.py`; `apps/api/app/services/exporting.py`; `apps/api/tests/heic_helpers.py` or a tiny `tiny_avif_bytes()` helper; `apps/api/tests/test_heif_support.py`; `apps/api/tests/test_import_process_export_api.py`; `apps/api/tests/test_import_from_paths.py`; `apps/api/tests/test_import_path_expansion.py`; `apps/api/tests/test_path_import_process_export_workflow.py`; `apps/api/tests/test_export_hardening.py`; `apps/web/src/components/ImportPanel.tsx` (+ test); `apps/web/src/lib/shellCopy.ts` (+ test); `apps/web/src/lib/processingProgress.ts` (+ test); `apps/desktop/src/lib/nativeFs.ts` (+ test); `packaging/pyinstaller/framepilot-api.spec`; `scripts/sidecar-smoke.sh`; docs listed above + CHANGELOG Unreleased (+ zh); this plan (+ zh) §3 S9.03 tick.
+
+**Tests first:** invert `test_supported_extensions_include_heic_not_avif` so `.avif` is in `SUPPORTED_EXTENSIONS`. Keep `test_heif_opener_does_not_claim_avif` (`.avif` is `"AVIF"`, not `"HEIF"`). Generate tiny AVIF in-process with Pillow `Image.save(..., format="AVIF")` — no camera files in git. Multipart and from-paths: valid tiny AVIF copies into `originals/`, WebP derivatives, source size/mtime/bytes unchanged; RAW still skipped. Garbage `.avif` (`b"not-a-real-avif"`) is a failed import item after copy, not an unsupported-extension skip. Path-import + process + CSV/ZIP/folder: ZIP member is original AVIF bytes with `ZIP_STORED`. ImportPanel accept + copy; desktop picker extensions include `avif`. Existing JPEG/HEIC/RAW-skip tests stay green.
+
+**Non-goals:** RAW; XMP; gain-map HDR; `.avifs` sequences; Live Photo `.mov`; new decoder packages; `APP_VERSION`; signing; S9.04–S9.13.
 
 ### S9.04 — RAW embedded preview
 

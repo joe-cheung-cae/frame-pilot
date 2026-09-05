@@ -16,12 +16,13 @@ v2.0 supports local import and processing for:
 - PNG
 - WebP
 - HEIC / HEIF stills (local `pillow-heif` decode; WebP derivatives; original bytes exported)
+- AVIF stills (`.avif` only; Pillow native `AvifImagePlugin`; WebP derivatives; original bytes exported)
 
 Unsupported files are reported locally instead of uploaded or decoded remotely.
 
 ## Deferred Formats
 
-RAW formats such as DNG, ARW, CR3, and NEF remain deferred. FramePilot skips those extensions with an explicit unsupported-format message and does not extract embedded RAW previews or write RAW sidecars. HEIC/HEIF stills import locally; Live Photo `.mov` companions, AVIF, HDR/gain-map tone mapping, and XMP writes are not implemented.
+RAW formats such as DNG, ARW, CR3, and NEF remain deferred. FramePilot skips those extensions with an explicit unsupported-format message and does not extract embedded RAW previews or write RAW sidecars. HEIC/HEIF and AVIF stills import locally; Live Photo `.mov` companions, `.avifs` sequences, HDR/gain-map tone mapping, and XMP writes are not implemented.
 
 `pillow-heif` is BSD-3-Clause. Its wheels ship **LGPL** `libheif` (and codecs) inside the API/sidecar runtime. FramePilot does not vendor libheif source into this MIT tree.
 

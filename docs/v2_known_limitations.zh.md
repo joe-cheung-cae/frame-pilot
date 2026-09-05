@@ -16,12 +16,13 @@ v2.0 支持以下格式的本地导入与处理：
 - PNG
 - WebP
 - HEIC / HEIF 静帧（本地 `pillow-heif` 解码；WebP 衍生件；导出原始字节）
+- AVIF 静帧（仅 `.avif`；Pillow 自带 `AvifImagePlugin`；WebP 衍生件；导出原始字节）
 
 不受支持的文件会在本地报告，而不是远程上传或解码。
 
 ## 延后的格式
 
-DNG、ARW、CR3、NEF 等 RAW 格式仍延后。FramePilot 会以明确的不支持格式消息跳过这些扩展名，不会提取内嵌 RAW 预览，也不会写入 RAW sidecar。HEIC/HEIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、AVIF、HDR/gain-map 色调映射或 XMP 写入。
+DNG、ARW、CR3、NEF 等 RAW 格式仍延后。FramePilot 会以明确的不支持格式消息跳过这些扩展名，不会提取内嵌 RAW 预览，也不会写入 RAW sidecar。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、`.avifs` 序列、HDR/gain-map 色调映射或 XMP 写入。
 
 `pillow-heif` 为 BSD-3-Clause。其 wheel 在 API/sidecar 运行时内带有 **LGPL** 的 `libheif`（及编码器）。FramePilot 不把 libheif 源码塞进本 MIT 树。
 

@@ -154,6 +154,8 @@ def test_pyinstaller_spec_includes_asyncio_loop_and_httptools_impl():
     hiddenimports = text[start:end]
     assert '"uvicorn.loops.asyncio"' in hiddenimports
     assert '"uvicorn.protocols.http.httptools_impl"' in hiddenimports
+    assert '"PIL.AvifImagePlugin"' in hiddenimports
+    assert '"PIL._avif"' in hiddenimports
 
 
 def test_tauri_spawn_strips_project_root_allowlist():

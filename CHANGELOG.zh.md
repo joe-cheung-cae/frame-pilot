@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 第九阶段 — S9.03 AVIF 静帧预览
+
+- 本地 AVIF 静帧导入（仅 `.avif`，不含 `.avifs` 序列），用 Pillow 自带的 `AvifImagePlugin` 解码，WebP 缩略图/预览，在解码 RGB 上评分/分组
+- 原始 AVIF 字节拷进 `originals/` 并导出（ZIP 使用 `ZIP_STORED`）；永不修改源文件
+- 垃圾 AVIF 在拷贝后只让该文件失败；RAW、Live Photo `.mov`、HDR gain-map 色调映射和 XMP 不在本切片
+- 冻结 sidecar 收集 `PIL.AvifImagePlugin` / `PIL._avif`；HEIC 仍用 `pillow-heif`
+- 不改 `APP_VERSION`、不签名、不打包 GUI
+
 ### 第九阶段 — S9.02 处理作业暂停
 
 - `POST /api/projects/{project_id}/jobs/{job_id}/pause` 上的协作式处理暂停，使用独立的 `pause_requested` 标志（queued/running 持久化标志并返回 202；终态 200 空操作；interrupted 终态 `paused` 并清分组）

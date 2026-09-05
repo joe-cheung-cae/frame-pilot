@@ -28,6 +28,8 @@ hiddenimports = [
     "PIL.JpegImagePlugin",
     "PIL.PngImagePlugin",
     "PIL.WebPImagePlugin",
+    "PIL.AvifImagePlugin",
+    "PIL._avif",
     "pillow_heif",
     "_pillow_heif",
     "imagehash",

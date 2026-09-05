@@ -11,6 +11,7 @@ from app.services.importing import (
     expand_import_paths,
     unsupported_image_reason,
 )
+from tests.avif_helpers import tiny_avif_bytes
 from tests.heic_helpers import tiny_heic_bytes
 
 
@@ -36,6 +37,24 @@ def test_expand_nested_jpegs_and_skips(tmp_path):
     assert reasons["notes.txt"] == "Only JPEG, PNG, and WebP files are supported"
     assert reasons["frame.dng"] == unsupported_image_reason("frame.dng")
     assert "shot.heic" not in reasons
+
+
+def test_expand_includes_avif_and_still_skips_raw(tmp_path):
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    source = tmp_path / "card"
+    _write_jpeg(source / "a.jpg")
+    (source / "still.avif").write_bytes(tiny_avif_bytes())
+    (source / "clip.avifs").write_bytes(b"sequence")
+    (source / "frame.dng").write_bytes(b"not-raw")
+
+    expanded = expand_import_paths([str(source)], project_root)
+
+    assert [path.name.lower() for path in expanded.files] == ["a.jpg", "still.avif"]
+    reasons = {item["filename"]: item["reason"] for item in expanded.skipped}
+    assert reasons["clip.avifs"] == "Only JPEG, PNG, and WebP files are supported"
+    assert reasons["frame.dng"] == unsupported_image_reason("frame.dng")
+    assert "still.avif" not in reasons
 
 
 def test_expand_rejects_relative_missing_and_empty(tmp_path):

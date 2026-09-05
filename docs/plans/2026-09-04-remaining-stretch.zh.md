@@ -24,7 +24,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 3. **每个 workflow `phase()` / 每次运行只对应一个 GitHub issue。** 不要把 S9.01–S9.13 塞进一次 开发。
 4. **J7.07：** 在现有处理检查点上协作式 `pause_requested`；worker 退出时不 finalize 为 `cancelled`，也不留下可审阅的半成品分组。**恢复 = 经 `POST /process` 的 clear-and-rerun。** 不要保留半成品分组。
 5. **导出取消：** 现有 cancel 路由允许 `job_type == "export"`。协作式检查点。不完整的 ZIP/文件夹走 fail-and-cleanup。修正 `"Only import jobs can be cancelled"`。桌面退出可取消进行中的导出。
-6. **AVIF：** 用 HEIC 的 `pillow-heif` opener 加入 `.avif`。测试里进程内生成小文件。不是 RAW。
+6. **AVIF：** 把 `.avif` 加进现有静帧导入/导出管线。用 Pillow 自带的 `AvifImagePlugin` 解码（现场 `pillow-heif` 1.6 已去掉 AVIF；不要让 HEIF opener 宣称 `.avif`）。测试里进程内生成小文件。不是 RAW。
 7. **RAW：** 原样拷贝字节；只抽**内嵌预览**。没有 thumb → 用明确本地消息跳过。不 demosaic。不把相机文件提交进 git。LibRaw 许可说明比照 libheif。
 8. **XMP：** 在 [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165) 上实现。只在导出目录写 `.xmp`。永不写入 `originals/` 或相机原片旁。可选，默认关。
 9. **并发旋钮：** 默认仍是一个导入/处理 worker。设置可将导入 worker 升到 2–4（opt-in）。每个项目一个处理作业。不要 Redis/Celery。
@@ -45,7 +45,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 - [x] S9.00 排期切片、GitHub issue、§1.1 指针、workflow — [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160)
 - [x] S9.01 导出作业取消 — [#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)
 - [x] S9.02 J7.07 处理暂停/恢复 — [#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)
-- [ ] S9.03 AVIF 静帧预览 — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
+- [x] S9.03 AVIF 静帧预览 — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
 - [ ] S9.04 RAW 内嵌预览 — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
 - [ ] S9.05 XMP sidecar 导出 — [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165)（历史 [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117)）
 - [ ] S9.06 可选系统托盘（D3.06） — [#169](https://github.com/joe-cheung-cae/frame-pilot/issues/169)
@@ -179,9 +179,23 @@ HTTP（比照处理取消，标志不同）：
 
 ### S9.03 — AVIF
 
-比照 HEIC：`SUPPORTED_EXTENSIONS`、`STORED_IMAGE_EXTENSIONS`、ImportPanel `accept`、PyInstaller collect、pytest 里生成小 AVIF。
+**现场空洞：** `.avif` 不在 `SUPPORTED_EXTENSIONS`（`apps/api/app/services/importing.py`）也不在 `STORED_IMAGE_EXTENSIONS`（`apps/api/app/services/exporting.py`）。`ensure_heif_opener()` 只调用 `pillow_heif.register_heif_opener()`，文档写明不注册 AVIF（`apps/api/app/image/heif_support.py`）。现场 `pillow-heif` 1.6.0 已去掉 AVIF：`register_heif_opener` 把 `.heic`/`.heif`/… 注册成 `"HEIF"`，`_is_supported_heif` 拒绝 `avif`/`avis` brand。没有 `register_avif_opener`。HEIF wheel 带的是 libheif/libde265/libx265，没有 AV1 编解码器。`test_supported_extensions_include_heic_not_avif` 与 `test_heif_opener_does_not_claim_avif` 把这一跳过写进测试。ImportPanel 的 `IMPORT_IMAGE_ACCEPT` / `IMPORT_FORMAT_COPY` 以及桌面 `IMAGE_EXTENSIONS` 都没有 avif。PyInstaller 列了 `PIL.JpegImagePlugin` / `PngImagePlugin` / `WebPImagePlugin` 和 `pillow_heif`，没有 `PIL.AvifImagePlugin`。文档写「不接受 AVIF」。Pillow 12 已自带 `PIL.AvifImagePlugin` + `_avif`，在 `_avif` 存在时把 `.avif` 注册成 `"AVIF"`。
 
-**非目标：** RAW、XMP、gain-map HDR。
+**身份：** 比照 HEIC 静帧预览，不是 RAW。只把 **`.avif`**（不要 `.avifs` 序列）加进 `SUPPORTED_EXTENSIONS` 和 `STORED_IMAGE_EXTENSIONS`。原片 AVIF 字节原样拷进 `{root_path}/originals/`。用 **Pillow 自带的 `AvifImagePlugin`**，走现有 `Image.open` / `ImageOps.exif_transpose` / `.convert("RGB")`。缩略图和预览仍是 **WebP**。在该 RGB 上评分/分组。ZIP/文件夹导出带上**原始 AVIF 字节**（`ZIP_STORED`）。只要主静帧。HDR/gain-map：解码 Pillow 给出的主图 RGB；不做色调映射。**不要**让 HEIF opener 宣称 `.avif`。**不要**加 `pillow-avif-plugin`。**不要**调用不存在的 `register_avif_opener`。**不要**为 AVIF 升 `pillow-heif`。HEIC/HEIF 仍走 `ensure_heif_opener()`。wheel 缺 `_avif` 是失败，不是 skip。
+
+**UI：** `ImportPanel` 的 `accept` 加上 `image/avif,.avif`。格式文案在 JPEG/PNG/WebP/HEIC/HEIF 旁点名 AVIF；RAW 仍跳过。更新仍写 “JPEG, PNG, WebP, or HEIC/HEIF” 的空状态 / 处理文案（`shellCopy.ts`、`processingProgress.ts`）。桌面 `apps/desktop/src/lib/nativeFs.ts` 的 `IMAGE_EXTENSIONS` 加上 `"avif"`。路径导入仍用 API 列表。
+
+**打包：** `framepilot-api.spec` hiddenimports 加上 `PIL.AvifImagePlugin` 和 `_avif`（与 WebP 同类）。HEIC 仍收集 pillow-heif。冻结 sidecar 冒烟：进程内生成小 AVIF，经冻结二进制做 path-import（保留现有 HEIC 冒烟）。保持在 400 MB 未打包 D4.06 阈值以下。不签名。
+
+**文档（仅实现提交）：** 当前否认 AVIF 的活文档要写上静帧 AVIF：`docs/api.md`、`docs/architecture.md`、`docs/v2_known_limitations.md`（支持格式；从延后清单去掉 AVIF）、`README.md`、`docs/desktop_user_guide.md`（+ zh）。CHANGELOG Unreleased 增加 S9.03 小节。不改 `APP_VERSION`。不要声称 RAW、XMP、gain-map HDR、`.avifs` 或已签名构建。
+
+**本计划（仅实现提交）：** 勾选 §3 S9.03 `[x]`（中英）。不要勾 S9.04–S9.13。
+
+**文件：** `apps/api/app/services/importing.py`；`apps/api/app/services/exporting.py`；`apps/api/tests/heic_helpers.py` 或小的 `tiny_avif_bytes()` helper；`apps/api/tests/test_heif_support.py`；`apps/api/tests/test_import_process_export_api.py`；`apps/api/tests/test_import_from_paths.py`；`apps/api/tests/test_import_path_expansion.py`；`apps/api/tests/test_path_import_process_export_workflow.py`；`apps/api/tests/test_export_hardening.py`；`apps/web/src/components/ImportPanel.tsx`（+ 测试）；`apps/web/src/lib/shellCopy.ts`（+ 测试）；`apps/web/src/lib/processingProgress.ts`（+ 测试）；`apps/desktop/src/lib/nativeFs.ts`（+ 测试）；`packaging/pyinstaller/framepilot-api.spec`；`scripts/sidecar-smoke.sh`；上文文档 + CHANGELOG Unreleased（+ zh）；本计划（+ zh）§3 S9.03 勾选。
+
+**测试先行：** 倒转 `test_supported_extensions_include_heic_not_avif`，让 `.avif` 属于 `SUPPORTED_EXTENSIONS`。保留 `test_heif_opener_does_not_claim_avif`（`.avif` 是 `"AVIF"`，不是 `"HEIF"`）。用 Pillow `Image.save(..., format="AVIF")` 在进程内生成小 AVIF——不要把相机 AVIF 提交进 git。Multipart 与 from-paths：有效小 AVIF 拷进 `originals/`，WebP 衍生件，源文件 size/mtime/bytes 不变；RAW 仍跳过。垃圾 `.avif`（`b"not-a-real-avif"`）是拷贝后的失败导入项，不是不支持扩展名跳过。路径导入 + 处理 + CSV/ZIP/文件夹：ZIP 成员是原始 AVIF 字节且 `ZIP_STORED`。ImportPanel accept + 文案；桌面选择器扩展名含 `avif`。现有 JPEG/HEIC/RAW 跳过测试仍绿。
+
+**非目标：** RAW；XMP；gain-map HDR；`.avifs` 序列；Live Photo `.mov`；新的解码器包；`APP_VERSION`；签名；S9.04–S9.13。
 
 ### S9.04 — RAW 内嵌预览
 

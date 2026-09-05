@@ -145,7 +145,7 @@ test("pickDirectory returns null when the dialog is cancelled", async () => {
   });
 });
 
-test("pickImageFiles opens a JPEG PNG WebP HEIC file dialog", async () => {
+test("pickImageFiles opens a JPEG PNG WebP HEIC AVIF file dialog", async () => {
   await withTauriRuntime(async () => {
     const nativeFs = getNativeFs();
     assert.ok(nativeFs);
@@ -156,7 +156,7 @@ test("pickImageFiles opens a JPEG PNG WebP HEIC file dialog", async () => {
     assert.equal(openCalls[0]?.multiple, true);
     assert.equal(openCalls[0]?.directory, undefined);
     const extensions = openCalls[0]?.filters?.flatMap((filter) => filter.extensions) ?? [];
-    assert.deepEqual([...new Set(extensions)].sort(), ["heic", "heif", "jpeg", "jpg", "png", "webp"]);
+    assert.deepEqual([...new Set(extensions)].sort(), ["avif", "heic", "heif", "jpeg", "jpg", "png", "webp"]);
   });
 });
 
