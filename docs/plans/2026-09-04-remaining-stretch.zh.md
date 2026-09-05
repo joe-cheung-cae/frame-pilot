@@ -54,7 +54,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 - [x] S9.09 更改数据目录 — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
 - [x] S9.10 可选检查更新 — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
 - [x] S9.11 签名就绪 CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
-- [ ] S9.12 macOS DMG GUI 生命周期 QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
+- [x] S9.12 macOS DMG GUI 生命周期 QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
 - [ ] S9.13 文档残留修复 — [#173](https://github.com/joe-cheung-cae/frame-pilot/issues/173)
 
 ---
@@ -189,6 +189,33 @@ S9.01–S9.07 合同未改、已经交付。锁定的导出取消、暂停、AVI
 ### S9.12 — macOS DMG QA
 
 遵循 `docs/desktop_testing.zh.md`。没有 Mac → 带时间戳 skip，不是 pass。
+
+**现场空洞：** 包装后的 macOS GUI 生命周期没有带日期的 `[x]` 证据。[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) 于 2026-09-04 按 Windows-only 关闭；`develop_plan.md` §1.1 把 macOS DMG 记为 skip（没有 Mac 主机），并写明 skip 不是 macOS pass。`docs/desktop_testing.md` 已有生命周期 + 安装/卸载矩阵和记录模板，但没有 S9.12 结果小节。`.github/workflows/desktop.yml` 上传 `FramePilot-macos-dmg` 且**不**启动打包 GUI（`verify.yml` 无 Rust，也不启动）。本次 需求拆解 主机是 Linux，无法挂载或启动 DMG。#172：在 Mac 上跑包装 DMG 的 GUI 生命周期；没有 Mac 时用 ISO-8601 时间戳记录 skip，按 skip 关闭，不是 pass。
+
+**身份：** 仅文档 QA 记录。优先在真实 macOS GUI 上对包装 DMG 做 pass。没有 Mac 主机时允许 skip 收口，**当且仅当**带 ISO-8601 日期且永不标成 pass。不改生产 Rust / Python / TypeScript。不要把未签名当成已签名。未签名 DMG 的 Gatekeeper 警告是预期，不是失败。永不修改原片。不改 `APP_VERSION`。
+
+**Mac pass 路径：** `uname -s` 为 Darwin（或等效的带显示器 macOS GUI 主机）。安装 CI 产物 `FramePilot-macos-dmg`（Actions → `desktop` 工作流；本分支没有产物时用 `workflow_dispatch`）或本地 `npx tauri build --bundles dmg`。然后只跑 `docs/desktop_testing.md` 的**手工 GUI** 行：
+
+- 启动（安装包）：窗口标题 `FramePilot`；sidecar 回环；`GET /health` → 200 且含 `version` + `service`（不要自跑 uvicorn）
+- 干净退出（无活跃作业）：sidecar 退出；该端口无残留 uvicorn
+- 导入中退出 / 处理中退出 / 导出中退出：对话框见 `apps/desktop/README.md`；源原片 size/mtime/bytes 不变；取消处理清部分分组；取消导出 fail-and-cleanup
+- Sidecar 崩溃：UI 显示失败 / 不可达；重启可恢复或文档说明重试；原片未动
+- 端口占用：明确错误；**不得**监听 `0.0.0.0`
+- 安装 / 卸载：应用二进制已移除；**数据目录可保留**（`~/Library/Application Support/FramePilot`）
+
+按矩阵模板记录：日期 / OS / `GET /health` 的 `APP_VERSION`、哪些行 `[x]` 与带日期的 `[~]`、CI 产物运行 URL、原片未改。导入中退出可用 `npm run generate:synthetic` 写到应用数据目录**之外**的临时文件夹。不要相机文件。不要提交照片、数据库或导出目录。
+
+**无 Mac skip 路径：** 若 开发 主机不是 Darwin（Linux、WSL、无头 CI），**不要**把任何 GUI 行标成 `[x]`。`await_user` **一次**索要 Mac 主机。若仍没有，用 ISO-8601 UTC 时间戳记录 **skip**（不是 pass）。skip 可以勾选 §3 S9.12 `[x]`，因为 #172 允许 skip 收口；活文档仍须写 skip ≠ pass。CI HTTP 冒烟 / 冻结 sidecar / Playwright 绿灯**不能**把 skip 变成 macOS GUI pass。
+
+**Skip 记录（实现提交）：** 在 `docs/desktop_testing.md`（+ zh）用现有模板加带日期的 **S9.12 macOS DMG GUI results** 小节；CHANGELOG Unreleased；`docs/v2_known_limitations.md`（+ zh）一条；在 #172 评论 HEAD、`uname`、时间戳和 skip 原因。**不要**把 `docs/desktop_development_plan.md` §2.2 改写成已交付（留给 S9.13）。skip **不得**勾选「Windows 与 macOS 都能从标准安装包安装并运行」。
+
+**本计划（仅实现提交）：** 勾选 §3 S9.12 `[x]`（中英）。不要勾 S9.13。提交说明 `docs: macOS DMG GUI lifecycle QA`。
+
+**文件：** `docs/desktop_testing.md`（+ zh）；`docs/v2_known_limitations.md`（+ zh）；CHANGELOG Unreleased（+ zh）。可选在 `develop_plan.md` §1.1 注明 S9.12 记为 skip 或 pass — skip 时不要声称 Mac pass。不要改 `.github/workflows/desktop.yml` 或 `verify.yml`。不要改生产应用代码。
+
+**测试先行：** 不加新的自动化 GUI 测试。`npm run verify` 仍不依赖 Rust，也不启动 DMG。skip 时不要发明仅 Mac 的 pytest/Playwright。现有桌面 HTTP 冒烟 / sidecar 测试保持绿灯。
+
+**非目标：** 没有真窗口就编造 `[x]`；从 CI 启动打包 GUI；把签名/公证当成本切片；Mac App Store / Gatekeeper 干净声明；重跑 Windows NSIS（#144 已关）；S9.13 残留文档；`APP_VERSION`；相机文件；捆绑模型；额外 `fs:`/`shell:` 能力。
 
 ### S9.13 — 文档残留修复
 

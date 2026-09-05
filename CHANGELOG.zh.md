@@ -6,6 +6,13 @@
 
 ## 未发布
 
+### 第九阶段 — S9.12 macOS DMG GUI 生命周期 QA
+
+- 于 `2026-09-05T12:31:10Z` 记为 **skip，不是 pass** — 没有 Darwin 主机；[docs/desktop_testing.zh.md](docs/desktop_testing.zh.md) 中包装 DMG GUI 行为带日期 skip，无一 `[x]`
+- Linux HTTP 冒烟 / 冻结 sidecar / Playwright 绿灯不能把 skip 变成 macOS GUI pass
+- 未签名 DMG 的 Gatekeeper 警告仍是预期；本切片不声称已签名或 Gatekeeper 干净的 Mac pass
+- 不改 `APP_VERSION`，不改生产应用，无证书
+
 ### 第九阶段 — S9.11 签名就绪 CI
 
 - `.github/workflows/desktop.yml` 在每平台完整 GitHub Actions secret 集都非空时签署 Windows NSIS（Authenticode）与 macOS DMG（Developer ID + 公证 + staple）

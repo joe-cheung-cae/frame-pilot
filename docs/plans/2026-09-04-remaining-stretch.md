@@ -54,7 +54,7 @@ Phase 9 — remaining stretch (post Phase 8)
 - [x] S9.09 Change data directory — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
 - [x] S9.10 Optional check for updates — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
 - [x] S9.11 Signing-ready CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
-- [ ] S9.12 macOS DMG GUI lifecycle QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
+- [x] S9.12 macOS DMG GUI lifecycle QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
 - [ ] S9.13 Docs leftover repair — [#173](https://github.com/joe-cheung-cae/frame-pilot/issues/173)
 
 ---
@@ -189,6 +189,33 @@ Menu only. GitHub Releases. No launch network.
 ### S9.12 — macOS DMG QA
 
 Follow `docs/desktop_testing.md`. No Mac → skip with timestamp, not pass.
+
+**Hole (live tree):** Packaged macOS GUI lifecycle has no dated `[x]` evidence. [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) closed Windows-only 2026-09-04; `develop_plan.md` §1.1 records macOS DMG as skip (no Mac host) and says skip is not a macOS pass. `docs/desktop_testing.md` has the lifecycle + install/uninstall matrix and a record template, but no S9.12 results section. `.github/workflows/desktop.yml` uploads `FramePilot-macos-dmg` and **does not** launch the packaged GUI (`verify.yml` is rust-free and also does not). This 需求拆解 host is Linux; a DMG cannot be mounted or launched here. #172: run packaged DMG GUI lifecycle on a Mac; if no Mac, record skip with an ISO-8601 timestamp and close as skip, not as a pass.
+
+**Identity:** Docs-only QA record. Prefer a real macOS GUI pass of the packaged DMG. Skip is an allowed close-out when no Mac host exists, **if and only if** it is dated ISO-8601 and never labeled pass. Do not change production Rust / Python / TypeScript. Do not treat unsigned as signed. Gatekeeper warnings on unsigned DMGs are expected, not a fail. Originals never modified. No `APP_VERSION` bump.
+
+**Mac pass path:** `uname -s` is Darwin (or an equivalent macOS GUI host with a display). Install CI artifact `FramePilot-macos-dmg` (Actions → `desktop` workflow; `workflow_dispatch` if this branch has no artifact) or local `npx tauri build --bundles dmg`. Then run `docs/desktop_testing.md` **manual GUI** rows only:
+
+- Start (installed): window title `FramePilot`; sidecar loopback; `GET /health` → 200 with `version` + `service` (do not run uvicorn yourself)
+- Quit clean (no active job): sidecar exits; no orphan uvicorn on that port
+- Quit + import / Quit + processing / Quit + export: dialogs per `apps/desktop/README.md`; source originals size/mtime/bytes unchanged; cancelled processing clears partial groups; cancelled export fail-and-cleanup
+- Sidecar crash: UI shows failure / unreachable API; restart recovers or documents retry; originals untouched
+- Port in use: clear error; process must **not** listen on `0.0.0.0`
+- Install / uninstall: app binary removed; **data directory may remain** (`~/Library/Application Support/FramePilot`)
+
+Record per the matrix template: date / OS / `APP_VERSION` from `GET /health`, which rows `[x]` vs dated `[~]`, CI artifact run URL, originals unchanged. Import-quit may use `npm run generate:synthetic` into a throwaway folder **outside** the app data directory. Never camera files. Never commit photos, databases, or export trees.
+
+**No-Mac skip path:** If the 开发 host is not Darwin (Linux, WSL, headless CI), do **not** mark any GUI row `[x]`. `await_user` **once** asking for a Mac host. If none is provided, record **skip** (not pass) with an ISO-8601 UTC timestamp. Skip may tick §3 S9.12 `[x]` because #172 allows skip-as-close-out; the living docs must still say skip ≠ pass. CI HTTP smoke / frozen sidecar / Playwright staying green does **not** convert a skip into a macOS GUI pass.
+
+**Skip record (implementation commit):** Add a dated **S9.12 macOS DMG GUI results** subsection to `docs/desktop_testing.md` (+ zh) using the existing template; CHANGELOG Unreleased; one `docs/v2_known_limitations.md` (+ zh) bullet; comment on #172 with HEAD, `uname`, timestamp, and skip reason. Do **not** rewrite `docs/desktop_development_plan.md` §2.2 as shipped (S9.13). A skip must **not** tick “Windows and macOS both install and run from standard installer packages”.
+
+**This plan (implementation commit only):** tick §3 S9.12 `[x]` (en+zh). Do not tick S9.13. Commit subject `docs: macOS DMG GUI lifecycle QA`.
+
+**Files:** `docs/desktop_testing.md` (+ zh); `docs/v2_known_limitations.md` (+ zh); CHANGELOG Unreleased (+ zh). Optional pointer note in `develop_plan.md` §1.1 that S9.12 recorded skip or pass — do not claim a Mac pass on skip. Do not edit `.github/workflows/desktop.yml` or `verify.yml`. Do not change production app code.
+
+**Tests first:** No new automated GUI test. `npm run verify` stays rust-free and does not launch a DMG. On skip, do not invent Mac-only pytest/Playwright. Existing desktop HTTP smoke / sidecar tests stay green.
+
+**Non-goals:** inventing `[x]` without a real window; launching packaged GUI from CI; signing/notarize as this slice; Mac App Store / Gatekeeper-clean claim; Windows NSIS re-run (#144 already closed); S9.13 leftover docs; `APP_VERSION`; camera files; bundled models; extra `fs:`/`shell:` capabilities.
 
 ### S9.13 — Docs leftover repair
 

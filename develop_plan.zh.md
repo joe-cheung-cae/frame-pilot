@@ -22,7 +22,7 @@ v2 的目标不是完全替代人的审美判断。目标是去掉明显的技�
 - `2.1.0-desktop` RC（未签名的 Tauri 2 + localhost Python sidecar）。不要当成已签名商店发行。
 - 第六阶段 / 6.1 本地持久作业回收（`npm run worker` / `python -m app.worker`；`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认开启）。
 - 第七阶段协作式**处理作业取消**（J7.01–J7.06，[#148](https://github.com/joe-cheung-cae/frame-pilot/pull/148)）。暂停/恢复（J7.07）**不在**该阶段完成定义内。计划：[docs/plans/2026-09-03-phase7-processing-cancel.zh.md](docs/plans/2026-09-03-phase7-processing-cancel.zh.md)。
-- 未签名 Windows NSIS GUI 生命周期 QA（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)，2026-09-04 按 Windows-only 关闭）。macOS DMG 为 skip（没有 Mac 主机）；skip 不是 macOS pass。
+- 未签名 Windows NSIS GUI 生命周期 QA（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)，2026-09-04 按 Windows-only 关闭）。S9.12 包装 macOS DMG GUI 生命周期（[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)）于 `2026-09-05T12:31:10Z` 记为 **skip，不是 pass**（Linux/WSL2；`uname -s` 不是 Darwin）。skip 不是 macOS pass。
 - 第八阶段本地 **HEIC/HEIF 静帧预览**（H8.01–H8.06，[#157](https://github.com/joe-cheung-cae/frame-pilot/pull/157)；[#151](https://github.com/joe-cheung-cae/frame-pilot/issues/151) 已关闭）。计划：[docs/plans/2026-09-04-heic-preview.zh.md](docs/plans/2026-09-04-heic-preview.zh.md)。原片 HEIC 原样拷贝；用 `pillow-heif` 解码；WebP 衍生件；在 RGB 上评分/分组。RAW 仍跳过。
 
 **下一步：** 第九阶段剩余 stretch 收口，**每次运行一个 GitHub issue**（S9.00–S9.13）。计划：[docs/plans/2026-09-04-remaining-stretch.zh.md](docs/plans/2026-09-04-remaining-stretch.zh.md)。总览 [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160)。S9.00–S9.11 已落地（到签名就绪 CI [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)）；从 **S9.12 macOS DMG GUI QA**（[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)）开始。不要发明第十阶段。不要在同一次运行里实现 S9.13。

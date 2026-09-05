@@ -6,6 +6,13 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.12 macOS DMG GUI lifecycle QA
+
+- Recorded **skip, not pass** at `2026-09-05T12:31:10Z` — no Darwin host; packaged DMG GUI rows in [docs/desktop_testing.md](docs/desktop_testing.md) are dated skip, none `[x]`
+- Linux HTTP smoke / frozen sidecar / Playwright staying green does not convert the skip into a macOS GUI pass
+- Unsigned DMG Gatekeeper warnings remain expected; this slice does not claim a signed or Gatekeeper-clean Mac pass
+- No `APP_VERSION` bump, no production app change, no certs
+
 ### Phase 9 — S9.11 signing-ready CI
 
 - `.github/workflows/desktop.yml` signs Windows NSIS (Authenticode) and macOS DMG (Developer ID + notarization + staple) when the full per-platform GitHub Actions secret set is non-empty
