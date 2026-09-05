@@ -18,7 +18,7 @@ FramePilot v2.0 是面向 JPEG、PNG 和 WebP 照片筛选的本地优先 MVP-pl
 - 未签名 Windows NSIS GUI lifecycle QA（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)，仅 Windows）
 - 第八阶段本地 HEIC/HEIF 静帧预览（H8.01–H8.06）
 
-**`main` 上的下一步：** 第九阶段剩余 stretch 收口（S9.00–S9.13），每次运行一个 GitHub issue。S9.00–S9.05 已落地；从 S9.06 开始。不要发明第十阶段。下文关于作业持久性、桌面打包、处理取消和 HEIC 预览的条目描述的是 2026-06-05 rc2 产品，除非另有后续切片说明。见 `develop_plan.zh.md` §1.1 与 `docs/plans/2026-09-04-remaining-stretch.zh.md`。
+**`main` 上的下一步：** 第九阶段剩余 stretch 收口（S9.00–S9.13），每次运行一个 GitHub issue。S9.00–S9.06 已落地；从 S9.07 开始。不要发明第十阶段。下文关于作业持久性、桌面打包、处理取消和 HEIC 预览的条目描述的是 2026-06-05 rc2 产品，除非另有后续切片说明。见 `develop_plan.zh.md` §1.1 与 `docs/plans/2026-09-04-remaining-stretch.zh.md`。
 
 ## 已实现的 v2.0 功能
 
