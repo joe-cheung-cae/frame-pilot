@@ -25,9 +25,9 @@ Already delivered on `main`:
 - Unsigned Windows NSIS GUI lifecycle QA ([#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144), closed Windows-only 2026-09-04). macOS DMG was skip (no Mac host); skip is not a macOS pass.
 - Phase 8 local **HEIC/HEIF still preview** (H8.01–H8.06, [#157](https://github.com/joe-cheung-cae/frame-pilot/pull/157); [#151](https://github.com/joe-cheung-cae/frame-pilot/issues/151) closed). Plan: [docs/plans/2026-09-04-heic-preview.md](docs/plans/2026-09-04-heic-preview.md). Copy original HEIC unchanged; decode with `pillow-heif`; WebP derivatives; score/group on RGB. RAW stays skipped.
 
-**Next:** no numbered delivery slice. Do not invent Phase 9.
+**Next:** Phase 9 remaining-stretch close-out, **one GitHub issue per run** (S9.00–S9.13). Plan: [docs/plans/2026-09-04-remaining-stretch.md](docs/plans/2026-09-04-remaining-stretch.md). Umbrella [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160). S9.00 (this pointer + plan + workflow) is landed; start at **S9.01 export cancel** ([#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)). Do not invent Phase 10. Do not implement S9.02–S9.13 in the same run as S9.01.
 
-Remaining stretch (not scheduled): RAW preview, export cancel, desktop 2.2, signing, J7.07 pause, AVIF, XMP ([#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) is `not_planned`).
+Queue: S9.01 export cancel → S9.02 J7.07 pause → S9.03 AVIF → S9.04 RAW preview → S9.05 XMP ([#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165); historical [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117)) → S9.06 tray → S9.07 detached preview → S9.08 concurrency knobs → S9.09 data-dir → S9.10 optional updates → S9.11 signing-ready CI → S9.12 macOS DMG QA → S9.13 docs leftover repair.
 
 ## 2. v1 Status and Motivation for v2
 
@@ -428,14 +428,14 @@ Shipped after the original v2.0 note above:
 - Cooperative **processing** cancellation on the same cancel route (Phase 7, J7.01–J7.06). See [docs/plans/2026-09-03-phase7-processing-cancel.md](docs/plans/2026-09-03-phase7-processing-cancel.md).
 - Local HEIC/HEIF still preview (Phase 8, H8.01–H8.06). See [docs/plans/2026-09-04-heic-preview.md](docs/plans/2026-09-04-heic-preview.md).
 
-**Next:** no numbered delivery slice. Do not invent Phase 9.
+**Next:** Phase 9 remaining-stretch close-out, one issue per run. See [§1.1](#11-current-delivery-status-and-next-slice). Do not invent Phase 10.
 
-Still deferred:
+Still deferred until their S9 issue:
 
-- RQ, Dramatiq, or Celery (only if a measured need appears).
-- Pause/resume of in-flight grouping without clear-and-rerun (Phase 7 J7.07, not DoD).
-- Export job cancel and export reclaim.
-- RAW embedded preview, AVIF, XMP, signing.
+- RQ, Dramatiq, or Celery (only if a measured need appears; not in S9).
+- Pause/resume of in-flight grouping (S9.02 / J7.07; resume stays clear-and-rerun).
+- Export job cancel (S9.01) and export reclaim (not in S9).
+- RAW embedded preview (S9.04), AVIF (S9.03), XMP (S9.05), signing-ready CI (S9.11).
 
 ## 11. Frontend Architecture
 
@@ -739,7 +739,7 @@ Documentation must remain practical and implementation-oriented.
 
 ## 16. Development Milestones
 
-This section is historical Goal Mode sequencing (v2.0–v2.6). The living next-slice pointer is [§1.1](#11-current-delivery-status-and-next-slice). Do not reopen a shipped item from this list. Delivery Phase 7 is processing job cancel (already shipped), not §16.7. HEIC still preview is delivery Phase 8 (`docs/plans/2026-09-04-heic-preview.md`) and already shipped. There is no numbered Phase 9.
+This section is historical Goal Mode sequencing (v2.0–v2.6). The living next-slice pointer is [§1.1](#11-current-delivery-status-and-next-slice). Do not reopen a shipped item from this list. Delivery Phase 7 is processing job cancel (already shipped), not §16.7. HEIC still preview is delivery Phase 8 (`docs/plans/2026-09-04-heic-preview.md`) and already shipped. Delivery Phase 9 is remaining-stretch S9.00–S9.13 (`docs/plans/2026-09-04-remaining-stretch.md`). Do not invent Phase 10.
 
 ### 16.1 v2.0 Foundation
 
@@ -878,7 +878,7 @@ Acceptance criteria:
 
 ### 16.7 v2.6 Optional RAW, HEIC, and AI Model Support
 
-Historical stretch. **HEIC still preview shipped as dedicated Phase 8** (H8.01–H8.06). Do not implement RAW, AVIF, XMP, or optional models because HEIC shipped. There is no numbered Phase 9.
+Historical stretch. **HEIC still preview shipped as dedicated Phase 8** (H8.01–H8.06). RAW, AVIF, and XMP are scheduled as S9.03–S9.05; optional models are still not in Phase 9. Do not invent Phase 10.
 
 Objective:
 

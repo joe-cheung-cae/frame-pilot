@@ -6,6 +6,12 @@
 
 ## 未发布
 
+### 文档 — 排期剩余 stretch（S9.00）
+
+- 在 `develop_plan.zh.md` §1.1 点名第九阶段剩余 stretch 收口（每次运行一个 GitHub issue；不要发明第十阶段）
+- 活计划：`docs/plans/2026-09-04-remaining-stretch.zh.md`；总览 [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160)；下一个产品 issue 是 S9.01 导出取消（[#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)）
+- S9.00 不改 `APP_VERSION`、不签名、不改产品行为
+
 ### 文档 — 桌面壳双语页
 
 - 为 `apps/desktop/README.md` 和 `tests/desktop/workflow.md` 补中文对应页

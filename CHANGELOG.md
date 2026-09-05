@@ -6,6 +6,12 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Docs — schedule remaining stretch (S9.00)
+
+- Name Phase 9 remaining-stretch close-out in `develop_plan.md` §1.1 (one GitHub issue per run; do not invent Phase 10)
+- Living plan: `docs/plans/2026-09-04-remaining-stretch.md`; umbrella [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160); next product issue is S9.01 export cancel ([#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164))
+- No `APP_VERSION` bump, signing, or product behavior change in S9.00
+
 ### Docs — bilingual desktop shell pages
 
 - Add Chinese counterparts for `apps/desktop/README.md` and `tests/desktop/workflow.md`

@@ -18,7 +18,7 @@ This file remains the **v2.0 RC decision record** (verification run dated 2026-0
 - Unsigned Windows NSIS GUI lifecycle QA ([#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144), Windows-only)
 - Phase 8 local HEIC/HEIF still preview (H8.01–H8.06)
 
-**Next on `main`:** no numbered delivery slice. Do not invent Phase 9. Remaining stretch (not scheduled): RAW preview, export cancel, desktop 2.2, signing, J7.07 pause, AVIF, XMP. Job durability, desktop packaging, processing cancel, and HEIC preview in the sections below describe the 2026-06-05 rc2 product unless a later-slice note says otherwise. See `develop_plan.md` §1.1.
+**Next on `main`:** Phase 9 remaining-stretch close-out (S9.00–S9.13), one GitHub issue per run. S9.00 is landed; start at S9.01. Do not invent Phase 10. Job durability, desktop packaging, processing cancel, and HEIC preview in the sections below describe the 2026-06-05 rc2 product unless a later-slice note says otherwise. See `develop_plan.md` §1.1 and `docs/plans/2026-09-04-remaining-stretch.md`.
 
 ## Implemented v2.0 Features
 
@@ -178,4 +178,4 @@ Historical rc2 list. Later slices on `main` are noted in parentheses.
 - Optional: a license-clear photographer burst/session set, and a 2,000-photo real browser-backend run, before later milestones.
 - Revisit durable local worker architecture with measured failure modes.
 - Continue culling workspace maintainability only through focused, tested extractions.
-- Plan XMP sidecar export and RAW preview support as separate scoped milestones. HEIC still preview shipped as Phase 8 (`docs/plans/2026-09-04-heic-preview.md`). There is no numbered Phase 9.
+- XMP sidecar export and RAW preview are Phase 9 issues S9.05 and S9.04 (`docs/plans/2026-09-04-remaining-stretch.md`). HEIC still preview shipped as Phase 8 (`docs/plans/2026-09-04-heic-preview.md`). Do not invent Phase 10.

@@ -18,7 +18,7 @@ FramePilot v2.0 是面向 JPEG、PNG 和 WebP 照片筛选的本地优先 MVP-pl
 - 未签名 Windows NSIS GUI lifecycle QA（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)，仅 Windows）
 - 第八阶段本地 HEIC/HEIF 静帧预览（H8.01–H8.06）
 
-**`main` 上的下一步：** 没有已编号的交付切片。不要发明第九阶段。剩余 stretch（未排期）：RAW 预览、导出取消、桌面 2.2、签名、J7.07 暂停、AVIF、XMP。下文关于作业持久性、桌面打包、处理取消和 HEIC 预览的条目描述的是 2026-06-05 rc2 产品，除非另有后续切片说明。见 `develop_plan.zh.md` §1.1。
+**`main` 上的下一步：** 第九阶段剩余 stretch 收口（S9.00–S9.13），每次运行一个 GitHub issue。S9.00 已落地；从 S9.01 开始。不要发明第十阶段。下文关于作业持久性、桌面打包、处理取消和 HEIC 预览的条目描述的是 2026-06-05 rc2 产品，除非另有后续切片说明。见 `develop_plan.zh.md` §1.1 与 `docs/plans/2026-09-04-remaining-stretch.zh.md`。
 
 ## 已实现的 v2.0 功能
 
@@ -178,4 +178,4 @@ FRAMEPILOT_BROWSER_PERF_COUNT=1000 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT
 - 可选：在后续里程碑之前准备许可清晰的摄影师连拍/场次集，以及一次 2,000 张真实浏览器-后端运行。
 - 用已测量的失败模式重新审视持久化本地 worker 架构。
 - 仅通过聚焦、带测试的抽取继续筛选工作区可维护性。
-- 将 XMP sidecar 导出和 RAW 预览支持规划为独立范围的里程碑。HEIC 静帧预览已作为第八阶段交付（`docs/plans/2026-09-04-heic-preview.zh.md`）。没有已编号的第九阶段。
+- XMP sidecar 导出和 RAW 预览是第九阶段 issue S9.05 与 S9.04（`docs/plans/2026-09-04-remaining-stretch.zh.md`）。HEIC 静帧预览已作为第八阶段交付（`docs/plans/2026-09-04-heic-preview.zh.md`）。不要发明第十阶段。
