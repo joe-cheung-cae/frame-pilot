@@ -26,6 +26,7 @@ from app.services.ranking import RankedPhoto, rank_group
 DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL = 5
 
 PROCESSING_CANCEL_REASON = "Processing job was cancelled by user request"
+PROCESSING_PAUSE_REASON = "Processing job was paused by user request"
 
 
 def _failed_photo_count_message(count: int) -> str:
@@ -36,6 +37,11 @@ def _failed_photo_count_message(count: int) -> str:
 def _processing_job_cancellation_requested(session: Session, job: ProcessingJob) -> bool:
     session.refresh(job)
     return bool(job.cancellation_requested) and job.status not in TERMINAL_JOB_STATUSES
+
+
+def _processing_job_pause_requested(session: Session, job: ProcessingJob) -> bool:
+    session.refresh(job)
+    return bool(job.pause_requested) and job.status not in TERMINAL_JOB_STATUSES
 
 
 def _finalize_cancelled_processing_job(session: Session, job: ProcessingJob) -> ProcessingJob:
@@ -56,6 +62,31 @@ def _finalize_cancelled_processing_job(session: Session, job: ProcessingJob) -> 
     return job
 
 
+def _finalize_paused_processing_job(session: Session, job: ProcessingJob) -> ProcessingJob:
+    now = utc_now()
+    reset_project_after_processing_failure(session, job.project_id, PROCESSING_PAUSE_REASON)
+    job.status = "paused"
+    job.current_step = "paused"
+    job.pause_requested = True
+    job.completed_at = now
+    job.interrupted_at = None
+    job.worker_id = None
+    job.heartbeat_at = None
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def _stop_processing_job_if_requested(session: Session, job: ProcessingJob) -> ProcessingJob | None:
+    if _processing_job_cancellation_requested(session, job):
+        return _finalize_cancelled_processing_job(session, job)
+    if _processing_job_pause_requested(session, job):
+        return _finalize_paused_processing_job(session, job)
+    return None
+
+
 def _save_job(
     session: Session,
     job: ProcessingJob,
@@ -63,8 +94,7 @@ def _save_job(
     processed_items: int | None = None,
     failed_items: int | None = None,
 ) -> bool:
-    if _processing_job_cancellation_requested(session, job):
-        _finalize_cancelled_processing_job(session, job)
+    if _stop_processing_job_if_requested(session, job) is not None:
         return False
     if job.status in TERMINAL_JOB_STATUSES:
         return False
@@ -291,6 +321,24 @@ def request_processing_job_cancellation(session: Session, job: ProcessingJob) ->
     return job
 
 
+def request_processing_job_pause(session: Session, job: ProcessingJob) -> ProcessingJob:
+    if job.job_type != "processing":
+        return job
+    if job.status == "interrupted":
+        return _finalize_paused_processing_job(session, job)
+    if job.status in TERMINAL_JOB_STATUSES:
+        return job
+    now = utc_now()
+    job.pause_requested = True
+    if not job.cancellation_requested:
+        job.current_step = "pause_requested"
+    job.updated_at = now
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
 def prepare_interrupted_processing_jobs_for_reclaim(
     session: Session,
     *,
@@ -303,7 +351,8 @@ def prepare_interrupted_processing_jobs_for_reclaim(
     'interrupted'`` before it is mutated, so a concurrent reclaimer (e.g. the API's
     lifespan reclaim thread racing a separately running ``python -m app.worker``) cannot
     also reactivate the same row (#104 fix 2). A job whose cancel was requested before
-    the restart is finalized as cancelled rather than re-queued (J7.03).
+    the restart is finalized as cancelled rather than re-queued (J7.03). A job whose
+    pause was requested is finalized as paused, not re-queued (S9.02 / J7.07).
 
     A row can also be left ``interrupted`` with a foreign, abandoned ``worker_id`` if a
     previous reclaimer crashed after claiming it but before finishing the reclaim; such a
@@ -337,6 +386,9 @@ def prepare_interrupted_processing_jobs_for_reclaim(
 
         if job.cancellation_requested:
             _finalize_cancelled_processing_job(session, job)
+            continue
+        if job.pause_requested:
+            _finalize_paused_processing_job(session, job)
             continue
 
         reason = "Interrupted processing was reclaimed after API restart; rebuilding local groups"
@@ -380,8 +432,7 @@ def run_processing_job(job_id: str, *, worker_id: str | None = None) -> None:
         ):
             return
         session.refresh(job)
-        if _processing_job_cancellation_requested(session, job):
-            _finalize_cancelled_processing_job(session, job)
+        if _stop_processing_job_if_requested(session, job) is not None:
             return
         try:
             project = session.get(Project, job.project_id)
@@ -418,8 +469,9 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
     session.commit()
     session.refresh(job)
 
-    if _processing_job_cancellation_requested(session, job):
-        return _finalize_cancelled_processing_job(session, job)
+    stopped = _stop_processing_job_if_requested(session, job)
+    if stopped is not None:
+        return stopped
 
     if _project_processing_is_current(session, project, photos):
         return _complete_unchanged_job(session, job, len(photos))
@@ -483,12 +535,14 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
             if index % DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL == 0:
                 refresh_job_lease_heartbeat(session, job)
                 session.commit()
-                if _processing_job_cancellation_requested(session, job):
-                    return _finalize_cancelled_processing_job(session, job)
+                stopped = _stop_processing_job_if_requested(session, job)
+                if stopped is not None:
+                    return stopped
         refresh_job_lease_heartbeat(session, job)
         session.commit()
-        if _processing_job_cancellation_requested(session, job):
-            return _finalize_cancelled_processing_job(session, job)
+        stopped = _stop_processing_job_if_requested(session, job)
+        if stopped is not None:
+            return stopped
 
         if not _save_job(
             session,
@@ -525,13 +579,15 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
         # (#104 residual fix 2).
         refresh_job_lease_heartbeat(session, job)
         session.commit()
-        if _processing_job_cancellation_requested(session, job):
-            return _finalize_cancelled_processing_job(session, job)
+        stopped = _stop_processing_job_if_requested(session, job)
+        if stopped is not None:
+            return stopped
         grouped_photos = group_similar_photos(group_inputs)
         refresh_job_lease_heartbeat(session, job)
         session.commit()
-        if _processing_job_cancellation_requested(session, job):
-            return _finalize_cancelled_processing_job(session, job)
+        stopped = _stop_processing_job_if_requested(session, job)
+        if stopped is not None:
+            return stopped
         next_sequence = max(
             (group.sequence for group in existing_groups.values() if group.id in preserved_group_ids),
             default=0,
@@ -595,8 +651,9 @@ def process_project(session: Session, project: Project, job: ProcessingJob | Non
             job.updated_at = utc_now()
             session.add(job)
             session.commit()
-            if _processing_job_cancellation_requested(session, job):
-                return _finalize_cancelled_processing_job(session, job)
+            stopped = _stop_processing_job_if_requested(session, job)
+            if stopped is not None:
+                return stopped
 
         job.status = "complete"
         job.current_step = "complete"

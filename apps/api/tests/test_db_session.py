@@ -200,6 +200,7 @@ def test_migrate_to_4_adds_job_lease_columns(tmp_path):
     assert "checkpoint_photo_id" in job_columns
     assert "worker_id" in job_columns
     assert "heartbeat_at" in job_columns
+    assert "pause_requested" in job_columns
 
 
 def test_run_migrations_rejects_future_schema_version(tmp_path):

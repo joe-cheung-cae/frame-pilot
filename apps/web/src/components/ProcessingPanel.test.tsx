@@ -2,7 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const queryMode = vi.hoisted(() => ({
-  current: "error" as "error" | "empty" | "success" | "running" | "cancelling" | "cancelled",
+  current: "error" as "error" | "empty" | "success" | "running" | "cancelling" | "cancelled" | "pausing" | "paused",
 }));
 
 vi.mock("@/lib/navigation", () => ({
@@ -43,6 +43,7 @@ vi.mock("@tanstack/react-query", () => ({
       status: "running",
       current_step: "grouping photos",
       cancellation_requested: false,
+      pause_requested: false,
       failed_items: 0,
       processed_items: 1,
       progress_percent: 33,
@@ -60,9 +61,19 @@ vi.mock("@tanstack/react-query", () => ({
               cancellation_requested: true,
               progress_percent: 33,
             }
-          : queryMode.current === "running"
-            ? runningJob
-            : { id: "job-1", job_type: "processing", status: "complete", current_step: "complete" };
+          : queryMode.current === "pausing"
+            ? { ...runningJob, pause_requested: true, current_step: "pause_requested" }
+            : queryMode.current === "paused"
+              ? {
+                  ...runningJob,
+                  status: "paused",
+                  current_step: "paused",
+                  pause_requested: true,
+                  progress_percent: 33,
+                }
+              : queryMode.current === "running"
+                ? runningJob
+                : { id: "job-1", job_type: "processing", status: "complete", current_step: "complete" };
     if (queryKey[0] === "job") {
       return {
         isLoading: false,
@@ -131,8 +142,42 @@ describe("ProcessingPanel", () => {
     queryMode.current = "cancelled";
     render(<ProcessingPanel projectId="project-1" />);
     expect(screen.queryByRole("button", { name: "Cancel Grouping and Ranking" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pause Grouping and Ranking" })).toBeNull();
     expect(
       screen.getByText("Processing stopped at a safe checkpoint. Run grouping and ranking again when you are ready."),
+    ).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Run Grouping and Ranking" }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+    expect(screen.queryByRole("button", { name: "Retry Grouping and Ranking" })).toBeNull();
+  });
+
+  it("shows pause control while grouping and ranking is running", () => {
+    queryMode.current = "running";
+    render(<ProcessingPanel projectId="project-1" />);
+    expect(screen.getByRole("button", { name: "Pause Grouping and Ranking" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cancel Grouping and Ranking" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Run Grouping and Ranking" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("hides pause and cancel while processing pause is pending", () => {
+    queryMode.current = "pausing";
+    render(<ProcessingPanel projectId="project-1" />);
+    expect(screen.queryByRole("button", { name: "Pause Grouping and Ranking" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cancel Grouping and Ranking" })).toBeNull();
+    expect(screen.getByText("Pause requested. FramePilot will stop after a safe checkpoint.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Run Grouping and Ranking" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("hides pause and cancel after processing is paused and enables a new run", () => {
+    queryMode.current = "paused";
+    render(<ProcessingPanel projectId="project-1" />);
+    expect(screen.queryByRole("button", { name: "Pause Grouping and Ranking" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cancel Grouping and Ranking" })).toBeNull();
+    expect(
+      screen.getByText(
+        "Processing paused at a safe checkpoint. Partial groups were cleared. Run grouping and ranking again when you are ready. Originals are unchanged.",
+      ),
     ).toBeTruthy();
     expect((screen.getByRole("button", { name: "Run Grouping and Ranking" }) as HTMLButtonElement).disabled).toBe(
       false,

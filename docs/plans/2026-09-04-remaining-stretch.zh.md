@@ -44,7 +44,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 
 - [x] S9.00 排期切片、GitHub issue、§1.1 指针、workflow — [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160)
 - [x] S9.01 导出作业取消 — [#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)
-- [ ] S9.02 J7.07 处理暂停/恢复 — [#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)
+- [x] S9.02 J7.07 处理暂停/恢复 — [#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)
 - [ ] S9.03 AVIF 静帧预览 — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
 - [ ] S9.04 RAW 内嵌预览 — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
 - [ ] S9.05 XMP sidecar 导出 — [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165)（历史 [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117)）
@@ -116,11 +116,66 @@ HTTP（比照处理）：
 
 ### S9.02 — J7.07 暂停
 
-**文件：** `apps/api/app/services/processing.py`；`ProcessingPanel`；如需暂停标志列则改作业 schema；勾选第七阶段计划。
+**现场空洞：** 没有 `pause_requested` 列。`ProcessingJob` / `_ensure_processing_job_columns` 只有 `cancellation_requested`。`cancel_job_endpoint` 把处理作业分给 `request_processing_job_cancellation`（`apps/api/app/api/routes.py`）。`_save_job`、`run_processing_job`（`claim_job_atomic` 之后）和 `process_project`（`starting` 之后、衍生心跳、`group_similar_photos` 前后、ranking 提交后）只观察 `_processing_job_cancellation_requested`，并调用 `_finalize_cancelled_processing_job`（`apps/api/app/services/processing.py`）。`prepare_interrupted_processing_jobs_for_reclaim` 在 `cancellation_requested` 时按取消终态，否则重新入队。`POST /process` 在 `BLOCKING_JOB_STATUSES`（`queued`/`running`/`interrupted`）时返回现有行。`ProcessingPanel` 只有取消（`api.cancelJob`）。前端 `ProcessingJob.status` 没有 `paused`。第七阶段 J7.07 为 `[-]`。`docs/v2_known_limitations.zh.md` 与 CHANGELOG Unreleased 仍写进行中分组的暂停/恢复未实现。
 
-**测试先行：** 运行中处理暂停会持久化标志且不标 `cancelled`；分组不可审阅；恢复路径是 reset 后的 `POST /process`；取消测试仍绿。
+**身份：** 独立的 `pause_requested` BOOLEAN NOT NULL DEFAULT 0。**不要**复用 `cancellation_requested`、`cancelled_at` 或 `request_processing_job_cancellation`。新增 `POST /api/projects/{project_id}/jobs/{job_id}/pause`。在 `JobRead` 和前端 `ProcessingJob` 上暴露 `pause_requested`。
 
-**非目标：** 原地从半批次哈希继续；导出暂停。
+**状态：** 本行终态为 `paused`（不是 `cancelled`、`failed`、`interrupted`）。`paused` 是**对本行的终态**：加入 `TERMINAL_JOB_STATUSES`，让过期扫描和崩溃处理空操作。**不要**加入 `ACTIVE_JOB_STATUSES` 或 `BLOCKING_JOB_STATUSES`，以便 `POST /process` 能创建**新**作业。这覆盖第七阶段「非终态原地 `paused`」草稿。原地从半批次哈希继续是非目标。
+
+**路由：** `POST /api/projects/{project_id}/jobs/{job_id}/pause` 只允许 `job_type == "processing"`。导入 / 导出 / 其他 → 422。作业缺失或 `project_id` 不符 → 404。分发到 `processing.py` 中新的 `request_processing_job_pause`。不要把暂停送进取消 helper。取消仍走 `POST .../cancel`。
+
+HTTP（比照处理取消，标志不同）：
+
+| 作业状态 | 持久化 | HTTP |
+| -- | -- | -- |
+| queued 或 running | `pause_requested`；`current_step=pause_requested`；**status 不变** | `202` |
+| 终态（`complete`、`complete_with_errors`、`failed`、`cancelled`、`paused`） | 空操作；不要给已成功完成的作业打标志 | `200` |
+| interrupted（没有在飞 worker） | 立即暂停终态（清分组，`status=paused`，不是 `cancelled`） | `200` |
+
+**取消优先：** 若已有 `cancellation_requested`，不要把 `current_step` 改成 pause；继续由取消负责。Worker 检查点先看取消，再看暂停。
+
+**检查点：** 协作式，与 J7.02 同一批站点。不是硬杀。每处：取消标志 → 现有取消终态；否则暂停标志 → 暂停终态；否则继续。`_save_job` 用 bool 返回（暂停或取消终态后返回 False）；调用方 `return job`。**不要**抛进 `process_project` / `run_processing_job` 的 `except Exception`（那会标 `failed`）。**不要**在 `group_similar_photos` 内加进度回调。
+
+当前只观察取消、必须同时观察暂停的现场站点：
+
+| 站点 | 现场代码 |
+| -- | -- |
+| 原子 claim 之后 | `run_processing_job` 在 `claim_job_atomic` + refresh 之后 |
+| `starting` 提交之后 | `process_project` 在 starting 提交之后、`_complete_unchanged_job` **之前** |
+| 每次 `_save_job` | `_save_job` 开头（先 `session.refresh`） |
+| 衍生心跳 | 每 `DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL` 张以及循环后心跳 |
+| `group_similar_photos` 前后 | 现有 pre/post 心跳 |
+| 每个 ranking 分组提交之后 | 写入已排序照片的 per-group `session.commit()` 之后 |
+
+**暂停 Finalize：** 先调用 `reset_project_after_processing_failure`，再设 `status="paused"`、`current_step="paused"`、`pause_requested=True`、`completed_at`，清空 `worker_id` / `heartbeat_at` / `interrupted_at`，commit。原因可用 `"Processing job was paused by user request"`。**不要**设 `status="cancelled"`。**不要**设 `cancellation_requested` 或 `cancelled_at`。分组为空，`processed_images == 0`，在飞 `processing` / `processed` 照片回到 `imported`。`user_status` / `star_rating` 保留。导入衍生件保留。**永不修改或删除原片。** 不可审阅。
+
+**回收：** 在 `prepare_interrupted_processing_jobs_for_reclaim` 中，原子 claim + refresh 之后直接看标志（不要用 `_processing_job_cancellation_requested`；`interrupted` 时它为 false）。若 `cancellation_requested` → 现有取消终态（取消优先）。Elif `pause_requested` → 暂停终态；**不要**重新入队；**不要**增加 `reclaim_count`。无标志路径仍走第六阶段 6.1 入队回收。`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 的 fail-and-retry 对无暂停/取消标志的作业不变。
+
+**恢复：** paused 行进入终态后，`POST /process` 创建**新**处理作业并重建分组（`create_processing_job` + `run_processing_job`）。不要原地恢复该 paused 行。不要把 `POST .../retry` 扩到处理作业。
+
+**UI：** `ProcessingPanel` 的暂停控件，与取消分开。新增 `api.pauseJob` → POST `/pause`。不要把暂停送进 `cancelJob`。
+
+| 展示的作业 | 控件 | 文案 |
+| -- | -- | -- |
+| 处理，queued/running，两标志皆 false | 显示 **Pause Grouping and Ranking** 以及现有取消 | 现有 `current_step` / 进度 |
+| queued/running，`pause_requested` 或暂停 mutation pending | 隐藏暂停 | `Pause requested. FramePilot will stop after a safe checkpoint.` |
+| queued/running，`cancellation_requested` | 隐藏暂停；现有取消 pending 文案 | 取消 pending 不变 |
+| `paused` | 隐藏暂停/取消；启用 **Run Grouping and Ranking**（`POST /process`，不是 `/retry`） | 暂停恢复：在安全检查点停下；半成品分组已清；准备好再跑；原片不变 |
+| 导入 / 导出 / 其他，或终态 complete/failed/cancelled | 无暂停控件 | 不变 |
+
+`canPauseProcessing(job, isPausePending)` 为真当且仅当作业存在、`job_type === "processing"`、状态为 `queued` 或 `running`、`pause_requested` 为 false、`cancellation_requested` 为 false、且 `isPausePending` 为 false。`pause_requested` 时 `canCancelProcessing` 为 false。`processingJobHasReviewableResults("paused")` 为 false。queued/running（含暂停 pending）仍 1000ms 轮询。一旦 `paused`，`isProcessing` 为 false，因而 Run 可用（标签仍是 “Run Grouping and Ranking”，不是 Retry）。
+
+**文档：** 替换 `docs/v2_known_limitations.md`（+ zh）和 S9.01 CHANGELOG Unreleased 条目中的「进行中分组的暂停/恢复未实现」。在 `docs/api.md`（+ zh）写暂停路由：协作式、独立标志、`paused` 终态、清分组、经 `POST /process` 恢复。若 architecture 仍暗示无暂停，补一句。CHANGELOG Unreleased 增加 S9.02 小节。不改 `APP_VERSION`。
+
+**第七阶段计划（仅实现提交）：** 勾选 J7.07 `[x]`，附注：`2026-09-05: S9.02 / #161; cooperative pause_requested; worker exits without cancelled finalize; resume is POST /process clear-and-rerun; not in-place.` 中文页同样。不要取消 J7.01–J7.06 的勾。
+
+**本计划（仅实现提交）：** 勾选 §3 S9.02 `[x]`（中英）。不要勾 S9.03–S9.13。
+
+**文件：** `apps/api/app/models/entities.py`（`pause_requested`）；`apps/api/app/db/session.py`（`_ensure_processing_job_columns`）；`apps/api/app/schemas/api.py`（`JobRead`）；`apps/api/app/api/routes.py`（暂停端点、`_job_read`）；`apps/api/app/services/processing.py`（请求 helper、检查点、暂停终态、回收）；`apps/api/app/services/jobs.py`（只把 `paused` 放进 `TERMINAL_JOB_STATUSES`）；`apps/api/tests/test_import_process_export_api.py`；`apps/api/tests/test_job_reliability.py`；`apps/api/tests/test_job_processing_reclaim.py`；`apps/api/tests/test_job_checkpoint.py`；`apps/web/src/lib/api.ts`（`pauseJob`、status 联合、`pause_requested`）；`apps/web/src/lib/processingProgress.ts`（+ 测试）；`apps/web/src/components/ProcessingPanel.tsx`；`tests/e2e/local-workflow.spec.ts` 模拟暂停；`docs/api.md`、`docs/v2_known_limitations.md`、若 architecture 仍否认暂停则改之、CHANGELOG Unreleased（+ zh）；第七阶段计划（+ zh）J7.07 勾选；本计划（+ zh）§3 S9.02 勾选。
+
+**测试先行：** queued/running 处理暂停 → 202，`pause_requested` 为 true，`cancellation_requested` 为 false，`status` 不变，原片未动。Worker 在 ranking 或分组后检查点看到暂停 → 作业为 `paused` 不是 `cancelled`/`failed`；分组为空；`processed_images == 0`；原片未动；`user_status` / `star_rating` 保留。终态暂停 → 200 no-op。Interrupted 暂停 → 200，`paused`，分组为空。导入/导出暂停 → 422。`paused` 之后 `POST /process` 创建新作业（不是 409 / 不复用 paused id）。回收 interrupted + `pause_requested` → `paused`，不入队，不标 cancelled。取消测试仍绿（两标志同时存在时取消优先）。`canPauseProcessing` / pending 文案 / `processingJobHasReviewableResults("paused")` 为 false。模拟 E2E：Pause 可见；POST pause；状态 Paused；Run 可用。现有导入/处理/导出取消测试仍绿。
+
+**非目标：** 原地从半批次哈希继续；保留半成品分组；导出或导入暂停；桌面退出并暂停（退出仍走取消）；扩展 `/retry`；S9.01 或 S9.03–S9.13；`APP_VERSION`；签名。
 
 ### S9.03 — AVIF
 
@@ -202,4 +257,4 @@ HTTP（比照处理）：
 
 **失败即停：** `ok=false` 或 skeptic `real=false` → 停止。不要开始下一个切片。
 
-建议 `agent_budget`：32。
+建议 `agent_budget`：32.

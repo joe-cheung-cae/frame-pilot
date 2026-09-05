@@ -41,6 +41,7 @@ def init_db() -> None:
     engine = get_engine()
     SQLModel.metadata.create_all(engine)
     run_migrations(engine)
+    _ensure_processing_job_columns(engine)
 
 
 def _ensure_export_record_columns(engine) -> None:
@@ -162,6 +163,8 @@ def _ensure_processing_job_columns(engine) -> None:
         statements.append("ALTER TABLE processingjob ADD COLUMN progress_percent FLOAT NOT NULL DEFAULT 0")
     if "cancellation_requested" not in existing:
         statements.append("ALTER TABLE processingjob ADD COLUMN cancellation_requested BOOLEAN NOT NULL DEFAULT 0")
+    if "pause_requested" not in existing:
+        statements.append("ALTER TABLE processingjob ADD COLUMN pause_requested BOOLEAN NOT NULL DEFAULT 0")
     if "cancelled_at" not in existing:
         statements.append("ALTER TABLE processingjob ADD COLUMN cancelled_at DATETIME")
     if "checkpoint_photo_id" not in existing:

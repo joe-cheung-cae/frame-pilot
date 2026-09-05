@@ -11,7 +11,8 @@ from app.models.entities import ExportRecord, ProcessingJob, utc_now
 
 ACTIVE_JOB_STATUSES = frozenset({"queued", "running"})
 # "interrupted" is reclaimable (Phase 6); not active work and not a successful terminal state.
-TERMINAL_JOB_STATUSES = frozenset({"complete", "complete_with_errors", "failed", "cancelled", "interrupted"})
+# "paused" is terminal for this row (S9.02); it is not blocking, so POST /process can start a new job.
+TERMINAL_JOB_STATUSES = frozenset({"complete", "complete_with_errors", "failed", "cancelled", "paused", "interrupted"})
 # Workflow guards (new import/process acceptance) must treat "interrupted" as in-flight too,
 # so a fresh import/process cannot race a pending reclaim of the same project (#104 fix 5).
 BLOCKING_JOB_STATUSES = ACTIVE_JOB_STATUSES | frozenset({"interrupted"})

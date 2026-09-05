@@ -39,7 +39,9 @@ DNG、ARW、CR3、NEF 等 RAW 格式仍延后。FramePilot 会以明确的不支
 
 导入、处理和导出取消都是协作式的。取消请求会持久化一个标志，后台 worker 在安全检查点读取该标志。取消不是硬性进程杀死，可能不会立即停止，并且永不修改或删除源原图。导入取消会保留已完成的衍生件，让未处理照片保持可重试。处理取消随后清分组：在飞照片回到 `imported`，`user_status` 与 `star_rating` 保留，导入衍生件保留。重跑分组走 `POST /process`；`/retry` 仍仅导入。导出取消将作业终态为 `cancelled`，对应导出记录走 fail-and-cleanup（`failed`）：项目导出根下的不完整 CSV/ZIP/文件夹会被删除；根外路径保留。再导出走新的 `POST /export`。导出作业不会被回收。
 
-桌面端在导入、处理或导出仍活动时关闭，可以 POST 同一取消路由，最多等待 10 秒，然后对 sidecar 发送 SIGTERM（继续工作 / 退出并取消导入或处理或导出 / 仍要退出）。默认下次启动会将残留的导入/处理任务标为 `interrupted` 并回收；残留导出仍 fail-and-cleanup。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 后，残留导入/处理任务会改为通过旧的启动扫描标记为 `failed`。硬杀死不会被标记为 `cancelled`。进行中分组的暂停/恢复未实现。
+桌面端在导入、处理或导出仍活动时关闭，可以 POST 同一取消路由，最多等待 10 秒，然后对 sidecar 发送 SIGTERM（继续工作 / 退出并取消导入或处理或导出 / 仍要退出）。默认下次启动会将残留的导入/处理任务标为 `interrupted` 并回收；残留导出仍 fail-and-cleanup。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 后，残留导入/处理任务会改为通过旧的启动扫描标记为 `failed`。硬杀死不会被标记为 `cancelled`。
+
+处理暂停是协作式的，且与取消分开（`POST .../jobs/{job_id}/pause`，`pause_requested`）。工作器在安全检查点停下，不 finalize 为 `cancelled`，清掉半成品分组，并将作业标为 `paused`。恢复是经新的 `POST /process` 做 clear-and-rerun；原地从半批次哈希继续未实现。导入和导出作业不能暂停。桌面退出仍走取消而不是暂停。
 
 ## 重试语义
 

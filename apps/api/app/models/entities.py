@@ -96,6 +96,7 @@ class ProcessingJob(SQLModel, table=True):
     progress_percent: float = 0.0
     error_message: str | None = None
     cancellation_requested: bool = False
+    pause_requested: bool = False
     cancelled_at: datetime | None = None
     checkpoint_photo_id: str | None = None
     checkpoint_stage: str | None = None

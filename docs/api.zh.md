@@ -142,6 +142,7 @@ GET /api/assets/{project_id}/{thumbnails|previews}/{filename}
     "progress_percent": 50.0,
     "error_message": null,
     "cancellation_requested": false,
+    "pause_requested": false,
     "cancelled_at": null,
     "started_at": "2026-06-02T12:00:00Z",
     "completed_at": null,
@@ -197,7 +198,7 @@ API 先将目录展开为普通文件，然后在该 HTTP 请求中最多消费 
 
 ## 作业
 
-`POST /api/projects/{project_id}/process` 创建本地后台处理作业，并以 `202 Accepted` 返回一个 `ProcessingJob`。轮询 `GET /api/projects/{project_id}/jobs/{job_id}`，直到作业到达 `complete`、`failed` 或 `cancelled`。
+`POST /api/projects/{project_id}/process` 创建本地后台处理作业，并以 `202 Accepted` 返回一个 `ProcessingJob`。轮询 `GET /api/projects/{project_id}/jobs/{job_id}`，直到作业到达 `complete`、`failed`、`cancelled` 或 `paused`。
 如果同一项目有排队或正在运行的导入作业，处理端点返回 `409 Conflict`，而不是启动处理：
 
 ```json
@@ -214,11 +215,11 @@ API 先将目录展开为普通文件，然后在该 HTTP 请求中最多消费 
 
 API 启动默认行为：残留的活动导入/处理作业标为 `interrupted`（`current_step` 为 `interrupted - restart`，写入 `interrupted_at`），并安排进程内回收，以免重启后工作区在整个过期窗口内被阻塞。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可改为立即将残留活动作业标为失败。无论哪种方式，导出仍失败并清理。回收不在 `GET /api/projects` 上执行。
 
-作业处于 `interrupted` 期间，活动作业守卫会将其视为进行中的工作：对同一项目发起新的导入或处理请求会返回 `409`（或复用现有作业行），而不会与待处理的回收发生竞争；并且该作业在回收或取消请求将其终结为终态之前不可 `retryable`。如果重启前已请求取消，回收会将该作业终结为 `cancelled` 而不是续跑。回收的认领是原子的（单条带条件的 `UPDATE`），因此进程内回收线程与单独运行的 `python -m app.worker` 不会同时执行同一个作业。
+作业处于 `interrupted` 期间，活动作业守卫会将其视为进行中的工作：对同一项目发起新的导入或处理请求会返回 `409`（或复用现有作业行），而不会与待处理的回收发生竞争；并且该作业在回收或取消请求将其终结为终态之前不可 `retryable`。如果重启前已请求取消，回收会将该作业终结为 `cancelled` 而不是续跑。如果已请求暂停，回收会将该作业终结为 `paused` 而不是重新入队。两标志同时存在时取消优先。回收的认领是原子的（单条带条件的 `UPDATE`），因此进程内回收线程与单独运行的 `python -m app.worker` 不会同时执行同一个作业。
 
 `GET /api/projects/{project_id}/jobs` 按最新优先返回项目作业，包括 `import`、`processing` 和 `export` 作业。可选的 `limit` 和 `offset` 查询参数可以为大型作业历史分页。导入 UI 在上传/登记返回后轮询返回的导入作业；处理 UI 使用作业历史，在页面重新加载或导航后继续轮询排队或运行中的处理作业。如果排队或正在运行的导入作业过期，作业端点会将其标记为失败，并将 `current_step` 设为 `failed - stale`；这可以防止中断的本地导入永远保持活动，同时又不会重试或修改照片。
 
-`POST /api/projects/{project_id}/jobs/{job_id}/cancel` 为排队或正在运行的导入、处理或导出作业请求协作式取消。它设置 `cancellation_requested`，并将 `current_step` 设为 `cancellation_requested`，以 `202 Accepted` 返回更新后的作业；在工作器终态化之前 `status` 仍保持 queued 或 running。终态作业（`complete`、`complete_with_errors`、`failed`、`cancelled`）作为安全空操作以 `200 OK` 返回。该端点不会杀死 API 进程、删除原始文件或删除已复制的原片。
+`POST /api/projects/{project_id}/jobs/{job_id}/cancel` 为排队或正在运行的导入、处理或导出作业请求协作式取消。它设置 `cancellation_requested`，并将 `current_step` 设为 `cancellation_requested`，以 `202 Accepted` 返回更新后的作业；在工作器终态化之前 `status` 仍保持 queued 或 running。终态作业（`complete`、`complete_with_errors`、`failed`、`cancelled`、`paused`）作为安全空操作以 `200 OK` 返回。该端点不会杀死 API 进程、删除原始文件或删除已复制的原片。
 
 对导入作业，后台工作器在每张照片之前以及每次照片级衍生/评分/哈希处理后检查该请求，到达安全检查点后将作业标记为 `cancelled`，并记录 `cancelled_at` 和 `completed_at`。已经完成的照片衍生文件保持缓存，未处理的照片保持可重试。取消一个 `interrupted` 的导入作业（当前没有工作器在执行它）会立即将其终结为 `cancelled`，同样以 `200 OK` 返回。
 
@@ -227,6 +228,10 @@ API 启动默认行为：残留的活动导入/处理作业标为 `interrupted`�
 对导出作业，`POST /export` 会同时持久化 `job_type="export"` 的 `ProcessingJob`，其 `id` 与 `ExportRecord` 相同。取消是协作式的，检查点在 CSV / ZIP / 文件夹写入的每张照片处。作业终态为 `cancelled`；对应导出记录走现有 fail-and-cleanup（`failed`，只删除项目导出根下的不完整产物，根外路径保留）。永不修改或删除原片。取消一个 `interrupted` 的导出（没有在飞工作器）会立即终态并以 `200 OK` 返回。再导出走新的 `POST /export`。导出作业在启动时不会被回收。
 
 其他 `job_type` 仍返回 `422`，detail 为 `"Only import, processing, and export jobs can be cancelled"`。
+
+`POST /api/projects/{project_id}/jobs/{job_id}/pause` 只为排队或正在运行的**处理**作业请求协作式暂停。它设置独立的 `pause_requested` 标志（不是 `cancellation_requested`），并将 `current_step` 设为 `pause_requested`，以 `202 Accepted` 返回；在工作器终态化之前 `status` 仍保持 queued 或 running。若已有 `cancellation_requested`，暂停不会覆盖 `current_step`，继续由取消负责。终态作业（`complete`、`complete_with_errors`、`failed`、`cancelled`、`paused`）作为安全空操作以 `200 OK` 返回，并且不会给已成功完成的作业打标志。导入、导出和其他 `job_type` 返回 `422`，detail 为 `"Only processing jobs can be paused"`。作业缺失或 `project_id` 不符返回 `404`。
+
+暂停与取消使用同一批处理检查点，是协作式的。工作器先看取消，再看暂停。暂停时清分组，并将作业标记为 `paused`（不是 `cancelled` 或 `failed`），写入 `completed_at`。分组为空，`processed_images` 为 0，在飞照片回到 `imported`，`user_status` 与 `star_rating` 保留，导入衍生件保留，并且永不修改或删除原图。暂停一个 `interrupted` 的处理作业（当前没有在飞工作器）会立即终态为 `paused` 并清分组，同样以 `200 OK` 返回。`paused` 对该作业行是终态：过期扫描对其空操作，也不会挡住新的 `POST /process`。恢复是 clear-and-rerun：`POST /process` 创建**新**处理作业并重建分组。不要原地恢复该 paused 行。`POST .../retry` 仍仅导入。
 
 `POST /api/projects/{project_id}/jobs/{job_id}/retry` 重试失败、`complete_with_errors` 或 `cancelled` 的导入作业。它创建新的本地导入作业，并对生成的缩略图或预览缺失、或导入状态仍为 `processing` 或 `failed` 的项目照片重新运行衍生/评分/哈希/嵌入工作。它不会重新登记已上传的文件、创建重复的照片记录、重置 `user_status`、重置 `star_rating`、删除已生成的衍生文件、删除已复制的原片，或修改源照片。现有有效的缩略图和预览文件会被复用；缺失的衍生文件会尽可能从本地已复制的原片重新生成。如果部分照片恢复而其他照片无法重建，重试作业以 `complete_with_errors` 完成，并在受影响的照片上记录失败项。如果另一个导入作业已经排队或正在运行，重试返回 `409`。
 
@@ -245,6 +250,7 @@ API 启动默认行为：残留的活动导入/处理作业标为 `interrupted`�
   "progress_percent": 33.33,
   "error_message": null,
   "cancellation_requested": false,
+  "pause_requested": false,
   "cancelled_at": null,
   "checkpoint_photo_id": null,
   "checkpoint_stage": null,

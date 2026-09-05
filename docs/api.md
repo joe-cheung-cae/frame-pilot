@@ -145,6 +145,7 @@ The response contains accepted photo records, synchronously skipped files, impor
     "progress_percent": 50.0,
     "error_message": null,
     "cancellation_requested": false,
+    "pause_requested": false,
     "cancelled_at": null,
     "started_at": "2026-06-02T12:00:00Z",
     "completed_at": null,
@@ -200,7 +201,7 @@ Supported still formats are JPEG, PNG, WebP, HEIC, and HEIF. HEIC/HEIF files are
 
 ## Jobs
 
-`POST /api/projects/{project_id}/process` creates a local background processing job and returns a `ProcessingJob` with `202 Accepted`. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the job reaches `complete`, `failed`, or `cancelled`.
+`POST /api/projects/{project_id}/process` creates a local background processing job and returns a `ProcessingJob` with `202 Accepted`. Poll `GET /api/projects/{project_id}/jobs/{job_id}` until the job reaches `complete`, `failed`, `cancelled`, or `paused`.
 If the same project has a queued or running import job, the process endpoint returns `409 Conflict` instead of starting processing:
 
 ```json
@@ -217,11 +218,11 @@ Stale detection for queued or running jobs prefers a worker lease when `heartbea
 
 API startup default: leftover active import/processing jobs are marked `interrupted` (`current_step` `interrupted - restart`, `interrupted_at` set) and scheduled for in-process reclaim, so a restart cannot leave the workspace blocked for the full stale window. Set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` to instead mark leftover active jobs failed immediately on startup. Exports still fail-and-cleanup either way. Reclaim does not run on `GET /api/projects`.
 
-While a job is `interrupted`, active-job guards treat it like queued/running work: a new import or process request for the same project returns `409` (or reuses the existing row) instead of racing the pending reclaim, and the job is not `retryable` until reclaim or a cancel request finalizes it to a terminal status. If cancellation was requested before the restart, reclaim finalizes the job as `cancelled` instead of resuming it. Reclaim claims are atomic (a single guarded `UPDATE`), so an in-process reclaim thread and a separately running `python -m app.worker` cannot both execute the same job.
+While a job is `interrupted`, active-job guards treat it like queued/running work: a new import or process request for the same project returns `409` (or reuses the existing row) instead of racing the pending reclaim, and the job is not `retryable` until reclaim or a cancel request finalizes it to a terminal status. If cancellation was requested before the restart, reclaim finalizes the job as `cancelled` instead of resuming it. If pause was requested, reclaim finalizes the job as `paused` instead of re-queuing it. Cancel wins when both flags are set. Reclaim claims are atomic (a single guarded `UPDATE`), so an in-process reclaim thread and a separately running `python -m app.worker` cannot both execute the same job.
 
 `GET /api/projects/{project_id}/jobs` returns project jobs newest-first, including `import`, `processing`, and `export` jobs. Optional `limit` and `offset` query parameters can page large job histories. The import UI polls the returned import job after upload/register returns, and the processing UI uses job history to resume polling a queued or running processing job after page reloads or navigation. If a queued or running import job goes stale, the jobs endpoints mark it failed with `current_step` set to `failed - stale`; this keeps interrupted local imports from remaining active forever without retrying or modifying photos.
 
-`POST /api/projects/{project_id}/jobs/{job_id}/cancel` requests cooperative cancellation for a queued or running import, processing, or export job. It sets `cancellation_requested` and `current_step` to `cancellation_requested`, and returns the updated job with `202 Accepted`; `status` stays queued or running until the worker finalizes. Terminal jobs (`complete`, `complete_with_errors`, `failed`, `cancelled`) return as a safe no-op with `200 OK`. This endpoint does not kill the API process, delete original files, or delete copied originals.
+`POST /api/projects/{project_id}/jobs/{job_id}/cancel` requests cooperative cancellation for a queued or running import, processing, or export job. It sets `cancellation_requested` and `current_step` to `cancellation_requested`, and returns the updated job with `202 Accepted`; `status` stays queued or running until the worker finalizes. Terminal jobs (`complete`, `complete_with_errors`, `failed`, `cancelled`, `paused`) return as a safe no-op with `200 OK`. This endpoint does not kill the API process, delete original files, or delete copied originals.
 
 For import jobs, the background worker checks the request before each photo and after each photo-level derivative/scoring/hash pass, then marks the job `cancelled` with `cancelled_at` and `completed_at` once it reaches a safe checkpoint. Already completed photo derivatives remain cached, while unprocessed photos stay retryable. Cancelling an `interrupted` import (no worker is currently executing it) finalizes it to `cancelled` immediately and also returns `200 OK`.
 
@@ -230,6 +231,10 @@ For processing jobs, cancellation is cooperative: the worker stops at a safe che
 For export jobs, `POST /export` also persists a `ProcessingJob` with `job_type="export"` and the same `id` as the `ExportRecord`. Cancellation is cooperative at per-photo checkpoints in CSV, ZIP, and folder writers. The job finalizes as `cancelled`; the linked export record uses existing fail-and-cleanup (`failed`, partial artifacts under the project export root are removed, paths outside that root stay). Originals are never modified or deleted. Cancelling an `interrupted` export (no in-flight worker) finalizes immediately with `200 OK`. Re-run export with a new `POST /export`. Export jobs are not reclaimed on startup.
 
 Other `job_type` values still return `422` with detail `"Only import, processing, and export jobs can be cancelled"`.
+
+`POST /api/projects/{project_id}/jobs/{job_id}/pause` requests cooperative pause for a queued or running **processing** job only. It sets a distinct `pause_requested` flag (not `cancellation_requested`) and `current_step` to `pause_requested`, and returns `202 Accepted`; `status` stays queued or running until the worker finalizes. If `cancellation_requested` is already true, pause does not overwrite `current_step`; cancel stays in charge. Terminal jobs (`complete`, `complete_with_errors`, `failed`, `cancelled`, `paused`) return as a safe no-op with `200 OK` and do not set the flag on a completed success. Import, export, and other `job_type` values return `422` with detail `"Only processing jobs can be paused"`. Missing jobs or a mismatched `project_id` return `404`.
+
+Pause is cooperative at the same processing checkpoints as cancel. The worker checks cancel first, then pause. On pause it resets groups and marks the job `paused` (not `cancelled` or `failed`) with `completed_at`. Groups are empty, `processed_images` is 0, in-flight photos return to `imported`, `user_status` and `star_rating` stay, import derivatives stay, and originals are never modified or deleted. Pausing an `interrupted` processing job (no in-flight worker) finalizes `paused` and resets groups immediately with `200 OK`. `paused` is terminal for that job row: stale sweeps no-op it, and it does not block a new `POST /process`. Resume is clear-and-rerun: `POST /process` creates a **new** processing job and rebuilds groups. Do not resume the paused row in place. `POST .../retry` remains import-only.
 
 `POST /api/projects/{project_id}/jobs/{job_id}/retry` retries failed, `complete_with_errors`, or `cancelled` import jobs. It creates a new local import job and reruns derivative/scoring/hash/embedding work for project photos whose generated thumbnail or preview is missing, or whose import state is still `processing` or `failed`. It does not re-register uploaded files, duplicate photo records, reset `user_status`, reset `star_rating`, delete generated derivatives, delete copied originals, or modify source photos. Existing valid thumbnail and preview files are reused; missing derivatives are regenerated from the local copied original when possible. If some photos recover and others cannot be rebuilt, the retry job finishes as `complete_with_errors` and records failed items on the affected photos. If another import job is already queued or running, retry returns `409`.
 
@@ -248,6 +253,7 @@ A job (`JobRead`) includes:
   "progress_percent": 33.33,
   "error_message": null,
   "cancellation_requested": false,
+  "pause_requested": false,
   "cancelled_at": null,
   "checkpoint_photo_id": null,
   "checkpoint_stage": null,

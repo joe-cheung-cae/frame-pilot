@@ -8,7 +8,7 @@ from sqlalchemy import inspect, text
 
 from app.db import session as db_session
 
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
 
 
 class UnsupportedSchemaVersionError(RuntimeError):
@@ -118,11 +118,17 @@ def _migrate_to_4(engine) -> None:
     db_session._ensure_processing_job_columns(engine)
 
 
+def _migrate_to_5(engine) -> None:
+    """Add cooperative processing pause_requested on ProcessingJob (S9.02 / J7.07)."""
+    db_session._ensure_processing_job_columns(engine)
+
+
 MIGRATIONS: dict[int, Callable] = {
     1: _migrate_to_1,
     2: _migrate_to_2,
     3: _migrate_to_3,
     4: _migrate_to_4,
+    5: _migrate_to_5,
 }
 
 

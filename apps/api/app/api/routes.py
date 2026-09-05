@@ -67,6 +67,7 @@ from app.services.processing import (
     create_processing_job,
     project_export_root,
     request_processing_job_cancellation,
+    request_processing_job_pause,
     run_processing_job,
 )
 from app.services.projects import create_project, list_projects
@@ -159,6 +160,7 @@ def _job_read(job: ProcessingJob) -> JobRead:
         progress_percent=job.progress_percent,
         error_message=job.error_message,
         cancellation_requested=job.cancellation_requested,
+        pause_requested=job.pause_requested,
         cancelled_at=job.cancelled_at,
         checkpoint_photo_id=job.checkpoint_photo_id,
         checkpoint_stage=job.checkpoint_stage,
@@ -802,7 +804,7 @@ def cancel_job_endpoint(
             status_code=422,
             detail="Only import, processing, and export jobs can be cancelled",
         )
-    if job.status in {"complete", "complete_with_errors", "failed", "cancelled"}:
+    if job.status in {"complete", "complete_with_errors", "failed", "cancelled", "paused"}:
         response.status_code = status.HTTP_200_OK
         return job
     # "interrupted" jobs finalize synchronously (no in-flight worker to cooperatively
@@ -814,6 +816,28 @@ def cancel_job_endpoint(
         result = request_export_job_cancellation(session, job)
     else:
         result = request_import_job_cancellation(session, job)
+    response.status_code = status.HTTP_200_OK if was_interrupted else status.HTTP_202_ACCEPTED
+    return result
+
+
+@router.post("/projects/{project_id}/jobs/{job_id}/pause", response_model=JobRead)
+def pause_job_endpoint(
+    project_id: str,
+    job_id: str,
+    response: Response,
+    session: Session = Depends(get_session),
+):
+    job = session.get(ProcessingJob, job_id)
+    if job is None or job.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Processing job not found")
+    job = _ensure_fresh_job(session, job)
+    if job.job_type != "processing":
+        raise HTTPException(status_code=422, detail="Only processing jobs can be paused")
+    if job.status in {"complete", "complete_with_errors", "failed", "cancelled", "paused"}:
+        response.status_code = status.HTTP_200_OK
+        return job
+    was_interrupted = job.status == "interrupted"
+    result = request_processing_job_pause(session, job)
     response.status_code = status.HTTP_200_OK if was_interrupted else status.HTTP_202_ACCEPTED
     return result
 

@@ -112,7 +112,7 @@ export type ProcessingJob = {
   id: string;
   project_id: string;
   job_type: string;
-  status: "queued" | "running" | "complete" | "complete_with_errors" | "failed" | "cancelled";
+  status: "queued" | "running" | "complete" | "complete_with_errors" | "failed" | "cancelled" | "paused";
   current_step: string;
   total_items: number;
   processed_items: number;
@@ -120,6 +120,7 @@ export type ProcessingJob = {
   progress_percent: number;
   error_message: string | null;
   cancellation_requested: boolean;
+  pause_requested: boolean;
   cancelled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -490,6 +491,8 @@ export const api = {
   getJob: (projectId: string, jobId: string) => request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}`),
   cancelJob: (projectId: string, jobId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}/cancel`, { method: "POST" }),
+  pauseJob: (projectId: string, jobId: string) =>
+    request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}/pause`, { method: "POST" }),
   retryJob: (projectId: string, jobId: string) =>
     request<ProcessingJob>(`/api/projects/${projectId}/jobs/${jobId}/retry`, { method: "POST" }),
   listPhotos,

@@ -44,7 +44,7 @@ Phase 9 — remaining stretch (post Phase 8)
 
 - [x] S9.00 Schedule slices, GitHub issues, §1.1 pointer, workflow — [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160)
 - [x] S9.01 Export job cancel — [#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)
-- [ ] S9.02 J7.07 processing pause/resume — [#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)
+- [x] S9.02 J7.07 processing pause/resume — [#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)
 - [ ] S9.03 AVIF still preview — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
 - [ ] S9.04 RAW embedded preview — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
 - [ ] S9.05 XMP sidecar export — [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165) (historical [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117))
@@ -116,11 +116,66 @@ HTTP (mirror processing):
 
 ### S9.02 — J7.07 pause
 
-**Files:** `apps/api/app/services/processing.py`; `ProcessingPanel`; job schema if a pause flag column is required; Phase 7 plan tick.
+**Hole (live tree):** No `pause_requested` column. `ProcessingJob` / `_ensure_processing_job_columns` only have `cancellation_requested`. `cancel_job_endpoint` dispatches processing to `request_processing_job_cancellation` (`apps/api/app/api/routes.py`). `_save_job`, `run_processing_job` (after `claim_job_atomic`), and `process_project` (after `starting`, derivative heartbeat, pre/post `group_similar_photos`, post-ranking commit) observe only `_processing_job_cancellation_requested` and call `_finalize_cancelled_processing_job` (`apps/api/app/services/processing.py`). `prepare_interrupted_processing_jobs_for_reclaim` cancel-finalizes when `cancellation_requested`, else re-queues. `POST /process` returns the existing row while status is in `BLOCKING_JOB_STATUSES` (`queued`/`running`/`interrupted`). `ProcessingPanel` has Cancel only (`api.cancelJob`). Web `ProcessingJob.status` has no `paused`. Phase 7 J7.07 is `[-]`. `docs/v2_known_limitations.md` and CHANGELOG Unreleased still say pause/resume of in-flight grouping is not implemented.
 
-**Tests first:** pause on running processing persists flag and does not mark `cancelled`; groups are not left reviewable; resume path is `POST /process` after reset; cancel tests stay green.
+**Identity:** Distinct `pause_requested` BOOLEAN NOT NULL DEFAULT 0. **Do not** reuse `cancellation_requested`, `cancelled_at`, or `request_processing_job_cancellation`. Add `POST /api/projects/{project_id}/jobs/{job_id}/pause`. Expose `pause_requested` on `JobRead` and web `ProcessingJob`.
 
-**Non-goals:** in-place continue-hash-mid-batch; export pause.
+**Status:** Finalize this row as `paused` (not `cancelled`, not `failed`, not `interrupted`). `paused` is **terminal-for-this-row**: add it to `TERMINAL_JOB_STATUSES` so stale sweeps and crash handlers no-op. Do **not** add it to `ACTIVE_JOB_STATUSES` or `BLOCKING_JOB_STATUSES`, so `POST /process` can create a **new** job. This supersedes the Phase 7 sketch of a non-terminal in-place `paused` status. In-place continue-hash-mid-batch is a non-goal.
+
+**Route:** `POST /api/projects/{project_id}/jobs/{job_id}/pause` allows `job_type == "processing"` only. Import / export / other → 422. Missing job or wrong `project_id` → 404. Dispatch to new `request_processing_job_pause` in `processing.py`. Do not send pause through cancel helpers. Cancel still uses `POST .../cancel`.
+
+HTTP (mirror processing cancel, distinct flag):
+
+| Job state | Persist | HTTP |
+| -- | -- | -- |
+| queued or running | `pause_requested`; `current_step=pause_requested`; **status unchanged** | `202` |
+| terminal (`complete`, `complete_with_errors`, `failed`, `cancelled`, `paused`) | no-op; do not set the flag on a completed success | `200` |
+| interrupted (no in-flight worker) | immediately pause-finalize (reset groups, `status=paused`, not `cancelled`) | `200` |
+
+**Cancel wins:** if `cancellation_requested` is already true, do not overwrite `current_step` with pause; leave cancel in charge. Worker checkpoints check cancel first, then pause.
+
+**Checkpoints:** cooperative, same sites as J7.02. Not a hard kill. At each site: cancel flag → existing cancel finalize; else pause flag → pause finalize; else continue. Prefer bool return from `_save_job` (False after pause or cancel finalize); callers `return job`. Do **not** raise through `process_project` / `run_processing_job` `except Exception` (that marks `failed`). **Do not** add a progress callback inside `group_similar_photos`.
+
+Live sites that must observe pause (today cancel-only):
+
+| Site | Live code |
+| -- | -- |
+| After atomic claim | `run_processing_job` after `claim_job_atomic` + refresh |
+| After `starting` commit | `process_project` after the starting commit, **before** `_complete_unchanged_job` |
+| Each `_save_job` | start of `_save_job` (`session.refresh` first) |
+| Derivative heartbeat | every `DERIVATIVE_VALIDATION_HEARTBEAT_INTERVAL` photos and the post-loop heartbeat |
+| Immediately before and after `group_similar_photos` | existing pre/post heartbeats |
+| After each ranking group commit | after the per-group `session.commit()` that writes ranked photos |
+
+**Pause finalize:** call `reset_project_after_processing_failure` **then** set `status="paused"`, `current_step="paused"`, `pause_requested=True`, `completed_at`, clear `worker_id` / `heartbeat_at` / `interrupted_at`, commit. Reason may be `"Processing job was paused by user request"`. Do **not** set `status="cancelled"`. Do **not** set `cancellation_requested` or `cancelled_at`. Groups empty, `processed_images == 0`, in-flight `processing` / `processed` photos return to `imported`. `user_status` / `star_rating` stay. Import derivatives stay. **Originals are never modified or deleted.** Not reviewable.
+
+**Reclaim:** in `prepare_interrupted_processing_jobs_for_reclaim`, after atomic claim + refresh, inspect flags directly (do not use `_processing_job_cancellation_requested`; it is false when `interrupted`). If `cancellation_requested` → existing cancel finalize (cancel wins). Elif `pause_requested` → pause finalize; do **not** re-queue; do **not** increment `reclaim_count`. No-flag path stays Phase 6.1 queued reclaim. `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` fail-and-retry unchanged for jobs without pause/cancel flags.
+
+**Resume:** after the paused row is terminal, `POST /process` creates a **new** processing job and rebuilds groups (`create_processing_job` + `run_processing_job`). Do not resume the paused row in place. Do not extend `POST .../retry` beyond import.
+
+**UI:** `ProcessingPanel` Pause control, distinct from Cancel. Add `api.pauseJob` → POST `/pause`. Do not send pause through `cancelJob`.
+
+| Displayed job | Control | Copy |
+| -- | -- | -- |
+| processing, queued/running, both flags false | show **Pause Grouping and Ranking** and existing Cancel | existing `current_step` / progress |
+| queued/running, `pause_requested` or pause mutation pending | hide Pause | `Pause requested. FramePilot will stop after a safe checkpoint.` |
+| queued/running, `cancellation_requested` | hide Pause; existing Cancel pending copy | unchanged cancel pending |
+| `paused` | hide Pause/Cancel; enable **Run Grouping and Ranking** (`POST /process`, not `/retry`) | paused recovery: stopped at a safe checkpoint; partial groups were cleared; run again when ready; originals unchanged |
+| import / export / other, or terminal complete/failed/cancelled | no pause control | unchanged |
+
+`canPauseProcessing(job, isPausePending)` is true iff the job exists, `job_type === "processing"`, status is `queued` or `running`, `pause_requested` is false, `cancellation_requested` is false, and `isPausePending` is false. `canCancelProcessing` is false when `pause_requested`. `processingJobHasReviewableResults("paused")` is false. Poll 1000ms while queued/running, including pause-pending. Once `paused`, `isProcessing` is false so Run is enabled (label stays “Run Grouping and Ranking”, not Retry).
+
+**Docs:** replace “pause/resume of in-flight grouping is not implemented” in `docs/v2_known_limitations.md` (+ zh) and the S9.01 CHANGELOG Unreleased bullet. Document the pause route in `docs/api.md` (+ zh): cooperative, distinct flag, `paused` finalize, groups cleared, resume via `POST /process`. Short architecture note if that page still implies pause is absent. CHANGELOG Unreleased: new S9.02 subsection. No `APP_VERSION` bump.
+
+**Phase 7 plan (implementation commit only):** tick J7.07 `[x]` with note: `2026-09-05: S9.02 / #161; cooperative pause_requested; worker exits without cancelled finalize; resume is POST /process clear-and-rerun; not in-place.` Same on zh. Do not untick J7.01–J7.06.
+
+**This plan (implementation commit only):** tick §3 S9.02 `[x]` (en+zh). Do not tick S9.03–S9.13.
+
+**Files:** `apps/api/app/models/entities.py` (`pause_requested`); `apps/api/app/db/session.py` (`_ensure_processing_job_columns`); `apps/api/app/schemas/api.py` (`JobRead`); `apps/api/app/api/routes.py` (pause endpoint, `_job_read`); `apps/api/app/services/processing.py` (request helper, checkpoints, pause finalize, reclaim); `apps/api/app/services/jobs.py` (`paused` in `TERMINAL_JOB_STATUSES` only); `apps/api/tests/test_import_process_export_api.py`; `apps/api/tests/test_job_reliability.py`; `apps/api/tests/test_job_processing_reclaim.py`; `apps/api/tests/test_job_checkpoint.py`; `apps/web/src/lib/api.ts` (`pauseJob`, status union, `pause_requested`); `apps/web/src/lib/processingProgress.ts` (+ tests); `apps/web/src/components/ProcessingPanel.tsx`; `tests/e2e/local-workflow.spec.ts` mocked pause; `docs/api.md`, `docs/v2_known_limitations.md`, architecture if it still denies pause, CHANGELOG Unreleased (+ zh); Phase 7 plan (+ zh) J7.07 tick; this plan (+ zh) §3 S9.02 tick.
+
+**Tests first:** queued/running processing pause → 202, `pause_requested` true, `cancellation_requested` false, `status` unchanged, originals untouched. Worker observes pause at a ranking or post-grouping checkpoint → job `paused` not `cancelled`/`failed`; groups empty; `processed_images == 0`; originals unchanged; `user_status` / `star_rating` preserved. Terminal pause → 200 no-op. Interrupted pause → 200, `paused`, groups empty. Import/export pause → 422. After `paused`, `POST /process` creates a new job (not 409 / not reuse paused id). Reclaim interrupted + `pause_requested` → `paused`, not queued, not cancelled. Cancel tests stay green (cancel wins if both flags). `canPauseProcessing` / pending copy / `processingJobHasReviewableResults("paused")` false. Mocked E2E: Pause visible; POST pause; status Paused; Run enabled. Existing import/processing/export cancel tests stay green.
+
+**Non-goals:** in-place continue-hash-mid-batch; keeping half-built groups; export or import pause; desktop quit-and-pause (quit stays cancel); expanding `/retry`; S9.01 or S9.03–S9.13; `APP_VERSION`; signing.
 
 ### S9.03 — AVIF
 

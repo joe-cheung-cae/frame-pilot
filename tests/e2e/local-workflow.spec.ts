@@ -36,6 +36,7 @@ const completedJob = {
   progress_percent: 100,
   error_message: null,
   cancellation_requested: false,
+  pause_requested: false,
   cancelled_at: null,
   started_at: "2026-06-02T00:00:00Z",
   completed_at: "2026-06-02T00:00:01Z",
@@ -54,6 +55,7 @@ const runningImportJob = {
   progress_percent: 33.33,
   error_message: null,
   cancellation_requested: false,
+  pause_requested: false,
   cancelled_at: null,
   started_at: "2026-06-02T00:00:00Z",
   completed_at: null,
@@ -1507,6 +1509,64 @@ test("shows cancel control for processing cancellation", async ({ page }) => {
   await expect(
     page.getByText("Processing stopped at a safe checkpoint. Run grouping and ranking again when you are ready."),
   ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel Grouping and Ranking" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Run Grouping and Ranking" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Retry Grouping and Ranking" })).toHaveCount(0);
+});
+
+test("shows pause control for processing pause", async ({ page }) => {
+  let processingJob = {
+    ...completedJob,
+    id: "processing-job-pausable",
+    job_type: "processing",
+    status: "running",
+    current_step: "ranking group 1 of 2",
+    total_items: 3,
+    processed_items: 1,
+    failed_items: 0,
+    progress_percent: 33,
+    error_message: null,
+    cancellation_requested: false,
+    pause_requested: false,
+    completed_at: null,
+    retryable: false,
+  };
+
+  await page.unroute(projectListRoute("jobs"));
+  await page.route(projectListRoute("jobs"), async (route) => {
+    await route.fulfill({ json: [processingJob] });
+  });
+  await page.route(`**/api/projects/${project.id}/jobs/${processingJob.id}/pause`, async (route) => {
+    processingJob = {
+      ...processingJob,
+      status: "paused",
+      current_step: "paused",
+      pause_requested: true,
+      completed_at: "2026-01-01T00:00:01Z",
+      retryable: false,
+    };
+    await route.fulfill({ json: processingJob, status: 202 });
+  });
+  await page.route(`**/api/projects/${project.id}/jobs/${processingJob.id}`, async (route) => {
+    await route.fulfill({ json: processingJob });
+  });
+
+  await page.goto(`/projects/${project.id}/process`);
+
+  await expect(page.getByText("Running").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause Grouping and Ranking" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel Grouping and Ranking" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run Grouping and Ranking" })).toBeDisabled();
+
+  await page.getByRole("button", { name: "Pause Grouping and Ranking" }).click();
+
+  await expect(page.getByText("Paused").first()).toBeVisible();
+  await expect(
+    page.getByText(
+      "Processing paused at a safe checkpoint. Partial groups were cleared. Run grouping and ranking again when you are ready. Originals are unchanged.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause Grouping and Ranking" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Cancel Grouping and Ranking" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Run Grouping and Ranking" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Retry Grouping and Ranking" })).toHaveCount(0);

@@ -37,7 +37,7 @@ from tests.heic_helpers import tiny_heic_bytes
 def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
     current = job
     for _ in range(20):
-        if current["status"] in {"complete", "complete_with_errors", "failed", "cancelled"}:
+        if current["status"] in {"complete", "complete_with_errors", "failed", "cancelled", "paused"}:
             return current
         response = client.get(f"/api/projects/{project_id}/jobs/{current['id']}")
         assert response.status_code == 200
@@ -2040,6 +2040,316 @@ def test_cancel_during_derivative_validation_keeps_copied_originals_and_thumbnai
     assert photo_after["processing_state"] == "imported"
     assert client.get(f"/api/projects/{project['id']}/groups").json() == []
     assert client.get(f"/api/projects/{project['id']}").json()["processed_images"] == 0
+
+
+@pytest.mark.parametrize("job_status", ["queued", "running"])
+def test_pause_processing_job_persists_request_and_leaves_originals(tmp_path, monkeypatch, job_status):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Pause processing request"}).json()
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    original_path = originals / "frame.jpg"
+    original_bytes = _image_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            project_copy_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="processing",
+        )
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status=job_status,
+            current_step="grouping" if job_status == "running" else "queued",
+            total_items=1,
+            processed_items=0,
+            started_at=datetime.now(UTC) if job_status == "running" else None,
+            updated_at=datetime.now(UTC),
+        )
+        session.add(photo)
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    pause_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/pause")
+
+    assert pause_response.status_code == 202
+    paused = pause_response.json()
+    assert paused["id"] == job_id
+    assert paused["job_type"] == "processing"
+    assert paused["status"] == job_status
+    assert paused["pause_requested"] is True
+    assert paused["cancellation_requested"] is False
+    assert paused["current_step"] == "pause_requested"
+    assert paused["cancelled_at"] is None
+    assert original_path.read_bytes() == original_bytes
+
+    polled = client.get(f"/api/projects/{project['id']}/jobs/{job_id}").json()
+    assert polled["status"] == job_status
+    assert polled["pause_requested"] is True
+    assert polled["cancellation_requested"] is False
+    assert original_path.read_bytes() == original_bytes
+
+
+@pytest.mark.parametrize("job_status", ["complete", "complete_with_errors", "failed", "cancelled", "paused"])
+def test_pause_terminal_processing_job_is_safe_noop(tmp_path, monkeypatch, job_status):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Pause complete processing"}).json()
+
+    with Session(get_engine()) as session:
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status=job_status,
+            current_step=job_status,
+            cancellation_requested=False,
+            pause_requested=job_status == "paused",
+            total_items=1,
+        )
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    pause_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/pause")
+
+    assert pause_response.status_code == 200
+    body = pause_response.json()
+    assert body["status"] == job_status
+    assert body["pause_requested"] is (job_status == "paused")
+    assert body["cancellation_requested"] is False
+    assert body["cancelled_at"] is None
+    assert body["current_step"] == job_status
+
+
+def test_pause_does_not_overwrite_pending_cancel(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Pause after cancel request"}).json()
+
+    with Session(get_engine()) as session:
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="running",
+            current_step="cancellation_requested",
+            cancellation_requested=True,
+            total_items=1,
+            updated_at=datetime.now(UTC),
+        )
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    pause_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/pause")
+
+    assert pause_response.status_code == 202
+    body = pause_response.json()
+    assert body["status"] == "running"
+    assert body["pause_requested"] is True
+    assert body["cancellation_requested"] is True
+    assert body["current_step"] == "cancellation_requested"
+    assert body["cancelled_at"] is None
+
+
+@pytest.mark.parametrize("job_type", ["import", "export", "other"])
+def test_pause_non_processing_job_is_rejected(tmp_path, monkeypatch, job_type):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": f"Pause {job_type} job"}).json()
+
+    with Session(get_engine()) as session:
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type=job_type,
+            status="running",
+            current_step="working",
+            total_items=1,
+            updated_at=datetime.now(UTC),
+        )
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    pause_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/pause")
+
+    assert pause_response.status_code == 422
+    assert pause_response.json()["detail"] == "Only processing jobs can be paused"
+    persisted = client.get(f"/api/projects/{project['id']}/jobs/{job_id}").json()
+    assert persisted["status"] == "running"
+    assert persisted.get("pause_requested") is False
+
+
+def test_pause_missing_job_is_not_found(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Pause missing job"}).json()
+    other = client.post("/api/projects", json={"name": "Other project"}).json()
+
+    missing = client.post(f"/api/projects/{project['id']}/jobs/missing-job/pause")
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Processing job not found"
+
+    with Session(get_engine()) as session:
+        job = ProcessingJob(
+            project_id=other["id"],
+            job_type="processing",
+            status="running",
+            current_step="grouping",
+            total_items=1,
+        )
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    wrong_project = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/pause")
+    assert wrong_project.status_code == 404
+    assert wrong_project.json()["detail"] == "Processing job not found"
+
+
+def test_pause_interrupted_processing_job_finalizes_and_resets_groups(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Pause interrupted processing"}).json()
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    original_path = originals / "frame.jpg"
+    original_bytes = _image_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        group = PhotoGroup(project_id=project["id"], group_type="burst", photo_count=1)
+        session.add(group)
+        session.commit()
+        session.refresh(group)
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            project_copy_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="processed",
+            group_id=group.id,
+            user_status="Pick",
+            star_rating=4,
+        )
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        stored_project.processed_images = 1
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="interrupted",
+            current_step="interrupted - restart",
+            interrupted_at=datetime.now(UTC),
+            worker_id="stale-worker",
+            heartbeat_at=datetime.now(UTC),
+            total_items=1,
+        )
+        session.add(photo)
+        session.add(stored_project)
+        session.add(job)
+        session.commit()
+        job_id = job.id
+        photo_id = photo.id
+        group_id = group.id
+
+    pause_response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/pause")
+
+    assert pause_response.status_code == 200
+    body = pause_response.json()
+    assert body["status"] == "paused"
+    assert body["status"] not in {"cancelled", "failed", "interrupted"}
+    assert body["current_step"] == "paused"
+    assert body["pause_requested"] is True
+    assert body["cancellation_requested"] is False
+    assert body["cancelled_at"] is None
+    assert original_path.read_bytes() == original_bytes
+
+    persisted = client.get(f"/api/projects/{project['id']}/jobs/{job_id}").json()
+    assert persisted["status"] == "paused"
+    assert persisted["pause_requested"] is True
+    assert persisted["cancellation_requested"] is False
+    assert persisted["cancelled_at"] is None
+    assert persisted["completed_at"] is not None
+    assert persisted["worker_id"] is None
+    assert persisted["heartbeat_at"] is None
+    assert persisted["interrupted_at"] is None
+
+    photo_after = client.get(f"/api/projects/{project['id']}/photos/{photo_id}").json()
+    assert photo_after["processing_state"] == "imported"
+    assert photo_after["group_id"] is None
+    assert photo_after["user_status"] == "Pick"
+    assert photo_after["star_rating"] == 4
+    assert original_path.read_bytes() == original_bytes
+
+    with Session(get_engine()) as session:
+        assert session.get(PhotoGroup, group_id) is None
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        assert stored_project.processed_images == 0
+
+
+def test_process_after_paused_job_creates_a_new_job(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    scheduled_tasks: list[tuple[object, tuple, dict]] = []
+
+    def capture_background_task(self, func, *args, **kwargs):
+        scheduled_tasks.append((func, args, kwargs))
+
+    monkeypatch.setattr(routes.BackgroundTasks, "add_task", capture_background_task)
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Resume after pause"}).json()
+    originals = Path(project["root_path"]) / "originals"
+    originals.mkdir(parents=True, exist_ok=True)
+    original_path = originals / "frame.jpg"
+    original_bytes = _image_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            project_copy_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="imported",
+        )
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        stored_project.total_images = 1
+        stored_project.processed_images = 0
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="paused",
+            current_step="paused",
+            pause_requested=True,
+            completed_at=datetime.now(UTC),
+            total_items=1,
+        )
+        session.add(photo)
+        session.add(stored_project)
+        session.add(job)
+        session.commit()
+        paused_id = job.id
+
+    process_response = client.post(f"/api/projects/{project['id']}/process")
+    assert process_response.status_code == 202
+    created = process_response.json()
+    assert created["id"] != paused_id
+    assert created["status"] == "queued"
+    assert created["job_type"] == "processing"
+    assert created["pause_requested"] is False
+    assert original_path.read_bytes() == original_bytes
+    assert len(scheduled_tasks) == 1
+
+    paused = client.get(f"/api/projects/{project['id']}/jobs/{paused_id}").json()
+    assert paused["status"] == "paused"
+    assert paused["id"] != created["id"]
 
 
 def test_retry_import_job_reuses_existing_derivatives_and_clears_failed_photo_state(tmp_path, monkeypatch):

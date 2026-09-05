@@ -6,13 +6,23 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.02 processing job pause
+
+- Cooperative processing pause on `POST /api/projects/{project_id}/jobs/{job_id}/pause` with a distinct `pause_requested` flag (queued/running persist the flag with 202; terminal is a 200 no-op; interrupted finalizes `paused` and resets groups)
+- Worker checkpoints then group reset without a `cancelled` finalize; originals, import derivatives, `user_status`, and `star_rating` stay
+- Resume is clear-and-rerun via a new `POST /process`; `paused` does not block a replacement job
+- Processing UI can request **Pause Grouping and Ranking** and shows checkpoint copy
+- Reclaim honors a pending processing pause and does not re-queue; cancel still wins if both flags are set
+- Import and export jobs cannot be paused; in-place continue-hash-mid-batch is not implemented
+- No `APP_VERSION` bump, signing, or packaged GUI
+
 ### Phase 9 — S9.01 export job cancel
 
 - Cooperative export cancel on the existing `POST /api/projects/{project_id}/jobs/{job_id}/cancel` route (queued/running persist `cancellation_requested` with 202; terminal is a 200 no-op; interrupted finalizes `cancelled`)
 - Create export also persists `ProcessingJob` `job_type="export"` with the same id as the `ExportRecord`
 - Checkpoints abort CSV/ZIP/folder writers; partial artifacts under the project export root are fail-and-cleanup; originals are never modified or deleted
 - Desktop quit can **Quit and cancel export** (POST cancel, wait up to 10s, then SIGTERM)
-- Export jobs are still not reclaimed on startup; pause/resume of in-flight grouping is not implemented
+- Export jobs are still not reclaimed on startup
 - No `APP_VERSION` bump, signing, or packaged GUI
 
 ### Docs — schedule remaining stretch (S9.00)

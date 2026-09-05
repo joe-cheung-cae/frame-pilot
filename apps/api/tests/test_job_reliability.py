@@ -37,7 +37,7 @@ def _capture_background_tasks(monkeypatch) -> list[tuple[object, tuple, dict]]:
 def _wait_for_job(client: TestClient, project_id: str, job: dict) -> dict:
     current = job
     for _ in range(40):
-        if current["status"] in {"complete", "complete_with_errors", "failed", "cancelled"}:
+        if current["status"] in {"complete", "complete_with_errors", "failed", "cancelled", "paused"}:
             return current
         response = client.get(f"/api/projects/{project_id}/jobs/{current['id']}")
         assert response.status_code == 200
@@ -96,9 +96,7 @@ def test_concurrent_import_and_status_polling_does_not_lock_database(tmp_path, m
                 if project_response.status_code == 200:
                     job = project_response.json().get("active_import_job")
                     if job and job.get("id"):
-                        job_response = polling_client.get(
-                            f"/api/projects/{project['id']}/jobs/{job['id']}"
-                        )
+                        job_response = polling_client.get(f"/api/projects/{project['id']}/jobs/{job['id']}")
                         poll_statuses.append(job_response.status_code)
                         _record_lock_failure(job_response)
             except OperationalError as error:
@@ -681,6 +679,242 @@ def test_run_processing_job_finalizes_queued_cancel_without_process_project(tmp_
         assert job.current_step == "cancelled"
         assert job.cancellation_requested is True
         assert job.cancelled_at is not None
+        assert job.worker_id is None
+        assert photo is not None
+        assert photo.processing_state == "imported"
+        assert photo.user_status == "Maybe"
+        assert photo.star_rating == 2
+        assert stored_project is not None
+        assert stored_project.processed_images == 0
+        assert original_path.read_bytes() == original_bytes
+
+
+def test_processing_job_pause_route_accepts_running_job(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Processing pause"}).json()
+    original_path = tmp_path / "frame.jpg"
+    original_bytes = _jpeg_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="processing",
+        )
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="running",
+            current_step="grouping",
+            total_items=1,
+            processed_items=0,
+            started_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        session.add(photo)
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    response = client.post(f"/api/projects/{project['id']}/jobs/{job_id}/pause")
+    assert response.status_code == 202
+    body = response.json()
+    assert body["status"] == "running"
+    assert body["pause_requested"] is True
+    assert body["cancellation_requested"] is False
+    assert body["current_step"] == "pause_requested"
+    assert body["cancelled_at"] is None
+    assert original_path.read_bytes() == original_bytes
+
+
+def test_running_processing_job_pauses_at_ranking_checkpoint(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    pause_client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Pause at ranking"}).json()
+    original_bytes = _jpeg_bytes((40, 80, 120))
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", original_bytes, "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    import_job = _wait_for_job(client, project["id"], import_response.json()["job"])
+    assert import_job["status"] in {"complete", "complete_with_errors"}
+    photo_id = import_response.json()["imported"][0]["id"]
+    client.patch(
+        f"/api/projects/{project['id']}/photos/{photo_id}",
+        json={"user_status": "Pick", "star_rating": 4},
+    )
+
+    with Session(get_engine()) as session:
+        stored_photo = session.get(Photo, photo_id)
+        assert stored_photo is not None
+        original_path = Path(stored_photo.project_copy_path or stored_photo.original_path)
+        stored_bytes = original_path.read_bytes()
+
+    real_save_job = processing_module._save_job
+
+    def save_job_then_request_pause_at_ranking(
+        session,
+        job,
+        current_step,
+        processed_items=None,
+        failed_items=None,
+    ):
+        result = real_save_job(session, job, current_step, processed_items, failed_items)
+        if result is False:
+            return result
+        if str(current_step).startswith("ranking group") and not job.pause_requested:
+            response = pause_client.post(f"/api/projects/{project['id']}/jobs/{job.id}/pause")
+            assert response.status_code == 202
+        return result
+
+    monkeypatch.setattr(processing_module, "_save_job", save_job_then_request_pause_at_ranking)
+
+    process_job = _wait_for_job(
+        client,
+        project["id"],
+        client.post(f"/api/projects/{project['id']}/process").json(),
+    )
+    assert process_job["status"] == "paused"
+    assert process_job["status"] not in {"cancelled", "failed"}
+    assert process_job["current_step"] == "paused"
+    assert process_job["pause_requested"] is True
+    assert process_job["cancellation_requested"] is False
+    assert process_job["cancelled_at"] is None
+    assert process_job["completed_at"] is not None
+    assert process_job["worker_id"] is None
+    assert process_job["heartbeat_at"] is None
+
+    project_after = client.get(f"/api/projects/{project['id']}").json()
+    assert project_after["processed_images"] == 0
+    assert client.get(f"/api/projects/{project['id']}/groups").json() == []
+
+    photo_after = client.get(f"/api/projects/{project['id']}/photos/{photo_id}").json()
+    assert photo_after["processing_state"] == "imported"
+    assert photo_after["group_id"] is None
+    assert photo_after["user_status"] == "Pick"
+    assert photo_after["star_rating"] == 4
+    assert original_path.read_bytes() == stored_bytes
+
+    with Session(get_engine()) as session:
+        assert session.exec(select(PhotoGroup).where(PhotoGroup.project_id == project["id"])).all() == []
+
+
+def test_running_processing_job_cancel_wins_over_pause_at_ranking_checkpoint(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    control_client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Cancel wins over pause"}).json()
+    original_bytes = _jpeg_bytes((12, 34, 56))
+    import_response = client.post(
+        f"/api/projects/{project['id']}/import",
+        files=[("files", ("frame.jpg", original_bytes, "image/jpeg"))],
+    )
+    assert import_response.status_code == 201
+    import_job = _wait_for_job(client, project["id"], import_response.json()["job"])
+    assert import_job["status"] in {"complete", "complete_with_errors"}
+    photo_id = import_response.json()["imported"][0]["id"]
+
+    with Session(get_engine()) as session:
+        stored_photo = session.get(Photo, photo_id)
+        assert stored_photo is not None
+        original_path = Path(stored_photo.project_copy_path or stored_photo.original_path)
+        stored_bytes = original_path.read_bytes()
+
+    real_save_job = processing_module._save_job
+
+    def save_job_then_request_pause_and_cancel(
+        session,
+        job,
+        current_step,
+        processed_items=None,
+        failed_items=None,
+    ):
+        result = real_save_job(session, job, current_step, processed_items, failed_items)
+        if result is False:
+            return result
+        if str(current_step).startswith("ranking group") and not job.pause_requested:
+            pause_response = control_client.post(f"/api/projects/{project['id']}/jobs/{job.id}/pause")
+            assert pause_response.status_code == 202
+            cancel_response = control_client.post(f"/api/projects/{project['id']}/jobs/{job.id}/cancel")
+            assert cancel_response.status_code == 202
+        return result
+
+    monkeypatch.setattr(processing_module, "_save_job", save_job_then_request_pause_and_cancel)
+
+    process_job = _wait_for_job(
+        client,
+        project["id"],
+        client.post(f"/api/projects/{project['id']}/process").json(),
+    )
+    assert process_job["status"] == "cancelled"
+    assert process_job["status"] != "paused"
+    assert process_job["status"] != "failed"
+    assert process_job["cancellation_requested"] is True
+    assert process_job["cancelled_at"] is not None
+    assert original_path.read_bytes() == stored_bytes
+    assert client.get(f"/api/projects/{project['id']}/groups").json() == []
+
+
+def test_run_processing_job_finalizes_queued_pause_without_process_project(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app())
+    project = client.post("/api/projects", json={"name": "Queued pause claim"}).json()
+    original_path = tmp_path / "frame.jpg"
+    original_bytes = _jpeg_bytes()
+    original_path.write_bytes(original_bytes)
+
+    with Session(get_engine()) as session:
+        photo = Photo(
+            project_id=project["id"],
+            original_path=str(original_path),
+            project_copy_path=str(original_path),
+            filename="frame.jpg",
+            processing_state="processing",
+            user_status="Maybe",
+            star_rating=2,
+        )
+        job = ProcessingJob(
+            project_id=project["id"],
+            job_type="processing",
+            status="queued",
+            current_step="pause_requested",
+            pause_requested=True,
+            total_items=1,
+        )
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        stored_project.total_images = 1
+        stored_project.processed_images = 1
+        session.add(photo)
+        session.add(job)
+        session.add(stored_project)
+        session.commit()
+        job_id = job.id
+        photo_id = photo.id
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("process_project must not run after a queued pause is claimed")
+
+    monkeypatch.setattr(processing_module, "process_project", boom)
+    run_processing_job(job_id)
+
+    with Session(get_engine()) as session:
+        job = session.get(ProcessingJob, job_id)
+        photo = session.get(Photo, photo_id)
+        stored_project = session.get(Project, project["id"])
+        assert job is not None
+        assert job.status == "paused"
+        assert job.status != "cancelled"
+        assert job.status != "failed"
+        assert job.current_step == "paused"
+        assert job.pause_requested is True
+        assert job.cancellation_requested is False
+        assert job.cancelled_at is None
         assert job.worker_id is None
         assert photo is not None
         assert photo.processing_state == "imported"
