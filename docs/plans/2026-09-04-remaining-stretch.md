@@ -308,7 +308,56 @@ Poll 1000 ms while a job is active, 5000 ms when idle (mirror `jobsRefetchInterv
 
 ### S9.07 — Detached preview
 
-Second WebView + shared selection. Degrade to in-shell preview if WebView fails.
+**Hole (live tree):** One WebView labeled `main` (`tauri.conf.json` `app.windows[]` is `{ label: "main", ..., create: false }`; `lib.rs` `WebviewWindowBuilder::new(..., "main", WebviewUrl::App("index.html"))`). Capabilities `default.json` `windows` is `["main"]` only. `on_window_event` treats **every** `CloseRequested` as `AppQuitEvent::WindowCloseRequested` and **every** `Destroyed` as sidecar `request_shutdown` (`lib.rs`) — a second window would quit the app and kill the sidecar. File → Close (`"close"`) and View → Fullscreen always `get_webview_window("main")` (`menu.rs`). View menu is Fullscreen only. This crate has **no** `invoke_handler` / `generate_handler`. `tauri_plugin_window_state::Builder::default().build()` has **no** denylist. `initialization_script(port)` injects `__FRAMEPILOT_API_BASE__` and `__FRAMEPILOT_DESKTOP__` only. Desktop Vite aliases `nativeFs` only (`apps/desktop/vite.config.ts`). Culling selection lives in in-memory Zustand `useReviewStore` plus `localStorage` `framepilot.reviewProgress.v1.{projectId}` (`reviewStore.ts`, `reviewProgress.ts`, `CullingWorkspace.tsx`). Space / Eye toggles in-shell `largePreview`. Keyboard is a `window` `keydown` listener in the culling workspace only (`reviewShortcutCommandFromEvent`). Web `Photo` exposes `preview_path` / `project_copy_path`, not `original_path` (backend still has `original_path`). `docs/v2_known_limitations.md` Desktop 2.1: “There is **no detached preview** window outside the main shell.” Product plan §5.6 / #166: second WebView, shared selection, keyboard focus; if WebView fails, keep in-shell preview.
+
+**Identity:** Desktop-only second WebView labeled **`preview`** showing the current culling photo (and the compare set when compare is on, via existing `windowedCompareRefs` / `COMPARE_WINDOW_SIZE` 6). Selection is shared with the main culling workspace. **Additive:** in-shell preview, Space, and Eye stay. Browser/web shell unchanged. **If creating the WebView fails, keep in-shell preview** (log, no crash, no sidecar change). One sidecar. This window never reads or writes original photos.
+
+**Window (Rust-owned):** New `apps/desktop/src-tauri/src/preview.rs`. Create/destroy in Rust (same family as tray). Do **not** create the window from `@tauri-apps/api/webviewWindow` in JS. Constant `PREVIEW_WINDOW_LABEL = "preview"`. Title `FramePilot Preview`. Size ~960×720, min 480×320, resizable. Same `initialization_script(port)` as main **plus** `window.__FRAMEPILOT_WINDOW__ = "preview"` (main sets `"main"`; keep `initialization_script_injects_literal_boolean_and_unslash_base` green). URL: `WebviewUrl::App("index.html".into())` (same SPA). Do **not** spawn a second sidecar. Do **not** auto-open on launch. Do **not** add a created-on-launch window in `tauri.conf.json` (a `{ label: "preview", create: false }` entry is optional). Window-state: `tauri_plugin_window_state::Builder::default().with_denylist(&["preview"])` so a previous session does not save or restore it (`skip_initial_state` alone still saves on close). Shared toggle: `#[tauri::command] fn toggle_detached_preview` returns `Result<bool, String>` (`true` = open, `false` = closed). Create failure is `Err` so JS keeps in-shell preview. Register with this crate’s first `invoke_handler` / `generate_handler`. Native View menu calls the same Rust toggle (not a JS route).
+
+**Open / close:**
+
+| Event | Behavior |
+| -- | -- |
+| View → Detached preview (`detached-preview`, no accelerator) | Toggle: create if missing, close if present. Create failure is non-fatal. |
+| Culling toolbar button (desktop only) **Toggle detached preview** | Same toggle. Does **not** replace Eye / Space. |
+| Preview window X, or File → Close while preview is focused | Close preview only. Do **not** run `handle_close_requested`. Do **not** `request_shutdown`. Emit `framepilot-preview-closed` so main clears `aria-pressed`. |
+| File → Close while main is focused | Existing quit path on `main`. |
+| File → Quit, tray Quit, main window X | Existing app quit; preview is destroyed with the app. |
+| Main navigates away from `/projects/:id/cull` | Close the preview window. |
+| Tray Show / single-instance | Still focuses `main` only. |
+
+`window_close_targets_app_quit(label)` is true **only** for `"main"`. Gate `CloseRequested` and `Destroyed` on that helper. File → Close uses the focused window: preview → close preview; otherwise close `main`.
+
+**Shared selection:** Main owns Zustand + `localStorage` + photo mutations. Preview is a satellite. Tauri events (not BroadcastChannel, not a second store):
+
+| Event | Direction | Payload |
+| -- | -- | -- |
+| `framepilot-review-sync` | main → preview (and resync when preview asks) | `{ projectId, activePhotoId, activeGroupId, filename, previewPath, compareMode, compare: [{ photoId, filename, previewPath }], previewZoom }` |
+| `framepilot-review-sync-request` | preview → main | none |
+| `framepilot-review-command` | preview → main | existing `ReviewShortcutCommand` JSON |
+| `framepilot-preview-closed` | preview/Rust → main | none |
+
+Sync carries **derivative** `preview_path` only (existing `assetUrl`). A sanitizer (`toReviewSyncPayload` or equivalent) **drops** `originalPath` / `original_path` / `project_copy_path` / `source_identity`. Preview renders via `assetUrl`; no `fs:` read of originals. Compare rows come from existing `windowedCompareRefs`.
+
+**Keyboard focus (document in Help + user guide):** Bare culling keys (P/M/X/U, 1–5, 0, arrows, Space, Z, +/−, C, G, F, E) go to the **focused** WebView only. The unfocused window does not receive them. Preview uses `reviewShortcutCommandFromEvent` and **forwards** commands to main (`framepilot-review-command`); main runs the existing `CullingWorkspace` switch (mark/rate/nav/zoom/compare/export). Preview does **not** call `api.updatePhoto` itself. Native menu chords (CmdOrCtrl+N/W/Q) stay app-global. **No** new accelerator on Detached preview (do not steal Space/P/M/X). Space in main still toggles in-shell `largePreview`. Space in preview forwards `toggle_large_preview` (in-shell layout only; does not close the detached window). Extend the existing Help desktop sentence (`HelpShortcuts.tsx` / `menuRoutes.ts`) for focused-window culling keys.
+
+**Preview UI:** If `__FRAMEPILOT_WINDOW__ === "preview"`, desktop `App` renders a preview-only pane (image or compare grid, filename, zoom from sync). No Shell chrome, no project list, no second import/export UI. Web `isDesktopShell()` false path never opens a window. Existing CSP `img-src` already allows sidecar `assetUrl`.
+
+**JS adapter:** Mirror `nativeFs`: `apps/web/src/lib/detachedPreview.ts` types + stub `requestDetachedPreviewToggle()` → `{ ok: false, reason: "not-desktop" }`. Desktop Vite alias `apps/desktop/src/lib/detachedPreview.ts` (`vite.config.ts`, same plugin family as `aliasNativeFs`) invokes `toggle_detached_preview` via `@tauri-apps/api/core`. `CullingWorkspace` shows the extra button only when `isDesktopShell()`.
+
+**Capabilities:** add `"preview"` to `default.json` `windows` so the second WebView may emit/listen. Keep `core:window:allow-show` / `allow-unminimize` / `allow-set-focus`. **Do not** add `fs:` or `shell:` (`opener:default` still out). `core:default` already has events.
+
+**Failure:** `WebviewWindowBuilder::build` / toggle-open error is **non-fatal**. Log; in-shell preview remains; `npm run verify` stays rust-free.
+
+**Docs (implementation commit):** replace “no detached preview” in `docs/v2_known_limitations.md` (+ zh). User guide (+ zh) short subsection: View → Detached preview; shared selection; keys apply to the focused window; create failure keeps in-shell preview; close preview ≠ quit. Help desktop sentence for focus. Desktop README (+ zh) if it still omits it. CHANGELOG Unreleased: new S9.07 subsection. Do **not** rewrite `docs/desktop_development_plan.md` §2.2 / §5.6 as shipped (S9.13). No `APP_VERSION` bump.
+
+**This plan (implementation commit only):** tick §3 S9.07 `[x]` (en+zh). Do not tick S9.08–S9.13.
+
+**Files:** `apps/desktop/src-tauri/src/preview.rs` (new: label, title, open/close/toggle, `window_close_targets_app_quit`); `apps/desktop/src-tauri/src/lib.rs` (`mod preview`; first `invoke_handler`; gate CloseRequested/Destroyed; window-state `with_denylist`); `apps/desktop/src-tauri/src/menu.rs` (View `detached-preview`; File Close → focused window); `apps/desktop/src-tauri/src/sidecar.rs` if the init script grows a window-label helper; `apps/desktop/src-tauri/capabilities/default.json` (`windows` includes `preview`; still no `fs:`/`shell:`); `apps/desktop/src/App.tsx` (preview pane branch); `apps/desktop/src/lib/detachedPreview.ts` (new, Vite alias); `apps/desktop/vite.config.ts` (alias like `nativeFs`); `apps/web/src/lib/detachedPreview.ts` (new: payload sanitizer + stub); `apps/web/src/components/CullingWorkspace.tsx` (desktop toggle button + emit sync / handle commands); `apps/web/src/components/HelpShortcuts.tsx` or `menuRoutes.ts` desktop help line; rust tests in `preview.rs`; web/desktop tests for payload/stub and menu accelerator; docs listed above + CHANGELOG Unreleased (+ zh); this plan (+ zh) §3 S9.07 tick.
+
+**Tests first:** `PREVIEW_WINDOW_LABEL == "preview"`. `window_close_targets_app_quit("preview")` is false; `"main"` is true. File Close with preview focused is not app quit. Destroyed preview does not imply sidecar shutdown. View item id `detached-preview` has no accelerator; `menu.rs` still has no bare P/M/X/Space accelerators. Capabilities `windows` includes `preview` and has no `fs:`/`shell:`. Sync payload round-trip keeps `previewPath` and drops `originalPath` / `project_copy_path`. Stub `requestDetachedPreviewToggle` is `{ ok: false, reason: "not-desktop" }`. Existing close-decision / tray / import / processing / export cancel rust tests stay green. `initialization_script` still injects a boolean `__FRAMEPILOT_DESKTOP__`. `cargo test --lib` in `apps/desktop/src-tauri`. `npm run verify` still rust-free. Detached preview does not read or write original photos.
+
+**Non-goals:** replacing in-shell preview; auto-reopen on launch; hide-to-tray; always-on-top / exclusive fullscreen preview; a second sidecar; `fs:` / `shell:` / `opener:default`; Settings toggle; persisting detached-open in `reviewProgress`; rewriting §2.2 as done; concurrency knobs (S9.08); data-dir (S9.09); check for updates (S9.10); `APP_VERSION`; signing; S9.08–S9.13.
 
 ### S9.08 — Concurrency knobs
 

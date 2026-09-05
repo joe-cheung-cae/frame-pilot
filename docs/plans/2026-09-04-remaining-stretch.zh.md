@@ -308,7 +308,56 @@ HTTP（比照处理取消，标志不同）：
 
 ### S9.07 — 独立预览
 
-第二个 WebView + 共享选中。WebView 失败则退回壳内预览。
+**现场空洞：** 只有一个标签为 `main` 的 WebView（`tauri.conf.json` 的 `app.windows[]` 是 `{ label: "main", ..., create: false }`；`lib.rs` `WebviewWindowBuilder::new(..., "main", WebviewUrl::App("index.html"))`）。Capabilities `default.json` 的 `windows` 只有 `["main"]`。`on_window_event` 把**每一个** `CloseRequested` 当成 `AppQuitEvent::WindowCloseRequested`，把**每一个** `Destroyed` 当成 sidecar `request_shutdown`（`lib.rs`）——第二个窗口会退出应用并杀掉 sidecar。File → Close（`"close"`）和 View → Fullscreen 总是 `get_webview_window("main")`（`menu.rs`）。View 菜单只有 Fullscreen。本 crate **没有** `invoke_handler` / `generate_handler`。`tauri_plugin_window_state::Builder::default().build()` **没有** denylist。`initialization_script(port)` 只注入 `__FRAMEPILOT_API_BASE__` 和 `__FRAMEPILOT_DESKTOP__`。桌面 Vite 只别名 `nativeFs`（`apps/desktop/vite.config.ts`）。筛选选中活在内存 Zustand `useReviewStore` 以及 `localStorage` `framepilot.reviewProgress.v1.{projectId}`（`reviewStore.ts`、`reviewProgress.ts`、`CullingWorkspace.tsx`）。Space / Eye 切换壳内 `largePreview`。键盘只是筛选工作区上的 `window` `keydown`（`reviewShortcutCommandFromEvent`）。前端 `Photo` 有 `preview_path` / `project_copy_path`，没有 `original_path`（后端仍有 `original_path`）。`docs/v2_known_limitations.md` Desktop 2.1：「**没有**主窗口之外的独立预览窗。」产品计划 §5.6 / #166：第二个 WebView、共享选中、键盘焦点；WebView 失败则保持壳内预览。
+
+**身份：** 仅桌面的第二个 WebView，标签 **`preview`**，显示当前筛选照片（compare 打开时显示 compare 集合，走现有 `windowedCompareRefs` / `COMPARE_WINDOW_SIZE` 6）。选中与主筛选工作区共享。**加法：** 壳内预览、Space、Eye 保留。浏览器/web 壳不变。**若创建 WebView 失败，保持壳内预览**（记日志，不崩溃，不改 sidecar）。一个 sidecar。此窗口永不读写原片。
+
+**窗口（Rust 拥有）：** 新建 `apps/desktop/src-tauri/src/preview.rs`。在 Rust 里创建/销毁（与托盘同类）。**不要**从 JS 的 `@tauri-apps/api/webviewWindow` 创建窗口。常量 `PREVIEW_WINDOW_LABEL = "preview"`。标题 `FramePilot Preview`。约 960×720，最小 480×320，可缩放。与 main 相同的 `initialization_script(port)`，**再加上** `window.__FRAMEPILOT_WINDOW__ = "preview"`（main 设 `"main"`；保持 `initialization_script_injects_literal_boolean_and_unslash_base` 绿灯）。URL：`WebviewUrl::App("index.html".into())`（同一 SPA）。**不要**再起一个 sidecar。**不要**启动时自动打开。**不要**在 `tauri.conf.json` 里加启动即创建的窗口（可选 `{ label: "preview", create: false }`）。Window-state：`tauri_plugin_window_state::Builder::default().with_denylist(&["preview"])`，以免上次会话保存或恢复它（只 `skip_initial_state` 仍会在关闭时保存）。共用切换：`#[tauri::command] fn toggle_detached_preview` 返回 `Result<bool, String>`（`true` = 已打开，`false` = 已关闭）。创建失败为 `Err`，JS 因而保持壳内预览。用本 crate 的第一个 `invoke_handler` / `generate_handler` 注册。原生 View 菜单调用同一 Rust toggle（不是 JS 路由）。
+
+**打开 / 关闭：**
+
+| 事件 | 行为 |
+| -- | -- |
+| View → Detached preview（`detached-preview`，无加速键） | 切换：没有则创建，有则关闭。创建失败非致命。 |
+| 筛选工具栏按钮（仅桌面）**Toggle detached preview** | 同一切换。**不**替换 Eye / Space。 |
+| 预览窗 X，或预览窗聚焦时 File → Close | 只关预览。**不要**跑 `handle_close_requested`。**不要** `request_shutdown`。发出 `framepilot-preview-closed`，让 main 清掉 `aria-pressed`。 |
+| 主窗口聚焦时 File → Close | 现有对 `main` 的退出路径。 |
+| File → Quit、托盘 Quit、主窗口 X | 现有应用退出；预览随应用销毁。 |
+| 主窗口离开 `/projects/:id/cull` | 关闭预览窗。 |
+| 托盘 Show / 单实例 | 仍只聚焦 `main`。 |
+
+`window_close_targets_app_quit(label)` **仅**对 `"main"` 为 true。用该 helper 门控 `CloseRequested` 和 `Destroyed`。File → Close 看聚焦窗口：preview → 关预览；否则关 `main`。
+
+**共享选中：** Main 拥有 Zustand + `localStorage` + 照片变更。Preview 是卫星。走 Tauri 事件（不要 BroadcastChannel，不要第二份 store）：
+
+| 事件 | 方向 | 载荷 |
+| -- | -- | -- |
+| `framepilot-review-sync` | main → preview（preview 请求时再同步） | `{ projectId, activePhotoId, activeGroupId, filename, previewPath, compareMode, compare: [{ photoId, filename, previewPath }], previewZoom }` |
+| `framepilot-review-sync-request` | preview → main | 无 |
+| `framepilot-review-command` | preview → main | 现有 `ReviewShortcutCommand` JSON |
+| `framepilot-preview-closed` | preview/Rust → main | 无 |
+
+同步只带**衍生件** `preview_path`（现有 `assetUrl`）。消毒函数（`toReviewSyncPayload` 或同等）**丢掉** `originalPath` / `original_path` / `project_copy_path` / `source_identity`。Preview 用 `assetUrl` 渲染；不要用 `fs:` 读原片。Compare 行来自现有 `windowedCompareRefs`。
+
+**键盘焦点（写进 Help + 用户指南）：** 裸筛选键（P/M/X/U、1–5、0、方向键、Space、Z、+/−、C、G、F、E）只进入**聚焦**的 WebView。未聚焦窗口收不到。Preview 用 `reviewShortcutCommandFromEvent` 并把命令**转发给** main（`framepilot-review-command`）；main 跑现有 `CullingWorkspace` 分支（标记/评分/导航/缩放/compare/导出）。Preview **自己不**调用 `api.updatePhoto`。原生菜单组合键（CmdOrCtrl+N/W/Q）仍是应用全局。Detached preview **不要**新加速键（不要抢走 Space/P/M/X）。main 里的 Space 仍切换壳内 `largePreview`。preview 里的 Space 转发 `toggle_large_preview`（只影响壳内布局；不关闭独立窗）。扩展现有 Help 桌面句（`HelpShortcuts.tsx` / `menuRoutes.ts`）说明聚焦窗口的筛选键。
+
+**预览 UI：** 若 `__FRAMEPILOT_WINDOW__ === "preview"`，桌面 `App` 渲染仅预览面板（图像或 compare 网格、文件名、来自 sync 的缩放）。不要 Shell 框、项目列表、第二套导入/导出 UI。Web 的 `isDesktopShell()` 为 false 时永不打开窗口。现有 CSP `img-src` 已允许 sidecar `assetUrl`。
+
+**JS 适配：** 比照 `nativeFs`：`apps/web/src/lib/detachedPreview.ts` 类型 + 桩 `requestDetachedPreviewToggle()` → `{ ok: false, reason: "not-desktop" }`。桌面 Vite 别名 `apps/desktop/src/lib/detachedPreview.ts`（`vite.config.ts`，与 `aliasNativeFs` 同类插件）经 `@tauri-apps/api/core` 调用 `toggle_detached_preview`。`CullingWorkspace` 仅在 `isDesktopShell()` 时显示额外按钮。
+
+**Capabilities：** 把 `"preview"` 加进 `default.json` 的 `windows`，让第二个 WebView 能 emit/listen。保留 `core:window:allow-show` / `allow-unminimize` / `allow-set-focus`。**不要**加 `fs:` 或 `shell:`（`opener:default` 仍不要）。`core:default` 已含 events。
+
+**失败：** `WebviewWindowBuilder::build` / 打开失败为**非致命**。记日志；壳内预览仍在；`npm run verify` 保持无 Rust。
+
+**文档（仅实现提交）：** 替换 `docs/v2_known_limitations.md`（+ zh）里的「没有独立预览」。用户指南（+ zh）补短小节：View → Detached preview；共享选中；快捷键作用于聚焦窗口；创建失败则保持壳内预览；关预览 ≠ 退出。Help 桌面句说明焦点。若桌面 README（+ zh）仍未提则补一句。CHANGELOG Unreleased 增加 S9.07 小节。**不要**把 `docs/desktop_development_plan.md` §2.2 / §5.6 改写成已交付（留给 S9.13）。不改 `APP_VERSION`。
+
+**本计划（仅实现提交）：** 勾选 §3 S9.07 `[x]`（中英）。不要勾 S9.08–S9.13。
+
+**文件：** `apps/desktop/src-tauri/src/preview.rs`（新建：标签、标题、打开/关闭/切换、`window_close_targets_app_quit`）；`apps/desktop/src-tauri/src/lib.rs`（`mod preview`；第一个 `invoke_handler`；门控 CloseRequested/Destroyed；window-state `with_denylist`）；`apps/desktop/src-tauri/src/menu.rs`（View `detached-preview`；File Close → 聚焦窗口）；若 init script 增加窗口标签 helper 则改 `apps/desktop/src-tauri/src/sidecar.rs`；`apps/desktop/src-tauri/capabilities/default.json`（`windows` 含 `preview`；仍无 `fs:`/`shell:`）；`apps/desktop/src/App.tsx`（预览面板分支）；`apps/desktop/src/lib/detachedPreview.ts`（新建，Vite 别名）；`apps/desktop/vite.config.ts`（比照 `nativeFs` 别名）；`apps/web/src/lib/detachedPreview.ts`（新建：载荷消毒 + 桩）；`apps/web/src/components/CullingWorkspace.tsx`（桌面切换按钮 + 发出 sync / 处理命令）；`apps/web/src/components/HelpShortcuts.tsx` 或 `menuRoutes.ts` 桌面 Help 句；`preview.rs` 的 Rust 测试；载荷/桩与菜单加速键的 web/desktop 测试；上文文档 + CHANGELOG Unreleased（+ zh）；本计划（+ zh）§3 S9.07 勾选。
+
+**测试先行：** `PREVIEW_WINDOW_LABEL == "preview"`。`window_close_targets_app_quit("preview")` 为 false；`"main"` 为 true。预览聚焦时 File Close 不是应用退出。Destroyed preview 不意味着 sidecar shutdown。View 项 id `detached-preview` 无加速键；`menu.rs` 仍无裸 P/M/X/Space 加速键。Capabilities 的 `windows` 含 `preview` 且无 `fs:`/`shell:`。Sync 载荷往返保留 `previewPath` 并丢掉 `originalPath` / `project_copy_path`。桩 `requestDetachedPreviewToggle` 为 `{ ok: false, reason: "not-desktop" }`。现有关闭决策 / 托盘 / 导入 / 处理 / 导出取消的 Rust 测试仍绿。`initialization_script` 仍注入布尔 `__FRAMEPILOT_DESKTOP__`。在 `apps/desktop/src-tauri` 跑 `cargo test --lib`。`npm run verify` 仍无 Rust。独立预览不读不写原片。
+
+**非目标：** 替换壳内预览；启动时自动重开；藏到托盘；always-on-top / 独占全屏预览；第二个 sidecar；`fs:` / `shell:` / `opener:default`；设置页开关；把 detached-open 写入 `reviewProgress`；把 §2.2 改写成已完成；并发旋钮（S9.08）；数据目录（S9.09）；检查更新（S9.10）；`APP_VERSION`；签名；S9.08–S9.13。
 
 ### S9.08 — 并发旋钮
 
