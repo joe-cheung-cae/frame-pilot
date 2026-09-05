@@ -103,6 +103,6 @@ The installable desktop app (`2.1.0-desktop`) shares the same local API and cull
 - Storage is **copy mode only** (no reference-in-place of camera cards).
 - There is **no detached preview** window outside the main shell.
 - There are **no concurrency knobs** for import/process workers beyond the existing local job model.
-- Optional **system tray is deferred** (D3.06); no tray-related `fs:` / `shell:` capabilities were added.
+- Optional **system tray** (D3.06) shows job progress in the tooltip. **Show** restores the main window; **Quit** uses the same running-job dialog as File → Quit. Window close is still quit, not hide-to-tray. Tray create may fail on headless or some Linux desktops and is non-fatal. No tray-related `fs:` / `shell:` capabilities were added.
 
 End-user steps: [Desktop User Guide](desktop_user_guide.md).

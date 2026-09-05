@@ -30,6 +30,10 @@ Override with absolute `FRAMEPILOT_DATA_DIR`. Sidecar stderr is appended to `{da
 
 `npm run verify` typechecks the desktop Vite app (`typecheck:desktop`) and **must not** invoke `rustc`, `cargo`, or Tauri. `install:all` already installs `apps/desktop`.
 
+## System tray
+
+The shell attempts to create a system tray icon with **Show** and **Quit**. Tooltip shows active job progress (`Import · {step} · {n}%`, grouping and ranking, or export; idle is `No active job`). **Show** (or a primary click) restores the main window. **Quit** uses the same close-decision dialog as File → Quit. Window close is still quit, not hide-to-tray. Tray creation is non-fatal if the host has no tray. No extra `fs:` or `shell:` capabilities.
+
 ## Quit while a job is running
 
 Closing the window with an active import shows Keep working / Quit and cancel import / Quit anyway. Cancel reuses `POST /api/projects/{id}/jobs/{job_id}/cancel`, waits up to 10s, then SIGTERM. An active grouping/ranking job shows Keep working / Quit and cancel processing / Quit anyway, with the same POST cancel + 10s wait + SIGTERM. An active export shows Keep working / Quit and cancel export / Quit anyway; cancelled exports clean partial CSV/ZIP/folder artifacts and leave originals unchanged. Quit anyway SIGTERMs the sidecar and kills it after 5s.

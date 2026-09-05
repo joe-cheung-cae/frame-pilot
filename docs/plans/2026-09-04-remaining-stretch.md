@@ -48,7 +48,7 @@ Phase 9 — remaining stretch (post Phase 8)
 - [x] S9.03 AVIF still preview — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
 - [x] S9.04 RAW embedded preview — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
 - [x] S9.05 XMP sidecar export — [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165) (historical [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117))
-- [ ] S9.06 Optional system tray (D3.06) — [#169](https://github.com/joe-cheung-cae/frame-pilot/issues/169)
+- [x] S9.06 Optional system tray (D3.06) — [#169](https://github.com/joe-cheung-cae/frame-pilot/issues/169)
 - [ ] S9.07 Detached preview window — [#166](https://github.com/joe-cheung-cae/frame-pilot/issues/166)
 - [ ] S9.08 Opt-in import concurrency knobs — [#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)
 - [ ] S9.09 Change data directory — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
@@ -266,7 +266,45 @@ Also write `dc:title` = exported filename and `dc:identifier` = project photo id
 
 ### S9.06 — Tray
 
-Optional tray + job progress. No new `fs:`/`shell:` capabilities. Tick D3.06.
+**Hole (live tree):** No tray module and no `TrayIconBuilder`. `apps/desktop/src-tauri/Cargo.toml` has `tauri = { version = "2", features = [] }` (no `tray-icon`). `lib.rs` builds the main window, native menu, sidecar supervisor, and close-decision dialog only. File Close is `window.close()`; File Quit is `app.exit(0)` → `ExitRequested` → `handle_close_requested` (`menu.rs`, `lib.rs`). `ActiveJobRef` is `{project_id, job_id, job_type, status}` only — no `progress_percent` / `current_step` (`sidecar.rs`). `first_active_job_from_projects_json` / `first_active_job_from_jobs_json` ignore those `JobRead` fields. Status bar already formats `jobLabel` as `{type} · {step} · {percent}%` via `firstActiveJob` queued/running (`statusBarModel.ts`). Capabilities `default.json` is `core:default` + window show/unminimize/focus + `window-state:default` + `dialog:default` + `opener:allow-reveal-item-in-dir`. **No** `fs:` or `shell:` keys (and none in the generated `capabilities.json`). `core:default` already includes `core:tray:default` in ACL manifests. D3.06 is `[-]` deferred 2026-08-28 in packaging §5.1. `docs/v2_known_limitations.md` Desktop 2.1 still says the tray is deferred. Desktop user guide has no tray section.
+
+**Identity:** Desktop-only system tray (D3.06 / #169). “Optional” means it was not 2.1 DoD and create may fail on headless/Linux; **not** a Settings checkbox and **not** hide-to-tray. Always attempt to create the tray in the desktop shell. Implement in **Rust** with `TrayIconBuilder` during `setup`. **Do not** call tray APIs from the webview or `@tauri-apps/api/tray`. **Do not** add a notifications plugin. Progress is tooltip (and tray title where the host shows one) only.
+
+**Feature:** `tauri = { version = "2", features = ["tray-icon"] }`. Icon is `app.default_window_icon()` from existing `icons/`. No new image assets.
+
+**Menu (locked D3.06):** **Show** (`tray-show`) and **Quit** (`tray-quit`) only. English labels, same family as File → Quit. No Import/Export/Process items. No accelerators (do not steal P/M/X).
+
+| Event | Behavior |
+| -- | -- |
+| Show, or primary (left) click on the icon | Same as single-instance focus: `unminimize` + `show` + `set_focus` on window `main`. Do not hide. |
+| Quit | Same close-decision path as File → Quit / `WindowEvent::CloseRequested` (`handle_close_requested`). Do **not** skip the dialog with a raw `app.exit(0)`. Active import / processing / export still get Keep working / Quit and cancel … / Quit anyway. |
+| Window close (X), File → Close, File → Quit | Unchanged existing close dialog. **Do not** reinterpret close as hide-to-tray (that would skip cancel). |
+| Minimize | Unchanged (stays in the taskbar/dock). Not hide-to-tray. |
+
+**Progress:** Reuse `find_active_job`. Extend `ActiveJobRef` with `progress_percent: i32` (JSON float rounded then clamped 0–100; missing → 0) and `current_step: String` (trim; empty → `Running` or `Queued` from `status`). Parsers read those fields from project `active_import_job` and `/jobs`. Tooltip matches status-bar `jobLabel`:
+
+| Job | Tooltip |
+| -- | -- |
+| none | `No active job` |
+| import queued/running | `Import · {step} · {n}%` |
+| processing queued/running | `Grouping and ranking · {step} · {n}%` |
+| export queued/running | `Export · {step} · {n}%` |
+
+Poll 1000 ms while a job is active, 5000 ms when idle (mirror `jobsRefetchIntervalMs`). Updating the tooltip must not touch photo files.
+
+**Capabilities:** **Do not** add `fs:` or `shell:` (no `fs:allow-*`, `shell:allow-open`, `opener:default`). Keep `opener:allow-reveal-item-in-dir`. Tray is Rust-side; do not add extra JS tray permission lines (`core:default` already includes `core:tray:default`). Existing `core:window:allow-show` / `allow-unminimize` / `allow-set-focus` stay.
+
+**Failure:** Tray create failure is **non-fatal**. Log and continue; the main window and sidecar still start. Headless CI and some Linux DEs may have no tray. `npm run verify` stays rust-free and must not compile `src-tauri`.
+
+**Docs (implementation commit):** replace “system tray is deferred” in `docs/v2_known_limitations.md` (+ zh). Short user-guide (+ zh) subsection: tray shows job progress; Show restores the window; Quit uses the same running-job dialog; window close is still quit, not hide-to-tray. Desktop README (+ zh) if it still omits tray. CHANGELOG Unreleased: new S9.06 subsection. Packaging plan §5.1 D3.06 `[-]` → `[x]` with note `2026-09-05: S9.06 / #169; tray Show+Quit; tooltip job progress; no fs:/shell:`. Same on zh. Do not rewrite D3.01–D3.05 / D3.07 ticks. No `APP_VERSION` bump.
+
+**This plan (implementation commit only):** tick §3 S9.06 `[x]` (en+zh). Do not tick S9.07–S9.13.
+
+**Files:** `apps/desktop/src-tauri/Cargo.toml` (`tray-icon`); `apps/desktop/src-tauri/src/tray.rs` (new: menu ids/labels, tooltip formatter, show/quit dispatch); `apps/desktop/src-tauri/src/lib.rs` (`mod tray`; build tray in setup; poller; Quit → `handle_close_requested`); `apps/desktop/src-tauri/src/sidecar.rs` (`ActiveJobRef` + JSON parsers); `apps/desktop/src-tauri/capabilities/default.json` (must still contain no `fs:` / `shell:`); rust tests in `tray.rs` and sidecar parsers; `docs/v2_known_limitations.md`, `docs/desktop_user_guide.md`, `apps/desktop/README.md` if needed, CHANGELOG Unreleased (+ zh); packaging plan (+ zh) D3.06 tick; this plan (+ zh) §3 S9.06 tick.
+
+**Tests first:** tray menu items are Show + Quit (`tray-show` / `tray-quit`). Tooltip idle → `No active job`. Processing `current_step="Building groups"`, `progress_percent=42.4` → `Grouping and ranking · Building groups · 42%`. Import empty step + `130` → `Import · Running · 100%`. JSON parsers read `progress_percent` / `current_step`; missing percent → 0. Capabilities file has no `fs:` / `shell:`. Existing close-decision / import / processing / export cancel rust tests stay green (`ActiveJobRef` literals gain the new fields). `cargo test --lib` in `apps/desktop/src-tauri`. `npm run verify` still rust-free. Tray does not read or write original photos.
+
+**Non-goals:** hide-to-tray on close or minimize; Settings toggle; OS notifications; extra tray commands; `fs:` / `shell:` / `opener:default`; webview tray API; detached preview (S9.07); concurrency knobs (S9.08); check for updates (S9.10); `APP_VERSION`; signing; S9.07–S9.13.
 
 ### S9.07 — Detached preview
 

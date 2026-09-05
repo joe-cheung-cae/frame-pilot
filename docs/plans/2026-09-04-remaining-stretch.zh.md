@@ -48,7 +48,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 - [x] S9.03 AVIF 静帧预览 — [#163](https://github.com/joe-cheung-cae/frame-pilot/issues/163)
 - [x] S9.04 RAW 内嵌预览 — [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162)
 - [x] S9.05 XMP sidecar 导出 — [#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165)（历史 [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117)）
-- [ ] S9.06 可选系统托盘（D3.06） — [#169](https://github.com/joe-cheung-cae/frame-pilot/issues/169)
+- [x] S9.06 可选系统托盘（D3.06） — [#169](https://github.com/joe-cheung-cae/frame-pilot/issues/169)
 - [ ] S9.07 独立预览窗口 — [#166](https://github.com/joe-cheung-cae/frame-pilot/issues/166)
 - [ ] S9.08 可选导入并发旋钮 — [#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)
 - [ ] S9.09 更改数据目录 — [#170](https://github.com/joe-cheung-cae/frame-pilot/issues/170)
@@ -266,7 +266,45 @@ HTTP（比照处理取消，标志不同）：
 
 ### S9.06 — 托盘
 
-可选托盘 + 作业进度。不加新的 `fs:`/`shell:` 能力。勾选 D3.06。
+**现场空洞：** 没有托盘模块，也没有 `TrayIconBuilder`。`apps/desktop/src-tauri/Cargo.toml` 为 `tauri = { version = "2", features = [] }`（没有 `tray-icon`）。`lib.rs` 只建主窗口、原生菜单、sidecar 监督和关闭决策对话框。File Close 是 `window.close()`；File Quit 是 `app.exit(0)` → `ExitRequested` → `handle_close_requested`（`menu.rs`、`lib.rs`）。`ActiveJobRef` 只有 `{project_id, job_id, job_type, status}`，没有 `progress_percent` / `current_step`（`sidecar.rs`）。`first_active_job_from_projects_json` / `first_active_job_from_jobs_json` 忽略这些 `JobRead` 字段。状态栏已经用 `firstActiveJob` 把 queued/running 格式化成 `{type} · {step} · {percent}%`（`statusBarModel.ts`）。Capabilities `default.json` 是 `core:default` + 窗口 show/unminimize/focus + `window-state:default` + `dialog:default` + `opener:allow-reveal-item-in-dir`。**没有** `fs:` 或 `shell:`（生成的 `capabilities.json` 也没有）。`core:default` 在 ACL 清单里已经包含 `core:tray:default`。打包计划 §5.1 的 D3.06 为 `[-]`，推迟于 2026-08-28。`docs/v2_known_limitations.md` Desktop 2.1 仍写托盘已延期。桌面用户指南没有托盘小节。
+
+**身份：** 仅桌面系统托盘（D3.06 / #169）。「可选」表示它不是 2.1 DoD，且在无头/Linux 上创建可能失败；**不是**设置页勾选，也**不是**关闭即藏到托盘。桌面壳启动时总是尝试创建托盘。在 `setup` 里用 **Rust** `TrayIconBuilder` 实现。**不要**从 webview 或 `@tauri-apps/api/tray` 调托盘 API。**不要**加通知插件。进度只走 tooltip（以及主机若显示的托盘 title）。
+
+**特性：** `tauri = { version = "2", features = ["tray-icon"] }`。图标用现有 `icons/` 的 `app.default_window_icon()`。不加新图片资源。
+
+**菜单（锁定 D3.06）：** 只有 **Show**（`tray-show`）和 **Quit**（`tray-quit`）。英文标签，与 File → Quit 同类。不要加 Import/Export/Process。不要加速键（不要抢走 P/M/X）。
+
+| 事件 | 行为 |
+| -- | -- |
+| Show，或左键单击图标 | 与单实例聚焦相同：对窗口 `main` 做 `unminimize` + `show` + `set_focus`。不要隐藏。 |
+| Quit | 与 File → Quit / `WindowEvent::CloseRequested` 同一条关闭决策路径（`handle_close_requested`）。**不要**用裸 `app.exit(0)` 跳过对话框。进行中的导入 / 处理 / 导出仍是 Keep working / Quit and cancel … / Quit anyway。 |
+| 窗口关闭（X）、File → Close、File → Quit | 现有关闭对话框不变。**不要**把关闭改成藏到托盘（那会跳过取消）。 |
+| 最小化 | 不变（仍在任务栏/程序坞）。不是藏到托盘。 |
+
+**进度：** 复用 `find_active_job`。给 `ActiveJobRef` 增加 `progress_percent: i32`（JSON 浮点四舍五入再限制在 0–100；缺失 → 0）和 `current_step: String`（trim；空则按 `status` 写成 `Running` 或 `Queued`）。解析器从项目 `active_import_job` 和 `/jobs` 读这些字段。Tooltip 对齐状态栏 `jobLabel`：
+
+| 作业 | Tooltip |
+| -- | -- |
+| 无 | `No active job` |
+| 导入 queued/running | `Import · {step} · {n}%` |
+| 处理 queued/running | `Grouping and ranking · {step} · {n}%` |
+| 导出 queued/running | `Export · {step} · {n}%` |
+
+有作业时 1000 ms 轮询，空闲 5000 ms（比照 `jobsRefetchIntervalMs`）。更新 tooltip 不得碰照片文件。
+
+**Capabilities：** **不要**加 `fs:` 或 `shell:`（不要 `fs:allow-*`、`shell:allow-open`、`opener:default`）。保留 `opener:allow-reveal-item-in-dir`。托盘在 Rust 侧；不要额外加 JS 托盘权限行（`core:default` 已含 `core:tray:default`）。现有 `core:window:allow-show` / `allow-unminimize` / `allow-set-focus` 保留。
+
+**失败：** 创建托盘失败为**非致命**。记日志后继续；主窗口和 sidecar 仍启动。无头 CI 和部分 Linux 桌面可能没有托盘。`npm run verify` 保持无 Rust，不得编译 `src-tauri`。
+
+**文档（仅实现提交）：** 替换 `docs/v2_known_limitations.md`（+ zh）里的「系统托盘已延期」。用户指南（+ zh）补短小节：托盘显示作业进度；Show 恢复窗口；Quit 走同一套进行中作业对话框；关窗口仍是退出，不是藏到托盘。若桌面 README（+ zh）仍未提托盘则补一句。CHANGELOG Unreleased 增加 S9.06 小节。打包计划 §5.1 的 D3.06 从 `[-]` 改为 `[x]`，附注 `2026-09-05: S9.06 / #169; tray Show+Quit; tooltip job progress; no fs:/shell:`。中文页同样。不要改写 D3.01–D3.05 / D3.07 的勾。不改 `APP_VERSION`。
+
+**本计划（仅实现提交）：** 勾选 §3 S9.06 `[x]`（中英）。不要勾 S9.07–S9.13。
+
+**文件：** `apps/desktop/src-tauri/Cargo.toml`（`tray-icon`）；`apps/desktop/src-tauri/src/tray.rs`（新建：菜单 id/标签、tooltip 格式化、show/quit 分发）；`apps/desktop/src-tauri/src/lib.rs`（`mod tray`；在 setup 建托盘；轮询；Quit → `handle_close_requested`）；`apps/desktop/src-tauri/src/sidecar.rs`（`ActiveJobRef` + JSON 解析）；`apps/desktop/src-tauri/capabilities/default.json`（必须仍无 `fs:` / `shell:`）；`tray.rs` 与 sidecar 解析器的 Rust 测试；`docs/v2_known_limitations.md`、`docs/desktop_user_guide.md`、必要时 `apps/desktop/README.md`、CHANGELOG Unreleased（+ zh）；打包计划（+ zh）D3.06 勾选；本计划（+ zh）§3 S9.06 勾选。
+
+**测试先行：** 托盘菜单项是 Show + Quit（`tray-show` / `tray-quit`）。空闲 tooltip → `No active job`。处理 `current_step="Building groups"`、`progress_percent=42.4` → `Grouping and ranking · Building groups · 42%`。导入空 step + `130` → `Import · Running · 100%`。JSON 解析器读 `progress_percent` / `current_step`；缺 percent → 0。Capabilities 文件没有 `fs:` / `shell:`。现有关闭决策 / 导入 / 处理 / 导出取消的 Rust 测试仍绿（`ActiveJobRef` 字面量补上新字段）。在 `apps/desktop/src-tauri` 跑 `cargo test --lib`。`npm run verify` 仍无 Rust。托盘不读不写原片。
+
+**非目标：** 关闭或最小化时藏到托盘；设置页开关；操作系统通知；额外托盘命令；`fs:` / `shell:` / `opener:default`；webview 托盘 API；独立预览（S9.07）；并发旋钮（S9.08）；检查更新（S9.10）；`APP_VERSION`；签名；S9.07–S9.13。
 
 ### S9.07 — 独立预览
 

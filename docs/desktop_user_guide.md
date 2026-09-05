@@ -59,6 +59,12 @@ You can also drop files/folders on the import page only. Dropping elsewhere must
 
 ---
 
+## System tray
+
+The desktop shell attempts to create a system tray icon while FramePilot is running. Creation can fail on headless hosts or some Linux desktops; that is non-fatal and the main window still starts. The tooltip matches the status bar job line (`Import · {step} · {n}%`, grouping and ranking, or export; idle is `No active job`). **Show** (or a primary click on the icon) restores the main window. **Quit** uses the same running-job dialog as File → Quit. Closing the window or File → Close still quits; it does not hide to the tray. Minimize stays in the taskbar or dock.
+
+---
+
 ## Quit while work is running
 
 Closing with an active **import** offers Keep working / Quit and cancel import / Quit anyway. Closing with an active **processing** job offers Keep working / Quit and cancel processing / Quit anyway. Closing with an active **export** offers Keep working / Quit and cancel export / Quit anyway. Cancel POSTs the same job cancel API, waits up to 10 seconds, then SIGTERMs the sidecar. Cancelled processing clears partial groups; cancelled exports clean partial CSV/ZIP/folder artifacts; original photos stay unchanged. Quit anyway SIGTERMs the sidecar without waiting for cancel. By default the next launch interrupts leftover import/processing jobs and reclaims them; leftover exports still fail-and-cleanup. Set `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` to instead mark leftover import/processing jobs failed for manual retry. A hard kill is not labelled `cancelled`. Details: [apps/desktop/README.md](../apps/desktop/README.md).

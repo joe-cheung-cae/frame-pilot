@@ -30,6 +30,10 @@ Windows NSIS 和 macOS DMG 安装包由 `.github/workflows/desktop.yml` 产出�
 
 `npm run verify` 会对桌面 Vite 应用做类型检查（`typecheck:desktop`），**不得**调用 `rustc`、`cargo` 或 Tauri。`install:all` 已经会安装 `apps/desktop`。
 
+## 系统托盘
+
+壳会尝试创建带 **Show** 和 **Quit** 的系统托盘图标。Tooltip 显示进行中作业进度（`Import · {step} · {n}%`、分组与排序、或导出；空闲为 `No active job`）。**Show**（或左键单击）恢复主窗口。**Quit** 走与 File → Quit 同一套关闭决策对话框。关窗口仍是退出，不是藏到托盘。主机没有托盘时创建失败为非致命。不加额外的 `fs:` 或 `shell:` capabilities。
+
 ## 有任务时退出
 
 关闭窗口时若有活跃导入，显示继续工作 / 退出并取消导入 / 仍要退出。取消复用 `POST /api/projects/{id}/jobs/{job_id}/cancel`，最多等 10 秒，再 SIGTERM。活跃分组/排序任务则显示继续工作 / 退出并取消处理 / 仍要退出，同样是 POST cancel + 最多 10 秒等待 + SIGTERM。活跃导出则显示继续工作 / 退出并取消导出 / 仍要退出；取消导出会清理不完整的 CSV/ZIP/文件夹产物，原片不变。仍要退出会对 sidecar 发 SIGTERM，5 秒后杀掉。

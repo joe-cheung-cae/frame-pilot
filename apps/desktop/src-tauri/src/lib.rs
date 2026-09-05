@@ -3,6 +3,7 @@
 mod data_dir;
 mod menu;
 mod sidecar;
+mod tray;
 
 use std::process::Child;
 use std::sync::atomic::Ordering;
@@ -309,6 +310,10 @@ pub fn run() {
 
             let menu = build_app_menu(app)?;
             app.set_menu(menu)?;
+
+            if let Err(err) = tray::install_tray(app.handle(), port, Arc::clone(&setup_state)) {
+                eprintln!("FramePilot system tray is unavailable: {err}");
+            }
 
             if let Some(err) = startup_error {
                 show_blocking_error(

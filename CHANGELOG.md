@@ -6,6 +6,15 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.06 optional system tray
+
+- Desktop shell always attempts a system tray icon (Show + Quit); create failure is non-fatal on headless or some Linux desktops
+- Tooltip (and tray title where the host shows one) reports active job progress: `Import · {step} · {n}%`, grouping and ranking, or export; idle is `No active job`
+- Show or a primary click restores the main window; Quit uses the same running-job dialog as File → Quit
+- Window close and minimize are unchanged (not hide-to-tray)
+- No extra `fs:` or `shell:` capabilities; no Settings toggle; no OS notifications
+- No `APP_VERSION` bump or signing
+
 ### Phase 9 — S9.05 XMP sidecar export
 
 - Optional `include_xmp` on CSV/ZIP/folder export (default off); not a fourth export mode

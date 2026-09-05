@@ -59,6 +59,12 @@ FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，
 
 ---
 
+## 系统托盘
+
+桌面壳在 FramePilot 运行时会尝试创建系统托盘图标。无头主机或部分 Linux 桌面可能创建失败；这是非致命的，主窗口仍会启动。Tooltip 与状态栏作业行一致（`Import · {step} · {n}%`、分组与排序、或导出；空闲为 `No active job`）。**Show**（或左键单击图标）恢复主窗口。**Quit** 走与 File → Quit 同一套进行中作业对话框。关窗口或 File → Close 仍是退出，不会藏到托盘。最小化仍留在任务栏或程序坞。
+
+---
+
 ## 有任务时退出
 
 活跃**导入**时关闭，可选继续工作 / 退出并取消导入 / 仍要退出。活跃**处理**时关闭，可选继续工作 / 退出并取消处理 / 仍要退出。活跃**导出**时关闭，可选继续工作 / 退出并取消导出 / 仍要退出。取消会 POST 同一 job cancel API，最多等待 10 秒，再对 sidecar 发送 SIGTERM。取消处理会清部分分组；取消导出会清理不完整的 CSV/ZIP/文件夹产物；原图不变。仍要退出会直接 SIGTERM sidecar，不等待取消完成。默认下次启动会将残留导入/处理任务标为中断并回收；残留导出仍 fail-and-cleanup。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可改为将残留导入/处理任务标为失败以便手动重试。硬杀死不会被标记为 `cancelled`。细节见 [apps/desktop/README.zh.md](../apps/desktop/README.zh.md)。

@@ -254,7 +254,7 @@ Phase 3
 - [x] D3.03 Settings data directory (`GET /api/meta`) — GUI close-out 2026-08-31T13:10:37Z: rustc 1.98.0 / cargo 1.98.0; `cargo test --lib` **41 passed**; live `npm run dev:desktop` window title `FramePilot` (1200×800); Settings shows `/workspace/.framepilot-desktop-dev` and **Open data folder** opened Thunar. Implementation already on `main`; this run did not rewrite the settings page. See `docs/desktop_feasibility_notes.md`. `npm run test:web` green 2026-08-26.
 - [x] D3.04 System theme follow — CSS `[x]`. Visual GUI close-out 2026-08-31T13:32:55Z: rustc 1.98.0 / cargo 1.98.0; `cargo test --lib` **41 passed**; live `npm run dev:desktop` window title `FramePilot` (1200×800); desktop shell dark under system dark (`--fp-mist` 18 18 18) and light under system light (`--fp-mist` 245 247 248); browser `:3000` stayed light while Chrome chrome was dark. Implementation already on `main`; this run did not rewrite the theme. See `docs/desktop_feasibility_notes.md`.
 - [x] D3.05 Empty and error copy
-- [-] D3.06 Optional tray — deferred 2026-08-28T17:24:26+08:00. Not required for DoD. D5.05 will record the deferral. No `fs:` or `shell:` capabilities added.
+- [x] D3.06 Optional tray — 2026-09-05: S9.06 / #169; tray Show+Quit; tooltip job progress; no fs:/shell:
 - [x] D3.07 Shortcut vs menu accelerator pass — Help documents CmdOrCtrl+N/W/Q; `menu.rs` has no bare culling accelerators; `reviewShortcutCommandFromEvent` ignores modifier chords (`npm run test:web` 2026-08-28).
 
 Phase 4

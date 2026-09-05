@@ -6,6 +6,15 @@
 
 ## 未发布
 
+### 第九阶段 — S9.06 可选系统托盘
+
+- 桌面壳总是尝试创建系统托盘图标（Show + Quit）；无头或部分 Linux 桌面创建失败为非致命
+- Tooltip（以及主机若显示的托盘 title）报告进行中作业进度：`Import · {step} · {n}%`、分组与排序、或导出；空闲为 `No active job`
+- Show 或左键单击恢复主窗口；Quit 走与 File → Quit 同一套进行中作业对话框
+- 关窗口与最小化不变（不是藏到托盘）
+- 不加额外的 `fs:` 或 `shell:` capabilities；无设置页开关；无操作系统通知
+- 不改 `APP_VERSION`、不签名
+
 ### 第九阶段 — S9.05 XMP sidecar 导出
 
 - CSV/ZIP/文件夹导出上的可选 `include_xmp`（默认关）；不是第四种导出模式
