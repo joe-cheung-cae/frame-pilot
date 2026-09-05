@@ -55,7 +55,7 @@ S9.00 是本文档、§1.1 指针、GitHub issue 和工作流文件。产品工�
 - [x] S9.10 可选检查更新 — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
 - [x] S9.11 签名就绪 CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
 - [x] S9.12 macOS DMG GUI 生命周期 QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
-- [ ] S9.13 文档残留修复 — [#173](https://github.com/joe-cheung-cae/frame-pilot/issues/173)
+- [x] S9.13 文档残留修复 — [#173](https://github.com/joe-cheung-cae/frame-pilot/issues/173)
 
 ---
 
@@ -219,18 +219,42 @@ S9.01–S9.07 合同未改、已经交付。锁定的导出取消、暂停、AVI
 
 ### S9.13 — 文档残留修复
 
-对齐 `docs/desktop_development_plan.zh.md` §2.2；已知限制；README；CHANGELOG；`implement_goals.zh.md`。在对应框变成 `[x]` 之前，不要声称 2.2 项已完成。PR 正文只在本 issue 之后才可写 `Fixes`。
+对齐 `docs/desktop_development_plan.zh.md` §2.2；已知限制；README；CHANGELOG；`implement_goals.zh.md`。在对应 S9 框变成 `[x]` 之前，不要声称 2.2 项已完成。PR 正文只在本 issue 之后才可写 `Fixes`。
+
+**现场空洞：** `docs/desktop_development_plan.md`（+ zh）§2.2 里 `2.1.0-desktop` 的 DoD 框仍全部 `[ ]`，包括已经交付的 sidecar 生命周期、原生选择器、回环、D2.00 和 CI 安装包构建。§2.2 范围外句子、§5.4、§5.6 仍把独立预览、导入并发、检查更新、托盘、数据目录指向 2.2，尽管 S9.06–S9.10 已是 `[x]`。§10 仍把那些列为 2.2，并把 HEIC/RAW/XMP 列为更后的 3.x（第八/九阶段已交付）。已知限制 Desktop 2.1 已记录 S9.06–S9.12。README 桌面打包只写到签名就绪。CHANGELOG Unreleased 有 S9.00–S9.12，没有收口。`implement_goals.md` 仍写从 S9.13 开始。#173：有证据的 2.1 DoD 勾上；其余框改指向 S9.xx；对应 issue 未 `[x]` 前不要声称 2.2 已完成；在 S9 issue 上评论最终 SHA；PR 正文只在本 issue 之后才可写 Fixes。
+
+**身份：** 仅文档残留修复。不改生产 Rust / Python / TypeScript。不改 `APP_VERSION`。永不修改原片。不要发明第十阶段。
+
+**§2.2 勾选规则：** 只勾已经交付的 2.1.0-desktop DoD 行：sidecar 自动管理、原生选择器/拖放、核心工作流对等、原片安全、安装/构建文档、CI 安装包构建（签名就绪 / 可后续完善）、回环 Host/Origin、D2.00 授权。**不要**勾「Windows 与 macOS 均可通过标准安装包安装并运行」：Windows NSIS GUI 是 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)（pass）；macOS DMG GUI 是 S9.12 **skip，不是 pass**（`2026-09-05T12:31:10Z`）。该行保持 `[ ]`，加一行 Windows-pass / macOS-skip 指针。不要编造包装桌面 ≥500 GUI pass；除非活文档已有记录，否则该行保持 `[ ]`。
+
+**锁定（需求拆解）：** Web Playwright `test:e2e:real-browser:large` 和 API `perf:api` 500 **不是**包装桌面 GUI 证据 — **不要**勾 ≥500。真正剩余项的 Target = **未排期**，绝不要 Phase 10 / 2.3。收口后 `develop_plan.md` §1.1 **下一步**写：第九阶段 remaining-stretch 已关闭（S9.00–S9.13）；没有未完成的 S9 id；停止。`implement_goals.md`（+ zh）不得再写从 S9.13 开始。§5.4 保持原则清单；就地标注已交付残留（托盘 S9.06、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10）；把 cache 旋钮拆成仍延后。§5.6 拆开并发 vs cache；已交付 Target = S9.0x `[x]`；剩余 Target = 延后（未排期）。§10 不得把已交付的 S9 残留或 HEIC/RAW/XMP 写成未交付的 3.x。
+
+**§5.4 / §5.6 / §10：** 把已交付残留改指向对应 S9 id（`[x]`）：托盘 S9.06、独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10。真正剩下的继续延后：cache 旋钮、自动下载安装（`tauri-plugin-updater` / `latest.json`）、处理池、完整 RAW 显影、SmartScreen/商店上架、macOS GUI pass。不要把 HEIC/RAW/XMP 改写成未交付的 3.x。
+
+**活指针：** 本切片之后，`develop_plan.md` §1.1（+ zh）和 `implement_goals.md`（+ zh）不得再把 S9.13 写成下一步。第九阶段收口；若没有未完成的 S9 id，停止。不要发明第十阶段。
+
+**已知限制 / README / CHANGELOG：** 保留 S9.12 skip ≠ pass；不要声称双平台安装包 GUI DoD。可选一行：桌面计划里的 2.2 残留已由 S9 交付，除 cache / 自动安装 / macOS GUI pass。README（+ zh）：短桌面收口指针指向用户指南和已知限制；不要罗列每个 S9 功能。CHANGELOG Unreleased：只加 S9.13 小节。
+
+**PR / issue（实现或 上线，不是本次 需求拆解 提交）：** 草稿 PR [#174](https://github.com/joe-cheung-cae/frame-pilot/pull/174) 已存在；不要开第二份 PR。只在本 issue 的 上线 才可把正文改成 `Fixes #173`（#160 和其他子编号保持 `Refs`）。在 #173 评论实现 SHA。不要合并进 main。不要 squash。不要 force-push。
+
+**本计划（仅实现提交）：** 勾选 §3 S9.13 `[x]`（中英）。勾选变为真的 §6 行。提交说明 `docs: close out remaining stretch S9`。本次 需求拆解 提交**不要**勾 §3。
+
+**文件：** `docs/desktop_development_plan.md`（+ zh）§2.2、§2.2 范围外句子、§5.4、§5.6、§10；`docs/v2_known_limitations.md`（+ zh）；`README.md`（+ zh）；`CHANGELOG.md`（+ zh）Unreleased；`implement_goals.md`（+ zh）；`develop_plan.md` §1.1（+ zh）。可选在 `docs/v2_release_candidate_checklist.md`（+ zh）下一步指针加一行。不要改生产应用代码、`desktop.yml` 或 `verify.yml`。
+
+**测试先行：** 仅文档。`npm run verify` 仍不依赖 Rust 且绿灯。改过的页面之间 markdown 链接保持有效。不加新的 pytest/Playwright。不要启动 DMG。
+
+**非目标：** 产品功能；声称 macOS GUI pass 或双平台安装包 DoD；自动更新安装；cache 旋钮；处理池；完整 RAW 显影；发明第十阶段；`APP_VERSION`；证书；相机文件；捆绑模型；第二份 PR；合并进 main。
 
 ---
 
 ## 6. 完成定义（整项）
 
 - [x] §1.1 点名 S9.00–S9.13，并禁止发明第十阶段
-- [ ] S9.01–S9.13 各自 `[x]`，且带 §4 的提交说明
-- [ ] 测试中原片从未被修改
+- [x] S9.01–S9.13 各自 `[x]`，且带 §4 的提交说明
+- [x] 测试中原片从未被修改
 - [ ] S9.13 上线 前分支尖上 `npm run verify` 绿灯
-- [ ] `feature/remaining-stretch` 只有一份草稿 PR；`Refs #160` 加子编号；S9.13 之前不要 `Fixes`
-- [ ] 不改 `APP_VERSION`，无证书，无相机文件，无模型权重
+- [x] `feature/remaining-stretch` 只有一份草稿 PR；`Refs #160` 加子编号；S9.13 之前不要 `Fixes`
+- [x] 不改 `APP_VERSION`，无证书，无相机文件，无模型权重
 
 ---
 

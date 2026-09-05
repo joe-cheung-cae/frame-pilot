@@ -2,9 +2,9 @@
 
 > Language: **English** | [中文](desktop_development_plan.zh.md)
 
-> **Document version**: 1.2  
+> **Document version**: 1.3  
 > **Created**: 2026-08-18  
-> **Last reviewed**: 2026-08-18 Claude Opus 5 (review findings were folded into `docs/plans/2026-08-18-desktop-packaging.md`; the original review file was deleted as redundant)  
+> **Last reviewed**: 2026-09-05 (S9.13 leftover repair; Phase 9 remaining-stretch close-out)  
 > **Goal**: Redesign and package the current local web app (v2.0.0-rc2) as installable Windows and macOS desktop apps  
 > **Repository**: https://github.com/joe-cheung-cae/frame-pilot  
 > **Related existing plan**: `develop_plan.md` already lists “Local desktop packaging with Tauri or Electron” as a stretch goal; this document productizes it.  
@@ -41,18 +41,18 @@ The current architecture is already “local process + local HTTP”, so it is a
 
 ### 2.2 Definition of Done (first desktop version `2.1.0-desktop`)
 
-- [ ] Windows and macOS both install and run from standard installer packages
-- [ ] The app auto-manages the Python sidecar on launch; users do not notice the backend process
-- [ ] Native folder pickers and drag-and-drop import are used
-- [ ] All existing core features work and behave the same as current v2
-- [ ] Original-file safety rules and local-first principles remain unchanged
-- [ ] Large projects (≥500 photos) do not crash; memory use is acceptable
-- [ ] User install notes and developer build docs are provided
-- [ ] CI can auto-build installers for both platforms (code signing can be completed later)
-- [ ] The desktop sidecar listens only on 127.0.0.1 and rejects non-loopback Host and unauthorized Origin
-- [ ] User-chosen project root directories are accepted only after explicit authorization (see implementation plan D2.00)
+- [ ] Windows and macOS both install and run from standard installer packages — Windows NSIS GUI pass ([#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)); macOS DMG GUI is S9.12 **skip, not pass** (`2026-09-05T12:31:10Z`). Dual-platform installer GUI DoD is not claimed.
+- [x] The app auto-manages the Python sidecar on launch; users do not notice the backend process
+- [x] Native folder pickers and drag-and-drop import are used
+- [x] All existing core features work and behave the same as current v2
+- [x] Original-file safety rules and local-first principles remain unchanged
+- [ ] Large projects (≥500 photos) do not crash; memory use is acceptable — web Playwright `test:e2e:real-browser:large` and API `perf:api` 500 are not packaged-desktop GUI evidence
+- [x] User install notes and developer build docs are provided
+- [x] CI can auto-build installers for both platforms (code signing can be completed later)
+- [x] The desktop sidecar listens only on 127.0.0.1 and rejects non-loopback Host and unauthorized Origin
+- [x] User-chosen project root directories are accepted only after explicit authorization (see implementation plan D2.00)
 
-Out of scope for `2.1.0-desktop` (see §5.6 deferred list): detached preview window, concurrency/cache performance options, auto-update, and system tray (optional if time allows).
+Out of scope for `2.1.0-desktop` (see §5.6): leftover 2.2 items Phase 9 shipped (detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10, tray S9.06). Still deferred (unscheduled): cache knobs, auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, packaged-desktop ≥500 GUI, and macOS GUI pass. Do not invent Phase 10 / 2.3.
 
 ---
 
@@ -158,9 +158,9 @@ The existing culling workspace already has a strong keyboard-first design. Deskt
 ### 5.4 Settings and system integration
 
 - Theme follows the system (dark / light)
-- Data-directory management and performance options (concurrency, cache)
-- Optional system tray (show progress during background work)
-- About page and a check-for-updates entry
+- Data-directory management (shipped S9.09) and performance options: import workers 1–4 (shipped S9.08); cache knobs remain deferred (unscheduled)
+- Optional system tray (shipped S9.06; show progress during background work)
+- About page and a check-for-updates entry (menu check shipped S9.10; auto-download/install remains deferred)
 
 ### 5.5 Visual consistency
 
@@ -169,13 +169,21 @@ The existing culling workspace already has a strong keyboard-first design. Deskt
 
 ### 5.6 Explicitly deferred (not in `2.1.0-desktop`)
 
-| Item | Reason | Target version |
+Leftover 2.2 items that Phase 9 shipped are retargeted to their S9 ids. Remaining items stay deferred (unscheduled). Do not invent Phase 10 / 2.3.
+
+| Item | Reason | Target |
 |------|------|----------|
-| Detached preview window (§5.3) | Needs a second WebView, cross-window state sync, and a second keyboard-focus manager | 2.2 |
-| Performance options: concurrency, cache (§5.4) | Backend import/processing is currently single-thread sequential; a concurrency model is required first | 2.2 |
-| Auto-update and “Check for updates” entry (§5.4, §6 Phase 4) | Needs a hosted update manifest; must stay strictly optional and must not block launch | 2.2 |
-| System tray (§5.4) | Not a DoD item; implement only if Phase 3 finishes early (D3.06) | 2.1 optional / 2.2 |
-| Changing the data directory (§5.4) | Involves migration and project-path rewrite; 2.1 is read-only display only (D3.03) | 2.2 |
+| Detached preview window (§5.3) | Second WebView, shared selection, focused-window culling keys | S9.07 [x] |
+| Import worker concurrency (§5.4) | Opt-in 1–4 import derivative workers; default 1 | S9.08 [x] |
+| Cache knobs (§5.4) | Cache size / eviction UI is still out | deferred (unscheduled) |
+| Check for updates (§5.4) | Help-menu GitHub Releases query; no launch-time network | S9.10 [x] |
+| Auto-download/install (`tauri-plugin-updater` / `latest.json`) | Must stay optional and must not block launch | deferred (unscheduled) |
+| System tray (§5.4) | Optional D3.06; tooltip job progress | S9.06 [x] |
+| Changing the data directory (§5.4) | Copy + rewrite stored paths under the old data dir | S9.09 [x] |
+| Processing pool | One processing job per project remains | deferred (unscheduled) |
+| Full RAW develop | Embedded preview only (S9.04); no demosaic | deferred (unscheduled) |
+| SmartScreen / store listing | Signing-ready CI is S9.11; not a store release | deferred (unscheduled) |
+| Packaged macOS GUI pass | S9.12 recorded skip, not pass (`2026-09-05T12:31:10Z`) | deferred (unscheduled) |
 
 If any of the above is skipped, it must be written into [docs/v2_known_limitations.md](v2_known_limitations.md) (D5.05).
 
@@ -390,8 +398,9 @@ On top of existing `npm run verify`, API pytest, frontend unit, and E2E, add:
 |------|------|
 | 2.0.x | Continue stabilizing the current local Web rc |
 | 2.1.0-desktop | First official desktop installer release (locked) |
-| 2.2 | Deferred items: detached preview window, performance options, auto-update, tray, and similar |
-| Later 3.x | HEIC/RAW, XMP sidecar, optional local models, following the original develop_plan |
+| Phase 8 | HEIC/HEIF still preview (shipped) |
+| Phase 9 | Remaining stretch S9.00–S9.13 (closed): AVIF, RAW embedded preview, XMP export, tray, detached preview, import workers, data-dir, check-for-updates, signing-ready CI, macOS QA skip, docs leftover repair |
+| Unscheduled | Cache knobs, auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, macOS GUI pass. Do not invent Phase 10 / 2.3 |
 
 Suggested release channels:
 
@@ -451,6 +460,7 @@ Implementation-level task split and Goal Mode prompts (based on the 2026-08-18 r
 | 2026-08-18 | 1.0 | First version: complete desktop (Win/macOS) development plan based on frame-pilot v2.0.0-rc2 |
 | 2026-08-18 | 1.1 | Add implementation-plan and Goal Mode entry points: `docs/plans/2026-08-18-desktop-packaging.md`, `docs/desktop_goal_mode.md` |
 | 2026-08-18 | 1.2 | Align after Opus 5 review: lock Vite dual-shell, `2.1.0-desktop`, WSL-aware Phase 0 acceptance, §5.6 deferred list |
+| 2026-09-05 | 1.3 | S9.13 leftover repair: tick shipped 2.1 DoD; retarget leftover 2.2 items to S9 ids; remaining Target = unscheduled |
 
 ---
 

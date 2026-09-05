@@ -10,7 +10,7 @@ FramePilot v2 应把现有 v1 MVP 演进为可靠的本地优先照片筛选工�
 
 当你希望 Codex 自主但安全地继续开发本项目时，在 Codex Goal Mode 中使用这些提示词。
 
-现行下一步指针是 `develop_plan.md` §1.1。第八阶段 HEIC 静帧预览（H8.01–H8.06）已经交付。交付第九阶段是剩余 stretch S9.00–S9.13（`docs/plans/2026-09-04-remaining-stretch.md`）；S9.00–S9.12 已落地。**每次运行只实现一个 S9 issue**，除非 §1.1 点名更靠后的未完成 id，否则从 S9.13 开始。不要发明第十阶段。长时提示词里的 Phase 0–7 / v2.0–v2.6 列表是历史产品排序。交付上的第七阶段是处理作业取消，已经交付；不要把 Goal Mode 的「Phase 7: v2.6」当成当前工作。
+现行下一步指针是 `develop_plan.md` §1.1。第八阶段 HEIC 静帧预览（H8.01–H8.06）已经交付。交付第九阶段 remaining-stretch（S9.00–S9.13，`docs/plans/2026-09-04-remaining-stretch.md`）已关闭。若 §1.1 没有未完成的 S9 id，停止。不要发明第十阶段。长时提示词里的 Phase 0–7 / v2.0–v2.6 列表是历史产品排序。交付上的第七阶段是处理作业取消，已经交付；不要把 Goal Mode 的「Phase 7: v2.6」当成当前工作。
 
 ## 2. 长时间自动迭代提示词
 
@@ -100,7 +100,7 @@ Before starting implementation:
 3. Do not overwrite user changes.
 4. If the working tree is dirty because of previous Codex work, either continue from it safely or commit only after tests pass.
 5. Read `develop_plan.md` §1.1 first. That subsection is the living next-slice pointer. Stretch lists later in `develop_plan.md` and the Phase 0–7 / v2.0–v2.6 list below are historical product sequencing. Do not reopen a shipped item.
-6. The current numbered Goal Mode target is **Phase 9 remaining stretch**, one S9 issue at a time. Phase 8 HEIC still preview is shipped; do not re-implement it. Do not invent Phase 10. Implement only the slice §1.1 names next (S9.13 docs leftover repair until that box is `[x]`). Do not implement later S9 ids in the same run. If §1.1 has no unfinished S9 id, stop rather than picking from historical lists.
+6. Phase 9 remaining stretch is closed (S9.00–S9.13). Phase 8 HEIC still preview is shipped; do not re-implement it. Do not invent Phase 10. If §1.1 has no unfinished S9 id, stop rather than picking from historical lists.
 
 Numbering warning:
 - Goal Mode “Phase 7: v2.6 Optional Advanced Support” is **not** delivery Phase 7. Delivery Phase 7 is processing job cancel (J7.01–J7.06) and already shipped.
@@ -291,7 +291,7 @@ Phase 7: v2.6 Optional Advanced Support (historical Goal Mode label — do not e
 This list bundled HEIC, RAW, and optional models. That numbering is not the living pointer.
 - Delivery Phase 7 is cooperative processing job cancel (J7.01–J7.06) and already shipped. Pause/resume (J7.07) is not DoD.
 - HEIC still preview is delivery Phase 8 (shipped). Do not follow this v2.6 bundle.
-- RAW preview, AVIF, and XMP are Phase 9 issues (S9.03–S9.05); optional models remain deferred. Do not start them unless §1.1 names that id as next.
+- RAW preview, AVIF, and XMP shipped as Phase 9 (S9.03–S9.05); optional models remain deferred (unscheduled). Do not invent Phase 10.
 
 Rules:
 - Do not bundle large model files.
@@ -304,13 +304,13 @@ Goal:
 Local HEIC/HEIF still preview only. Already on `main` (H8.01–H8.06).
 
 Requirements:
-- Do not re-run `docs/plans/2026-09-04-heic-preview.md`.
+- Do not re-run `docs/plans/2026-09-04-heic-preview.md` or Phase 9 leftovers.
 - Do not invent Phase 10.
-- Do not implement RAW preview, AVIF, XMP, signing, export cancel, D3.06 tray, or J7.07 pause unless `develop_plan.md` §1.1 names that S9 id as the next slice.
+- If `develop_plan.md` §1.1 has no unfinished S9 id, stop.
 
 Acceptance criteria:
 - The Phase 8 Definition of Done in that plan is already ticked.
-- If §1.1 has no unfinished S9 id, do not start a new implementation loop.
+- Phase 9 remaining-stretch is closed (S9.00–S9.13). If §1.1 has no unfinished S9 id, do not start a new implementation loop.
 
 Per-iteration workflow details:
 

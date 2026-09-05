@@ -55,7 +55,7 @@ Phase 9 — remaining stretch (post Phase 8)
 - [x] S9.10 Optional check for updates — [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)
 - [x] S9.11 Signing-ready CI — [#171](https://github.com/joe-cheung-cae/frame-pilot/issues/171)
 - [x] S9.12 macOS DMG GUI lifecycle QA — [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)
-- [ ] S9.13 Docs leftover repair — [#173](https://github.com/joe-cheung-cae/frame-pilot/issues/173)
+- [x] S9.13 Docs leftover repair — [#173](https://github.com/joe-cheung-cae/frame-pilot/issues/173)
 
 ---
 
@@ -219,18 +219,42 @@ Record per the matrix template: date / OS / `APP_VERSION` from `GET /health`, wh
 
 ### S9.13 — Docs leftover repair
 
-Align `docs/desktop_development_plan.md` §2.2; known limitations; README; CHANGELOG; `implement_goals.md`. Do not claim 2.2 items done until their boxes are `[x]`. PR body may say `Fixes` only after this issue.
+Align `docs/desktop_development_plan.md` §2.2; known limitations; README; CHANGELOG; `implement_goals.md`. Do not claim 2.2 items done until their S9 boxes are `[x]`. PR body may say `Fixes` only after this issue.
+
+**Hole (live tree):** `docs/desktop_development_plan.md` (+ zh) §2.2 still has every `2.1.0-desktop` DoD box `[ ]`, including sidecar lifecycle, native pickers, loopback, D2.00, and CI installer builds that already shipped. The §2.2 out-of-scope sentence, §5.4, and §5.6 still target 2.2 for detached preview, import concurrency, check-for-updates, tray, and data-dir even though S9.06–S9.10 are `[x]`. §10 still lists those as 2.2 and HEIC/RAW/XMP as later 3.x (Phase 8/9 shipped them). Known limitations Desktop 2.1 already records S9.06–S9.12. README desktop packaging is signing-ready only. CHANGELOG Unreleased has S9.00–S9.12 and no close-out. `implement_goals.md` still says start at S9.13. #173: 2.1 DoD met where evidence exists; remaining boxes retarget to S9.xx; do not claim 2.2 items done until their issues are `[x]`; comment final SHA on S9 issues; PR body may say Fixes only after this issue.
+
+**Identity:** Docs-only leftover repair. No production Rust / Python / TypeScript. No `APP_VERSION` bump. Originals never modified. Do not invent Phase 10.
+
+**§2.2 tick rules:** Tick `[x]` only for 2.1.0-desktop DoD rows that already shipped: sidecar auto-manage, native pickers/DnD, core workflow parity, original-file safety, install/build docs, CI installer builds (signing-ready / later), loopback Host/Origin, D2.00 authorize. **Do not** tick “Windows and macOS both install and run from standard installer packages”: Windows NSIS GUI is [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) (pass); macOS DMG GUI is S9.12 **skip, not pass** (`2026-09-05T12:31:10Z`). Leave that row `[ ]` with a one-line Windows-pass / macOS-skip pointer. Do not invent a packaged-desktop ≥500 GUI pass; leave that row `[ ]` unless living docs already record one.
+
+**Lock (需求拆解):** Web Playwright `test:e2e:real-browser:large` and API `perf:api` 500 are **not** packaged-desktop GUI evidence — do **not** tick ≥500. Remaining deferred Target = **unscheduled**, never Phase 10 / 2.3. After close-out, `develop_plan.md` §1.1 **Next** is: Phase 9 remaining-stretch is closed (S9.00–S9.13); no unfinished S9 id; stop. `implement_goals.md` (+ zh) must stop saying start at S9.13. §5.4 stays a principles list; annotate shipped leftovers in-place (tray S9.06, import workers S9.08, data-dir S9.09, check-for-updates S9.10); split cache knobs as still deferred. §5.6 split concurrency vs cache; shipped Target = S9.0x `[x]`; remaining Target = deferred (unscheduled). §10 must not list shipped S9 leftovers or HEIC/RAW/XMP as unshipped 3.x.
+
+**§5.4 / §5.6 / §10:** Retarget shipped leftovers to their S9 ids (`[x]`): tray S9.06, detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10. Keep truly remaining items deferred: cache knobs, auto-download/install (`tauri-plugin-updater` / `latest.json`), processing pool, full RAW develop, SmartScreen/store listing, macOS GUI pass. Do not rewrite HEIC/RAW/XMP as unshipped 3.x.
+
+**Living pointer:** After this slice, `develop_plan.md` §1.1 (+ zh) and `implement_goals.md` (+ zh) must stop naming S9.13 as next. Phase 9 close-out; if no unfinished S9 id, stop. Do not invent Phase 10.
+
+**Known limitations / README / CHANGELOG:** Keep the S9.12 skip ≠ pass bullet; do not claim dual-platform installer GUI DoD. Optional one-line that leftover desktop-plan 2.2 items are S9-shipped except cache / auto-install / macOS GUI pass. README (+ zh): short desktop close-out pointer to the user guide and known limitations; do not dump every S9 feature. CHANGELOG Unreleased: new S9.13 subsection only.
+
+**PR / issues (implementation or 上线, not this 需求拆解 commit):** Draft PR [#174](https://github.com/joe-cheung-cae/frame-pilot/pull/174) already exists; do not open a second PR. Body may add `Fixes #173` only in this issue’s 上线 (keep `Refs` for #160 and the other children). Comment the implementation SHA on #173. Do not merge to main. Do not squash. Do not force-push.
+
+**This plan (implementation commit only):** tick §3 S9.13 `[x]` (en+zh). Tick §6 rows that become true. Commit subject `docs: close out remaining stretch S9`. This 需求拆解 commit does **not** tick §3.
+
+**Files:** `docs/desktop_development_plan.md` (+ zh) §2.2, the §2.2 out-of-scope sentence, §5.4, §5.6, §10; `docs/v2_known_limitations.md` (+ zh); `README.md` (+ zh); `CHANGELOG.md` (+ zh) Unreleased; `implement_goals.md` (+ zh); `develop_plan.md` §1.1 (+ zh). Optional one-line on `docs/v2_release_candidate_checklist.md` (+ zh) next-slice pointer. Do not edit production app code, `desktop.yml`, or `verify.yml`.
+
+**Tests first:** Docs-only. `npm run verify` stays rust-free and green. Markdown links among touched pages stay valid. No new pytest/Playwright. Do not launch a DMG.
+
+**Non-goals:** product features; claiming a macOS GUI pass or dual-platform installer DoD; auto-update install; cache knobs; processing pool; full RAW develop; inventing Phase 10; `APP_VERSION`; certs; camera files; bundled models; a second PR; merging to main.
 
 ---
 
 ## 6. Definition of Done (program)
 
 - [x] §1.1 names S9.00–S9.13 and forbids inventing Phase 10
-- [ ] S9.01–S9.13 each `[x]` with the commit subject in §4
-- [ ] Originals never modified in tests
+- [x] S9.01–S9.13 each `[x]` with the commit subject in §4
+- [x] Originals never modified in tests
 - [ ] `npm run verify` green on the branch tip before S9.13 上线
-- [ ] One draft PR for `feature/remaining-stretch`; `Refs #160` plus the child numbers; no `Fixes` until S9.13
-- [ ] No `APP_VERSION` bump, no certs, no camera files, no model weights
+- [x] One draft PR for `feature/remaining-stretch`; `Refs #160` plus the child numbers; no `Fixes` until S9.13
+- [x] No `APP_VERSION` bump, no certs, no camera files, no model weights
 
 ---
 

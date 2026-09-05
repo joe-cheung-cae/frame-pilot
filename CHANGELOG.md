@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Phase 9 — S9.13 docs leftover repair
+
+- Align `docs/desktop_development_plan.md` §2.2 DoD ticks with shipped 2.1 evidence; Windows-pass / macOS-skip on dual-platform installer GUI; do not tick packaged-desktop ≥500
+- Retarget leftover 2.2 items to S9.06–S9.10 `[x]`; remaining Target = unscheduled (cache knobs, auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, macOS GUI pass)
+- §10 no longer lists shipped S9 leftovers or HEIC/RAW/XMP as unshipped 3.x
+- Living pointer: Phase 9 remaining-stretch is closed (S9.00–S9.13); no unfinished S9 id; stop
+- No `APP_VERSION` bump, no production app change, no certs
+
 ### Phase 9 — S9.12 macOS DMG GUI lifecycle QA
 
 - Recorded **skip, not pass** at `2026-09-05T12:31:10Z` — no Darwin host; packaged DMG GUI rows in [docs/desktop_testing.md](docs/desktop_testing.md) are dated skip, none `[x]`

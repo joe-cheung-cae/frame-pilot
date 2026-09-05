@@ -99,6 +99,7 @@ v2.0 不支持云图库、共享团队项目、自动删除原图、远程 AI �
 - HEIC/HEIF 静帧以及带内嵌预览的 RAW 可本地导入（与 web 应用相同）。没有预览的 RAW 以本地提示跳过。
 - **检查更新**仅在 Help 菜单（启动时不联网）。它查询 GitHub Releases，不下载、不安装。清单缺失为非致命 no-op。未签名构建仍可启动。用户仍需手动安装新构建。
 - CI 已**签名就绪**：完整 GitHub Actions secret 集在场时会做 Authenticode / Developer ID + 公证。缺少 secrets 时保持**未签名**上传绿灯。见 [桌面代码签名手册](desktop_signing.zh.md)。
+- 桌面计划里的 2.2 残留已由第九阶段交付（托盘 S9.06、独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10），除 cache 旋钮、自动下载安装和 macOS GUI pass。不声称双平台安装包 GUI DoD。
 - **包装 macOS DMG GUI 生命周期为 skip，不是 pass**（S9.12，[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)，`2026-09-05T12:31:10Z`）。开发主机是 Linux/WSL2（`uname -s` 不是 Darwin）；未挂载或启动 DMG。skip 不是 macOS pass。Windows NSIS GUI 生命周期记在 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)（仅 Windows）。见 [桌面测试矩阵](desktop_testing.zh.md)。
 - **WSL 可能无法运行 GUI**（需要 rustc ≥1.88 与显示）；HTTP/API 冒烟仍可用。见 [桌面测试矩阵](desktop_testing.zh.md)。
 - 存储为**仅复制模式**（不支持相机卡原地引用）。

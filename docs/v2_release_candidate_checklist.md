@@ -17,8 +17,9 @@ This file remains the **v2.0 RC decision record** (verification run dated 2026-0
 - Phase 7 cooperative processing job cancel (J7.01–J7.06)
 - Unsigned Windows NSIS GUI lifecycle QA ([#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144), Windows-only)
 - Phase 8 local HEIC/HEIF still preview (H8.01–H8.06)
+- Phase 9 remaining-stretch close-out (S9.00–S9.13)
 
-**Next on `main`:** Phase 9 remaining-stretch close-out (S9.00–S9.13), one GitHub issue per run. S9.00–S9.12 are landed; start at S9.13. Do not invent Phase 10. Job durability, desktop packaging, processing cancel, and HEIC preview in the sections below describe the 2026-06-05 rc2 product unless a later-slice note says otherwise. See `develop_plan.md` §1.1 and `docs/plans/2026-09-04-remaining-stretch.md`.
+**Next on `main`:** Phase 9 remaining-stretch is closed (S9.00–S9.13); no unfinished S9 id; stop. Do not invent Phase 10. Job durability, desktop packaging, processing cancel, and HEIC preview in the sections below describe the 2026-06-05 rc2 product unless a later-slice note says otherwise. See `develop_plan.md` §1.1 and `docs/plans/2026-09-04-remaining-stretch.md`.
 
 ## Implemented v2.0 Features
 
@@ -108,7 +109,7 @@ Do not make the 2,000-photo real browser-backend workflow a v2.0 release gate un
 - Generated thumbnails, previews, caches, logs, exports, project databases, browser traces, generated photos, and test artifacts must not be committed.
 - No cloud upload, login, payment, telemetry requirement, remote photo processing, or collaboration service is required for v2.0.
 - No large model files are committed.
-- HEIC, RAW, optional AI models, desktop packaging, and XMP sidecar writing are deferred in this **rc2** record. Desktop packaging later shipped as `2.1.0-desktop`. HEIC still preview later shipped as Phase 8. RAW, optional models, and XMP remain deferred.
+- HEIC, RAW, optional AI models, desktop packaging, and XMP sidecar writing are deferred in this **rc2** record. Desktop packaging later shipped as `2.1.0-desktop`. HEIC still preview later shipped as Phase 8. RAW embedded preview and XMP later shipped as S9.04 / S9.05. Optional models remain deferred (unscheduled).
 
 ## Job System Limitations
 
@@ -145,8 +146,8 @@ The following bullets are the **2026-06-05 rc2** job contract. On current `main`
 Historical rc2 list. Later slices on `main` are noted in parentheses.
 
 - HEIC support. (Phase 8, H8.01–H8.06; shipped)
-- RAW and embedded RAW preview extraction.
-- XMP sidecar export.
+- RAW and embedded RAW preview extraction. (S9.04; shipped)
+- XMP sidecar export. (S9.05; shipped)
 - Optional local AI models.
 - Durable external or separate local worker process. (Phase 6 shipped a local SQLite-polled worker and in-process reclaim; not an external queue)
 - Desktop packaging. (shipped as unsigned `2.1.0-desktop` RC)
@@ -178,4 +179,4 @@ Historical rc2 list. Later slices on `main` are noted in parentheses.
 - Optional: a license-clear photographer burst/session set, and a 2,000-photo real browser-backend run, before later milestones.
 - Revisit durable local worker architecture with measured failure modes.
 - Continue culling workspace maintainability only through focused, tested extractions.
-- XMP sidecar export and RAW preview are Phase 9 issues S9.05 and S9.04 (`docs/plans/2026-09-04-remaining-stretch.md`). HEIC still preview shipped as Phase 8 (`docs/plans/2026-09-04-heic-preview.md`). Do not invent Phase 10.
+- Phase 9 remaining-stretch is closed (S9.00–S9.13). HEIC still preview shipped as Phase 8. Remaining deferred (unscheduled): cache knobs, auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, macOS GUI pass. Do not invent Phase 10.

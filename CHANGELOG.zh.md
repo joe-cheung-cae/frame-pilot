@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 第九阶段 — S9.13 文档残留修复
+
+- 对齐 `docs/desktop_development_plan.zh.md` §2.2 已交付的 2.1 DoD 勾选；双平台安装包 GUI 为 Windows-pass / macOS-skip；不勾包装桌面 ≥500
+- 已交付的 2.2 残留改指向 S9.06–S9.10 `[x]`；剩余 Target = 未排期（cache 旋钮、自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、macOS GUI pass）
+- §10 不再把已交付的 S9 残留或 HEIC/RAW/XMP 写成未交付的 3.x
+- 活指针：第九阶段 remaining-stretch 已关闭（S9.00–S9.13）；没有未完成的 S9 id；停止
+- 不改 `APP_VERSION`，不改生产应用，无证书
+
 ### 第九阶段 — S9.12 macOS DMG GUI 生命周期 QA
 
 - 于 `2026-09-05T12:31:10Z` 记为 **skip，不是 pass** — 没有 Darwin 主机；[docs/desktop_testing.zh.md](docs/desktop_testing.zh.md) 中包装 DMG GUI 行为带日期 skip，无一 `[x]`

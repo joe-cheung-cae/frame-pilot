@@ -148,7 +148,7 @@ See [FramePilot v2 Algorithm Strategy](docs/v2_algorithm_strategy.md) for groupi
 
 ## Desktop packaging
 
-CI is signing-ready: Windows Authenticode and macOS Developer ID + notarization run when the full GitHub Actions secret set is present. Missing secrets keep the **unsigned** NSIS/DMG upload green for internal testing. Expect SmartScreen / Gatekeeper warnings on unsigned packages; do not treat them as public releases. See [Desktop Code Signing Runbook](docs/desktop_signing.md) and the [Desktop User Guide](docs/desktop_user_guide.md). Missing certificates must not block the first desktop RC. Manual checks: [Desktop Testing Matrix](docs/desktop_testing.md).
+CI is signing-ready: Windows Authenticode and macOS Developer ID + notarization run when the full GitHub Actions secret set is present. Missing secrets keep the **unsigned** NSIS/DMG upload green for internal testing. Expect SmartScreen / Gatekeeper warnings on unsigned packages; do not treat them as public releases. See [Desktop Code Signing Runbook](docs/desktop_signing.md) and the [Desktop User Guide](docs/desktop_user_guide.md). Missing certificates must not block the first desktop RC. Manual checks: [Desktop Testing Matrix](docs/desktop_testing.md). Phase 9 leftover desktop-plan 2.2 items shipped except cache knobs, auto-download/install, and macOS GUI pass; dual-platform installer GUI DoD is not claimed (Windows NSIS pass; macOS DMG skip). See [Known Limitations](docs/v2_known_limitations.md).
 
 ## Privacy
 

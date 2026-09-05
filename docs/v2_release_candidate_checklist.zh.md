@@ -17,8 +17,9 @@ FramePilot v2.0 是面向 JPEG、PNG 和 WebP 照片筛选的本地优先 MVP-pl
 - 第七阶段协作式处理作业取消（J7.01–J7.06）
 - 未签名 Windows NSIS GUI lifecycle QA（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)，仅 Windows）
 - 第八阶段本地 HEIC/HEIF 静帧预览（H8.01–H8.06）
+- 第九阶段剩余 stretch 收口（S9.00–S9.13）
 
-**`main` 上的下一步：** 第九阶段剩余 stretch 收口（S9.00–S9.13），每次运行一个 GitHub issue。S9.00–S9.12 已落地；从 S9.13 开始。不要发明第十阶段。下文关于作业持久性、桌面打包、处理取消和 HEIC 预览的条目描述的是 2026-06-05 rc2 产品，除非另有后续切片说明。见 `develop_plan.zh.md` §1.1 与 `docs/plans/2026-09-04-remaining-stretch.zh.md`。
+**`main` 上的下一步：** 第九阶段 remaining-stretch 已关闭（S9.00–S9.13）；没有未完成的 S9 id；停止。不要发明第十阶段。下文关于作业持久性、桌面打包、处理取消和 HEIC 预览的条目描述的是 2026-06-05 rc2 产品，除非另有后续切片说明。见 `develop_plan.zh.md` §1.1 与 `docs/plans/2026-09-04-remaining-stretch.zh.md`。
 
 ## 已实现的 v2.0 功能
 
@@ -108,7 +109,7 @@ FRAMEPILOT_BROWSER_PERF_COUNT=1000 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT
 - 生成的缩略图、预览、缓存、日志、导出、项目数据库、浏览器 trace、生成照片和测试产物不得提交。
 - v2.0 不需要云上传、登录、支付、遥测要求、远程照片处理或协作服务。
 - 不提交大模型文件。
-- HEIC、RAW、可选 AI 模型、桌面打包和 XMP sidecar 写入在本 **rc2** 记录中被延后。桌面打包后来作为 `2.1.0-desktop` 交付。HEIC 静帧预览后来作为第八阶段交付。RAW、可选模型和 XMP 仍延后。
+- HEIC、RAW、可选 AI 模型、桌面打包和 XMP sidecar 写入在本 **rc2** 记录中被延后。桌面打包后来作为 `2.1.0-desktop` 交付。HEIC 静帧预览后来作为第八阶段交付。RAW 内嵌预览和 XMP 后来作为 S9.04 / S9.05 交付。可选模型仍延后（未排期）。
 
 ## 任务系统限制
 
@@ -145,8 +146,8 @@ FRAMEPILOT_BROWSER_PERF_COUNT=1000 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT
 历史 rc2 列表。`main` 上的后续切片在括号中注明。
 
 - HEIC 支持。（第八阶段，H8.01–H8.06；已交付）
-- RAW 及内嵌 RAW 预览提取。
-- XMP sidecar 导出。
+- RAW 及内嵌 RAW 预览提取。（S9.04；已交付）
+- XMP sidecar 导出。（S9.05；已交付）
 - 可选本地 AI 模型。
 - 持久化的外部或独立本地 worker 进程。（第六阶段已交付本地 SQLite 轮询 worker 与进程内回收；不是外部队列）
 - 桌面打包。（已作为未签名 `2.1.0-desktop` RC 交付）
@@ -178,4 +179,4 @@ FRAMEPILOT_BROWSER_PERF_COUNT=1000 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT
 - 可选：在后续里程碑之前准备许可清晰的摄影师连拍/场次集，以及一次 2,000 张真实浏览器-后端运行。
 - 用已测量的失败模式重新审视持久化本地 worker 架构。
 - 仅通过聚焦、带测试的抽取继续筛选工作区可维护性。
-- XMP sidecar 导出和 RAW 预览是第九阶段 issue S9.05 与 S9.04（`docs/plans/2026-09-04-remaining-stretch.zh.md`）。HEIC 静帧预览已作为第八阶段交付（`docs/plans/2026-09-04-heic-preview.zh.md`）。不要发明第十阶段。
+- 第九阶段 remaining-stretch 已关闭（S9.00–S9.13）。HEIC 静帧预览已作为第八阶段交付。仍延后（未排期）：cache 旋钮、自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、macOS GUI pass。不要发明第十阶段。
