@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import {
   api as productionApi,
+  assetUrl,
   IMPORT_UPLOAD_BATCH_SIZE,
   type AppSettings,
   type HealthStatus,
@@ -369,13 +370,56 @@ export function historyPush(href: string): void {
   hashPush(href);
 }
 
+export function appendPreviewImage(src: string): boolean {
+  if (typeof document === "undefined" || typeof document.createElement !== "function") {
+    return false;
+  }
+  if (typeof document.body?.appendChild !== "function") {
+    return false;
+  }
+  if (!src.includes("/previews/")) {
+    return false;
+  }
+  const img = document.createElement("img");
+  img.src = src;
+  img.alt = "framepilot-qa-preview";
+  img.setAttribute("data-framepilot-qa-preview", "1");
+  document.body.appendChild(img);
+  return true;
+}
+
+export async function mountQaCullingPreview(projectId: string): Promise<boolean> {
+  if (typeof document === "undefined" || typeof document.body?.appendChild !== "function") {
+    return false;
+  }
+  let rooted = false;
+  try {
+    const { mountCullWorkspace } = await import("./desktopQaCullMount.tsx");
+    mountCullWorkspace(projectId);
+    rooted = true;
+  } catch {
+    rooted = false;
+  }
+  try {
+    const photos = await productionApi.listPhotos(projectId, { limit: 10, offset: 0 });
+    const src = assetUrl(projectId, photos[0]?.preview_path ?? null);
+    if (src) {
+      appendPreviewImage(src);
+    }
+  } catch {
+    // waitForPreview still polls document imgs from CullingWorkspace or the fallback.
+  }
+  return rooted;
+}
+
 async function waitForCullPush(
   fallback: (href: string) => void,
   href: string,
   sleep: (ms: number) => Promise<void>,
-): Promise<"mount" | "store" | "react" | "history"> {
+): Promise<"root" | "mount" | "store" | "react" | "history"> {
   const projectId = parseCullProjectId(href);
   let mounted = false;
+  let rooted = false;
   if (projectId) {
     setDesktopQaCullHref(href);
     const mount = readDesktopQaMountCull();
@@ -383,6 +427,7 @@ async function waitForCullPush(
       mount(projectId);
       mounted = true;
     }
+    rooted = await mountQaCullingPreview(projectId);
   }
   const push = readDesktopQaNavigate();
   if (push) {
@@ -398,6 +443,9 @@ async function waitForCullPush(
     fallback(href);
   }
   await sleep(0);
+  if (rooted) {
+    return "root";
+  }
   if (mounted) {
     return "mount";
   }

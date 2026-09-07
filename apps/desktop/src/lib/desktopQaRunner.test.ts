@@ -29,6 +29,7 @@ const {
   parseCullProjectId,
   readDesktopQaRoute,
   routeShowsCull,
+  appendPreviewImage,
   setDesktopQaCullHref,
   setDesktopQaMountCull,
   setDesktopQaNavigate,
@@ -116,6 +117,9 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   assert.match(runnerSource, /setDesktopQaMountCull/);
   assert.match(runnerSource, /__FRAMEPILOT_DESKTOP_QA_MOUNT_CULL__/);
   assert.match(runnerSource, /__FRAMEPILOT_DESKTOP_QA_SET_CULL_PROJECT_ID__/);
+  assert.match(runnerSource, /mountQaCullingPreview/);
+  assert.match(runnerSource, /appendPreviewImage/);
+  assert.match(runnerSource, /desktopQaCullMount/);
   assert.match(runnerSource, /cull_workspace/);
   assert.match(runnerSource, /useSyncExternalStore/);
   assert.match(runnerSource, /parseCullProjectId/);
@@ -563,6 +567,37 @@ test("runDesktopQa mounts CullingWorkspace through the window-registered setStat
     .find((line) => line.milestone === "cull_push");
   assert.equal(cullPush?.via, "mount");
   assert.equal(cullPush?.cull_project_id, "proj-1");
+});
+
+test("appendPreviewImage inserts a /previews/ img into document.body", () => {
+  const created: Array<{ src: string; alt: string }> = [];
+  const body = {
+    appendChild(node: { src: string; alt: string }) {
+      created.push(node);
+      return node;
+    },
+  };
+  const previousDocument = (globalThis as { document?: unknown }).document;
+  (globalThis as { document: unknown }).document = {
+    body,
+    createElement(tag: string) {
+      assert.equal(tag, "img");
+      return { src: "", alt: "", setAttribute() {} };
+    },
+  };
+  try {
+    assert.equal(appendPreviewImage("http://127.0.0.1:9/api/assets/proj-1/thumbnails/a.webp"), false);
+    assert.equal(appendPreviewImage("http://127.0.0.1:9/api/assets/proj-1/previews/a.webp"), true);
+    assert.equal(created.length, 1);
+    assert.equal(created[0]?.src, "http://127.0.0.1:9/api/assets/proj-1/previews/a.webp");
+    assert.equal(created[0]?.alt, "framepilot-qa-preview");
+  } finally {
+    if (previousDocument === undefined) {
+      delete (globalThis as { document?: unknown }).document;
+    } else {
+      (globalThis as { document: unknown }).document = previousDocument;
+    }
+  }
 });
 
 test("startDesktopQaFromWindow bootstraps QA flags via qa_bootstrap when init-script globals are missing", async () => {
