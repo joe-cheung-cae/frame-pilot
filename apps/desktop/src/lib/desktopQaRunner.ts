@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -183,6 +183,37 @@ export async function withTimeout<T>(promise: Promise<T>, ms: number, message: s
 }
 
 let desktopQaNavigate: ((href: string) => void) | null = null;
+let desktopQaCullHref = "";
+const desktopQaCullListeners = new Set<() => void>();
+
+export function parseCullProjectId(href: string): string | null {
+  const match = /\/projects\/([^/]+)\/cull\/?$/.exec(href);
+  const id = match?.[1]?.trim() ?? "";
+  return id || null;
+}
+
+export function getDesktopQaCullHref(): string {
+  return desktopQaCullHref;
+}
+
+export function subscribeDesktopQaCull(onStoreChange: () => void): () => void {
+  desktopQaCullListeners.add(onStoreChange);
+  return () => {
+    desktopQaCullListeners.delete(onStoreChange);
+  };
+}
+
+export function setDesktopQaCullHref(href: string): void {
+  desktopQaCullHref = href;
+  for (const listener of desktopQaCullListeners) {
+    listener();
+  }
+}
+
+export function useDesktopQaCullProjectId(): string | null {
+  const href = useSyncExternalStore(subscribeDesktopQaCull, getDesktopQaCullHref, getDesktopQaCullHref);
+  return parseCullProjectId(href);
+}
 
 export function setDesktopQaNavigate(push: ((href: string) => void) | null): void {
   desktopQaNavigate = push;
@@ -260,34 +291,32 @@ async function waitForCullPush(
   fallback: (href: string) => void,
   href: string,
   sleep: (ms: number) => Promise<void>,
-): Promise<"react" | "history"> {
-  let via: "react" | "history" = "history";
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    const push = readDesktopQaNavigate();
-    if (push) {
-      push(href);
-      if (
-        typeof window !== "undefined" &&
-        typeof CustomEvent === "function" &&
-        typeof window.dispatchEvent === "function"
-      ) {
-        window.dispatchEvent(new CustomEvent("framepilot-qa-navigate", { detail: href }));
-      }
-      via = "react";
-      break;
-    }
-    await sleep(50);
+): Promise<"store" | "react" | "history"> {
+  const projectId = parseCullProjectId(href);
+  if (projectId) {
+    setDesktopQaCullHref(href);
   }
-  if (via !== "react") {
+  const push = readDesktopQaNavigate();
+  if (push) {
+    push(href);
+    if (
+      typeof window !== "undefined" &&
+      typeof CustomEvent === "function" &&
+      typeof window.dispatchEvent === "function"
+    ) {
+      window.dispatchEvent(new CustomEvent("framepilot-qa-navigate", { detail: href }));
+    }
+  } else {
     fallback(href);
   }
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    if (routeShowsCull(href)) {
-      return via;
-    }
-    await sleep(50);
+  await sleep(0);
+  if (parseCullProjectId(getDesktopQaCullHref())) {
+    return "store";
   }
-  return via;
+  if (push) {
+    return "react";
+  }
+  return "history";
 }
 
 export type StartDesktopQaOptions = {
@@ -469,6 +498,7 @@ export async function runDesktopQa(options: RunDesktopQaOptions): Promise<void> 
   await writeMilestone(options.writeEvidence, "cull_push", now, {
     href: cullHref,
     via,
+    cull_project_id: parseCullProjectId(getDesktopQaCullHref()),
     route: readDesktopQaRoute(),
     pathname: loc.pathname,
     hash: loc.hash,

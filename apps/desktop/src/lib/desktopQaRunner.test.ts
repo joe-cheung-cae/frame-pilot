@@ -22,13 +22,17 @@ const {
   readDesktopQaConfig,
   runDesktopQa,
   cullLocationFields,
+  getDesktopQaCullHref,
   hashPush,
   historyPush,
   locationShowsCull,
+  parseCullProjectId,
   readDesktopQaRoute,
   routeShowsCull,
+  setDesktopQaCullHref,
   setDesktopQaNavigate,
   setDesktopQaRoute,
+  subscribeDesktopQaCull,
   spaFlagsLine,
   startDesktopQaFromWindow,
   withTimeout,
@@ -80,15 +84,35 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   assert.match(runnerSource, /qa_runner_mounted/);
   assert.match(runnerSource, /cull_push/);
   assert.match(runnerSource, /framepilot-qa-navigate/);
-  assert.match(runnerSource, /setDesktopQaRoute/);
-  assert.match(runnerSource, /__FRAMEPILOT_DESKTOP_QA_ROUTE__/);
-  assert.match(runnerSource, /routeShowsCull/);
+  assert.match(runnerSource, /setDesktopQaCullHref/);
+  assert.match(runnerSource, /useSyncExternalStore/);
+  assert.match(runnerSource, /parseCullProjectId/);
   assert.match(runnerSource, /cullLocationFields/);
   assert.equal(DESKTOP_QA_IMPORT_BATCH_SIZE, 100);
   const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
   assert.match(appSource, /MemoryRouter/);
+  assert.match(appSource, /CullingWorkspace/);
+  assert.match(appSource, /useDesktopQaCullProjectId/);
   assert.equal(appSource.includes("BrowserRouter"), false);
   assert.equal(appSource.includes("HashRouter"), false);
+});
+
+test("setDesktopQaCullHref notifies subscribers with the cull project id", () => {
+  const seen: string[] = [];
+  const unsubscribe = subscribeDesktopQaCull(() => {
+    seen.push(getDesktopQaCullHref());
+  });
+  try {
+    setDesktopQaCullHref("");
+    assert.equal(parseCullProjectId("/projects/proj-1/cull"), "proj-1");
+    assert.equal(parseCullProjectId("/projects/proj-1/process"), null);
+    setDesktopQaCullHref("/projects/proj-1/cull");
+    assert.equal(getDesktopQaCullHref(), "/projects/proj-1/cull");
+    assert.equal(seen.includes("/projects/proj-1/cull"), true);
+  } finally {
+    unsubscribe();
+    setDesktopQaCullHref("");
+  }
 });
 
 test("routeShowsCull reads MemoryRouter pathname written during render", async () => {
@@ -249,6 +273,7 @@ test("withTimeout rejects when the promise never settles", async () => {
 
 test("runDesktopQa calls registerDesktopProjectRoot and importPhotosFromPaths", async () => {
   setDesktopQaNavigate(null);
+  setDesktopQaCullHref("");
   const calls: string[] = [];
   const evidence: string[] = [];
   const fakeApi = {
@@ -323,7 +348,11 @@ test("runDesktopQa calls registerDesktopProjectRoot and importPhotosFromPaths", 
     true,
   );
   assert.equal(
-    evidence.some((line) => line.includes('"via":"history"')),
+    evidence.some((line) => line.includes('"via":"store"')),
+    true,
+  );
+  assert.equal(
+    evidence.some((line) => line.includes('"cull_project_id":"proj-1"')),
     true,
   );
   assert.equal(
@@ -390,15 +419,16 @@ test("runDesktopQa pushes cull through the registered React navigate", async () 
       });
     } finally {
       setDesktopQaNavigate(null);
+      setDesktopQaCullHref("");
     }
   });
   assert.equal(calls.includes("react:/projects/proj-1/cull"), true);
   assert.equal(calls.includes("history:/projects/proj-1/cull"), false);
   const cullPush = evidence
-    .map((line) => JSON.parse(line) as { milestone?: string; via?: string; route?: string })
+    .map((line) => JSON.parse(line) as { milestone?: string; via?: string; cull_project_id?: string })
     .find((line) => line.milestone === "cull_push");
-  assert.equal(cullPush?.via, "react");
-  assert.equal(cullPush?.route, "/projects/proj-1/cull");
+  assert.equal(cullPush?.via, "store");
+  assert.equal(cullPush?.cull_project_id, "proj-1");
 });
 
 test("startDesktopQaFromWindow bootstraps QA flags via qa_bootstrap when init-script globals are missing", async () => {
