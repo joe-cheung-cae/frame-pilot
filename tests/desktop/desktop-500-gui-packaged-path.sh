@@ -70,6 +70,26 @@ if ! grep -F -q 'cp "${EVIDENCE_DIR}/milestones.jsonl"' "$shipped"; then
   exit 1
 fi
 
+if ! grep -E -q '^kill_packaged_leftovers\(\)|kill_packaged_leftovers \(\)' "$shipped"; then
+  echo "shipped harness is missing kill_packaged_leftovers" >&2
+  exit 1
+fi
+
+if ! grep -F -q 'taskkill.exe //F //T //IM framepilot-desktop.exe' "$shipped"; then
+  echo "kill_windows_leftovers must taskkill.exe /F /T the desktop process tree" >&2
+  exit 1
+fi
+
+if ! grep -F -q "kill_packaged_leftovers" "$shipped" || ! awk '
+  $0 ~ /^wipe_scratch_siblings\(\)/ { in_wipe = 1 }
+  in_wipe && /kill_packaged_leftovers/ { found = 1 }
+  in_wipe && /^}/ { exit }
+  END { exit found ? 0 : 1 }
+' "$shipped"; then
+  echo "wipe_scratch_siblings must kill packaged leftovers before rm -rf" >&2
+  exit 1
+fi
+
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -215,5 +235,29 @@ if payload.get("rss_mb", {}).get("idle", {}).get("sidecar") in (None, 0, 0.0):
 if payload.get("originals_unchanged") is not True:
     raise SystemExit("originals_unchanged must be true")
 PY
+
+wipe_prefix="$tmpdir/wipe-prefix"
+mkdir -p "$wipe_prefix/photos" "$wipe_prefix/project" "$wipe_prefix/data/logs" "$wipe_prefix/evidence"
+printf 'busy\n' > "$wipe_prefix/data/framepilot.db"
+printf 'keep-prefix\n' > "$wipe_prefix/keep.txt"
+set +e
+bash "$shipped" --wipe-scratch "$wipe_prefix" >"$tmpdir/wipe.out" 2>"$tmpdir/wipe.err"
+wipe_status=$?
+set -e
+if [[ "$wipe_status" -ne 0 ]]; then
+  echo "--wipe-scratch failed" >&2
+  cat "$tmpdir/wipe.out" >&2 || true
+  cat "$tmpdir/wipe.err" >&2 || true
+  exit 1
+fi
+if [[ -e "$wipe_prefix/data/framepilot.db" || -d "$wipe_prefix/photos" || -d "$wipe_prefix/project" || -d "$wipe_prefix/evidence" ]]; then
+  echo "--wipe-scratch left sibling dirs/files behind" >&2
+  find "$wipe_prefix" -print >&2 || true
+  exit 1
+fi
+if [[ ! -f "$wipe_prefix/keep.txt" ]]; then
+  echo "--wipe-scratch must not delete the prefix root" >&2
+  exit 1
+fi
 
 echo "desktop-500-gui-packaged-path ok (wait-done path, macos exec, windows listen)"
