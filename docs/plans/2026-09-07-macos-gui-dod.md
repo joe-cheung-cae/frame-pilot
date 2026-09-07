@@ -50,10 +50,10 @@ Leftover dual-platform installer GUI DoD (macOS DMG install+run)
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue
 - [x] 评审 — adversarial review vs live tree
 - [x] 归档 — 开发 handoff recorded (this commit); 开发 stays `[ ]`
-- [ ] 开发 — smoke script + `desktop.yml` macOS step; leftover-plan 开发 `[x]` in that commit; **do not** tick §2.2
+- [x] 开发 — smoke script + `desktop.yml` macOS step; leftover-plan 开发 `[x]` in that commit; **do not** tick §2.2
 - [ ] 测试
 - [ ] 上线 — dispatch `desktop.yml`, dated Darwin evidence, then tick §2.2
-- [ ] smoke-landed
+- [x] smoke-landed
 - [ ] DoD-ticked
 
 This 归档 commit ticks **归档** only. Leave 开发, smoke-landed, DoD-ticked, and §2.2 `[ ]`.
@@ -213,3 +213,9 @@ Reviewed plan is locked for 开发. Status: 需求拆解 `[x]`, 评审 `[x]`, �
 Do not implement the smoke in this 归档 commit. Follow **this reviewed plan** (§4–§5), not `.grok/workflows/macos-gui-dod.rhai` `develop_prompt` sidecar.log wording.
 
 Pointers: leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177); Windows pass [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144); S9.12 skip [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) stays skip; do not reopen #172.
+
+---
+
+## 12. 开发 (2026-09-07)
+
+Landed `packaging/scripts/macos-dmg-gui-smoke.sh`, `tests/desktop/macos-dmg-gui-smoke-nondarwin.sh`, and a macOS-gated step on the existing `.github/workflows/desktop.yml` matrix `build` job (after the just-built DMG; not inside `Build Tauri installer`). Linux host check: skip is not pass (exit 2). Do **not** tick `docs/desktop_development_plan.md` §2.2. Do **not** tick DoD-ticked. 测试 / 上线 next: dispatch `desktop.yml` for dated Darwin evidence. Draft PR remains [#178](https://github.com/joe-cheung-cae/frame-pilot/pull/178).

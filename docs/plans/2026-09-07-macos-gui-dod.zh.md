@@ -50,10 +50,10 @@
 - [x] 需求拆解 — 双语残留计划 + GitHub issue
 - [x] 评审 — 对照现场树对抗评审
 - [x] 归档 — 已记录 开发 交接（本次提交）；开发 保持 `[ ]`
-- [ ] 开发 — 冒烟脚本 + `desktop.yml` macOS 步骤；同一提交勾残留计划 开发 `[x]`；**不要**勾 §2.2
+- [x] 开发 — 冒烟脚本 + `desktop.yml` macOS 步骤；同一提交勾残留计划 开发 `[x]`；**不要**勾 §2.2
 - [ ] 测试
 - [ ] 上线 — 派发 `desktop.yml`，带日期的 Darwin 证据，然后勾 §2.2
-- [ ] smoke-landed
+- [x] smoke-landed
 - [ ] DoD-ticked
 
 本次 归档 提交只勾 **归档**。开发、smoke-landed、DoD-ticked 与 §2.2 保持 `[ ]`。
@@ -213,3 +213,9 @@ Ready 行与日志路径（现场树，本残留除非必要不要改）：
 本次 归档 提交不要实现冒烟脚本。以**本评审后的计划**（§4–§5）为准，不要跟 `.grok/workflows/macos-gui-dod.rhai` 的 `develop_prompt` 里评审前那套 sidecar.log 措辞。
 
 指针：残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)；Windows pass [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)；S9.12 skip [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) 保持 skip；不要重开 #172。
+
+---
+
+## 12. 开发（2026-09-07）
+
+已落地 `packaging/scripts/macos-dmg-gui-smoke.sh`、`tests/desktop/macos-dmg-gui-smoke-nondarwin.sh`，以及现有 `.github/workflows/desktop.yml` matrix `build` job 上的 macOS 门控步骤（对着刚打出的 DMG；不在 `Build Tauri installer` 内）。Linux 主机检查：skip is not pass（退出码 2）。**不要**勾 `docs/desktop_development_plan.md` §2.2。**不要**勾 DoD-ticked。测试 / 上线 下一步：派发 `desktop.yml` 以取得带日期的 Darwin 证据。草稿 PR 仍是 [#178](https://github.com/joe-cheung-cae/frame-pilot/pull/178)。

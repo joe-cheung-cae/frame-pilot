@@ -15,7 +15,10 @@
 # unsigned upload path green. If the full secret set is present and
 # sign / notarize fails, the job is red (no silent unsigned fallback).
 # After PyInstaller, run npm run test:sidecar (GET /health with PYTHONPATH
-# unset). Do not launch the packaged NSIS/DMG GUI.
+# unset). Packaged GUI launch is allowed on macOS for leftover installer
+# DoD smoke (packaging/scripts/macos-dmg-gui-smoke.sh against the just-built
+# DMG). Do not launch the packaged NSIS GUI. Still do not launch GUI from
+# verify.yml.
 
 name: desktop
 
@@ -204,3 +207,16 @@ jobs:
           name: FramePilot-macos-dmg
           path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
           if-no-files-found: error
+
+      - name: Smoke packaged macOS DMG GUI launch
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          if [[ "${#dmgs[@]}" -lt 1 ]]; then
+            echo "No DMG found under apps/desktop/src-tauri/target/release/bundle/dmg" >&2
+            exit 1
+          fi
+          bash packaging/scripts/macos-dmg-gui-smoke.sh "${dmgs[0]}"
