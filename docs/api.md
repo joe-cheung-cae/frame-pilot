@@ -10,6 +10,8 @@ Base URL during development: `http://127.0.0.1:8000`.
 
 `GET /api/settings` returns `{ "import_workers": 1 }` (default). `PATCH /api/settings` with `{ "import_workers": 2 }` persists an integer **1–4** in `{data_dir}/app_settings.json` (atomic tmp + replace). Omitted key or `{}` returns the current value. `0`, `5`, non-integers, and `null` return `422`. This knob is API-owned (not `localStorage`, not `/api/meta`) and applies to the **next** import derivative job. Processing stays one job per project.
 
+`GET /api/cache` returns `{ "derivative_bytes", "file_count", "project_count", "deleted_files" }` for generated `{project}/thumbnails/` and `{project}/previews/` across projects. Originals, exports, and `{project}/cache/` are not counted. `POST /api/cache/clear-derivatives` deletes those derivative files, clears `thumbnail_path` / `preview_path`, and leaves originals, `user_status`, `star_rating`, groups, and exports untouched. A blocking import or processing job (`queued`, `running`, or `interrupted`) returns `409`. The next import or process regenerates missing derivatives.
+
 Implemented endpoints:
 
 ```text
@@ -18,6 +20,8 @@ GET    /api/health
 GET    /api/meta
 GET    /api/settings
 PATCH  /api/settings
+GET    /api/cache
+POST   /api/cache/clear-derivatives
 
 POST   /api/projects
 GET    /api/projects

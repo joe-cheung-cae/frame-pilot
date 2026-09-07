@@ -2,9 +2,9 @@
 
 > Language: **English** | [中文](desktop_development_plan.zh.md)
 
-> **Document version**: 1.3  
+> **Document version**: 1.4  
 > **Created**: 2026-08-18  
-> **Last reviewed**: 2026-09-05 (S9.13 leftover repair; Phase 9 remaining-stretch close-out)  
+> **Last reviewed**: 2026-09-07 (leftover cache knobs #175)  
 > **Goal**: Redesign and package the current local web app (v2.0.0-rc2) as installable Windows and macOS desktop apps  
 > **Repository**: https://github.com/joe-cheung-cae/frame-pilot  
 > **Related existing plan**: `develop_plan.md` already lists “Local desktop packaging with Tauri or Electron” as a stretch goal; this document productizes it.  
@@ -52,7 +52,7 @@ The current architecture is already “local process + local HTTP”, so it is a
 - [x] The desktop sidecar listens only on 127.0.0.1 and rejects non-loopback Host and unauthorized Origin
 - [x] User-chosen project root directories are accepted only after explicit authorization (see implementation plan D2.00)
 
-Out of scope for `2.1.0-desktop` (see §5.6): leftover 2.2 items Phase 9 shipped (detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10, tray S9.06). Still deferred (unscheduled): cache knobs, auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, packaged-desktop ≥500 GUI, and macOS GUI pass. Do not invent Phase 10 / 2.3.
+Out of scope for `2.1.0-desktop` (see §5.6): leftover 2.2 items Phase 9 shipped (detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10, tray S9.06) plus leftover cache knobs ([#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)). Still deferred (unscheduled): auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, packaged-desktop ≥500 GUI, and macOS GUI pass. Do not invent Phase 10 / 2.3.
 
 ---
 
@@ -158,7 +158,7 @@ The existing culling workspace already has a strong keyboard-first design. Deskt
 ### 5.4 Settings and system integration
 
 - Theme follows the system (dark / light)
-- Data-directory management (shipped S9.09) and performance options: import workers 1–4 (shipped S9.08); cache knobs remain deferred (unscheduled)
+- Data-directory management (shipped S9.09) and performance options: import workers 1–4 (shipped S9.08); cache size / eviction (shipped leftover [#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175))
 - Optional system tray (shipped S9.06; show progress during background work)
 - About page and a check-for-updates entry (menu check shipped S9.10; auto-download/install remains deferred)
 
@@ -175,7 +175,7 @@ Leftover 2.2 items that Phase 9 shipped are retargeted to their S9 ids. Remainin
 |------|------|----------|
 | Detached preview window (§5.3) | Second WebView, shared selection, focused-window culling keys | S9.07 [x] |
 | Import worker concurrency (§5.4) | Opt-in 1–4 import derivative workers; default 1 | S9.08 [x] |
-| Cache knobs (§5.4) | Cache size / eviction UI is still out | deferred (unscheduled) |
+| Cache knobs (§5.4) | Cache size / eviction UI for thumbnails and previews | leftover [#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175) [x] |
 | Check for updates (§5.4) | Help-menu GitHub Releases query; no launch-time network | S9.10 [x] |
 | Auto-download/install (`tauri-plugin-updater` / `latest.json`) | Must stay optional and must not block launch | deferred (unscheduled) |
 | System tray (§5.4) | Optional D3.06; tooltip job progress | S9.06 [x] |
@@ -400,7 +400,7 @@ On top of existing `npm run verify`, API pytest, frontend unit, and E2E, add:
 | 2.1.0-desktop | First official desktop installer release (locked) |
 | Phase 8 | HEIC/HEIF still preview (shipped) |
 | Phase 9 | Remaining stretch S9.00–S9.13 (closed): AVIF, RAW embedded preview, XMP export, tray, detached preview, import workers, data-dir, check-for-updates, signing-ready CI, macOS QA skip, docs leftover repair |
-| Unscheduled | Cache knobs, auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, macOS GUI pass. Do not invent Phase 10 / 2.3 |
+| Unscheduled | Auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, macOS GUI pass. Do not invent Phase 10 / 2.3 |
 
 Suggested release channels:
 
@@ -461,6 +461,7 @@ Implementation-level task split and Goal Mode prompts (based on the 2026-08-18 r
 | 2026-08-18 | 1.1 | Add implementation-plan and Goal Mode entry points: `docs/plans/2026-08-18-desktop-packaging.md`, `docs/desktop_goal_mode.md` |
 | 2026-08-18 | 1.2 | Align after Opus 5 review: lock Vite dual-shell, `2.1.0-desktop`, WSL-aware Phase 0 acceptance, §5.6 deferred list |
 | 2026-09-05 | 1.3 | S9.13 leftover repair: tick shipped 2.1 DoD; retarget leftover 2.2 items to S9 ids; remaining Target = unscheduled |
+| 2026-09-07 | 1.4 | Leftover cache knobs [#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175): Settings cache size / eviction; remaining Target drops cache knobs |
 
 ---
 

@@ -2,7 +2,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { nativeFsState, revealInFileManager, pickDirectory, applyDataDirectory, getMeta, getSettings, patchSettings, registerDesktopProjectRoot, changeDesktopDataDir } = vi.hoisted(() => ({
+const {
+  nativeFsState,
+  revealInFileManager,
+  pickDirectory,
+  applyDataDirectory,
+  getMeta,
+  getSettings,
+  patchSettings,
+  getCache,
+  clearDerivatives,
+  registerDesktopProjectRoot,
+  changeDesktopDataDir,
+} = vi.hoisted(() => ({
   nativeFsState: {
     current: null as {
       pickDirectory: () => Promise<string | null>;
@@ -25,6 +37,18 @@ const { nativeFsState, revealInFileManager, pickDirectory, applyDataDirectory, g
   patchSettings: vi.fn(async (payload: { import_workers?: number }) => ({
     import_workers: payload.import_workers ?? 1,
   })),
+  getCache: vi.fn(async () => ({
+    derivative_bytes: 0,
+    file_count: 0,
+    project_count: 0,
+    deleted_files: 0,
+  })),
+  clearDerivatives: vi.fn(async () => ({
+    derivative_bytes: 0,
+    file_count: 0,
+    project_count: 0,
+    deleted_files: 0,
+  })),
   registerDesktopProjectRoot: vi.fn(async (path: string) => ({ path })),
   changeDesktopDataDir: vi.fn(async (path: string) => ({ data_dir: path })),
 }));
@@ -38,12 +62,14 @@ vi.mock("@/lib/api", () => ({
     getMeta,
     getSettings,
     patchSettings,
+    getCache,
+    clearDerivatives,
     registerDesktopProjectRoot,
     changeDesktopDataDir,
   },
 }));
 
-import { DATA_DIR_CHANGE_CONFIRM, SettingsPanel } from "./SettingsPanel";
+import { CLEAR_DERIVATIVES_CONFIRM, DATA_DIR_CHANGE_CONFIRM, SettingsPanel } from "./SettingsPanel";
 
 const DATA_DIR = "/tmp/framepilot-data";
 
@@ -67,9 +93,17 @@ describe("SettingsPanel data directory", () => {
     getMeta.mockClear();
     getSettings.mockClear();
     patchSettings.mockClear();
+    getCache.mockClear();
+    clearDerivatives.mockClear();
     registerDesktopProjectRoot.mockClear();
     changeDesktopDataDir.mockClear();
     getSettings.mockResolvedValue({ import_workers: 1 });
+    getCache.mockResolvedValue({
+      derivative_bytes: 0,
+      file_count: 0,
+      project_count: 0,
+      deleted_files: 0,
+    });
     pickDirectory.mockResolvedValue("/tmp/new-framepilot-data");
     getMeta.mockResolvedValue({
       version: "2.0.0-rc2",
@@ -79,7 +113,10 @@ describe("SettingsPanel data directory", () => {
     });
     nativeFsState.current = null;
     delete window.__FRAMEPILOT_DESKTOP__;
-    vi.stubGlobal("confirm", vi.fn(() => true));
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
   });
 
   afterEach(() => {
@@ -188,14 +225,27 @@ describe("SettingsPanel import workers", () => {
     getMeta.mockClear();
     getSettings.mockClear();
     patchSettings.mockClear();
+    getCache.mockClear();
+    clearDerivatives.mockClear();
     getSettings.mockResolvedValue({ import_workers: 1 });
+    getCache.mockResolvedValue({
+      derivative_bytes: 0,
+      file_count: 0,
+      project_count: 0,
+      deleted_files: 0,
+    });
     nativeFsState.current = null;
     delete window.__FRAMEPILOT_DESKTOP__;
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
   });
 
   afterEach(() => {
     cleanup();
     delete window.__FRAMEPILOT_DESKTOP__;
+    vi.unstubAllGlobals();
   });
 
   it("shows import workers 1 by default", async () => {
@@ -217,5 +267,122 @@ describe("SettingsPanel import workers", () => {
       expect(patchSettings).toHaveBeenCalledWith({ import_workers: 3 });
     });
     expect(window.localStorage.getItem("import_workers")).toBeNull();
+  });
+});
+
+describe("SettingsPanel derivative cache", () => {
+  beforeEach(() => {
+    cleanup();
+    getMeta.mockClear();
+    getSettings.mockClear();
+    getCache.mockClear();
+    clearDerivatives.mockClear();
+    getSettings.mockResolvedValue({ import_workers: 1 });
+    getCache.mockResolvedValue({
+      derivative_bytes: 1536,
+      file_count: 2,
+      project_count: 1,
+      deleted_files: 0,
+    });
+    nativeFsState.current = null;
+    delete window.__FRAMEPILOT_DESKTOP__;
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    delete window.__FRAMEPILOT_DESKTOP__;
+    vi.unstubAllGlobals();
+  });
+
+  it("shows measured thumbnail and preview cache size", async () => {
+    renderSettings();
+
+    expect(await screen.findByRole("heading", { name: "Derivative cache" })).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByLabelText("Derivative cache size").textContent).toContain("1.5 KB");
+    });
+    expect(screen.getByLabelText("Derivative cache size").textContent).toContain("2 files");
+    expect(screen.getByLabelText("Derivative cache size").textContent).toContain("1 project");
+    expect(getCache).toHaveBeenCalled();
+  });
+
+  it("disables clear when the cache is empty", async () => {
+    getCache.mockResolvedValue({
+      derivative_bytes: 0,
+      file_count: 0,
+      project_count: 0,
+      deleted_files: 0,
+    });
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Derivative cache size").textContent).toContain("0 B");
+    });
+    expect((screen.getByRole("button", { name: "Clear thumbnails and previews" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it("clears derivatives after confirm", async () => {
+    let cleared = false;
+    getCache.mockImplementation(async () =>
+      cleared
+        ? { derivative_bytes: 0, file_count: 0, project_count: 0, deleted_files: 2 }
+        : { derivative_bytes: 1536, file_count: 2, project_count: 1, deleted_files: 0 },
+    );
+    clearDerivatives.mockImplementation(async () => {
+      cleared = true;
+      return { derivative_bytes: 0, file_count: 0, project_count: 0, deleted_files: 2 };
+    });
+
+    renderSettings();
+    await waitFor(() => {
+      expect(screen.getByLabelText("Derivative cache size").textContent).toContain("1.5 KB");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Clear thumbnails and previews" }));
+
+    await waitFor(() => {
+      expect(window.confirm).toHaveBeenCalledWith(CLEAR_DERIVATIVES_CONFIRM);
+      expect(clearDerivatives).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText("Derivative cache size").textContent).toContain("0 B");
+    });
+  });
+
+  it("does not clear when confirm is cancelled", async () => {
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => false),
+    );
+    renderSettings();
+    await waitFor(() => {
+      expect(screen.getByLabelText("Derivative cache size").textContent).toContain("1.5 KB");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Clear thumbnails and previews" }));
+
+    await waitFor(() => {
+      expect(window.confirm).toHaveBeenCalledWith(CLEAR_DERIVATIVES_CONFIRM);
+    });
+    expect(clearDerivatives).not.toHaveBeenCalled();
+  });
+
+  it("shows a conflict message when a job is running", async () => {
+    clearDerivatives.mockRejectedValue(
+      new Error("Cannot clear derivatives while an import or processing job is active"),
+    );
+    renderSettings();
+    await waitFor(() => {
+      expect(screen.getByLabelText("Derivative cache size").textContent).toContain("1.5 KB");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Clear thumbnails and previews" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Cannot clear derivatives while an import or processing job is active")).toBeTruthy();
+    });
   });
 });

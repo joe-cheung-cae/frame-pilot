@@ -18,6 +18,7 @@ from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, 
 from app.schemas.api import (
     AppSettingsRead,
     AppSettingsUpdate,
+    DerivativeCacheRead,
     DesktopDataDirChange,
     DesktopDataDirRead,
     DesktopProjectRootCreate,
@@ -35,6 +36,11 @@ from app.schemas.api import (
     ProjectRead,
 )
 from app.services.data_dir import DataDirRelocateError, relocate_data_dir
+from app.services.derivative_cache import (
+    DerivativeCacheBusyError,
+    clear_derivative_cache,
+    measure_derivative_cache,
+)
 from app.services.exporting import (
     EXPORT_CANCEL_REASON,
     ExportCancelled,
@@ -102,6 +108,30 @@ def patch_app_settings_endpoint(payload: AppSettingsUpdate) -> AppSettingsRead:
         return AppSettingsRead(import_workers=load_app_settings().import_workers)
     saved = save_app_settings(payload.import_workers)
     return AppSettingsRead(import_workers=saved.import_workers)
+
+
+@router.get("/cache", response_model=DerivativeCacheRead)
+def get_derivative_cache_endpoint(session: Session = Depends(get_session)) -> DerivativeCacheRead:
+    stats = measure_derivative_cache(session)
+    return DerivativeCacheRead(
+        derivative_bytes=stats.derivative_bytes,
+        file_count=stats.file_count,
+        project_count=stats.project_count,
+    )
+
+
+@router.post("/cache/clear-derivatives", response_model=DerivativeCacheRead)
+def clear_derivative_cache_endpoint(session: Session = Depends(get_session)) -> DerivativeCacheRead:
+    try:
+        stats = clear_derivative_cache(session)
+    except DerivativeCacheBusyError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return DerivativeCacheRead(
+        derivative_bytes=stats.derivative_bytes,
+        file_count=stats.file_count,
+        project_count=stats.project_count,
+        deleted_files=stats.deleted_files,
+    )
 
 
 def _get_project(session: Session, project_id: str) -> Project:

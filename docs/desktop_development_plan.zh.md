@@ -2,9 +2,9 @@
 
 > 语言：[English](desktop_development_plan.md) | **中文**
 
-> **文档版本**：1.3  
+> **文档版本**：1.4  
 > **创建日期**：2026-08-18  
-> **最近审阅**：2026-09-05（S9.13 残留修复；第九阶段 remaining-stretch 收口）  
+> **最近审阅**：2026-09-07（残留 cache 旋钮 #175）  
 > **目标**：将当前本地 Web 应用（v2.0.0-rc2）重新设计并打包为可安装的 Windows 与 macOS 桌面应用  
 > **仓库**：https://github.com/joe-cheung-cae/frame-pilot  
 > **相关已有规划**：`develop_plan.md` 已将 “Local desktop packaging with Tauri or Electron” 列为 stretch goal；本文件将其正式产品化。  
@@ -52,7 +52,7 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 - [x] 桌面 sidecar 仅监听 127.0.0.1，且拒绝非回环 Host 与未授权 Origin
 - [x] 用户选择的项目根目录经过显式授权后才被接受（见实施计划 D2.00）
 
-不在 `2.1.0-desktop` 范围内（见 §5.6）：第九阶段已交付的 2.2 残留（独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10、托盘 S9.06）。仍延后（未排期）：cache 旋钮、自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、包装桌面 ≥500 GUI、macOS GUI pass。不要发明第十阶段 / 2.3。
+不在 `2.1.0-desktop` 范围内（见 §5.6）：第九阶段已交付的 2.2 残留（独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10、托盘 S9.06），加上残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）。仍延后（未排期）：自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、包装桌面 ≥500 GUI、macOS GUI pass。不要发明第十阶段 / 2.3。
 
 ---
 
@@ -158,7 +158,7 @@ FramePilot Desktop
 ### 5.4 设置与系统集成
 
 - 主题跟随系统（深色 / 浅色）
-- 数据目录管理（已交付 S9.09）与性能选项：导入 worker 1–4（已交付 S9.08）；cache 旋钮仍延后（未排期）
+- 数据目录管理（已交付 S9.09）与性能选项：导入 worker 1–4（已交付 S9.08）；缓存大小 / 淘汰（残留 [#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175) 已交付）
 - 可选系统托盘（已交付 S9.06；后台处理时显示进度）
 - 关于页面、检查更新入口（菜单检查已交付 S9.10；自动下载安装仍延后）
 
@@ -175,7 +175,7 @@ FramePilot Desktop
 |------|------|----------|
 | 分离预览窗口（§5.3） | 第二个 WebView、共享选中、聚焦窗口筛选键 | S9.07 [x] |
 | 导入 worker 并发（§5.4） | 导入衍生 worker 1–4 opt-in；默认 1 | S9.08 [x] |
-| Cache 旋钮（§5.4） | 缓存大小 / 淘汰 UI 仍未做 | 延后（未排期） |
+| Cache 旋钮（§5.4） | 缩略图和预览的缓存大小 / 淘汰 UI | 残留 [#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175) [x] |
 | 检查更新（§5.4） | Help 菜单查询 GitHub Releases；启动时不联网 | S9.10 [x] |
 | 自动下载安装（`tauri-plugin-updater` / `latest.json`） | 必须严格可选且不得阻塞启动 | 延后（未排期） |
 | 系统托盘（§5.4） | 可选 D3.06；tooltip 作业进度 | S9.06 [x] |
@@ -400,7 +400,7 @@ frame-pilot/
 | 2.1.0-desktop | 首个正式桌面安装包发布（已锁定） |
 | 第八阶段 | HEIC/HEIF 静帧预览（已交付） |
 | 第九阶段 | 剩余 stretch S9.00–S9.13（已关闭）：AVIF、RAW 内嵌预览、XMP 导出、托盘、独立预览、导入 worker、数据目录、检查更新、签名就绪 CI、macOS QA skip、文档残留修复 |
-| 未排期 | cache 旋钮、自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、macOS GUI pass。不要发明第十阶段 / 2.3 |
+| 未排期 | 自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、macOS GUI pass。不要发明第十阶段 / 2.3 |
 
 发布渠道建议：
 
@@ -461,6 +461,7 @@ frame-pilot/
 | 2026-08-18 | 1.1 | 增加实施计划与 Goal Mode 入口：`docs/plans/2026-08-18-desktop-packaging.md`、`docs/desktop_goal_mode.md` |
 | 2026-08-18 | 1.2 | Opus 5 审阅后对齐：锁定 Vite 双壳、`2.1.0-desktop`、WSL 可感知的 Phase 0 验收、§5.6 延后清单 |
 | 2026-09-05 | 1.3 | S9.13 残留修复：勾选已交付的 2.1 DoD；2.2 残留改指向 S9 id；剩余 Target = 未排期 |
+| 2026-09-07 | 1.4 | 残留 cache 旋钮 [#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)：设置缓存大小 / 淘汰；剩余 Target 去掉 cache 旋钮 |
 
 ---
 

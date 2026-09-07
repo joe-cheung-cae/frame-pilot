@@ -179,4 +179,4 @@ FRAMEPILOT_BROWSER_PERF_COUNT=1000 FRAMEPILOT_BROWSER_PERF_WIDTH=3000 FRAMEPILOT
 - 可选：在后续里程碑之前准备许可清晰的摄影师连拍/场次集，以及一次 2,000 张真实浏览器-后端运行。
 - 用已测量的失败模式重新审视持久化本地 worker 架构。
 - 仅通过聚焦、带测试的抽取继续筛选工作区可维护性。
-- 第九阶段 remaining-stretch 已关闭（S9.00–S9.13）。HEIC 静帧预览已作为第八阶段交付。仍延后（未排期）：cache 旋钮、自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、macOS GUI pass。不要发明第十阶段。
+- 第九阶段 remaining-stretch 已关闭（S9.00–S9.13）。HEIC 静帧预览已作为第八阶段交付。残留 cache 旋钮已交付（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）。仍延后（未排期）：自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、macOS GUI pass。不要发明第十阶段。
