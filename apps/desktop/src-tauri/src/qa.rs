@@ -621,19 +621,22 @@ mod tests {
         assert!(runner.contains("qa_runner_mounted"));
         assert!(runner.contains("cullLocationFields"));
         assert!(
-            runner.contains("setDesktopQaRoute"),
-            "Path B must wait for MemoryRouter pathname, not window.location.hash: {runner}"
+            runner.contains("setDesktopQaCullHref"),
+            "Path B must mount culling via an in-module store, not the WebView URL: {runner}"
         );
-        assert!(runner.contains("__FRAMEPILOT_DESKTOP_QA_ROUTE__"));
+        assert!(runner.contains("useSyncExternalStore"));
+        assert!(runner.contains("parseCullProjectId"));
         let app = include_str!("../../src/App.tsx");
         assert!(
             app.contains("setDesktopQaNavigate"),
             "NativeMenuListener must register React navigate on window: {app}"
         );
         assert!(
-            app.contains("MemoryRouter"),
-            "packaged SPA must use MemoryRouter so cull routes do not depend on the Tauri custom-protocol URL: {app}"
+            app.contains("useDesktopQaCullProjectId"),
+            "packaged SPA must mount CullingWorkspace from the Path B store: {app}"
         );
+        assert!(app.contains("CullingWorkspace"));
+        assert!(app.contains("MemoryRouter"));
         assert!(!app.contains("BrowserRouter"));
         assert!(!app.contains("HashRouter"));
     }

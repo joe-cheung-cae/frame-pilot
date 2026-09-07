@@ -1,13 +1,20 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { MemoryRouter } from "react-router-dom";
+import { CullingWorkspace } from "@/components/CullingWorkspace";
 import { DetachedPreviewPane } from "@/components/DetachedPreviewPane";
 import { isPreviewWindow } from "@/lib/detachedPreview";
 import { MENU_EVENT, resolveMenuCommand } from "@/lib/menuRoutes";
 import { useNavigator, usePathname } from "@/lib/navigation";
 import { loadLastOpenedProjectId } from "@/lib/recentProjects";
 import { applyShellDataset } from "@/lib/shell";
-import { DesktopQaRunner, setDesktopQaNavigate, setDesktopQaRoute } from "./lib/desktopQaRunner";
+import { Shell } from "@/components/Shell";
+import {
+  DesktopQaRunner,
+  setDesktopQaNavigate,
+  setDesktopQaRoute,
+  useDesktopQaCullProjectId,
+} from "./lib/desktopQaRunner";
 import { AppRoutes } from "./router";
 
 const QA_NAVIGATE_EVENT = "framepilot-qa-navigate";
@@ -44,6 +51,18 @@ function NativeMenuListener() {
   return null;
 }
 
+function QaOrRoutes() {
+  const projectId = useDesktopQaCullProjectId();
+  if (projectId) {
+    return (
+      <Shell>
+        <CullingWorkspace projectId={projectId} />
+      </Shell>
+    );
+  }
+  return <AppRoutes />;
+}
+
 export function App() {
   const [queryClient] = useState(() => new QueryClient());
   applyShellDataset();
@@ -59,7 +78,7 @@ export function App() {
       <MemoryRouter>
         <NativeMenuListener />
         <DesktopQaRunner />
-        <AppRoutes />
+        <QaOrRoutes />
       </MemoryRouter>
     </QueryClientProvider>
   );
