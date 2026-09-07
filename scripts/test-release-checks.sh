@@ -552,6 +552,10 @@ expect_success \
   bash tests/desktop/macos-dmg-gui-smoke-nondarwin.sh
 
 expect_success \
+  "Linux packaged desktop ≥500 GUI skip-not-pass host check" \
+  bash tests/desktop/desktop-500-gui-linux.sh
+
+expect_success \
   "verify.yml still has no codesign or notarize" \
   bash -c "awk '
     /codesign|notariz|APPLE_CERTIFICATE|WINDOWS_CERTIFICATE|certificateThumbprint/ { found = 1 }
