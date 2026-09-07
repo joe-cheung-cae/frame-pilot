@@ -7,11 +7,12 @@ import { MENU_EVENT, resolveMenuCommand } from "@/lib/menuRoutes";
 import { useNavigator } from "@/lib/navigation";
 import { loadLastOpenedProjectId } from "@/lib/recentProjects";
 import { applyShellDataset } from "@/lib/shell";
-import { DesktopQaRunner } from "./lib/desktopQaRunner";
+import { DesktopQaRunner, setDesktopQaNavigate } from "./lib/desktopQaRunner";
 import { AppRoutes } from "./router";
 
 function NativeMenuListener() {
   const navigator = useNavigator();
+  setDesktopQaNavigate((href) => navigator.push(href));
   useEffect(() => {
     const onMenu = (event: Event) => {
       const command = (event as CustomEvent<string>).detail;

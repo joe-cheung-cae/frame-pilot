@@ -616,7 +616,14 @@ mod tests {
             runner.contains("setDesktopQaNavigate"),
             "cull navigation must use React Router, not history.pushState alone: {runner}"
         );
+        assert!(runner.contains("__FRAMEPILOT_DESKTOP_QA_NAVIGATE__"));
         assert!(runner.contains("cull_push"));
+        assert!(runner.contains("qa_runner_mounted"));
+        let app = include_str!("../../src/App.tsx");
+        assert!(
+            app.contains("setDesktopQaNavigate"),
+            "NativeMenuListener must register React navigate on window: {app}"
+        );
     }
 
     #[test]
