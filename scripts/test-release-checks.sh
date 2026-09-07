@@ -556,6 +556,14 @@ expect_success \
   bash tests/desktop/desktop-500-gui-linux.sh
 
 expect_success \
+  "Windows-safe python discovery prefers Scripts/python.exe" \
+  bash tests/desktop/desktop-500-gui-python.sh
+
+expect_success \
+  "stamp-desktop-500-gui-docs dry-run no-ops without both-OS 500 JSON" \
+  python3 packaging/scripts/stamp-desktop-500-gui-docs.py --dry-run
+
+expect_success \
   "verify.yml still has no codesign or notarize" \
   bash -c "awk '
     /codesign|notariz|APPLE_CERTIFICATE|WINDOWS_CERTIFICATE|certificateThumbprint/ { found = 1 }
