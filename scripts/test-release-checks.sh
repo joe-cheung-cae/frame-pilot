@@ -526,19 +526,104 @@ expect_success \
     in_build && /^      - name:/ && !/Build Tauri installer/ { in_build = 0 }
     in_build && /macos-dmg-gui-smoke|hdiutil attach/ { folded = 1 }
     /name: Smoke packaged macOS DMG GUI launch/ { in_smoke = 1 }
-    in_smoke && /^      - name:/ && !/Smoke packaged macOS DMG GUI launch/ { in_smoke = 0 }
+    in_smoke && /^      - / && !/Smoke packaged macOS DMG GUI launch/ { in_smoke = 0 }
     in_smoke && /runner.os == .macOS./ { gate = 1 }
     in_smoke && /macos-dmg-gui-smoke.sh/ { script = 1 }
     in_smoke && /bundle\\/dmg\\/\\*\\.dmg/ { dmg = 1 }
-    END { exit (gate && script && dmg && !folded) ? 0 : 1 }
+    in_smoke && /desktop-500-gui.sh|--count 500/ { folded_500 = 1 }
+    END { exit (gate && script && dmg && !folded && !folded_500) ? 0 : 1 }
   ' '$repo_root/.github/workflows/desktop.yml'"
 
 expect_success \
-  "desktop.yml does not launch packaged NSIS GUI" \
+  "desktop.yml launches packaged NSIS GUI via desktop-500-gui.sh" \
   bash -c "awk '
-    /nsis.*gui-smoke|Smoke packaged Windows|macos-dmg-gui-smoke.sh.*nsis/ { found = 1 }
-    END { exit found ? 1 : 0 }
+    /id: probe-windows/ { in_pw = 1 }
+    in_pw && /^      - / && !/id: probe-windows/ { in_pw = 0 }
+    in_pw && /runner.os == .Windows./ { pw_os = 1 }
+    in_pw && /desktop-500-gui.sh/ { pw_script = 1 }
+    in_pw && /--probe/ { pw_probe = 1 }
+    in_pw && /timeout-minutes: 10/ { pw_t = 1 }
+    in_pw && /macos-dmg-gui-smoke.sh/ { folded = 1 }
+    /id: gui500-windows/ { in_gw = 1 }
+    in_gw && /^      - / && !/id: gui500-windows/ { in_gw = 0 }
+    in_gw && /always\(\)/ { gw_always = 1 }
+    in_gw && /runner.os == .Windows./ { gw_os = 1 }
+    in_gw && /steps\\.probe-windows\\.outcome == .success./ { gw_dep = 1 }
+    in_gw && /desktop-500-gui.sh/ { gw_script = 1 }
+    in_gw && /--count 500/ { gw_count = 1 }
+    in_gw && /timeout-minutes: 45/ { gw_t = 1 }
+    in_gw && /macos-dmg-gui-smoke.sh/ { folded = 1 }
+    END {
+      exit (pw_os && pw_script && pw_probe && pw_t && gw_always && gw_os && gw_dep && gw_script && gw_count && gw_t && !folded) ? 0 : 1
+    }
   ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "desktop.yml packaged ≥500 GUI probe and 500 sit after macOS DMG smoke" \
+  bash -c "awk '
+    /^  build:/ { in_job = 1 }
+    in_job && /^    steps:/ { in_steps = 1 }
+    in_job && !in_steps && /timeout-minutes: 180/ { job_t = 1 }
+    /name: Smoke packaged macOS DMG GUI launch/ { smoke = NR }
+    /id: probe-windows/ { pw = NR }
+    /id: probe-macos/ { pm = NR }
+    /id: gui500-windows/ { gw = NR }
+    /id: gui500-macos/ { gm = NR }
+    /id: probe-macos/ { in_pm = 1 }
+    in_pm && /^      - / && !/id: probe-macos/ { in_pm = 0 }
+    in_pm && /always\(\)/ { pm_always = 1 }
+    in_pm && /runner.os == .macOS./ { pm_os = 1 }
+    in_pm && /desktop-500-gui.sh/ { pm_script = 1 }
+    in_pm && /--probe/ { pm_probe = 1 }
+    in_pm && /timeout-minutes: 10/ { pm_t = 1 }
+    /id: gui500-macos/ { in_gm = 1 }
+    in_gm && /^      - / && !/id: gui500-macos/ { in_gm = 0 }
+    in_gm && /always\(\)/ { gm_always = 1 }
+    in_gm && /runner.os == .macOS./ { gm_os = 1 }
+    in_gm && /steps\\.probe-macos\\.outcome == .success./ { gm_dep = 1 }
+    in_gm && /desktop-500-gui.sh/ { gm_script = 1 }
+    in_gm && /--count 500/ { gm_count = 1 }
+    in_gm && /timeout-minutes: 40/ { gm_t = 1 }
+    END {
+      exit (job_t && smoke && pw > smoke && pm > smoke && gw > smoke && gm > smoke && pw < pm && pm < gw && gw < gm && pm_always && pm_os && pm_script && pm_probe && pm_t && gm_always && gm_os && gm_dep && gm_script && gm_count && gm_t) ? 0 : 1
+    }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "desktop.yml header allows DMG smoke and desktop-500-gui.sh, not verify.yml GUI" \
+  bash -c "awk '
+    /^name:/ { after = 1 }
+    !after && /macos-dmg-gui-smoke.sh/ { smoke = 1 }
+    !after && /desktop-500-gui.sh/ { gui = 1 }
+    !after && /Do not launch the packaged NSIS GUI/ { old = 1 }
+    !after && /verify.yml/ { verify = 1 }
+    END { exit (smoke && gui && verify && !old) ? 0 : 1 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "desktop.yml uploads distinct desktop-500-gui evidence artifacts from RUNNER_TEMP" \
+  bash -c "awk '
+    /name: FramePilot-desktop-500-gui-probe-windows/ { n1 = 1 }
+    /name: FramePilot-desktop-500-gui-500-windows/ { n2 = 1 }
+    /name: FramePilot-desktop-500-gui-probe-macos/ { n3 = 1 }
+    /name: FramePilot-desktop-500-gui-500-macos/ { n4 = 1 }
+    /desktop-500-gui\\/probe-windows/ { p1 = 1 }
+    /desktop-500-gui\\/500-windows/ { p2 = 1 }
+    /desktop-500-gui\\/probe-macos/ { p3 = 1 }
+    /desktop-500-gui\\/500-macos/ { p4 = 1 }
+    /if-no-files-found:.*probe-windows.outcome/ { e1 = 1 }
+    /if-no-files-found:.*gui500-windows.outcome/ { e2 = 1 }
+    /if-no-files-found:.*probe-macos.outcome/ { e3 = 1 }
+    /if-no-files-found:.*gui500-macos.outcome/ { e4 = 1 }
+    END { exit (n1 && n2 && n3 && n4 && p1 && p2 && p3 && p4 && e1 && e2 && e3 && e4) ? 0 : 1 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "macos-dmg-gui-smoke.sh does not fold packaged 500 GUI import" \
+  bash -c "awk '
+    /desktop-500-gui\\.sh|--count[[:space:]]+500|importPhotosFromPaths/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/packaging/scripts/macos-dmg-gui-smoke.sh'"
 
 expect_success \
   "verify.yml does not launch packaged DMG GUI smoke" \

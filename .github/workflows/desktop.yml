@@ -15,10 +15,11 @@
 # unsigned upload path green. If the full secret set is present and
 # sign / notarize fails, the job is red (no silent unsigned fallback).
 # After PyInstaller, run npm run test:sidecar (GET /health with PYTHONPATH
-# unset). Packaged GUI launch is allowed on macOS for leftover installer
-# DoD smoke (packaging/scripts/macos-dmg-gui-smoke.sh against the just-built
-# DMG). Do not launch the packaged NSIS GUI. Still do not launch GUI from
-# verify.yml.
+# unset). Packaged GUI launch is allowed for (a) leftover installer DoD
+# smoke (packaging/scripts/macos-dmg-gui-smoke.sh against the just-built
+# DMG) and (b) packaging/scripts/desktop-500-gui.sh probe + 500 against
+# the just-built NSIS/DMG. Still do not launch GUI from verify.yml. Do
+# not download installer artifacts into a second job.
 
 name: desktop
 
@@ -47,6 +48,7 @@ jobs:
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -220,3 +222,97 @@ jobs:
             exit 1
           fi
           bash packaging/scripts/macos-dmg-gui-smoke.sh "${dmgs[0]}"
+
+      # Leftover #179 Path B: probe + 500 against the just-built installer.
+      # Do not fold this into macos-dmg-gui-smoke.sh (install+run /health only).
+      - id: probe-windows
+        name: Packaged desktop GUI paint probe
+        if: runner.os == 'Windows'
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          nsis=(apps/desktop/src-tauri/target/release/bundle/nsis/*.exe)
+          if [[ "${#nsis[@]}" -lt 1 ]]; then
+            echo "No NSIS installer found under apps/desktop/src-tauri/target/release/bundle/nsis" >&2
+            exit 1
+          fi
+          bash packaging/scripts/desktop-500-gui.sh --probe --installer "${nsis[0]}"
+
+      - id: probe-macos
+        name: Packaged desktop GUI paint probe
+        if: always() && runner.os == 'macOS'
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          if [[ "${#dmgs[@]}" -lt 1 ]]; then
+            echo "No DMG found under apps/desktop/src-tauri/target/release/bundle/dmg" >&2
+            exit 1
+          fi
+          bash packaging/scripts/desktop-500-gui.sh --probe --installer "${dmgs[0]}"
+
+      - id: gui500-windows
+        name: Packaged desktop ≥500 GUI
+        if: always() && runner.os == 'Windows' && steps.probe-windows.outcome == 'success'
+        timeout-minutes: 45
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          nsis=(apps/desktop/src-tauri/target/release/bundle/nsis/*.exe)
+          if [[ "${#nsis[@]}" -lt 1 ]]; then
+            echo "No NSIS installer found under apps/desktop/src-tauri/target/release/bundle/nsis" >&2
+            exit 1
+          fi
+          bash packaging/scripts/desktop-500-gui.sh --count 500 --installer "${nsis[0]}"
+
+      - id: gui500-macos
+        name: Packaged desktop ≥500 GUI
+        if: always() && runner.os == 'macOS' && steps.probe-macos.outcome == 'success'
+        timeout-minutes: 40
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          if [[ "${#dmgs[@]}" -lt 1 ]]; then
+            echo "No DMG found under apps/desktop/src-tauri/target/release/bundle/dmg" >&2
+            exit 1
+          fi
+          bash packaging/scripts/desktop-500-gui.sh --count 500 --installer "${dmgs[0]}"
+
+      - name: Upload packaged desktop GUI probe evidence (Windows)
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FramePilot-desktop-500-gui-probe-windows
+          path: ${{ runner.temp }}/desktop-500-gui/probe-windows/
+          if-no-files-found: ${{ steps.probe-windows.outcome == 'success' && 'error' || 'warn' }}
+
+      - name: Upload packaged desktop ≥500 GUI evidence (Windows)
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FramePilot-desktop-500-gui-500-windows
+          path: ${{ runner.temp }}/desktop-500-gui/500-windows/
+          if-no-files-found: ${{ steps.gui500-windows.outcome == 'success' && 'error' || 'warn' }}
+
+      - name: Upload packaged desktop GUI probe evidence (macOS)
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FramePilot-desktop-500-gui-probe-macos
+          path: ${{ runner.temp }}/desktop-500-gui/probe-macos/
+          if-no-files-found: ${{ steps.probe-macos.outcome == 'success' && 'error' || 'warn' }}
+
+      - name: Upload packaged desktop ≥500 GUI evidence (macOS)
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FramePilot-desktop-500-gui-500-macos
+          path: ${{ runner.temp }}/desktop-500-gui/500-macos/
+          if-no-files-found: ${{ steps.gui500-macos.outcome == 'success' && 'error' || 'warn' }}
