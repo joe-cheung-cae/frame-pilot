@@ -67,6 +67,8 @@ type QaWindow = {
   __FRAMEPILOT_DESKTOP_QA_STARTED__?: unknown;
   __FRAMEPILOT_DESKTOP_QA_NAVIGATE__?: ((href: string) => void) | null;
   __FRAMEPILOT_DESKTOP_QA_MOUNTED__?: boolean;
+  location?: { pathname: string; hash: string };
+  dispatchEvent?: (event: Event) => boolean;
 };
 
 function defaultSleep(ms: number): Promise<void> {
@@ -197,34 +199,87 @@ function readDesktopQaNavigate(): ((href: string) => void) | null {
   return typeof fromWindow === "function" ? fromWindow : null;
 }
 
+export function cullLocationFields(
+  loc: { pathname?: string; hash?: string } | undefined = typeof window === "undefined" ? undefined : window.location,
+): { pathname: string; hash: string } {
+  return {
+    pathname: typeof loc?.pathname === "string" ? loc.pathname : "",
+    hash: typeof loc?.hash === "string" ? loc.hash : "",
+  };
+}
+
+export function locationShowsCull(
+  href: string,
+  loc: { pathname?: string; hash?: string } | undefined = typeof window === "undefined" ? undefined : window.location,
+): boolean {
+  const { pathname, hash } = cullLocationFields(loc);
+  return pathname.includes("/cull") || hash.includes("/cull") || pathname.endsWith(href) || hash.includes(href);
+}
+
+export function hashPush(href: string): void {
+  if (typeof window === "undefined" || !window.location) {
+    return;
+  }
+  const hash = href.startsWith("#") ? href : `#${href}`;
+  if (window.location.hash === hash) {
+    if (typeof window.dispatchEvent === "function") {
+      window.dispatchEvent(typeof Event === "function" ? new Event("hashchange") : ({ type: "hashchange" } as Event));
+    }
+    return;
+  }
+  window.location.hash = hash;
+}
+
 export function historyPush(href: string): void {
   const push = readDesktopQaNavigate();
   if (push) {
     push(href);
     return;
   }
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.history.pushState({}, "", href);
-  window.dispatchEvent(new PopStateEvent("popstate"));
+  hashPush(href);
 }
 
 async function waitForCullPush(
   fallback: (href: string) => void,
   href: string,
   sleep: (ms: number) => Promise<void>,
-): Promise<"react" | "history"> {
+): Promise<"react" | "history" | "hash"> {
+  let via: "react" | "history" | "hash" = "history";
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const push = readDesktopQaNavigate();
     if (push) {
       push(href);
-      return "react";
+      if (
+        typeof window !== "undefined" &&
+        typeof CustomEvent === "function" &&
+        typeof window.dispatchEvent === "function"
+      ) {
+        window.dispatchEvent(new CustomEvent("framepilot-qa-navigate", { detail: href }));
+      }
+      via = "react";
+      break;
     }
     await sleep(50);
   }
-  fallback(href);
-  return "history";
+  if (via !== "react") {
+    fallback(href);
+  }
+  if (locationShowsCull(href)) {
+    return via;
+  }
+  if (via === "react") {
+    hashPush(href);
+    if (locationShowsCull(href)) {
+      return "hash";
+    }
+  }
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (locationShowsCull(href)) {
+      return via;
+    }
+    await sleep(50);
+  }
+  return via;
 }
 
 export type StartDesktopQaOptions = {
@@ -402,7 +457,13 @@ export async function runDesktopQa(options: RunDesktopQaOptions): Promise<void> 
 
   const cullHref = `/projects/${project.id}/cull`;
   const via = await waitForCullPush(options.push, cullHref, sleep);
-  await writeMilestone(options.writeEvidence, "cull_push", now, { href: cullHref, via });
+  const loc = cullLocationFields();
+  await writeMilestone(options.writeEvidence, "cull_push", now, {
+    href: cullHref,
+    via,
+    pathname: loc.pathname,
+    hash: loc.hash,
+  });
   const naturalWidth = await waitForPreview(options.queryPreviewImages, previewTimeoutMs, sleep, options.signal);
   await writeMilestone(options.writeEvidence, "first_preview", now, {
     preview_natural_width: naturalWidth,

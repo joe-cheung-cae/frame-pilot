@@ -1,17 +1,20 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { BrowserRouter } from "react-router-dom";
+import { HashRouter } from "react-router-dom";
 import { DetachedPreviewPane } from "@/components/DetachedPreviewPane";
 import { isPreviewWindow } from "@/lib/detachedPreview";
 import { MENU_EVENT, resolveMenuCommand } from "@/lib/menuRoutes";
-import { useNavigator } from "@/lib/navigation";
+import { useNavigator, usePathname } from "@/lib/navigation";
 import { loadLastOpenedProjectId } from "@/lib/recentProjects";
 import { applyShellDataset } from "@/lib/shell";
 import { DesktopQaRunner, setDesktopQaNavigate } from "./lib/desktopQaRunner";
 import { AppRoutes } from "./router";
 
+const QA_NAVIGATE_EVENT = "framepilot-qa-navigate";
+
 function NativeMenuListener() {
   const navigator = useNavigator();
+  const pathname = usePathname();
   setDesktopQaNavigate((href) => navigator.push(href));
   useEffect(() => {
     const onMenu = (event: Event) => {
@@ -19,14 +22,24 @@ function NativeMenuListener() {
       if (typeof command !== "string") {
         return;
       }
-      const result = resolveMenuCommand(command, window.location.pathname, loadLastOpenedProjectId());
+      const result = resolveMenuCommand(command, pathname, loadLastOpenedProjectId());
       if (result.type === "navigate") {
         navigator.push(result.href);
       }
     };
+    const onQaNavigate = (event: Event) => {
+      const href = (event as CustomEvent<string>).detail;
+      if (typeof href === "string" && href) {
+        navigator.push(href);
+      }
+    };
     window.addEventListener(MENU_EVENT, onMenu);
-    return () => window.removeEventListener(MENU_EVENT, onMenu);
-  }, [navigator]);
+    window.addEventListener(QA_NAVIGATE_EVENT, onQaNavigate);
+    return () => {
+      window.removeEventListener(MENU_EVENT, onMenu);
+      window.removeEventListener(QA_NAVIGATE_EVENT, onQaNavigate);
+    };
+  }, [navigator, pathname]);
   return null;
 }
 
@@ -42,11 +55,11 @@ export function App() {
   }
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <HashRouter>
         <NativeMenuListener />
         <DesktopQaRunner />
         <AppRoutes />
-      </BrowserRouter>
+      </HashRouter>
     </QueryClientProvider>
   );
 }
