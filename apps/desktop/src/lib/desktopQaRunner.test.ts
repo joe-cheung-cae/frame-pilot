@@ -21,6 +21,7 @@ const {
   qaFailLine,
   readDesktopQaConfig,
   runDesktopQa,
+  setDesktopQaNavigate,
   spaFlagsLine,
   startDesktopQaFromWindow,
   withTimeout,
@@ -64,6 +65,8 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   assert.match(runnerSource, /invoke\("qa_bootstrap"\)/);
   assert.match(runnerSource, /startDesktopQaFromWindow/);
   assert.match(runnerSource, /qa_started/);
+  assert.match(runnerSource, /setDesktopQaNavigate/);
+  assert.match(runnerSource, /cull_push/);
   assert.equal(DESKTOP_QA_IMPORT_BATCH_SIZE, 100);
 });
 
@@ -194,6 +197,7 @@ test("withTimeout rejects when the promise never settles", async () => {
 });
 
 test("runDesktopQa calls registerDesktopProjectRoot and importPhotosFromPaths", async () => {
+  setDesktopQaNavigate(null);
   const calls: string[] = [];
   const evidence: string[] = [];
   const fakeApi = {
@@ -264,11 +268,79 @@ test("runDesktopQa calls registerDesktopProjectRoot and importPhotosFromPaths", 
     true,
   );
   assert.equal(
+    evidence.some((line) => line.includes('"milestone":"cull_push"')),
+    true,
+  );
+  assert.equal(
+    evidence.some((line) => line.includes('"via":"history"')),
+    true,
+  );
+  assert.equal(
     evidence.some((line) => line.includes('"milestone":"done"')),
     true,
   );
   assert.equal(
     evidence.some((line) => line.includes('"milestone":"first_preview"')),
+    true,
+  );
+});
+
+test("runDesktopQa pushes cull through the registered React navigate", async () => {
+  const calls: string[] = [];
+  const evidence: string[] = [];
+  setDesktopQaNavigate((href) => {
+    calls.push(`react:${href}`);
+  });
+  const fakeApi = {
+    getHealth: async () => ({ status: "ok", version: "2.1.0-desktop", service: "framepilot-api" }),
+    getSettings: async () => ({ import_workers: 1 }),
+    registerDesktopProjectRoot: async (path: string) => ({ path }),
+    createProject: async () => ({ id: "proj-1" }),
+    importPhotosFromPaths: async () => ({
+      accepted_files: 1,
+      skipped_files: 0,
+      expanded_total: 1,
+      job: { id: "import-1", status: "complete" as const },
+    }),
+    processProject: async () => ({ id: "process-1", status: "complete" as const, error_message: null }),
+    getJob: async (_projectId: string, jobId: string) => ({
+      id: jobId,
+      status: "complete" as const,
+      job_type: "import",
+      error_message: null,
+    }),
+  };
+  try {
+    await runDesktopQa({
+      api: fakeApi,
+      writeEvidence: async (line) => {
+        evidence.push(line);
+      },
+      push: (href) => {
+        calls.push(`history:${href}`);
+      },
+      queryPreviewImages: () => [
+        {
+          src: "http://127.0.0.1:9/api/assets/proj-1/previews/a.webp",
+          currentSrc: "http://127.0.0.1:9/api/assets/proj-1/previews/a.webp",
+          complete: true,
+          naturalWidth: 3000,
+        },
+      ],
+      config: {
+        photos: "/home/a/.cache/framepilot-desktop-500-gui/photos",
+        project: "/home/a/.cache/framepilot-desktop-500-gui/project",
+      },
+      now: () => "2026-09-07T00:00:00.000Z",
+      sleep: async () => {},
+    });
+  } finally {
+    setDesktopQaNavigate(null);
+  }
+  assert.equal(calls.includes("react:/projects/proj-1/cull"), true);
+  assert.equal(calls.includes("history:/projects/proj-1/cull"), false);
+  assert.equal(
+    evidence.some((line) => line.includes('"via":"react"')),
     true,
   );
 });

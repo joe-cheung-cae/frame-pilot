@@ -177,12 +177,38 @@ export async function withTimeout<T>(promise: Promise<T>, ms: number, message: s
   }
 }
 
+let desktopQaNavigate: ((href: string) => void) | null = null;
+
+export function setDesktopQaNavigate(push: ((href: string) => void) | null): void {
+  desktopQaNavigate = push;
+}
+
 export function historyPush(href: string): void {
+  if (desktopQaNavigate) {
+    desktopQaNavigate(href);
+    return;
+  }
   if (typeof window === "undefined") {
     return;
   }
   window.history.pushState({}, "", href);
   window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+async function waitForCullPush(
+  fallback: (href: string) => void,
+  href: string,
+  sleep: (ms: number) => Promise<void>,
+): Promise<"react" | "history"> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (desktopQaNavigate) {
+      desktopQaNavigate(href);
+      return "react";
+    }
+    await sleep(50);
+  }
+  fallback(href);
+  return "history";
 }
 
 export type StartDesktopQaOptions = {
@@ -308,7 +334,11 @@ async function waitForPreview(
     }
     await sleep(250);
   }
-  throw new Error("culling preview img did not reach naturalWidth > 0");
+  const images = queryPreviewImages();
+  const previewCount = images.filter((image) => `${image.currentSrc || image.src || ""}`.includes("/previews/")).length;
+  throw new Error(
+    `culling preview img did not reach naturalWidth > 0 (imgs=${images.length}, previews=${previewCount})`,
+  );
 }
 
 export async function runDesktopQa(options: RunDesktopQaOptions): Promise<void> {
@@ -354,7 +384,9 @@ export async function runDesktopQa(options: RunDesktopQaOptions): Promise<void> 
   }
   await writeMilestone(options.writeEvidence, "process_complete", now);
 
-  options.push(`/projects/${project.id}/cull`);
+  const cullHref = `/projects/${project.id}/cull`;
+  const via = await waitForCullPush(options.push, cullHref, sleep);
+  await writeMilestone(options.writeEvidence, "cull_push", now, { href: cullHref, via });
   const naturalWidth = await waitForPreview(options.queryPreviewImages, previewTimeoutMs, sleep, options.signal);
   await writeMilestone(options.writeEvidence, "first_preview", now, {
     preview_natural_width: naturalWidth,
@@ -368,9 +400,11 @@ export async function runDesktopQa(options: RunDesktopQaOptions): Promise<void> 
 export function DesktopQaRunner() {
   const navigate = useNavigate();
   useEffect(() => {
+    setDesktopQaNavigate((href) => navigate(href));
     void startDesktopQaFromWindow({
       push: (href) => navigate(href),
     });
+    return () => setDesktopQaNavigate(null);
   }, [navigate]);
   return null;
 }

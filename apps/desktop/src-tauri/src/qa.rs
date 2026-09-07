@@ -611,6 +611,12 @@ mod tests {
             "Path B must start from main.tsx so idle does not depend on React useEffect: {main}"
         );
         assert!(main.contains("spa_fetch"));
+        let runner = include_str!("../../src/lib/desktopQaRunner.ts");
+        assert!(
+            runner.contains("setDesktopQaNavigate"),
+            "cull navigation must use React Router, not history.pushState alone: {runner}"
+        );
+        assert!(runner.contains("cull_push"));
     }
 
     #[test]
