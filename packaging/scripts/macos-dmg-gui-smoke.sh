@@ -167,8 +167,9 @@ port_from_sidecar_log() {
 
 discover_port() {
   local port rc
+  # LISTEN is ready; argv --port can appear before the sidecar binds.
   set +e
-  port="$(port_from_ps_argv)"
+  port="$(port_from_lsof)"
   rc=$?
   set -e
   if [[ "$rc" -eq 3 ]]; then
@@ -179,7 +180,7 @@ discover_port() {
     return 0
   fi
   set +e
-  port="$(port_from_lsof)"
+  port="$(port_from_ps_argv)"
   rc=$?
   set -e
   if [[ "$rc" -eq 3 ]]; then
@@ -235,7 +236,13 @@ echo "opening ${app_copy}"
 open "$app_copy"
 opened=1
 
+export http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= all_proxy= ALL_PROXY=
+export no_proxy=127.0.0.1,localhost,::1
+export NO_PROXY=127.0.0.1,localhost,::1
+
 port=""
+http_code=""
+health_url=""
 retried_open=0
 start_ts="$(date +%s)"
 while true; do
@@ -253,7 +260,15 @@ while true; do
     exit 1
   fi
   if [[ "$rc" -eq 0 && -n "$port" ]]; then
-    break
+    health_url="http://127.0.0.1:${port}/health"
+    : > "${scratch}/health.json"
+    set +e
+    http_code="$(curl --noproxy '*' -sS -o "${scratch}/health.json" -w '%{http_code}' "$health_url")"
+    set -e
+    if [[ "$http_code" == "200" ]]; then
+      break
+    fi
+    echo "GET ${health_url} -> HTTP ${http_code:-000}; waiting for sidecar accept" >&2
   fi
   if (( elapsed >= 8 && retried_open == 0 )); then
     echo "sidecar not ready; retrying open once" >&2
@@ -263,28 +278,20 @@ while true; do
   sleep 1
 done
 
-if [[ -z "$port" ]]; then
+if [[ -z "$port" || "$http_code" != "200" ]]; then
   echo "sidecar did not become ready on 127.0.0.1 within 30s" >&2
   echo "ps argv (framepilot-api):" >&2
   ps -axww -o args= 2>/dev/null | grep -F 'framepilot-api' >&2 || true
   echo "lsof LISTEN (framepilot-api):" >&2
   lsof -nP -c framepilot-api -iTCP -sTCP:LISTEN >&2 || true
+  if [[ -n "${health_url}" ]]; then
+    echo "last GET ${health_url} -> HTTP ${http_code:-000}" >&2
+    cat "${scratch}/health.json" >&2 || true
+  fi
   exit 1
 fi
 
 echo "sidecar ready port=${port}"
-
-export http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= all_proxy= ALL_PROXY=
-export no_proxy=127.0.0.1,localhost,::1
-export NO_PROXY=127.0.0.1,localhost,::1
-
-health_url="http://127.0.0.1:${port}/health"
-http_code="$(curl --noproxy '*' -sS -o "${scratch}/health.json" -w '%{http_code}' "$health_url" || true)"
-if [[ "$http_code" != "200" ]]; then
-  echo "GET ${health_url} -> HTTP ${http_code}" >&2
-  cat "${scratch}/health.json" >&2 || true
-  exit 1
-fi
 health_body="$(cat "${scratch}/health.json")"
 health_parsed="$(
   python3 - "$health_body" << 'PY'
