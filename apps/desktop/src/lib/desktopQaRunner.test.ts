@@ -21,6 +21,10 @@ const {
   qaFailLine,
   readDesktopQaConfig,
   runDesktopQa,
+  cullLocationFields,
+  hashPush,
+  historyPush,
+  locationShowsCull,
   setDesktopQaNavigate,
   spaFlagsLine,
   startDesktopQaFromWindow,
@@ -35,6 +39,8 @@ type TestWindow = {
   __FRAMEPILOT_DESKTOP_QA__?: unknown;
   __FRAMEPILOT_API_BASE__?: unknown;
   __FRAMEPILOT_DESKTOP_QA_STARTED__?: unknown;
+  location?: { pathname: string; hash: string };
+  dispatchEvent?: (event: Event) => boolean;
 };
 
 async function withWindow<T>(windowValue: TestWindow | undefined, run: () => T | Promise<T>): Promise<T> {
@@ -69,7 +75,38 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   assert.match(runnerSource, /__FRAMEPILOT_DESKTOP_QA_NAVIGATE__/);
   assert.match(runnerSource, /qa_runner_mounted/);
   assert.match(runnerSource, /cull_push/);
+  assert.match(runnerSource, /framepilot-qa-navigate/);
+  assert.match(runnerSource, /hashPush/);
+  assert.match(runnerSource, /locationShowsCull/);
+  assert.match(runnerSource, /cullLocationFields/);
   assert.equal(DESKTOP_QA_IMPORT_BATCH_SIZE, 100);
+  const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+  assert.match(appSource, /HashRouter/);
+  assert.equal(appSource.includes("BrowserRouter"), false);
+});
+
+test("locationShowsCull reads HashRouter hash and BrowserRouter pathname", () => {
+  assert.deepEqual(cullLocationFields(undefined), { pathname: "", hash: "" });
+  assert.equal(locationShowsCull("/projects/p/cull", { pathname: "/", hash: "" }), false);
+  assert.equal(locationShowsCull("/projects/p/cull", { pathname: "/", hash: "#/projects/p/cull" }), true);
+  assert.equal(locationShowsCull("/projects/p/cull", { pathname: "/projects/p/cull", hash: "" }), true);
+});
+
+test("historyPush writes the cull route into location.hash when React navigate is missing", async () => {
+  const loc = { pathname: "/index.html", hash: "" };
+  await withWindow(
+    {
+      location: loc,
+      dispatchEvent: () => true,
+    },
+    () => {
+      setDesktopQaNavigate(null);
+      historyPush("/projects/proj-1/cull");
+      assert.equal(loc.hash, "#/projects/proj-1/cull");
+      hashPush("/projects/proj-1/cull");
+      assert.equal(loc.hash, "#/projects/proj-1/cull");
+    },
+  );
 });
 
 test("qaFailLine is a single JSON object with milestone fail", () => {
@@ -347,6 +384,69 @@ test("runDesktopQa pushes cull through the registered React navigate", async () 
   );
 });
 
+test("runDesktopQa falls back to location.hash when React navigate is a no-op", async () => {
+  const loc = { pathname: "/index.html", hash: "" };
+  const evidence: string[] = [];
+  await withWindow(
+    {
+      location: loc,
+      dispatchEvent: () => true,
+    },
+    async () => {
+      setDesktopQaNavigate(() => undefined);
+      try {
+        await runDesktopQa({
+          api: {
+            getHealth: async () => ({ status: "ok", version: "2.1.0-desktop", service: "framepilot-api" }),
+            getSettings: async () => ({ import_workers: 1 }),
+            registerDesktopProjectRoot: async (path: string) => ({ path }),
+            createProject: async () => ({ id: "proj-1" }),
+            importPhotosFromPaths: async () => ({
+              accepted_files: 1,
+              skipped_files: 0,
+              expanded_total: 1,
+              job: { id: "import-1", status: "complete" as const },
+            }),
+            processProject: async () => ({ id: "process-1", status: "complete" as const, error_message: null }),
+            getJob: async (_projectId: string, jobId: string) => ({
+              id: jobId,
+              status: "complete" as const,
+              job_type: "import",
+              error_message: null,
+            }),
+          },
+          writeEvidence: async (line) => {
+            evidence.push(line);
+          },
+          push: () => undefined,
+          queryPreviewImages: () => [
+            {
+              src: "http://127.0.0.1:9/api/assets/proj-1/previews/a.webp",
+              currentSrc: "http://127.0.0.1:9/api/assets/proj-1/previews/a.webp",
+              complete: true,
+              naturalWidth: 3000,
+            },
+          ],
+          config: {
+            photos: "/home/a/.cache/framepilot-desktop-500-gui/photos",
+            project: "/home/a/.cache/framepilot-desktop-500-gui/project",
+          },
+          now: () => "2026-09-07T00:00:00.000Z",
+          sleep: async () => {},
+        });
+      } finally {
+        setDesktopQaNavigate(null);
+      }
+    },
+  );
+  assert.equal(loc.hash, "#/projects/proj-1/cull");
+  const cullPush = evidence
+    .map((line) => JSON.parse(line) as { milestone?: string; via?: string; hash?: string })
+    .find((line) => line.milestone === "cull_push");
+  assert.equal(cullPush?.via, "hash");
+  assert.equal(cullPush?.hash, "#/projects/proj-1/cull");
+});
+
 test("startDesktopQaFromWindow bootstraps QA flags via qa_bootstrap when init-script globals are missing", async () => {
   invokeCalls.length = 0;
   invokeImpl = async (cmd: string) => {
@@ -451,6 +551,10 @@ test("startDesktopQaFromWindow bootstraps QA flags via qa_bootstrap when init-sc
   assert.equal(calls.includes("registerDesktopProjectRoot:/home/a/.cache/framepilot-desktop-500-gui/project"), true);
   assert.equal(
     evidence.some((line) => line.includes('"milestone":"idle"')),
+    true,
+  );
+  assert.equal(
+    evidence.some((line) => line.includes('"milestone":"done"')),
     true,
   );
 });

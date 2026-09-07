@@ -619,11 +619,22 @@ mod tests {
         assert!(runner.contains("__FRAMEPILOT_DESKTOP_QA_NAVIGATE__"));
         assert!(runner.contains("cull_push"));
         assert!(runner.contains("qa_runner_mounted"));
+        assert!(
+            runner.contains("hashPush"),
+            "Path B must fall back to location.hash when BrowserRouter pushState is a no-op: {runner}"
+        );
+        assert!(runner.contains("locationShowsCull"));
+        assert!(runner.contains("cullLocationFields"));
         let app = include_str!("../../src/App.tsx");
         assert!(
             app.contains("setDesktopQaNavigate"),
             "NativeMenuListener must register React navigate on window: {app}"
         );
+        assert!(
+            app.contains("HashRouter"),
+            "packaged SPA must use HashRouter so cull routes work on the Tauri custom protocol: {app}"
+        );
+        assert!(!app.contains("BrowserRouter"));
     }
 
     #[test]
