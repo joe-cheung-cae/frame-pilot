@@ -68,8 +68,11 @@ type QaWindow = {
   __FRAMEPILOT_DESKTOP_QA_NAVIGATE__?: ((href: string) => void) | null;
   __FRAMEPILOT_DESKTOP_QA_MOUNTED__?: boolean;
   __FRAMEPILOT_DESKTOP_QA_ROUTE__?: string;
+  __FRAMEPILOT_DESKTOP_QA_CULL_HREF__?: string;
   location?: { pathname: string; hash: string };
   dispatchEvent?: (event: Event) => boolean;
+  addEventListener?: (type: string, listener: (event: Event) => void) => void;
+  removeEventListener?: (type: string, listener: (event: Event) => void) => void;
 };
 
 function defaultSleep(ms: number): Promise<void> {
@@ -186,6 +189,8 @@ let desktopQaNavigate: ((href: string) => void) | null = null;
 let desktopQaCullHref = "";
 const desktopQaCullListeners = new Set<() => void>();
 
+export const DESKTOP_QA_CULL_HREF_EVENT = "framepilot-qa-cull-href";
+
 export function parseCullProjectId(href: string): string | null {
   const match = /\/projects\/([^/]+)\/cull\/?$/.exec(href);
   const id = match?.[1]?.trim() ?? "";
@@ -193,11 +198,23 @@ export function parseCullProjectId(href: string): string | null {
 }
 
 export function getDesktopQaCullHref(): string {
+  const fromWindow = defaultWindow()?.__FRAMEPILOT_DESKTOP_QA_CULL_HREF__;
+  if (typeof fromWindow === "string") {
+    return fromWindow;
+  }
   return desktopQaCullHref;
 }
 
 export function subscribeDesktopQaCull(onStoreChange: () => void): () => void {
   desktopQaCullListeners.add(onStoreChange);
+  const win = defaultWindow();
+  if (win && typeof win.addEventListener === "function") {
+    win.addEventListener(DESKTOP_QA_CULL_HREF_EVENT, onStoreChange);
+    return () => {
+      desktopQaCullListeners.delete(onStoreChange);
+      win.removeEventListener?.(DESKTOP_QA_CULL_HREF_EVENT, onStoreChange);
+    };
+  }
   return () => {
     desktopQaCullListeners.delete(onStoreChange);
   };
@@ -205,6 +222,17 @@ export function subscribeDesktopQaCull(onStoreChange: () => void): () => void {
 
 export function setDesktopQaCullHref(href: string): void {
   desktopQaCullHref = href;
+  const win = defaultWindow();
+  if (win) {
+    win.__FRAMEPILOT_DESKTOP_QA_CULL_HREF__ = href;
+    if (typeof win.dispatchEvent === "function") {
+      win.dispatchEvent(
+        typeof Event === "function"
+          ? new Event(DESKTOP_QA_CULL_HREF_EVENT)
+          : ({ type: DESKTOP_QA_CULL_HREF_EVENT } as Event),
+      );
+    }
+  }
   for (const listener of desktopQaCullListeners) {
     listener();
   }

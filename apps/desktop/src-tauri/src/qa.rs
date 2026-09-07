@@ -626,6 +626,11 @@ mod tests {
         );
         assert!(runner.contains("useSyncExternalStore"));
         assert!(runner.contains("parseCullProjectId"));
+        assert!(
+            runner.contains("__FRAMEPILOT_DESKTOP_QA_CULL_HREF__"),
+            "Path B cull href must live on window so duplicated SPA modules share it: {runner}"
+        );
+        assert!(runner.contains("framepilot-qa-cull-href"));
         let app = include_str!("../../src/App.tsx");
         assert!(
             app.contains("setDesktopQaNavigate"),
