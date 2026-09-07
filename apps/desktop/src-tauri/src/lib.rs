@@ -2,21 +2,28 @@
 
 mod data_dir;
 mod menu;
+mod preview;
 mod sidecar;
+mod tray;
+mod updater;
 
+use std::path::PathBuf;
 use std::process::Child;
 use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Duration;
 
-use data_dir::resolve_runtime_data_dir;
+use data_dir::{
+    default_anchor_dir, ensure_data_dir, resolve_runtime_data_dir, write_data_dir_pointer,
+};
 use menu::{build_app_menu, handle_menu_event, DesktopPaths};
 use sidecar::{
     allocate_loopback_port, api_pythonpath, app_quit_action, blocking_error_script,
     close_choice_from_handshake, close_decision, close_decision_requests_shutdown, close_job_kind,
-    default_python, find_active_job, frozen_sidecar_binary, initialization_script, parse_quit_choice,
-    probe_health, quit_dialog_script, repo_root, request_cancel_then_wait, sidecar_spawn_spec,
+    default_python, find_active_job, frozen_sidecar_binary, initialization_script_for_window,
+    parse_quit_choice, probe_health, quit_dialog_script, repo_root, request_cancel_then_wait,
+    sidecar_spawn_spec,
     sidecar_stderr_log, spawn_sidecar, staged_sidecar_resource_root, start_sidecar_unless_shutdown,
     supervisor_tick_after_probe, terminate_sidecar, wait_for_health, AppQuitAction, AppQuitEvent,
     CloseDecision, CloseJobKind, SidecarLaunchMode, SidecarStart, SidecarState, SpawnedSidecar,
@@ -164,6 +171,38 @@ fn handle_close_requested(window: tauri::Window, state: Arc<SidecarState>, port:
     finish_quit(&window, &state);
 }
 
+#[tauri::command]
+fn apply_data_directory(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    let new_dir = PathBuf::from(&path);
+    if !new_dir.is_absolute() {
+        return Err("data dir must be absolute".into());
+    }
+    let packaged = cfg!(not(debug_assertions));
+    let anchor = default_anchor_dir(packaged).map_err(|err| err.to_string())?;
+    write_data_dir_pointer(&anchor, &new_dir).map_err(|err| err.to_string())?;
+    ensure_data_dir(&new_dir).map_err(|err| err.to_string())?;
+    if let Some(paths) = app.try_state::<DesktopPaths>() {
+        paths.set(new_dir.clone());
+    }
+    let Some(state) = app.try_state::<Arc<SidecarState>>() else {
+        return Err("sidecar state is not configured".into());
+    };
+    let port = app
+        .try_state::<preview::PreviewHost>()
+        .map(|host| host.port)
+        .ok_or_else(|| "preview host is not configured".to_string())?;
+    let mode = resolve_launch_mode(&app, &repo_root())?;
+    state.relocate_in_progress.store(true, Ordering::SeqCst);
+    let result = (|| {
+        state.terminate_stored_child();
+        let child = spawn_ready_sidecar(port, &new_dir, &mode)?;
+        state.store_child(child);
+        Ok(new_dir.to_string_lossy().into_owned())
+    })();
+    state.relocate_in_progress.store(false, Ordering::SeqCst);
+    result
+}
+
 fn show_blocking_error(app: &tauri::AppHandle, message: &str) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.eval(&blocking_error_script(message));
@@ -174,7 +213,7 @@ fn supervise_sidecar(
     app: tauri::AppHandle,
     state: Arc<SidecarState>,
     port: u16,
-    data_dir: std::path::PathBuf,
+    data_dir: PathBuf,
     mode: SidecarLaunchMode,
     mut restart_used: bool,
 ) {
@@ -186,6 +225,9 @@ fn supervise_sidecar(
         thread::sleep(Duration::from_millis(500));
         if state.is_shutdown() {
             return;
+        }
+        if state.relocate_in_progress.load(Ordering::SeqCst) {
+            continue;
         }
 
         let exited = match state.child_has_exited() {
@@ -211,7 +253,11 @@ fn supervise_sidecar(
                 if state.is_shutdown() {
                     return;
                 }
-                match start_sidecar_process(port, &data_dir, &mode, || state.is_shutdown()) {
+                let current_dir = app
+                    .try_state::<DesktopPaths>()
+                    .map(|paths| paths.current())
+                    .unwrap_or_else(|| data_dir.clone());
+                match start_sidecar_process(port, &current_dir, &mode, || state.is_shutdown()) {
                     Ok(SidecarStart::Started(child)) => {
                         health_failures = 0;
                         state.store_child(child);
@@ -265,13 +311,21 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&[preview::PREVIEW_WINDOW_LABEL])
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![
+            preview::toggle_detached_preview,
+            preview::close_detached_preview,
+            apply_data_directory,
+        ])
         .manage(Arc::clone(&state))
-        .manage(DesktopPaths {
-            data_dir: data_dir.clone(),
-        })
+        .manage(DesktopPaths::new(data_dir.clone()))
+        .manage(preview::PreviewHost { port })
         .on_menu_event(|app, event| handle_menu_event(app, event))
         .setup(move |app| {
             let launch_mode = resolve_launch_mode(app.handle(), &root);
@@ -304,11 +358,15 @@ pub fn run() {
             .title("FramePilot")
             .inner_size(1200.0, 800.0)
             .min_inner_size(1100.0, 720.0)
-            .initialization_script(&initialization_script(port))
+            .initialization_script(&initialization_script_for_window(port, "main"))
             .build()?;
 
             let menu = build_app_menu(app)?;
             app.set_menu(menu)?;
+
+            if let Err(err) = tray::install_tray(app.handle(), port, Arc::clone(&setup_state)) {
+                eprintln!("FramePilot system tray is unavailable: {err}");
+            }
 
             if let Some(err) = startup_error {
                 show_blocking_error(
@@ -335,6 +393,9 @@ pub fn run() {
         .on_window_event(move |window, event| {
             match event {
                 WindowEvent::CloseRequested { api, .. } => {
+                    if !preview::window_close_targets_app_quit(window.label()) {
+                        return;
+                    }
                     let shutting_down = window
                         .try_state::<Arc<SidecarState>>()
                         .is_some_and(|state| state.is_shutdown());
@@ -355,8 +416,12 @@ pub fn run() {
                     }
                 }
                 WindowEvent::Destroyed => {
-                    if let Some(state) = window.try_state::<Arc<SidecarState>>() {
-                        state.request_shutdown();
+                    if preview::window_destroyed_requests_sidecar_shutdown(window.label()) {
+                        if let Some(state) = window.try_state::<Arc<SidecarState>>() {
+                            state.request_shutdown();
+                        }
+                    } else if window.label() == preview::PREVIEW_WINDOW_LABEL {
+                        preview::emit_preview_closed(window.app_handle());
                     }
                 }
                 _ => {}

@@ -31,7 +31,7 @@ describe("HelpShortcuts", () => {
     }
     expect(
       screen.getByText(
-        "Desktop also lists native menu accelerators CmdOrCtrl+N, CmdOrCtrl+W, and CmdOrCtrl+Q.",
+        "Desktop also lists native menu accelerators CmdOrCtrl+N, CmdOrCtrl+W, and CmdOrCtrl+Q. Bare culling keys apply to the focused window only.",
       ),
     ).toBeTruthy();
     expect(screen.getByText("P")).toBeTruthy();

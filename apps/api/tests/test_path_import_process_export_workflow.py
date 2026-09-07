@@ -9,7 +9,9 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from app.main import create_app
+from tests.avif_helpers import tiny_avif_bytes
 from tests.heic_helpers import tiny_heic_bytes
+from tests.raw_helpers import tiny_dng_bytes
 
 
 def _jpeg(color: tuple[int, int, int]) -> bytes:
@@ -176,6 +178,85 @@ def test_path_import_process_pick_and_export_leaves_originals_unchanged(tmp_path
     assert other_source.read_bytes() == other_bytes
 
 
+def test_path_export_xmp_sidecars_stay_out_of_originals_and_camera_card(tmp_path, monkeypatch):
+    from tests.test_xmp_sidecar import parse_xmp_fields
+
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
+    client = TestClient(create_app())
+
+    source_dir = tmp_path / "camera-card"
+    source_dir.mkdir()
+    pick_source = source_dir / "hero.jpg"
+    pick_bytes = _jpeg((210, 180, 40))
+    pick_source.write_bytes(pick_bytes)
+    before = _fingerprint(pick_source)
+
+    created = client.post("/api/projects", json={"name": "Path xmp"})
+    assert created.status_code == 201
+    project = created.json()
+    import_response = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={"paths": [str(source_dir)], "finalize": True},
+    )
+    assert import_response.status_code == 201, import_response.text
+    import_job = _wait_for_job(client, project["id"], import_response.json()["job"])
+    assert import_job["status"] == "complete"
+
+    photos = client.get(f"/api/projects/{project['id']}/photos").json()
+    pick_photo = next(photo for photo in photos if photo["filename"] == "hero.jpg")
+    pick_response = client.patch(
+        f"/api/projects/{project['id']}/photos/{pick_photo['id']}",
+        json={"user_status": "Pick", "star_rating": 5},
+    )
+    assert pick_response.status_code == 200
+    project_copy = Path(pick_photo["project_copy_path"])
+    copy_before = _fingerprint(project_copy)
+
+    zip_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "zip", "statuses": ["Pick"], "include_xmp": True},
+    )
+    assert zip_response.status_code == 201
+    zip_export = _wait_for_export(client, project["id"], zip_response.json())
+    assert zip_export["status"] == "complete"
+    assert zip_export["include_xmp"] is True
+    with zipfile.ZipFile(zip_export["output_path"]) as archive:
+        assert sorted(archive.namelist()) == ["hero.jpg", "hero.jpg.xmp"]
+        assert archive.read("hero.jpg") == pick_bytes
+        fields = parse_xmp_fields(archive.read("hero.jpg.xmp").decode("utf-8"))
+    assert fields["identifier"] == pick_photo["id"]
+    assert fields["title"] == "hero.jpg"
+    assert fields["label"] == "Green"
+
+    folder_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "folder", "statuses": ["Pick"], "include_xmp": True},
+    )
+    assert folder_response.status_code == 201
+    folder_export = _wait_for_export(client, project["id"], folder_response.json())
+    folder_path = Path(folder_export["output_path"])
+    assert (folder_path / "hero.jpg").read_bytes() == pick_bytes
+    assert (folder_path / "hero.jpg.xmp").is_file()
+
+    csv_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "csv", "statuses": ["Pick"], "include_xmp": True},
+    )
+    assert csv_response.status_code == 201
+    csv_export = _wait_for_export(client, project["id"], csv_response.json())
+    assert csv_export["include_xmp"] is True
+    with Path(csv_export["output_path"]).open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [row["status"] for row in rows] == ["Pick"]
+    assert [row["star_rating"] for row in rows] == ["5"]
+
+    originals = Path(project["root_path"]) / "originals"
+    assert list(originals.rglob("*.xmp")) == []
+    assert list(source_dir.rglob("*.xmp")) == []
+    assert _fingerprint(pick_source) == before
+    assert _fingerprint(project_copy) == copy_before
+
+
 def test_path_import_process_export_heic_leaves_originals_unchanged(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
     client = TestClient(create_app())
@@ -265,6 +346,196 @@ def test_path_import_process_export_heic_leaves_originals_unchanged(tmp_path, mo
     folder_export = _wait_for_export(client, project["id"], folder_response.json())
     assert folder_export["status"] == "complete"
     exported_file = Path(folder_export["output_path"]) / "still.heic"
+    assert exported_file.is_file()
+    assert exported_file.read_bytes() == payload
+    assert exported_file.resolve() != source.resolve()
+    assert_originals_unchanged()
+
+
+def test_path_import_process_export_avif_leaves_originals_unchanged(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
+    client = TestClient(create_app())
+
+    source_dir = tmp_path / "camera-card"
+    source_dir.mkdir()
+    source = source_dir / "still.avif"
+    payload = tiny_avif_bytes(size=(64, 48), color=(210, 180, 40))
+    source.write_bytes(payload)
+    before = _fingerprint(source)
+    source_names_before = sorted(path.name for path in source_dir.iterdir())
+
+    def assert_originals_unchanged() -> None:
+        assert sorted(path.name for path in source_dir.iterdir()) == source_names_before
+        assert _fingerprint(source) == before
+
+    created = client.post("/api/projects", json={"name": "AVIF workflow"})
+    assert created.status_code == 201
+    project = created.json()
+    assert_originals_unchanged()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={"paths": [str(source)], "finalize": True},
+    )
+    assert import_response.status_code == 201, import_response.text
+    import_result = import_response.json()
+    assert [item["filename"] for item in import_result["imported"]] == ["still.avif"]
+    import_job = _wait_for_job(client, project["id"], import_result["job"])
+    assert import_job["status"] == "complete"
+    assert_originals_unchanged()
+
+    copy_path = Path(import_result["imported"][0]["project_copy_path"])
+    assert copy_path.read_bytes() == payload
+
+    process_response = client.post(f"/api/projects/{project['id']}/process")
+    assert process_response.status_code == 202
+    process_job = _wait_for_job(client, project["id"], process_response.json())
+    assert process_job["status"] == "complete"
+    photos = client.get(f"/api/projects/{project['id']}/photos").json()
+    assert len(photos) == 1
+    assert photos[0]["filename"] == "still.avif"
+    assert photos[0]["processing_state"] == "processed"
+    groups = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert len(groups) == 1
+    assert_originals_unchanged()
+
+    pick_photo = photos[0]
+    pick_response = client.patch(
+        f"/api/projects/{project['id']}/photos/{pick_photo['id']}",
+        json={"user_status": "Pick", "star_rating": 5},
+    )
+    assert pick_response.status_code == 200
+    assert_originals_unchanged()
+
+    csv_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "csv", "statuses": ["Pick"]},
+    )
+    assert csv_response.status_code == 201
+    csv_export = _wait_for_export(client, project["id"], csv_response.json())
+    assert csv_export["status"] == "complete"
+    with Path(csv_export["output_path"]).open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [row["filename"] for row in rows] == ["still.avif"]
+    assert rows[0]["photo_id"] == pick_photo["id"]
+    assert_originals_unchanged()
+
+    zip_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "zip", "statuses": ["Pick"]},
+    )
+    assert zip_response.status_code == 201
+    zip_export = _wait_for_export(client, project["id"], zip_response.json())
+    assert zip_export["status"] == "complete"
+    with zipfile.ZipFile(zip_export["output_path"]) as archive:
+        assert archive.namelist() == ["still.avif"]
+        assert archive.read("still.avif") == payload
+        assert archive.getinfo("still.avif").compress_type == zipfile.ZIP_STORED
+    assert_originals_unchanged()
+
+    folder_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "folder", "statuses": ["Pick"]},
+    )
+    assert folder_response.status_code == 201
+    folder_export = _wait_for_export(client, project["id"], folder_response.json())
+    assert folder_export["status"] == "complete"
+    exported_file = Path(folder_export["output_path"]) / "still.avif"
+    assert exported_file.is_file()
+    assert exported_file.read_bytes() == payload
+    assert exported_file.resolve() != source.resolve()
+    assert_originals_unchanged()
+
+
+def test_path_import_process_export_dng_leaves_originals_unchanged(tmp_path, monkeypatch):
+    monkeypatch.setenv("FRAMEPILOT_DATA_DIR", str(tmp_path / "data"))
+    client = TestClient(create_app())
+
+    source_dir = tmp_path / "camera-card"
+    source_dir.mkdir()
+    source = source_dir / "still.dng"
+    payload = tiny_dng_bytes(size=(16, 12), color=(210, 180, 40))
+    source.write_bytes(payload)
+    before = _fingerprint(source)
+    source_names_before = sorted(path.name for path in source_dir.iterdir())
+
+    def assert_originals_unchanged() -> None:
+        assert sorted(path.name for path in source_dir.iterdir()) == source_names_before
+        assert _fingerprint(source) == before
+
+    created = client.post("/api/projects", json={"name": "RAW workflow"})
+    assert created.status_code == 201
+    project = created.json()
+    assert_originals_unchanged()
+
+    import_response = client.post(
+        f"/api/projects/{project['id']}/imports/from-paths",
+        json={"paths": [str(source)], "finalize": True},
+    )
+    assert import_response.status_code == 201, import_response.text
+    import_result = import_response.json()
+    assert [item["filename"] for item in import_result["imported"]] == ["still.dng"]
+    import_job = _wait_for_job(client, project["id"], import_result["job"])
+    assert import_job["status"] == "complete"
+    assert_originals_unchanged()
+
+    copy_path = Path(import_result["imported"][0]["project_copy_path"])
+    assert copy_path.read_bytes() == payload
+
+    process_response = client.post(f"/api/projects/{project['id']}/process")
+    assert process_response.status_code == 202
+    process_job = _wait_for_job(client, project["id"], process_response.json())
+    assert process_job["status"] == "complete"
+    photos = client.get(f"/api/projects/{project['id']}/photos").json()
+    assert len(photos) == 1
+    assert photos[0]["filename"] == "still.dng"
+    assert photos[0]["processing_state"] == "processed"
+    groups = client.get(f"/api/projects/{project['id']}/groups").json()
+    assert len(groups) == 1
+    assert_originals_unchanged()
+
+    pick_photo = photos[0]
+    pick_response = client.patch(
+        f"/api/projects/{project['id']}/photos/{pick_photo['id']}",
+        json={"user_status": "Pick", "star_rating": 5},
+    )
+    assert pick_response.status_code == 200
+    assert_originals_unchanged()
+
+    csv_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "csv", "statuses": ["Pick"]},
+    )
+    assert csv_response.status_code == 201
+    csv_export = _wait_for_export(client, project["id"], csv_response.json())
+    assert csv_export["status"] == "complete"
+    with Path(csv_export["output_path"]).open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [row["filename"] for row in rows] == ["still.dng"]
+    assert rows[0]["photo_id"] == pick_photo["id"]
+    assert_originals_unchanged()
+
+    zip_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "zip", "statuses": ["Pick"]},
+    )
+    assert zip_response.status_code == 201
+    zip_export = _wait_for_export(client, project["id"], zip_response.json())
+    assert zip_export["status"] == "complete"
+    with zipfile.ZipFile(zip_export["output_path"]) as archive:
+        assert archive.namelist() == ["still.dng"]
+        assert archive.read("still.dng") == payload
+        assert archive.getinfo("still.dng").compress_type == zipfile.ZIP_STORED
+    assert_originals_unchanged()
+
+    folder_response = client.post(
+        f"/api/projects/{project['id']}/exports",
+        json={"mode": "folder", "statuses": ["Pick"]},
+    )
+    assert folder_response.status_code == 201
+    folder_export = _wait_for_export(client, project["id"], folder_response.json())
+    assert folder_export["status"] == "complete"
+    exported_file = Path(folder_export["output_path"]) / "still.dng"
     assert exported_file.is_file()
     assert exported_file.read_bytes() == payload
     assert exported_file.resolve() != source.resolve()

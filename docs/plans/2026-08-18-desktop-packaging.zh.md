@@ -254,7 +254,7 @@ Phase 3
 - [x] D3.03 设置中的数据目录（`GET /api/meta`） — GUI 收口 2026-08-31T13:10:37Z：rustc 1.98.0 / cargo 1.98.0；`cargo test --lib` **41 passed**；现场 `npm run dev:desktop` 窗口标题 `FramePilot`（1200×800）；Settings 显示 `/workspace/.framepilot-desktop-dev`，**Open data folder** 打开了 Thunar。实现已在 `main`；本次没有重写设置页。见 `docs/desktop_feasibility_notes.zh.md`。`npm run test:web` 于 2026-08-26 通过。
 - [x] D3.04 跟随系统主题 — CSS `[x]`。视觉 GUI 收口 2026-08-31T13:32:55Z：rustc 1.98.0 / cargo 1.98.0；`cargo test --lib` **41 passed**；现场 `npm run dev:desktop` 窗口标题 `FramePilot`（1200×800）；系统深色时桌面 shell 为深色（`--fp-mist` 18 18 18），系统浅色时为浅色（`--fp-mist` 245 247 248）；浏览器 `:3000` 保持浅色，同时 Chrome 外壳为深色。实现已在 `main`；本次没有重写主题。见 `docs/desktop_feasibility_notes.zh.md`。
 - [x] D3.05 空状态与错误文案
-- [-] D3.06 可选托盘 — 已推迟 2026-08-28T17:24:26+08:00。不是 DoD 要求。D5.05 将记录此次推迟。未添加 `fs:` 或 `shell:` capabilities。
+- [x] D3.06 可选托盘 — 2026-09-05: S9.06 / #169; tray Show+Quit; tooltip job progress; no fs:/shell:
 - [x] D3.07 快捷键与菜单加速键核对 — Help 记录 CmdOrCtrl+N/W/Q；`menu.rs` 无裸 culling 加速键；`reviewShortcutCommandFromEvent` 忽略修饰键组合（`npm run test:web` 2026-08-28）。
 
 Phase 4

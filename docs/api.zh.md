@@ -6,11 +6,15 @@
 
 `GET /health` 和 `GET /api/health` 返回 `status`、`version` 和 `service`。`version` 是 API 的 `APP_VERSION` 值。Playwright 和桌面 sidecar 探测无前缀的 `/health` URL，作为 2xx 检查。
 
+`GET /api/settings` 返回 `{ "import_workers": 1 }`（默认）。`PATCH /api/settings` 用 `{ "import_workers": 2 }` 把整数 **1–4** 持久化到 `{data_dir}/app_settings.json`（原子 tmp + replace）。省略该键或 `{}` 返回当前值。`0`、`5`、非整数和 `null` 返回 `422`。该旋钮由 API 拥有（不是 `localStorage`，不是 `/api/meta`），作用于**下一次**导入衍生作业。处理仍是每个项目一个作业。
+
 已实现的端点：
 
 ```text
 GET    /health
 GET    /api/health
+GET    /api/settings
+PATCH  /api/settings
 
 POST   /api/projects
 GET    /api/projects
@@ -19,6 +23,7 @@ DELETE /api/projects/{project_id}
 
 GET    /api/desktop/project-roots
 POST   /api/desktop/project-roots
+POST   /api/desktop/data-dir
 
 POST   /api/projects/{project_id}/imports
 POST   /api/projects/{project_id}/imports/from-paths
@@ -75,6 +80,8 @@ GET /api/assets/{project_id}/{thumbnails|previews}/{filename}
 当 `POST /api/projects` 省略 `root_path` 或将其发送为空时，FramePilot 使用默认的托管项目目录。项目创建 UI 将其作为可选的本地项目数据文件夹字段暴露。自定义 `root_path` 必须是 `{data_dir}/projects` 下可用的本地目录、`FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` 条目，或通过 `POST /api/desktop/project-roots` 注册的文件夹。无效存储路径会在创建项目元数据之前返回 `422`。环境 allowlist 条目会用与 `register_root` 相同的 helpers 过滤：`$HOME`、`/`、盘符根、数据目录及其父目录，以及其他被拦截的系统路径会被忽略。
 
 `GET` 和 `POST /api/desktop/project-roots` 仅在 `FRAMEPILOT_DESKTOP=1` 时存在；否则返回 `404`。`POST` 接受 `{"path": "/absolute/folder"}`，要求该目录已存在；会拒绝被拦截的系统路径、文件系统锚点、当前家目录（按名拒绝 `Path.home()` / `$HOME`）、数据目录以及数据目录的父目录，并在 `{data_dir}/desktop_project_roots.json` 中最多存储 50 条解析后的路径。`GET` 返回 `{"roots": [...]}`。该注册表以文件为后端，不存储在 Settings 中。
+
+`POST /api/desktop/data-dir` 仅在 `FRAMEPILOT_DESKTOP=1` 时存在；否则返回 `404`。请求体为 `{"path": "/absolute/empty-folder"}`。目标必须已通过 `POST /api/desktop/project-roots` 注册。被拦截、未注册、嵌套、缺失和非空目标返回 `422`。作业处于 `BLOCKING_JOB_STATUSES` 时返回 `409`。成功时把当前数据目录树（含 SQLite `-wal`/`-shm`）拷贝到目标，只在**目标**数据库里改写前缀为旧数据目录的已存项目/照片/导出路径，旧树保持字节不变，永不改写 `Project.source_root_path`，也不拷贝或改写相机卡上的原片。拷贝出的 `desktop_project_roots.json` 会去掉新数据目录（它现在就是 data dir）。响应为 `{"data_dir": "<new>"}`。随后桌面壳写入 `{anchor}/data_dir.json`，并用新的 `--data-dir` 重新拉起 sidecar。
 
 `DELETE /api/projects/{project_id}` 从应用数据库中移除该项目及相关本地元数据记录。它不会从磁盘删除项目文件夹、已复制的原片、生成的预览或导出产物。
 
@@ -142,6 +149,7 @@ GET /api/assets/{project_id}/{thumbnails|previews}/{filename}
     "progress_percent": 50.0,
     "error_message": null,
     "cancellation_requested": false,
+    "pause_requested": false,
     "cancelled_at": null,
     "started_at": "2026-06-02T12:00:00Z",
     "completed_at": null,
@@ -193,11 +201,11 @@ API 先将目录展开为普通文件，然后在该 HTTP 请求中最多消费 
 
 作业控制与 multipart 导入一致：没有该 `job_id` 的新导入在另一个导入活动时返回 `409`；`expected_total` 会更新 `job.total_items`。每个被消费的文件以 `rb` 打开，并经过现有的登记/复制路径复制。源文件永不被修改、删除或硬链接。当 `finalize` 为 true、给定的是单个输入目录、且 `source_root_path` 为空时，API 将该目录存为只读项目元数据。它不会重新扫描该文件夹。
 当 EXIF 数据可用时，后台衍生作业会记录基本的拍摄时间、相机、镜头、焦距、光圈、快门速度和 ISO 元数据。数值型 EXIF 有理数会规范化为稳定的显示字符串。
-支持的静帧格式为 JPEG、PNG、WebP、HEIC 和 HEIF。HEIC/HEIF 文件原样拷进 `originals/`，用本地 `pillow-heif` 解码，并生成 WebP 缩略图/预览。评分和分组使用该解码 RGB。ZIP 和文件夹导出带上原始 HEIC/HEIF 字节（`ZIP_STORED`）。`.dng`、`.arw`、`.cr3`、`.nef` 等 RAW 扩展名仍以明确的不支持格式原因跳过。垃圾 HEIC 字节会在拷贝后让该文件失败，而不是当成不支持的扩展名。不接受 AVIF。
+支持的静帧格式为 JPEG、PNG、WebP、HEIC、HEIF、AVIF（仅 `.avif` 静帧，不含 `.avifs` 序列），以及带内嵌预览的 RAW（`.dng`、`.arw`、`.cr3`、`.nef`）。HEIC/HEIF 文件原样拷进 `originals/`，用本地 `pillow-heif` 解码，并生成 WebP 缩略图/预览。AVIF 静帧走同一拷贝与 WebP 衍生路径，用 Pillow 自带的 `AvifImagePlugin` 解码（不是 HEIF opener）。RAW 文件原样拷贝；FramePilot 只抽 LibRaw 内嵌预览（`rawpy.extract_thumb`），不 demosaic，并用该预览 RGB 生成 WebP 衍生件。评分和分组使用解码后的静帧 RGB 或 RAW 预览 RGB。ZIP 和文件夹导出带上原始 HEIC/HEIF/AVIF/RAW 字节（`ZIP_STORED`）。没有内嵌预览的 RAW 以 `RAW file has no embedded preview; FramePilot does not demosaic` 跳过，不会拷进 `originals/`。垃圾 HEIC 或 AVIF 字节会在拷贝后让该文件失败，而不是当成不支持的扩展名。
 
 ## 作业
 
-`POST /api/projects/{project_id}/process` 创建本地后台处理作业，并以 `202 Accepted` 返回一个 `ProcessingJob`。轮询 `GET /api/projects/{project_id}/jobs/{job_id}`，直到作业到达 `complete`、`failed` 或 `cancelled`。
+`POST /api/projects/{project_id}/process` 创建本地后台处理作业，并以 `202 Accepted` 返回一个 `ProcessingJob`。轮询 `GET /api/projects/{project_id}/jobs/{job_id}`，直到作业到达 `complete`、`failed`、`cancelled` 或 `paused`。
 如果同一项目有排队或正在运行的导入作业，处理端点返回 `409 Conflict`，而不是启动处理：
 
 ```json
@@ -214,17 +222,23 @@ API 先将目录展开为普通文件，然后在该 HTTP 请求中最多消费 
 
 API 启动默认行为：残留的活动导入/处理作业标为 `interrupted`（`current_step` 为 `interrupted - restart`，写入 `interrupted_at`），并安排进程内回收，以免重启后工作区在整个过期窗口内被阻塞。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可改为立即将残留活动作业标为失败。无论哪种方式，导出仍失败并清理。回收不在 `GET /api/projects` 上执行。
 
-作业处于 `interrupted` 期间，活动作业守卫会将其视为进行中的工作：对同一项目发起新的导入或处理请求会返回 `409`（或复用现有作业行），而不会与待处理的回收发生竞争；并且该作业在回收或取消请求将其终结为终态之前不可 `retryable`。如果重启前已请求取消，回收会将该作业终结为 `cancelled` 而不是续跑。回收的认领是原子的（单条带条件的 `UPDATE`），因此进程内回收线程与单独运行的 `python -m app.worker` 不会同时执行同一个作业。
+作业处于 `interrupted` 期间，活动作业守卫会将其视为进行中的工作：对同一项目发起新的导入或处理请求会返回 `409`（或复用现有作业行），而不会与待处理的回收发生竞争；并且该作业在回收或取消请求将其终结为终态之前不可 `retryable`。如果重启前已请求取消，回收会将该作业终结为 `cancelled` 而不是续跑。如果已请求暂停，回收会将该作业终结为 `paused` 而不是重新入队。两标志同时存在时取消优先。回收的认领是原子的（单条带条件的 `UPDATE`），因此进程内回收线程与单独运行的 `python -m app.worker` 不会同时执行同一个作业。
 
-`GET /api/projects/{project_id}/jobs` 按最新优先返回项目作业，包括 `import` 和 `processing` 作业。可选的 `limit` 和 `offset` 查询参数可以为大型作业历史分页。导入 UI 在上传/登记返回后轮询返回的导入作业；处理 UI 使用作业历史，在页面重新加载或导航后继续轮询排队或运行中的处理作业。如果排队或正在运行的导入作业过期，作业端点会将其标记为失败，并将 `current_step` 设为 `failed - stale`；这可以防止中断的本地导入永远保持活动，同时又不会重试或修改照片。
+`GET /api/projects/{project_id}/jobs` 按最新优先返回项目作业，包括 `import`、`processing` 和 `export` 作业。可选的 `limit` 和 `offset` 查询参数可以为大型作业历史分页。导入 UI 在上传/登记返回后轮询返回的导入作业；处理 UI 使用作业历史，在页面重新加载或导航后继续轮询排队或运行中的处理作业。如果排队或正在运行的导入作业过期，作业端点会将其标记为失败，并将 `current_step` 设为 `failed - stale`；这可以防止中断的本地导入永远保持活动，同时又不会重试或修改照片。
 
-`POST /api/projects/{project_id}/jobs/{job_id}/cancel` 为排队或正在运行的导入或处理作业请求协作式取消。它设置 `cancellation_requested`，并将 `current_step` 设为 `cancellation_requested`，以 `202 Accepted` 返回更新后的作业；在工作器终态化之前 `status` 仍保持 queued 或 running。终态作业（`complete`、`complete_with_errors`、`failed`、`cancelled`）作为安全空操作以 `200 OK` 返回。该端点不会杀死 API 进程、删除原始文件、删除已复制的原片，或移除已生成的衍生文件。
+`POST /api/projects/{project_id}/jobs/{job_id}/cancel` 为排队或正在运行的导入、处理或导出作业请求协作式取消。它设置 `cancellation_requested`，并将 `current_step` 设为 `cancellation_requested`，以 `202 Accepted` 返回更新后的作业；在工作器终态化之前 `status` 仍保持 queued 或 running。终态作业（`complete`、`complete_with_errors`、`failed`、`cancelled`、`paused`）作为安全空操作以 `200 OK` 返回。该端点不会杀死 API 进程、删除原始文件或删除已复制的原片。
 
 对导入作业，后台工作器在每张照片之前以及每次照片级衍生/评分/哈希处理后检查该请求，到达安全检查点后将作业标记为 `cancelled`，并记录 `cancelled_at` 和 `completed_at`。已经完成的照片衍生文件保持缓存，未处理的照片保持可重试。取消一个 `interrupted` 的导入作业（当前没有工作器在执行它）会立即将其终结为 `cancelled`，同样以 `200 OK` 返回。
 
 对处理作业，取消是协作式的：工作器在安全检查点停止（当前这次 `group_similar_photos` 调用没有进度回调，可能先跑完），然后清分组并将作业标记为 `cancelled`，记录 `cancelled_at` 和 `completed_at`。分组为空，`processed_images` 为 0，在飞照片回到 `imported`，`user_status` 与 `star_rating` 保留，导入衍生件保留，并且永不修改或删除原图。取消一个 `interrupted` 的处理作业（当前没有在飞工作器）会立即终态为 `cancelled` 并清分组，同样以 `200 OK` 返回。重跑分组走 `POST /process`；`POST .../retry` 仍仅导入。
 
-其他 `job_type` 仍返回 `422`。植入的 `ProcessingJob(job_type="export")` 为 422；用 `ExportRecord.id` 打这条路由仍是 `404`，因为线上导出不是 `ProcessingJob` 行。现场 422 detail 仍是 `"Only import jobs can be cancelled"`，尽管处理作业已被允许。
+对导出作业，`POST /export` 会同时持久化 `job_type="export"` 的 `ProcessingJob`，其 `id` 与 `ExportRecord` 相同。取消是协作式的，检查点在 CSV / ZIP / 文件夹写入的每张照片处。作业终态为 `cancelled`；对应导出记录走现有 fail-and-cleanup（`failed`，只删除项目导出根下的不完整产物，根外路径保留）。永不修改或删除原片。取消一个 `interrupted` 的导出（没有在飞工作器）会立即终态并以 `200 OK` 返回。再导出走新的 `POST /export`。导出作业在启动时不会被回收。
+
+其他 `job_type` 仍返回 `422`，detail 为 `"Only import, processing, and export jobs can be cancelled"`。
+
+`POST /api/projects/{project_id}/jobs/{job_id}/pause` 只为排队或正在运行的**处理**作业请求协作式暂停。它设置独立的 `pause_requested` 标志（不是 `cancellation_requested`），并将 `current_step` 设为 `pause_requested`，以 `202 Accepted` 返回；在工作器终态化之前 `status` 仍保持 queued 或 running。若已有 `cancellation_requested`，暂停不会覆盖 `current_step`，继续由取消负责。终态作业（`complete`、`complete_with_errors`、`failed`、`cancelled`、`paused`）作为安全空操作以 `200 OK` 返回，并且不会给已成功完成的作业打标志。导入、导出和其他 `job_type` 返回 `422`，detail 为 `"Only processing jobs can be paused"`。作业缺失或 `project_id` 不符返回 `404`。
+
+暂停与取消使用同一批处理检查点，是协作式的。工作器先看取消，再看暂停。暂停时清分组，并将作业标记为 `paused`（不是 `cancelled` 或 `failed`），写入 `completed_at`。分组为空，`processed_images` 为 0，在飞照片回到 `imported`，`user_status` 与 `star_rating` 保留，导入衍生件保留，并且永不修改或删除原图。暂停一个 `interrupted` 的处理作业（当前没有在飞工作器）会立即终态为 `paused` 并清分组，同样以 `200 OK` 返回。`paused` 对该作业行是终态：过期扫描对其空操作，也不会挡住新的 `POST /process`。恢复是 clear-and-rerun：`POST /process` 创建**新**处理作业并重建分组。不要原地恢复该 paused 行。`POST .../retry` 仍仅导入。
 
 `POST /api/projects/{project_id}/jobs/{job_id}/retry` 重试失败、`complete_with_errors` 或 `cancelled` 的导入作业。它创建新的本地导入作业，并对生成的缩略图或预览缺失、或导入状态仍为 `processing` 或 `failed` 的项目照片重新运行衍生/评分/哈希/嵌入工作。它不会重新登记已上传的文件、创建重复的照片记录、重置 `user_status`、重置 `star_rating`、删除已生成的衍生文件、删除已复制的原片，或修改源照片。现有有效的缩略图和预览文件会被复用；缺失的衍生文件会尽可能从本地已复制的原片重新生成。如果部分照片恢复而其他照片无法重建，重试作业以 `complete_with_errors` 完成，并在受影响的照片上记录失败项。如果另一个导入作业已经排队或正在运行，重试返回 `409`。
 
@@ -243,6 +257,7 @@ API 启动默认行为：残留的活动导入/处理作业标为 `interrupted`�
   "progress_percent": 33.33,
   "error_message": null,
   "cancellation_requested": false,
+  "pause_requested": false,
   "cancelled_at": null,
   "checkpoint_photo_id": null,
   "checkpoint_stage": null,
@@ -310,11 +325,12 @@ API 启动默认行为：残留的活动导入/处理作业标为 `interrupted`�
 ```json
 {
   "mode": "csv",
-  "statuses": ["Pick", "Maybe"]
+  "statuses": ["Pick", "Maybe"],
+  "include_xmp": false
 }
 ```
 
-支持的模式为 `csv`、`folder` 和 `zip`。支持的状态为 `Pick`、`Maybe`、`Reject` 和 `Unreviewed`。状态过滤器按该支持顺序去重存储。
+支持的模式为 `csv`、`folder` 和 `zip`。支持的状态为 `Pick`、`Maybe`、`Reject` 和 `Unreviewed`。状态过滤器按该支持顺序去重存储。可选的 `include_xmp` 在省略时默认为 `false`。它**不是**第四种导出模式。文件夹和 ZIP 导出会在项目导出目录下（或作为 ZIP 成员）写入 `{exported_filename}.xmp`。CSV 会存储该标志但不写 `.xmp` 文件。sidecar 永不写入 `originals/`、相机原片旁，或图像字节。
 
 响应包含导出的照片数量和本地输出路径：
 
@@ -328,6 +344,7 @@ API 启动默认行为：残留的活动导入/处理作业标为 `interrupted`�
   "processed_count": 12,
   "total_count": 12,
   "statuses": "[\"Pick\", \"Maybe\"]",
+  "include_xmp": false,
   "output_path": ".../exports/csv/selection-export-id.csv",
   "error_message": null,
   "completed_at": "2026-06-02T12:00:01Z",
@@ -359,6 +376,6 @@ GET /api/projects/{project_id}/exports/{export_id}/download
 失败或仍在运行的导出记录从下载端点返回 `409`。
 单数 `/api/projects/{project_id}/export` 路由仍作为向后兼容别名可用。
 
-XMP sidecar 导出在 v2.0 中未实现。计划中的做法记录在 [导出互操作](export_interoperability.zh.md)。
+可选的 XMP sidecar 导出记录在 [导出互操作](export_interoperability.zh.md)。`xmp:Rating` 映射星级（0–5）；Pick/Maybe/Reject 使用 Adobe `xmp:Label` 色标 Green/Yellow/Red；Unreviewed 省略标签。这不是经过测试的 Lightroom/Capture One GUI 往返，也不会写到原片旁。
 
 实验性的人脸和睁眼字段是来自简单颜色、形状、亮度和锐度检查的本地启发式分数。它们不是由捆绑的专业人脸检测模型生成的，应视为弱的 MVP 排序提示。

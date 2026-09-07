@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import time
 from pathlib import Path
 
@@ -9,6 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import case, func
 from sqlmodel import Session, select
 
+from app.core.app_settings import load_app_settings, save_app_settings
 from app.core.config import get_settings
 from app.core.origins import desktop_mode_enabled
 from app.core.project_roots import register_root, registered_roots
@@ -16,6 +16,10 @@ from app.core.version import health_payload, meta_payload
 from app.db.session import get_session
 from app.models.entities import ExportRecord, Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.schemas.api import (
+    AppSettingsRead,
+    AppSettingsUpdate,
+    DesktopDataDirChange,
+    DesktopDataDirRead,
     DesktopProjectRootCreate,
     ExportCreate,
     ExportRead,
@@ -30,7 +34,18 @@ from app.schemas.api import (
     ProjectCreate,
     ProjectRead,
 )
-from app.services.exporting import copy_selected_files, write_selection_csv, zip_selected_files
+from app.services.data_dir import DataDirRelocateError, relocate_data_dir
+from app.services.exporting import (
+    EXPORT_CANCEL_REASON,
+    ExportCancelled,
+    copy_selected_files,
+    fail_and_cleanup_export_record,
+    finalize_cancelled_export_job,
+    request_export_job_cancellation,
+    sync_export_job,
+    write_selection_csv,
+    zip_selected_files,
+)
 from app.services.importing import (
     IMPORT_MAX_FILES_PER_REQUEST,
     ImportTimingCollector,
@@ -58,6 +73,7 @@ from app.services.processing import (
     create_processing_job,
     project_export_root,
     request_processing_job_cancellation,
+    request_processing_job_pause,
     run_processing_job,
 )
 from app.services.projects import create_project, list_projects
@@ -73,6 +89,19 @@ def api_health_endpoint() -> dict[str, str]:
 @router.get("/meta")
 def api_meta_endpoint() -> dict[str, str | bool]:
     return meta_payload(data_dir=str(get_settings().data_dir), desktop_mode=desktop_mode_enabled())
+
+
+@router.get("/settings", response_model=AppSettingsRead)
+def get_app_settings_endpoint() -> AppSettingsRead:
+    return AppSettingsRead(import_workers=load_app_settings().import_workers)
+
+
+@router.patch("/settings", response_model=AppSettingsRead)
+def patch_app_settings_endpoint(payload: AppSettingsUpdate) -> AppSettingsRead:
+    if payload.import_workers is None:
+        return AppSettingsRead(import_workers=load_app_settings().import_workers)
+    saved = save_app_settings(payload.import_workers)
+    return AppSettingsRead(import_workers=saved.import_workers)
 
 
 def _get_project(session: Session, project_id: str) -> Project:
@@ -95,22 +124,6 @@ def _export_target(export_root: Path, export_id: str, mode: str) -> Path:
     if mode == "folder":
         return export_root / "folders" / f"selected-{export_id}"
     return export_root / "zip" / f"selected-{export_id}.zip"
-
-
-def _remove_partial_export(target: Path, export_root: Path) -> None:
-    try:
-        resolved_target = target.resolve(strict=True)
-        resolved_export_root = export_root.resolve(strict=True)
-    except FileNotFoundError:
-        return
-    if not resolved_target.is_relative_to(resolved_export_root):
-        return
-    if target.is_symlink():
-        target.unlink()
-    elif resolved_target.is_dir():
-        shutil.rmtree(resolved_target)
-    else:
-        resolved_target.unlink()
 
 
 def _get_export(session: Session, project_id: str, export_id: str) -> ExportRecord:
@@ -166,6 +179,7 @@ def _job_read(job: ProcessingJob) -> JobRead:
         progress_percent=job.progress_percent,
         error_message=job.error_message,
         cancellation_requested=job.cancellation_requested,
+        pause_requested=job.pause_requested,
         cancelled_at=job.cancelled_at,
         checkpoint_photo_id=job.checkpoint_photo_id,
         checkpoint_stage=job.checkpoint_stage,
@@ -314,6 +328,19 @@ def register_desktop_project_root(payload: DesktopProjectRootCreate) -> dict[str
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return {"path": str(root)}
+
+
+@router.post("/desktop/data-dir", response_model=DesktopDataDirRead)
+def change_desktop_data_dir(
+    payload: DesktopDataDirChange,
+    session: Session = Depends(get_session),
+) -> DesktopDataDirRead:
+    _require_desktop_mode()
+    try:
+        dest = relocate_data_dir(payload.path, session)
+    except DataDirRelocateError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+    return DesktopDataDirRead(data_dir=str(dest))
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -804,9 +831,12 @@ def cancel_job_endpoint(
     if job is None or job.project_id != project_id:
         raise HTTPException(status_code=404, detail="Processing job not found")
     job = _ensure_fresh_job(session, job)
-    if job.job_type not in {"import", "processing"}:
-        raise HTTPException(status_code=422, detail="Only import jobs can be cancelled")
-    if job.status in {"complete", "complete_with_errors", "failed", "cancelled"}:
+    if job.job_type not in {"import", "processing", "export"}:
+        raise HTTPException(
+            status_code=422,
+            detail="Only import, processing, and export jobs can be cancelled",
+        )
+    if job.status in {"complete", "complete_with_errors", "failed", "cancelled", "paused"}:
         response.status_code = status.HTTP_200_OK
         return job
     # "interrupted" jobs finalize synchronously (no in-flight worker to cooperatively
@@ -814,8 +844,32 @@ def cancel_job_endpoint(
     was_interrupted = job.status == "interrupted"
     if job.job_type == "processing":
         result = request_processing_job_cancellation(session, job)
+    elif job.job_type == "export":
+        result = request_export_job_cancellation(session, job)
     else:
         result = request_import_job_cancellation(session, job)
+    response.status_code = status.HTTP_200_OK if was_interrupted else status.HTTP_202_ACCEPTED
+    return result
+
+
+@router.post("/projects/{project_id}/jobs/{job_id}/pause", response_model=JobRead)
+def pause_job_endpoint(
+    project_id: str,
+    job_id: str,
+    response: Response,
+    session: Session = Depends(get_session),
+):
+    job = session.get(ProcessingJob, job_id)
+    if job is None or job.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Processing job not found")
+    job = _ensure_fresh_job(session, job)
+    if job.job_type != "processing":
+        raise HTTPException(status_code=422, detail="Only processing jobs can be paused")
+    if job.status in {"complete", "complete_with_errors", "failed", "cancelled", "paused"}:
+        response.status_code = status.HTTP_200_OK
+        return job
+    was_interrupted = job.status == "interrupted"
+    result = request_processing_job_pause(session, job)
     response.status_code = status.HTTP_200_OK if was_interrupted else status.HTTP_202_ACCEPTED
     return result
 
@@ -1018,20 +1072,20 @@ def _fail_stale_exports(session: Session, project_id: str | None = None) -> None
     if project_id is not None:
         statement = statement.where(ExportRecord.project_id == project_id)
     now = utc_now()
+    stale_ids: list[str] = []
     for record in session.exec(statement).all():
         if as_utc(now) - as_utc(record.created_at) < STALE_JOB_AFTER:
             continue
-        try:
-            project = session.get(Project, record.project_id)
-            if project is not None:
-                export_root = project_export_root(project)
-                _remove_partial_export(Path(record.output_path), export_root)
-        except Exception:
-            pass
-        record.status = "failed"
-        record.error_message = "Export was interrupted before completion"
-        record.completed_at = now
-        session.add(record)
+        fail_and_cleanup_export_record(session, record, "Export was interrupted before completion")
+        stale_ids.append(record.id)
+    for export_id in stale_ids:
+        sync_export_job(
+            session,
+            export_id,
+            status="failed",
+            current_step="failed - stale",
+            error_message="Export was interrupted before completion",
+        )
     session.commit()
 
 
@@ -1048,7 +1102,19 @@ def run_export_job(export_id: str, mode: str, photo_dicts: list[dict], project_r
             record.error_message = "Project not found"
             record.completed_at = utc_now()
             session.add(record)
+            sync_export_job(
+                session,
+                export_id,
+                status="failed",
+                current_step="failed",
+                error_message="Project not found",
+            )
             session.commit()
+            return
+
+        job = session.get(ProcessingJob, export_id)
+        if job is not None and job.job_type == "export" and job.cancellation_requested:
+            finalize_cancelled_export_job(session, job)
             return
 
         total = len(photo_dicts)
@@ -1061,9 +1127,22 @@ def run_export_job(export_id: str, mode: str, photo_dicts: list[dict], project_r
         last_progress_committed = -1
 
         def progress_callback(processed: int, total_items: int) -> None:
-            nonlocal last_progress_commit_at, last_progress_committed
+            nonlocal last_progress_commit_at, last_progress_committed, job
+            if job is None:
+                job = session.get(ProcessingJob, export_id)
+            elif job.job_type == "export":
+                session.refresh(job)
+            if job is not None and job.job_type == "export" and job.cancellation_requested:
+                raise ExportCancelled()
             record.processed_count = processed
             record.total_count = total_items
+            if job is not None and job.job_type == "export":
+                job.processed_items = processed
+                job.total_items = total_items
+                if job.total_items:
+                    job.progress_percent = round(min(100.0, (job.processed_items / job.total_items) * 100), 2)
+                job.updated_at = utc_now()
+                session.add(job)
             now = time.monotonic()
             should_commit = (
                 processed >= total_items
@@ -1078,17 +1157,25 @@ def run_export_job(export_id: str, mode: str, photo_dicts: list[dict], project_r
             last_progress_committed = processed
 
         try:
-            export_root = project_export_root(project)
             target = Path(record.output_path)
+            include_xmp = bool(record.include_xmp)
             if mode == "csv":
                 output_path = write_selection_csv(target, photo_dicts, progress_callback=progress_callback)
             elif mode == "folder":
                 output_path = copy_selected_files(
-                    target, photo_dicts, project_root=Path(project_root), progress_callback=progress_callback
+                    target,
+                    photo_dicts,
+                    project_root=Path(project_root),
+                    progress_callback=progress_callback,
+                    include_xmp=include_xmp,
                 )
             else:
                 output_path = zip_selected_files(
-                    target, photo_dicts, project_root=Path(project_root), progress_callback=progress_callback
+                    target,
+                    photo_dicts,
+                    project_root=Path(project_root),
+                    progress_callback=progress_callback,
+                    include_xmp=include_xmp,
                 )
             record.status = "complete"
             record.output_path = str(output_path)
@@ -1097,23 +1184,41 @@ def run_export_job(export_id: str, mode: str, photo_dicts: list[dict], project_r
             record.error_message = None
             record.completed_at = utc_now()
             session.add(record)
+            sync_export_job(
+                session,
+                export_id,
+                status="complete",
+                current_step="complete",
+                processed_items=total,
+                total_items=total,
+            )
             session.commit()
+        except ExportCancelled:
+            session.rollback()
+            job = session.get(ProcessingJob, export_id)
+            if job is not None and job.job_type == "export":
+                finalize_cancelled_export_job(session, job)
+                return
+            record = session.get(ExportRecord, export_id)
+            if record is None:
+                return
+            fail_and_cleanup_export_record(session, record, EXPORT_CANCEL_REASON, commit=True)
         except Exception as error:
             session.rollback()
             record = session.get(ExportRecord, export_id)
             if record is None:
                 return
-            try:
-                export_root = project_export_root(project)
-                _remove_partial_export(Path(record.output_path), export_root)
-            except Exception:
-                pass
-            record.status = "failed"
-            record.error_message = (
+            error_message = (
                 str(error) if isinstance(error, (FileNotFoundError, ValueError)) and str(error) else "Export failed"
             )
-            record.completed_at = utc_now()
-            session.add(record)
+            fail_and_cleanup_export_record(session, record, error_message, commit=False)
+            sync_export_job(
+                session,
+                export_id,
+                status="failed",
+                current_step="failed",
+                error_message=error_message,
+            )
             session.commit()
 
 
@@ -1152,11 +1257,26 @@ def create_export_endpoint(
         processed_count=0,
         total_count=selected_count,
         statuses=json.dumps(payload.statuses),
+        include_xmp=payload.include_xmp,
         output_path="pending",
     )
     target = _export_target(export_root, record.id, payload.mode)
     record.output_path = str(target)
+    now = utc_now()
+    job = ProcessingJob(
+        id=record.id,
+        project_id=project_id,
+        job_type="export",
+        status="running",
+        current_step="exporting",
+        total_items=selected_count,
+        processed_items=0,
+        failed_items=0,
+        progress_percent=0.0,
+        started_at=now,
+    )
     session.add(record)
+    session.add(job)
     session.commit()
     session.refresh(record)
     background_tasks.add_task(run_export_job, record.id, payload.mode, photo_dicts, project.root_path)

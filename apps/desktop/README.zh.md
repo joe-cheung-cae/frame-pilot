@@ -10,7 +10,7 @@ Tauri 2 + Vite SPA，通过 HTTP 复用 `apps/web` 组件，对接本地 Python 
 
 1. 经 `beforeDevCommand` 在端口 **1420** 跑 Vite（`strictPort: true`）。
 2. 拉起 sidecar，分配回环 `--port <n>`（从不用 `--port 0`），绝对 `--data-dir`，以及 `FRAMEPILOT_DESKTOP=1`。Spawn 还会 `env_remove` `FRAMEPILOT_PROJECT_ROOT_ALLOWLIST`，避免父 shell（例如 `tauri dev`）把过宽的 allowlist 漏进 sidecar。
-3. 在 UI 加载前注入 `window.__FRAMEPILOT_API_BASE__` 和 `window.__FRAMEPILOT_DESKTOP__ = true`。
+3. 在 UI 加载前注入 `window.__FRAMEPILOT_API_BASE__`、`window.__FRAMEPILOT_DESKTOP__ = true`，以及 `window.__FRAMEPILOT_WINDOW__`（`"main"` 或 `"preview"`）。
 
 在普通浏览器打开 Vite URL（没有 Tauri）时，`getNativeFs()` 返回 `null`，与 web stub 一致，因此不会用原生选择器。
 
@@ -30,10 +30,18 @@ Windows NSIS 和 macOS DMG 安装包由 `.github/workflows/desktop.yml` 产出�
 
 `npm run verify` 会对桌面 Vite 应用做类型检查（`typecheck:desktop`），**不得**调用 `rustc`、`cargo` 或 Tauri。`install:all` 已经会安装 `apps/desktop`。
 
+## 独立预览
+
+**View → Detached preview**（无加速键）或筛选工具栏 **Toggle detached preview** 打开标签为 `preview` 的第二个 WebView。它通过共享选中事件显示当前筛选照片（compare 打开时显示 compare 集合）。创建失败为非致命，并保持壳内预览。关闭预览窗不是退出应用。裸筛选键只作用于聚焦窗口。不加额外的 `fs:` 或 `shell:` capabilities。
+
+## 系统托盘
+
+壳会尝试创建带 **Show** 和 **Quit** 的系统托盘图标。Tooltip 显示进行中作业进度（`Import · {step} · {n}%`、分组与排序、或导出；空闲为 `No active job`）。**Show**（或左键单击）恢复主窗口。**Quit** 走与 File → Quit 同一套关闭决策对话框。关窗口仍是退出，不是藏到托盘。主机没有托盘时创建失败为非致命。不加额外的 `fs:` 或 `shell:` capabilities。
+
 ## 有任务时退出
 
-关闭窗口时若有活跃导入，显示继续工作 / 退出并取消导入 / 仍要退出。取消复用 `POST /api/projects/{id}/jobs/{job_id}/cancel`，最多等 10 秒，再 SIGTERM。活跃分组/排序任务则显示继续工作 / 退出并取消处理 / 仍要退出，同样是 POST cancel + 最多 10 秒等待 + SIGTERM。仍要退出会对 sidecar 发 SIGTERM，5 秒后杀掉。
+关闭窗口时若有活跃导入，显示继续工作 / 退出并取消导入 / 仍要退出。取消复用 `POST /api/projects/{id}/jobs/{job_id}/cancel`，最多等 10 秒，再 SIGTERM。活跃分组/排序任务则显示继续工作 / 退出并取消处理 / 仍要退出，同样是 POST cancel + 最多 10 秒等待 + SIGTERM。活跃导出则显示继续工作 / 退出并取消导出 / 仍要退出；取消导出会清理不完整的 CSV/ZIP/文件夹产物，原片不变。仍要退出会对 sidecar 发 SIGTERM，5 秒后杀掉。
 
-下次启动时，残留导入/处理任务默认变为 `interrupted` 并自动回收（第六阶段 6.1，[#105](https://github.com/joe-cheung-cae/frame-pilot/issues/105)）。在环境里设 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0`（sidecar 会继承）则改为把残留活跃任务标为 **failed**，以便手动重试。永不修改原图。见 [第六阶段计划](../../docs/plans/2026-08-29-phase6-durable-jobs.zh.md)。
+下次启动时，残留导入/处理任务默认变为 `interrupted` 并自动回收（第六阶段 6.1，[#105](https://github.com/joe-cheung-cae/frame-pilot/issues/105)）。残留导出仍 fail-and-cleanup，不会被回收。在环境里设 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0`（sidecar 会继承）则改为把残留导入/处理任务标为 **failed**，以便手动重试。永不修改原图。见 [第六阶段计划](../../docs/plans/2026-08-29-phase6-durable-jobs.zh.md)。
 
 HTTP 冒烟：从仓库根目录 `npm run test:desktop:smoke`（PR 和 `main` 的默认 CI 门）。该冒烟不含 WebView 渲染对话框。

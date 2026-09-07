@@ -30,7 +30,13 @@ FramePilot 是一个本地 Web 应用，分为两个应用：
 项目会记录存储策略元数据：`source_mode`、`source_root_path` 和 `schema_version`。v2 当前以 `copy` 模式创建项目；引用模式（reference-mode）元数据留给后续工作，不会改变当前导入时复制（copy-on-import）的安全行为。创建项目时，用户可以选择自定义的本地项目数据文件夹；留空则使用 FramePilot 管理的项目目录。
 首页项目列表和导入界面会显示本地项目数据路径，以便用户看到生成的元数据、预览和导出文件存放在何处。
 
-导入分为同步的上传/登记阶段和进程内后台衍生阶段。请求接收所选本地文件，校验受支持的扩展名（JPEG、PNG、WebP、HEIC、HEIF），将接受的文件复制到项目的 `originals/` 文件夹，记录文件身份元数据，创建或复用 `Photo` 记录，创建 `job_type` 为 `import` 的 `ProcessingJob`，并在新照片仍标记为 `processing` 时返回。随后 FastAPI `BackgroundTasks` 工作器打开新的数据库会话，生成缩略图和预览，提取元数据，计算质量分数、感知哈希和轻量嵌入，更新每张照片的状态，并将导入作业完成状态设为 `complete`、`complete_with_errors`、`failed` 或 `cancelled`。HEIC/HEIF 静帧用本地 `pillow-heif`（`register_heif_opener`）解码；衍生件仍是 WebP；评分和分组使用解码后的 RGB。导出拷贝原始 HEIC/HEIF 字节。RAW 仍跳过。
+导入分为同步的上传/登记阶段和进程内后台衍生阶段。请求接收所选本地文件，校验受支持的扩展名（JPEG、PNG、WebP、HEIC、HEIF、AVIF，以及带内嵌预览的 RAW），将接受的文件复制到项目的 `originals/` 文件夹，记录文件身份元数据，创建或复用 `Photo` 记录，创建 `job_type` 为 `import` 的 `ProcessingJob`，并在新照片仍标记为 `processing` 时返回。随后 FastAPI `BackgroundTasks` 工作器打开新的数据库会话，生成缩略图和预览，提取元数据，计算质量分数、感知哈希和轻量嵌入，更新每张照片的状态，并将导入作业完成状态设为 `complete`、`complete_with_errors`、`failed` 或 `cancelled`。HEIC/HEIF 静帧用本地 `pillow-heif`（`register_heif_opener`）解码；AVIF 静帧用 Pillow 自带的 `AvifImagePlugin`；RAW 对已拷原片调用 `rawpy.extract_thumb`（不 demosaic）；衍生件仍是 WebP；评分和分组使用解码后的静帧 RGB 或 RAW 预览 RGB。导出拷贝原始 HEIC/HEIF/AVIF/RAW 字节。没有内嵌预览的 RAW 以明确本地消息跳过，不会拷贝。
+
+导入衍生生成默认一个 worker。设置可将 `import_workers` 升到 2–4（`GET`/`PATCH /api/settings`，存于 `{data_dir}/app_settings.json`）。`n==1` 保持按照片顺序循环；`n=2–4` 使用进程内 `ThreadPoolExecutor`，每个任务一个 SQLAlchemy session。并发 `process_registered_import_photo` 峰值 ≤ n。取消仍是协作式（停止调度、等待在飞、不杀线程）。登记/拷贝仍顺序。处理仍是每个项目一个作业。没有 Redis、Celery 或额外操作系统 worker 进程。
+
+桌面设置可更改 FramePilot **应用数据目录**（先走 D2.00 `POST /api/desktop/project-roots`，再 `POST /api/desktop/data-dir`）。当前 data-dir 树拷贝到已授权的空文件夹；只在目标数据库里改写前缀为旧 data dir 的已存 `root_path` / 项目拷贝 / 衍生件 / 导出路径。旧树留在磁盘。永不改写 `Project.source_root_path`，也不打开、拷贝、移动或 chmod 相机卡上的原片。旧 data dir 之外的自定义 D2.00 项目文件夹不动。桌面壳把指针写到 `{anchor}/data_dir.json`（环境变量 `FRAMEPILOT_DATA_DIR` 之后、默认 app-support / `.framepilot-desktop-dev` 之前），并用新的 `--data-dir` 重新拉起 sidecar。不添加额外的 `fs:` / `shell:` 能力。
+
+桌面 Help → **Check for updates**（S9.10 / [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)）是原生菜单动作。辅助线程对 GitHub Releases latest 做未认证 `GET`；WebView CSP 仍仅 loopback。Releases JSON 就是清单。缺少 `tag_name` 为非致命 no-op。壳比较 MAJOR.MINOR.PATCH 核心（`2.1.0-desktop` vs `v2.2.0`）并显示本地对话框。没有启动时检查、自动安装、`tauri-plugin-updater`、额外的 `fs:` / `shell:` 能力、遥测或 GitHub token。
 
 导入页面在响应后轮询返回的作业 id，因此长时间导入会显示衍生进度，而不是让用户等待一个不透明的请求。它还会加载最新的导入作业历史，以便过期、失败、`complete_with_errors`、`cancelled` 以及可回收的 `interrupted` 导入作业在导航或页面重新加载后仍然可见。过期检测在存在工作器租约心跳时优先使用 2 分钟窗口，否则使用 `updated_at` 的 10 分钟窗口。默认仍是本地进程内后台任务；启动回收默认开启（自第 6.1 阶段起），因此衍生工作会在 API 进程重启后进程内续跑，而不是直接失败。
 
@@ -38,8 +44,8 @@ FramePilot 是一个本地 Web 应用，分为两个应用：
 
 失败、`complete_with_errors` 和 `cancelled` 的导入作业可通过本地重试端点重试。重试会创建新的导入作业，并且只对缺少生成衍生文件、或导入状态仍为 `processing` 或 `failed` 的照片执行恢复工作。它保留现有照片 ID、审阅状态、星级评分、已复制的原始文件以及已经有效的缩略图/预览文件。缺失的衍生文件会尽可能从本地已复制的原始文件重新生成；无法恢复的照片保持 `failed` 状态并带有 `processing_error`，计入重试作业。重试不会引入外部或云队列。启动回收默认开启（设 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可关闭），中断的导入作业会在重启后通过进程内回收完成，而无需重新上传。
 
-处理同样使用本地 FastAPI 后台任务。`POST /api/projects/{project_id}/process` 创建 `ProcessingJob` 并立即返回，随后工作器在 SQLite 中更新状态、当前步骤、条目计数、失败计数、进度百分比、开始时间和完成时间。处理界面轮询 `GET /api/projects/{project_id}/jobs/{job_id}`，直到作业完成、失败或被取消。
-处理取消走同一条 `POST /api/projects/{project_id}/jobs/{job_id}/cancel` 路由，是协作式的，不是硬杀进程。取消处理后清分组，在飞照片回到 `imported`；原图、导入衍生件、`user_status` 与 `star_rating` 保留。回收尊重已请求的取消，不重新入队。重跑分组走 `POST /process`；`/retry` 仍仅导入。导出作业仍不可取消（`422`）。
+处理同样使用本地 FastAPI 后台任务。`POST /api/projects/{project_id}/process` 创建 `ProcessingJob` 并立即返回，随后工作器在 SQLite 中更新状态、当前步骤、条目计数、失败计数、进度百分比、开始时间和完成时间。处理界面轮询 `GET /api/projects/{project_id}/jobs/{job_id}`，直到作业完成、失败、被取消或被暂停。
+处理取消走同一条 `POST /api/projects/{project_id}/jobs/{job_id}/cancel` 路由，是协作式的，不是硬杀进程。取消处理后清分组，在飞照片回到 `imported`；原图、导入衍生件、`user_status` 与 `star_rating` 保留。回收尊重已请求的取消，不重新入队。重跑分组走 `POST /process`；`/retry` 仍仅导入。处理暂停走独立的 `POST /api/projects/{project_id}/jobs/{job_id}/pause` 路由和 `pause_requested` 标志。工作器在同一批检查点退出，不 finalize 为 `cancelled`，清掉半成品分组，并将作业标为 `paused`。恢复是新的 `POST /process`（clear-and-rerun），不是原地继续。导出取消走同一取消路由：创建时持久化 `job_type="export"` 的 `ProcessingJob`，id 与 `ExportRecord` 相同；检查点中止后对项目导出根下的不完整产物做 fail-and-cleanup。导出作业不会被回收。
 当同一项目存在排队或正在运行的导入作业时，处理会被阻塞。项目详情/列表响应将活动导入作业作为轻量工作流状态暴露；处理端点在导入进行中对直接请求返回 `409 Conflict`；项目列表、仪表板、处理页和筛选工作区会把用户导回导入进度，直到衍生生成达到终态。
 如果排队或正在运行的处理作业过期（存在租约心跳时超过 2 分钟未刷新，否则 `updated_at` 超过 10 分钟），项目和作业端点会将其标记为失败，清除任何部分分组，移除照片分组分配，将已处理或进行中的照片重置为可重试的已导入状态，并将项目已处理计数设回零。之后的处理请求可以启动替换作业并干净地重建分组。只有显式关闭回收（`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0`）时，API 进程启动才会立即将任何残留的排队/运行中/已中断作业标记为失败；默认情况下（见下方第 6.1 阶段更新）残留工作会被标为 `interrupted` 并回收，因此无论哪种方式，重启都不会让工作区在整个过期窗口内被阻塞。
 
@@ -49,7 +55,13 @@ FramePilot 是一个本地 Web 应用，分为两个应用：
 
 2026-08-31 更新（第 6.1 阶段，[#105](https://github.com/joe-cheung-cae/frame-pilot/issues/105)）：启动回收现在默认开启。`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 未设置（或设为任何真值）即启用回收；设为 `0`/`false`/`no`/`off` 可退回旧的失败并重试启动流程。第六阶段的其余行为（检查点、租约、worker 入口、导出重启后失败）均未改变。
 
-2026-09-03 更新（第七阶段，[#145](https://github.com/joe-cheung-cae/frame-pilot/issues/145) / [#146](https://github.com/joe-cheung-cae/frame-pilot/issues/146)）：同一取消路由现可协作取消处理作业与导入作业。取消处理会清分组；原图不变。导出取消仍为 422。进行中分组的暂停/恢复未实现。
+2026-09-03 更新（第七阶段，[#145](https://github.com/joe-cheung-cae/frame-pilot/issues/145) / [#146](https://github.com/joe-cheung-cae/frame-pilot/issues/146)）：同一取消路由现可协作取消处理作业与导入作业。取消处理会清分组；原图不变。
+
+2026-09-05 更新（第九阶段 S9.01，[#164](https://github.com/joe-cheung-cae/frame-pilot/issues/164)）：同一取消路由现可协作取消导出作业。不完整的 CSV/ZIP/文件夹走 fail-and-cleanup；原片不变；残留导出仍不会被回收。
+
+2026-09-05 更新（第九阶段 S9.02，[#161](https://github.com/joe-cheung-cae/frame-pilot/issues/161)）：处理作业可用独立的 `pause_requested` 标志暂停。工作器在现有检查点退出，不 finalize 为 `cancelled`，也不留下可审阅的半成品分组。恢复是 `POST /process` 的 clear-and-rerun，不是原地继续。
+
+2026-09-05 更新（第九阶段 S9.08，[#168](https://github.com/joe-cheung-cae/frame-pilot/issues/168)）：设置可将导入**衍生** worker 从 1 升到 4。该值在 `run_import_derivative_job` 开始时快照。处理仍是每个项目一个作业。
 
 对未变更的已完成项目，处理是幂等的：如果所有照片已标记为 `processed`，项目计数匹配，生成的缩略图和预览仍然存在，且分组覆盖全部照片集，则新的处理作业会完成且不清除或重建分组。新导入或缺失的生成文件仍会使该捷径失效，并在分组/排序完成前需要本地校验。导入在保守的相同上传情形下是幂等的：如果所选文件的上传文件名和 SHA-256 内容哈希与项目中已有照片相同，且该照片的缩略图和预览仍然存在，则复用现有记录和衍生文件，不重置用户状态，也不再创建一份副本。文件名不同但字节相同的文件仍视为不同的导入。
 
@@ -67,7 +79,7 @@ FramePilot 是一个本地 Web 应用，分为两个应用：
 
 导出是写入 `exports/` 下的本地产物。每条导出记录有唯一输出路径，并记录所选状态以及所选照片数量。空导出在写入产物前会被拒绝。CSV 和 ZIP 产物可通过本地 API 下载；导出输出路径可从 Web UI 复制，文件夹导出会暴露本地输出路径。导出创建和下载在写入或提供产物之前会解析导出根目录和模式目录，并拒绝指向本地项目根目录之外的符号链接逃逸。ZIP 和文件夹导出还会解析所选源文件，并要求它们留在项目的 `originals/` 目录内，因此损坏的元数据不能让文件导出复制任意本地文件。导出记录保留在 SQLite 中，可列出作为本地导出历史。
 
-未来面向 sidecar 的导出应将衍生元数据文件写入项目控制的输出目录，除非用户在后续版本中明确选择该工作流，否则绝不写到原始源文件旁边或覆盖原始源文件。
+可选 XMP sidecar（`include_xmp`，默认关）只是导出派生物。文件夹拷贝旁写入 `{exported_filename}.xmp`；ZIP 含同样的成员名。CSV 接受并存储该标志，但不写 `.xmp` 文件。sidecar 永不进入 `originals/`、相机原片旁，或图像字节。
 
 SQLite 初始化还会为大型项目审阅和导出查询创建索引：按项目的照片审阅排序、按状态筛选的导出选择、处理状态恢复扫描、项目分组列表、活动处理作业查找、最新优先的处理历史，以及最新优先的导出历史。
 SQLite 作为单用户本地数据库使用，每个解析后的数据库 URL 对应一个缓存的 SQLAlchemy 引擎。新连接会启用 `journal_mode=WAL`、`synchronous=NORMAL`、`foreign_keys=ON` 以及有界的 `busy_timeout`，以便后台导入/处理写入器与状态轮询读取器共存。当 `FRAMEPILOT_DATA_DIR` 变化时，引擎和设置缓存会一起清除，以便测试和本地重新配置获得新引擎。

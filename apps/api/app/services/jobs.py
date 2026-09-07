@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 from sqlmodel import Session, or_, select, update
 
-from app.models.entities import ExportRecord, ProcessingJob, Project, utc_now
+from app.models.entities import ExportRecord, ProcessingJob, utc_now
 
 ACTIVE_JOB_STATUSES = frozenset({"queued", "running"})
 # "interrupted" is reclaimable (Phase 6); not active work and not a successful terminal state.
-TERMINAL_JOB_STATUSES = frozenset({"complete", "complete_with_errors", "failed", "cancelled", "interrupted"})
+# "paused" is terminal for this row (S9.02); it is not blocking, so POST /process can start a new job.
+TERMINAL_JOB_STATUSES = frozenset({"complete", "complete_with_errors", "failed", "cancelled", "paused", "interrupted"})
 # Workflow guards (new import/process acceptance) must treat "interrupted" as in-flight too,
 # so a fresh import/process cannot race a pending reclaim of the same project (#104 fix 5).
 BLOCKING_JOB_STATUSES = ACTIVE_JOB_STATUSES | frozenset({"interrupted"})
@@ -278,6 +277,15 @@ def fail_stale_job(session: Session, job: ProcessingJob) -> ProcessingJob:
         reset_import_photos_after_interrupt(session, job.project_id, reason)
         return mark_job_failed(session, job, reason, current_step="failed - stale")
 
+    if job.job_type == "export":
+        from app.services.exporting import fail_and_cleanup_export_record
+
+        reason = "Export job was interrupted before completion"
+        record = session.get(ExportRecord, job.id)
+        if record is not None and record.status == "running":
+            fail_and_cleanup_export_record(session, record, reason, commit=False)
+        return mark_job_failed(session, job, reason, current_step="failed - stale")
+
     reason = f"{job.job_type.title()} job was interrupted before completion"
     return mark_job_failed(session, job, reason, current_step="failed - stale")
 
@@ -345,7 +353,11 @@ def mark_job_interrupted_for_reclaim(session: Session, job: ProcessingJob) -> Pr
 
 
 def interrupt_active_jobs_for_reclaim_on_startup(session: Session) -> int:
-    """Leave import/processing work reclaimable; still fail running exports (Phase 6 decision)."""
+    """Leave import/processing work reclaimable; still fail running exports (Phase 6 decision).
+
+    Export jobs are never reclaimed: leftover export ``ProcessingJob`` rows are failed
+    here, and leftover ``ExportRecord`` rows use fail-and-cleanup below.
+    """
     active_jobs = list(
         session.exec(select(ProcessingJob).where(ProcessingJob.status.in_(list(ACTIVE_JOB_STATUSES)))).all()
     )
@@ -370,34 +382,23 @@ def reconcile_active_jobs_on_startup(session: Session, *, reclaim: bool) -> int:
 
 
 def _fail_running_exports_on_startup(session: Session) -> int:
+    from app.services.exporting import fail_and_cleanup_export_record, sync_export_job
+
     running_exports = list(session.exec(select(ExportRecord).where(ExportRecord.status == "running")).all())
     for record in running_exports:
-        project = session.get(Project, record.project_id)
-        if project is not None:
-            try:
-                from app.services.processing import project_export_root
-
-                export_root = project_export_root(project)
-                target = Path(record.output_path)
-                try:
-                    resolved_target = target.resolve(strict=True)
-                    resolved_export_root = export_root.resolve(strict=True)
-                except FileNotFoundError:
-                    pass
-                else:
-                    if resolved_target.is_relative_to(resolved_export_root):
-                        if target.is_symlink():
-                            target.unlink()
-                        elif resolved_target.is_dir():
-                            shutil.rmtree(resolved_target)
-                        else:
-                            resolved_target.unlink()
-            except Exception:
-                pass
-        record.status = "failed"
-        record.error_message = "API process restarted while this export was still running"
-        record.completed_at = utc_now()
-        session.add(record)
+        fail_and_cleanup_export_record(
+            session,
+            record,
+            "API process restarted while this export was still running",
+            commit=False,
+        )
+        sync_export_job(
+            session,
+            record.id,
+            status="failed",
+            current_step="failed - restart",
+            error_message="API process restarted while this export was still running",
+        )
     if running_exports:
         session.commit()
     return len(running_exports)

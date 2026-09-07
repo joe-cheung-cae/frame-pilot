@@ -59,6 +59,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   const copy = copyForShell(desktopShell);
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>("csv");
+  const [includeXmp, setIncludeXmp] = useState(false);
   const [statuses, setStatuses] = useState<ExportStatus[]>(DEFAULT_EXPORT_STATUS_PREFERENCE);
   const [exportLimit, setExportLimit] = useState(RECENT_EXPORT_LIMIT);
   const [copiedPath, setCopiedPath] = useState("");
@@ -95,7 +96,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
       if (!statuses.length || selectedCount === 0) {
         throw new Error("Choose at least one non-empty status before exporting.");
       }
-      return api.exportSelection(projectId, mode, statuses);
+      return api.exportSelection(projectId, mode, statuses, includeXmp);
     },
     onError: () => {
       void invalidateProjectExportQueries(queryClient, projectId);
@@ -285,6 +286,26 @@ export function ExportPanel({ projectId }: { projectId: string }) {
           );
         })}
       </div>
+      <label
+        className={`focus-within:ring-2 focus-within:ring-leaf flex max-w-xl items-start gap-3 rounded border border-line bg-surface px-3 py-2 text-sm ${
+          exportControlsDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+        }`}
+      >
+        <input
+          checked={includeXmp}
+          className="mt-0.5 h-4 w-4 accent-leaf"
+          disabled={exportControlsDisabled}
+          onChange={(event) => setIncludeXmp(event.target.checked)}
+          type="checkbox"
+        />
+        <span>
+          <span className="font-medium">Write XMP sidecars</span>
+          <span className="mt-1 block text-muted">
+            Sidecars go next to folder copies and inside ZIP. They are never written beside originals. CSV already
+            includes status and stars.
+          </span>
+        </span>
+      </label>
       <button
         className="focus-ring inline-flex w-fit items-center gap-2 rounded bg-ink px-4 py-3 font-medium text-mist disabled:opacity-50"
         disabled={Boolean(exportBlockMessage)}
@@ -358,6 +379,7 @@ export function ExportPanel({ projectId }: { projectId: string }) {
                   <div>
                     <p className="font-medium">
                       {record.mode.toUpperCase()} · {photoCountLabel(record.selected_count)}
+                      {record.include_xmp ? " · XMP" : ""}
                       <span
                         className={`ml-2 ${
                           record.status === "failed"

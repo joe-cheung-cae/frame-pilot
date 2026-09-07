@@ -16,14 +16,18 @@ v2.0 支持以下格式的本地导入与处理：
 - PNG
 - WebP
 - HEIC / HEIF 静帧（本地 `pillow-heif` 解码；WebP 衍生件；导出原始字节）
+- AVIF 静帧（仅 `.avif`；Pillow 自带 `AvifImagePlugin`；WebP 衍生件；导出原始字节）
+- 带内嵌预览的 RAW（`.dng`、`.arw`、`.cr3`、`.nef`；原样拷贝；只走 LibRaw `extract_thumb`；用预览 RGB 生成 WebP 衍生件；导出原始字节）
 
 不受支持的文件会在本地报告，而不是远程上传或解码。
 
 ## 延后的格式
 
-DNG、ARW、CR3、NEF 等 RAW 格式仍延后。FramePilot 会以明确的不支持格式消息跳过这些扩展名，不会提取内嵌 RAW 预览，也不会写入 RAW sidecar。HEIC/HEIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、AVIF、HDR/gain-map 色调映射或 XMP 写入。
+完整 RAW 显影（demosaic / `postprocess`）仍延后。没有内嵌预览的 RAW 以 `RAW file has no embedded preview; FramePilot does not demosaic` 跳过，不会拷进 `originals/`。不接受 `.cr2`、`.raf`、`.orf`、`.rw2` 等额外 RAW 扩展名。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、`.avifs` 序列或 HDR/gain-map 色调映射。导入、`originals/`、相机文件旁和图像字节都不会写入 XMP。
 
 `pillow-heif` 为 BSD-3-Clause。其 wheel 在 API/sidecar 运行时内带有 **LGPL** 的 `libheif`（及编码器）。FramePilot 不把 libheif 源码塞进本 MIT 树。
+
+`rawpy` 为 MIT。其 wheel 在 API/sidecar 运行时内带 **LGPL-2.1 / CDDL** 的 LibRaw。FramePilot 不把 LibRaw 源码塞进本 MIT 树。
 
 ## 后台任务持久性
 
@@ -37,9 +41,11 @@ DNG、ARW、CR3、NEF 等 RAW 格式仍延后。FramePilot 会以明确的不支
 
 ## 取消语义
 
-导入和处理取消都是协作式的。取消请求会持久化一个标志，后台 worker 在安全检查点读取该标志。取消不是硬性进程杀死，可能不会立即停止，并且永不修改或删除源原图。导入取消会保留已完成的衍生件，让未处理照片保持可重试。处理取消随后清分组：在飞照片回到 `imported`，`user_status` 与 `star_rating` 保留，导入衍生件保留。重跑分组走 `POST /process`；`/retry` 仍仅导入。
+导入、处理和导出取消都是协作式的。取消请求会持久化一个标志，后台 worker 在安全检查点读取该标志。取消不是硬性进程杀死，可能不会立即停止，并且永不修改或删除源原图。导入取消会保留已完成的衍生件，让未处理照片保持可重试。处理取消随后清分组：在飞照片回到 `imported`，`user_status` 与 `star_rating` 保留，导入衍生件保留。重跑分组走 `POST /process`；`/retry` 仍仅导入。导出取消将作业终态为 `cancelled`，对应导出记录走 fail-and-cleanup（`failed`）：项目导出根下的不完整 CSV/ZIP/文件夹会被删除；根外路径保留。再导出走新的 `POST /export`。导出作业不会被回收。
 
-桌面端在导入或处理仍活动时关闭，可以 POST 同一取消路由，最多等待 10 秒，然后对 sidecar 发送 SIGTERM（继续工作 / 退出并取消导入或退出并取消处理 / 仍要退出）。默认下次启动会将残留任务标为 `interrupted` 并回收；设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 后会改为通过旧的启动扫描将其标记为 `failed`。硬杀死不会被标记为 `cancelled`。导出作业仍不可取消（`POST .../cancel` 返回 422；现场 detail 仍是 `"Only import jobs can be cancelled"`）。进行中分组的暂停/恢复未实现。
+桌面端在导入、处理或导出仍活动时关闭，可以 POST 同一取消路由，最多等待 10 秒，然后对 sidecar 发送 SIGTERM（继续工作 / 退出并取消导入或处理或导出 / 仍要退出）。默认下次启动会将残留的导入/处理任务标为 `interrupted` 并回收；残留导出仍 fail-and-cleanup。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 后，残留导入/处理任务会改为通过旧的启动扫描标记为 `failed`。硬杀死不会被标记为 `cancelled`。
+
+处理暂停是协作式的，且与取消分开（`POST .../jobs/{job_id}/pause`，`pause_requested`）。工作器在安全检查点停下，不 finalize 为 `cancelled`，清掉半成品分组，并将作业标为 `paused`。恢复是经新的 `POST /process` 做 clear-and-rerun；原地从半批次哈希继续未实现。导入和导出作业不能暂停。桌面退出仍走取消而不是暂停。
 
 ## 重试语义
 
@@ -69,7 +75,7 @@ DNG、ARW、CR3、NEF 等 RAW 格式仍延后。FramePilot 会以明确的不支
 
 ## 导出限制
 
-CSV、ZIP 和文件夹导出作为带进度和过期检测的本地后台任务运行。XMP sidecar 导出已规划但尚未实现。文件夹导出暴露本地输出路径，而不是浏览器下载产物。导出的文件和 ZIP 是生成产物，不得提交到版本库。
+CSV、ZIP 和文件夹导出作为带进度和过期检测的本地后台任务运行。可选 XMP sidecar（`include_xmp`，默认关）只写在项目导出目录下：文件夹拷贝旁以及 ZIP 成员。CSV 会存储该标志但不写 `.xmp` 文件。sidecar 永不写入 `originals/`、相机原片旁，或图像字节。这不是经过测试的 Lightroom/Capture One GUI 往返。文件夹导出暴露本地输出路径，而不是浏览器下载产物。导出的文件和 ZIP 是生成产物，不得提交到版本库。
 
 ZIP 和文件夹导出要求所选源文件解析到项目 `originals/` 目录内部。这是针对损坏元数据的纵深防御；同时也意味着，如果本地已复制原图缺失或不再解析到项目存储内部，文件导出可能失败。
 
@@ -90,13 +96,16 @@ v2.0 不支持云图库、共享团队项目、自动删除原图、远程 AI �
 可安装桌面应用（`2.1.0-desktop`）共用同一套本地 API 与筛选 UI，并带有额外壳层约束：
 
 - 导入与处理任务在 sidecar 被杀或应用退出后**默认持久**：残留的导入/处理任务会标为 `interrupted`，并在下次启动时回收。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可退回旧行为，把过期任务标为失败以便用户重试（无论哪种方式，导出仍失败并清理）。
-- HEIC/HEIF 静帧可本地导入（与 web 应用相同）。RAW 仍以本地提示跳过。
-- **自动更新延期**；用户需手动安装新构建。
-- 在配置证书之前，CI 安装包可能是**未签名**的；见 [桌面代码签名手册](desktop_signing.zh.md)。
+- HEIC/HEIF 静帧以及带内嵌预览的 RAW 可本地导入（与 web 应用相同）。没有预览的 RAW 以本地提示跳过。
+- **检查更新**仅在 Help 菜单（启动时不联网）。它查询 GitHub Releases，不下载、不安装。清单缺失为非致命 no-op。未签名构建仍可启动。用户仍需手动安装新构建。
+- CI 已**签名就绪**：完整 GitHub Actions secret 集在场时会做 Authenticode / Developer ID + 公证。缺少 secrets 时保持**未签名**上传绿灯。见 [桌面代码签名手册](desktop_signing.zh.md)。
+- 桌面计划里的 2.2 残留已由第九阶段交付（托盘 S9.06、独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10），除 cache 旋钮、自动下载安装和 macOS GUI pass。不声称双平台安装包 GUI DoD。
+- **包装 macOS DMG GUI 生命周期为 skip，不是 pass**（S9.12，[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)，`2026-09-05T12:31:10Z`）。开发主机是 Linux/WSL2（`uname -s` 不是 Darwin）；未挂载或启动 DMG。skip 不是 macOS pass。Windows NSIS GUI 生命周期记在 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)（仅 Windows）。见 [桌面测试矩阵](desktop_testing.zh.md)。
 - **WSL 可能无法运行 GUI**（需要 rustc ≥1.88 与显示）；HTTP/API 冒烟仍可用。见 [桌面测试矩阵](desktop_testing.zh.md)。
 - 存储为**仅复制模式**（不支持相机卡原地引用）。
-- **没有**主窗口之外的独立预览窗。
-- 除现有本地任务模型外，**没有**导入/处理并发旋钮。
-- 可选**系统托盘已延期**（D3.06）；未添加与托盘相关的 `fs:` / `shell:` capabilities。
+- 桌面**独立预览**（View → Detached preview，或筛选工具栏）打开第二个 WebView，显示当前筛选照片并共享选中。裸筛选键只作用于聚焦窗口。创建失败为非致命，并保持壳内预览。关闭预览窗不会退出应用。未添加额外的 `fs:` / `shell:` capabilities。
+- 导入衍生 worker 默认 **1**。设置可将下一次导入作业升到 **2–4**（`GET`/`PATCH /api/settings`，`{data_dir}/app_settings.json`）。处理仍是每个项目一个作业。没有处理 worker 池、Redis 或 Celery。
+- 桌面 **Change data directory** 把当前应用数据目录拷贝到已通过 D2.00 授权的空文件夹，并改写前缀为旧 data dir 的已存路径。旧树不删除。相机卡和其他源文件夹不移动、不修改。`FRAMEPILOT_DATA_DIR` 仍优先于 `{anchor}/data_dir.json`。未添加额外的 `fs:` / `shell:` capabilities。
+- 可选**系统托盘**（D3.06）在 tooltip 中显示作业进度。**Show** 恢复主窗口；**Quit** 走与 File → Quit 同一套进行中作业对话框。关窗口仍是退出，不是藏到托盘。无头或部分 Linux 桌面创建托盘可能失败，且为非致命。未添加与托盘相关的 `fs:` / `shell:` capabilities。
 
 终端用户步骤见 [桌面用户指南](desktop_user_guide.zh.md)。

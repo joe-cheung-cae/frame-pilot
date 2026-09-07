@@ -53,6 +53,7 @@ vi.mock("@tanstack/react-query", () => ({
           processed_count: 2,
           total_count: 2,
           statuses: '["Pick"]',
+          include_xmp: false,
           output_path: "/projects/shoot/exports/folders/selection-1",
           error_message: null,
           completed_at: null,

@@ -9,10 +9,10 @@ FramePilot 是一款本地优先的 AI 辅助照片筛选 Web 应用。当前 v2
 - Next.js、React、TypeScript、Tailwind CSS 前端。
 - FastAPI、Pydantic、SQLModel、SQLite 后端。
 - 本地项目文件夹，包含原片、缩略图、预览、结构化的导出/缓存子目录和日志。
-- 导入 JPEG、PNG、WebP 以及 HEIC/HEIF 静帧。原片原样拷贝；缩略图和预览为 WebP；评分和分组在本地 `pillow-heif` 解码后的 RGB 上运行。RAW 文件仍以明确的本地消息跳过。
+- 导入 JPEG、PNG、WebP、HEIC/HEIF、AVIF 以及带内嵌预览的 RAW 静帧。原片原样拷贝；缩略图和预览为 WebP；评分和分组在解码后的 RGB 上运行（HEIC/HEIF 用本地 `pillow-heif`，AVIF 用 Pillow 自带的 `AvifImagePlugin`，RAW 只走 LibRaw `extract_thumb`）。没有内嵌预览的 RAW 以明确的本地消息跳过。
 - 导入任务在完成本地上传/登记工作后返回，并在可查询、可协作取消的本地后台任务中继续生成派生文件。
 - 导入派生工作仍在进行时会阻止处理，项目导航会把用户带回导入进度，直到导入任务到达终态。
-- 处理（分组和排序）也可通过同一取消路由协作取消。桌面退出可以取消活动处理任务，再 SIGTERM sidecar。
+- 处理（分组和排序）以及导出作业也可通过同一取消路由协作取消。桌面退出可以取消活动处理或导出任务，再 SIGTERM sidecar。
 - 确定性缩略图和预览生成。
 - 基本元数据提取和可解释的图像质量评分。
 - 实验性的本地人脸与睁眼启发式信号。
@@ -20,12 +20,12 @@ FramePilot 是一款本地优先的 AI 辅助照片筛选 Web 应用。当前 v2
 - 以组为中心的筛选，按推荐优先的复核顺序。
 - Pick、Maybe、Reject 和 Unreviewed 状态。
 - 键盘复核快捷键：方向键、P、M、X、U、1-5、0、Space、Z、C、G、F 和 E。
-- CSV、文件夹和 ZIP 导出模式，具有唯一的本地导出输出、导出历史，以及文件导出对项目原片的来源约束。
+- CSV、文件夹和 ZIP 导出模式，具有唯一的本地导出输出、导出历史、文件导出对项目原片的来源约束，以及可选的 XMP sidecar 勾选（默认关），只在项目导出目录下写 `.xmp`。
 
 已知的 v2.0 限制：
 
-- DNG、ARW、CR3、NEF 等 RAW 文件仍以明确的本地消息跳过。HEIC/HEIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、AVIF、HDR gain-map 色调映射或 XMP 写入。
-- 导入和处理任务运行在本地 API 进程或可选本地 worker（`npm run worker`）中。进度、协作式导入与处理取消、过期任务检测、活动导入处理保护、安全导入重试和过期处理清理可用。默认情况下，下次启动会把残留的活动导入/处理任务标为 `interrupted` 并回收（`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认开启；设为 `0`/`false`/`no`/`off` 则回到失败并重试）。导出任务不可取消，也不会被回收。
+- DNG、ARW、CR3、NEF 等 RAW 文件在有内嵌预览时导入（原样拷贝字节；用预览 RGB 生成 WebP；不 demosaic）。没有预览的 RAW 以明确的本地消息跳过。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov` 或 HDR gain-map 色调映射。可选 XMP sidecar 只写在导出目录（永不写到原片旁或图像字节内）。
+- 导入和处理任务运行在本地 API 进程或可选本地 worker（`npm run worker`）中。进度、协作式导入/处理/导出取消、过期任务检测、活动导入处理保护、安全导入重试和过期处理清理可用。默认情况下，下次启动会把残留的活动导入/处理任务标为 `interrupted` 并回收（`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认开启；设为 `0`/`false`/`no`/`off` 则回到失败并重试）。导出任务可取消，不会被回收（fail-and-cleanup）。
 - 实验性人脸与睁眼信号是确定性本地启发式，不是专业人脸检测、眼睛状态检测、身份识别或生物特征分析。
 - 分组和排序仍是推荐辅助。用户通过手工状态和星级保留最终控制。
 
@@ -52,7 +52,7 @@ Web 应用运行在 `http://localhost:3000`。本地 API 运行在 `http://127.0
 典型工作流：
 
 1. 创建项目。
-2. 导入 JPEG、PNG、WebP 或 HEIC/HEIF 静帧。有效文件在本地登记，预览生成通过可见的导入任务继续，运行中的导入可在安全检查点取消，而不会删除原片或已完成的预览。同一文件再次导入或导入重试可以复用现有本地记录和已生成预览。RAW 仍跳过。
+2. 导入 JPEG、PNG、WebP、HEIC/HEIF、AVIF 或带内嵌预览的 RAW 静帧。有效文件在本地登记，预览生成通过可见的导入任务继续，运行中的导入可在安全检查点取消，而不会删除原片或已完成的预览。同一文件再次导入或导入重试可以复用现有本地记录和已生成预览。没有预览的 RAW 会跳过。
 3. 导入任务完成后再运行处理。若导入仍在运行，FramePilot 会把项目留在导入进度上，并拒绝直接的处理请求。
 4. 按组复核照片，并标记 Pick、Maybe、Reject 或 Unreviewed。
 5. 将一个或多个所选状态导出为 CSV、文件夹或 ZIP。CSV 和 ZIP 导出可从浏览器下载，此前的导出仍显示在导出历史中。
@@ -148,7 +148,7 @@ npm run perf:api -- --output /tmp/framepilot-perf-targets --counts 100 500 2000
 
 ## 桌面打包
 
-CI 可能上传**未签名**的 Windows NSIS 与 macOS DMG 安装包供内部测试。请预期 SmartScreen / Gatekeeper 警告；不要把未签名包当作公开发布。详见 [桌面代码签名手册](docs/desktop_signing.zh.md) 与 [桌面用户指南](docs/desktop_user_guide.zh.md)。缺少证书不得阻塞第一个桌面 RC。手工检查见 [桌面测试矩阵](docs/desktop_testing.zh.md)。
+CI 已签名就绪：当完整 GitHub Actions secret 集在场时，会做 Windows Authenticode 与 macOS Developer ID + 公证。缺少 secrets 时保持**未签名** NSIS/DMG 上传绿灯，供内部测试。请预期未签名包会出现 SmartScreen / Gatekeeper 警告；不要把它们当作公开发布。详见 [桌面代码签名手册](docs/desktop_signing.zh.md) 与 [桌面用户指南](docs/desktop_user_guide.zh.md)。缺少证书不得阻塞第一个桌面 RC。手工检查见 [桌面测试矩阵](docs/desktop_testing.zh.md)。第九阶段已交付桌面计划 2.2 残留，除 cache 旋钮、自动下载安装和 macOS GUI pass；不声称双平台安装包 GUI DoD（Windows NSIS pass；macOS DMG skip）。见 [已知限制](docs/v2_known_limitations.zh.md)。
 
 ## 隐私
 

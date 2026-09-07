@@ -80,6 +80,8 @@ def test_job_read_exposes_checkpoint_fields(tmp_path, monkeypatch):
     assert payload["checkpoint_stage"] == "hash_scoring"
     assert payload["interrupted_at"] is None
     assert payload["reclaim_count"] == 2
+    assert payload["pause_requested"] is False
+    assert payload["cancellation_requested"] is False
 
 
 def test_processing_job_checkpoint_columns_migrate_on_existing_db(tmp_path):
@@ -121,6 +123,7 @@ def test_processing_job_checkpoint_columns_migrate_on_existing_db(tmp_path):
     assert "checkpoint_stage" in columns
     assert "interrupted_at" in columns
     assert "reclaim_count" in columns
+    assert "pause_requested" in columns
 
     with Session(engine) as session:
         # Project FK is not enforced for this migration unit test.

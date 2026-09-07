@@ -2,33 +2,45 @@
 
 > 语言：[English](desktop_signing.md) | **中文**
 
-本手册说明 FramePilot 桌面安装包如何进行签名（Windows Authenticode）与公证（macOS Developer ID），密钥应存放在何处，以及在配置证书之前，内部测试者应如何对待**未签名**构建。
+本手册说明 FramePilot 桌面安装包如何进行签名（Windows Authenticode）与公证（macOS Developer ID），确切的 GitHub Actions secret 名，以及这些 secret 缺失时内部测试者应如何对待**未签名**构建。
 
-本文档仅为说明。不会把签名密钥写入仓库，也不要求第一个发布候选必须具备证书。
+CI 是**签名就绪**，不是商店发行。不要把证书、私钥或 base64 证书内容提交进 git。
 
 ## 当前状态
 
 - Tauri 产品名：`FramePilot`
 - Bundle 标识符：`com.framepilot.app`（见 `apps/desktop/src-tauri/tauri.conf.json`）
 - 安装包目标：Windows NSIS（`.exe`）与 macOS DMG（`.dmg`）
-- CI 工作流：`.github/workflows/desktop.yml` 在 `windows-latest` 与 `macos-latest` 上构建并**上传未签名**安装包产物
+- CI 工作流：`.github/workflows/desktop.yml` 在 `windows-latest` 与 `macos-latest` 上构建安装包
+- 签名按下列 secret 名门控。缺少或为空的 secret 保持**未签名**上传路径**绿灯**。完整 secret 集在场且签名 / 公证失败时，该平台作业为**红灯**（不会悄悄回退到未签名）。Windows 与 macOS 独立门控。
 - 本仓库不存放代码签名证书或 Apple 公证凭据
 - 缺少证书**不得**导致第一个桌面 RC 失败；未签名安装包仍可用于内部测试
 
 ## 密钥与证书存放
 
-切勿将私钥、`.p12` / `.pfx` 文件、Apple API 密钥、公证密码或 base64 编码的证书内容提交到 Git。
+切勿将私钥、`.p12` / `.pfx` / `.p8` 文件、Apple API 密钥、公证密码或 base64 编码的证书内容提交到 Git。`scripts/check-release-artifacts.sh` 会拒绝已跟踪的 `\.(pfx|p12|p8)$`。
 
-日后启用签名时，凭据只应存放在 GitHub Actions secrets（或等价的 CI 密钥库）中，例如：
+凭据只应存放为 GitHub Actions secrets（Settings → Secrets and variables → Actions）。下表名称是确切名称；不要把值粘贴到 issue、PR、可行性说明或本手册中。
 
-| 平台 | 典型密钥材料（仅作示例） |
-| ---- | ------------------------ |
-| Windows | Authenticode 证书（PFX）+ 密码，或云签名服务令牌 |
-| macOS | Developer ID Application 证书、Apple ID / App Store Connect API 密钥、团队 ID、公证凭据 |
+| Secret | 用途 |
+| ------ | ---- |
+| `WINDOWS_CERTIFICATE` | base64 Authenticode `.pfx` |
+| `WINDOWS_CERTIFICATE_PASSWORD` | 该 `.pfx` 的密码 |
+| `APPLE_CERTIFICATE` | base64 Developer ID Application `.p12` |
+| `APPLE_CERTIFICATE_PASSWORD` | 该 `.p12` 的密码 |
+| `APPLE_SIGNING_IDENTITY` | Developer ID Application 身份字符串 |
+| `APPLE_TEAM_ID` | Apple Developer Team ID |
+| `APPLE_API_ISSUER` | App Store Connect API issuer ID |
+| `APPLE_API_KEY` | App Store Connect Key ID |
+| `APPLE_API_KEY_CONTENT` | `.p8` 私钥文件内容 |
+
+`APPLE_API_KEY_PATH` 是由 `APPLE_API_KEY_CONTENT` 写出的 runner 临时路径（`$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8`）。它**不是** GitHub secret。
+
+Windows 仅在 **两个** `WINDOWS_CERTIFICATE` 与 `WINDOWS_CERTIFICATE_PASSWORD` 都非空时签名。macOS 仅在表中**全部** Apple secret 都非空时签名并公证。CI 把 secrets 拷进 `env:` 再测非空；永不 echo 值，也不会 export 空的 `APPLE_CERTIFICATE`。
+
+CI **不**使用 `APPLE_ID`、`APPLE_PASSWORD`、`KEYCHAIN_PASSWORD`、Azure Trusted Signing 或 `TAURI_SIGNING_PRIVATE_KEY`。
 
 本地开发机可将一次性签名构建放在系统钥匙串中。正式发布签名应在 CI 中完成，使密钥远离个人电脑，也不进入代码树。
-
-不要把密钥值粘贴到 issue、PR、可行性说明或本手册中。
 
 ## Windows Authenticode（概览）
 
@@ -42,7 +54,7 @@ Authenticode 对 Windows 安装包（以及可选的应用内二进制）签名�
 4. 可选：为签名加时间戳，使证书过期后签名仍可验证。
 5. 发布前在本地验证签名（`signtool verify` 或属性 → 数字签名）。
 
-在这些密钥就绪之前，CI 继续上传**未签名** NSIS 安装包。Windows 可能显示 SmartScreen /「未知发布者」警告；对内部构建而言这是预期行为。
+在这两个 Windows secret 就绪之前，CI 继续上传**未签名** NSIS 安装包。Windows 可能显示 SmartScreen /「未知发布者」警告；对内部构建而言这是预期行为。
 
 ## macOS Developer ID 与公证（概览）
 
@@ -56,7 +68,7 @@ Authenticode 对 Windows 安装包（以及可选的应用内二进制）签名�
 4. 将公证票据装订（staple）到 DMG / 应用，以便离线 Gatekeeper 检查通过。
 5. 发布前用 `spctl --assess` / `xcrun stapler validate` 验证。
 
-在这些凭据就绪之前，CI 继续上传**未签名** DMG。macOS 可能因 Gatekeeper 阻止打开（「无法验证开发者」）；对内部构建而言这是预期行为。
+在完整 Apple secret 集就绪之前，CI 继续上传**未签名** DMG。macOS 可能因 Gatekeeper 阻止打开（「无法验证开发者」）；对内部构建而言这是预期行为。
 
 ## 内部测试者：未签名安装包
 
@@ -80,7 +92,7 @@ Authenticode 对 Windows 安装包（以及可选的应用内二进制）签名�
 
 ## 相关文件
 
-- `.github/workflows/desktop.yml` — 未签名 Windows/macOS 安装包 CI
+- `.github/workflows/desktop.yml` — Windows/macOS 安装包 CI（签名按 secrets 门控；未签名回退保持绿灯）
 - `apps/desktop/src-tauri/tauri.conf.json` — `identifier`、NSIS 与 DMG 打包配置
 - `docs/plans/2026-08-18-desktop-packaging.zh.md` — D4.05 任务定义
 

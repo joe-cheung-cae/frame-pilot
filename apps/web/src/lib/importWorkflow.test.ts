@@ -195,6 +195,7 @@ function pathImportJob(id: string, totalItems: number) {
     progress_percent: 0,
     error_message: null,
     cancellation_requested: false,
+    pause_requested: false,
     cancelled_at: null,
     started_at: null,
     completed_at: null,

@@ -18,6 +18,7 @@
     "paths": {
       "@/lib/navigation": ["./src/navigation.router.tsx"],
       "@/lib/nativeFs": ["./src/lib/nativeFs.ts"],
+      "@/lib/detachedPreview": ["./src/lib/detachedPreview.ts"],
       "@/*": ["../web/src/*"]
     }
   },
@@ -43,6 +44,7 @@
     "../web/src/lib/navigation.ts",
     "../web/src/lib/navigation.next.tsx",
     "../web/src/lib/nativeFs.ts",
+    "../web/src/lib/detachedPreview.ts",
     "src/**/*.test.ts"
   ]
 }

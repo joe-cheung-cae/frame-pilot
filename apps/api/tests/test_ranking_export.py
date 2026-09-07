@@ -446,9 +446,9 @@ def test_export_writers_report_progress_callbacks(tmp_path):
         progress_callback=lambda processed, total: zip_progress.append((processed, total)),
     )
 
-    assert csv_progress == [(1, 2), (2, 2)]
-    assert copy_progress == [(1, 2), (2, 2)]
-    assert zip_progress == [(1, 2), (2, 2)]
+    assert csv_progress == [(0, 2), (1, 2), (2, 2)]
+    assert copy_progress == [(0, 2), (1, 2), (2, 2)]
+    assert zip_progress == [(0, 2), (1, 2), (2, 2)]
 
 
 def test_folder_export_rejects_missing_original_file(tmp_path):

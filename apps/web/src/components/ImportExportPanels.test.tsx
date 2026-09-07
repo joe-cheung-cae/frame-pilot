@@ -17,19 +17,23 @@ type ExportRecordMock = {
   processed_count: number;
   total_count: number;
   statuses: string;
+  include_xmp?: boolean;
   output_path: string;
   error_message: string | null;
   completed_at: string | null;
   created_at: string;
 };
 
-const { nativeFsState, queryMode, mutationData, exportRecords, revealInFileManager } = vi.hoisted(() => ({
-  nativeFsState: { current: null as NativeFsMock | null },
-  queryMode: { current: "error" as "error" | "success" },
-  mutationData: { current: undefined as ExportRecordMock | undefined },
-  exportRecords: { current: [] as ExportRecordMock[] },
-  revealInFileManager: vi.fn(async () => undefined),
-}));
+const { nativeFsState, queryMode, mutationData, mutationPending, exportRecords, exportSelection, revealInFileManager } =
+  vi.hoisted(() => ({
+    nativeFsState: { current: null as NativeFsMock | null },
+    queryMode: { current: "error" as "error" | "success" },
+    mutationData: { current: undefined as ExportRecordMock | undefined },
+    mutationPending: { current: false },
+    exportRecords: { current: [] as ExportRecordMock[] },
+    exportSelection: vi.fn(),
+    revealInFileManager: vi.fn(async () => undefined),
+  }));
 
 vi.mock("@/lib/nativeFs", () => ({
   getNativeFs: () => nativeFsState.current,
@@ -76,9 +80,11 @@ vi.mock("@tanstack/react-query", () => ({
       isFetching: false,
     };
   },
-  useMutation: () => ({
-    mutate: vi.fn(),
-    isPending: false,
+  useMutation: ({ mutationFn }: { mutationFn: () => Promise<unknown> }) => ({
+    mutate: () => {
+      void mutationFn();
+    },
+    isPending: mutationPending.current,
     error: null,
     isError: false,
     data: mutationData.current,
@@ -88,6 +94,17 @@ vi.mock("@tanstack/react-query", () => ({
     setQueryData: vi.fn(),
   }),
 }));
+
+vi.mock("@/lib/api", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      exportSelection: (...args: unknown[]) => exportSelection(...args),
+    },
+  };
+});
 
 import { exportDownloadUrl } from "@/lib/api";
 import { ExportPanel } from "./ExportPanel";
@@ -166,7 +183,9 @@ afterEach(() => {
   nativeFsState.current = null;
   queryMode.current = "error";
   mutationData.current = undefined;
+  mutationPending.current = false;
   exportRecords.current = [];
+  exportSelection.mockReset();
   revealInFileManager.mockClear();
 });
 
@@ -225,6 +244,7 @@ describe("ExportPanel", () => {
         processed_count: 3,
         total_count: 12,
         statuses: '["Pick"]',
+        include_xmp: false,
         output_path: "pending",
         error_message: null,
         completed_at: null,
@@ -282,5 +302,48 @@ describe("ExportPanel", () => {
       expect(revealInFileManager).toHaveBeenCalledWith("/projects/shoot/exports/zip/selection.zip");
     });
     expect(revealInFileManager).not.toHaveBeenCalledWith("/projects/shoot/exports/folders/selection-1");
+  });
+
+  it("keeps Write XMP sidecars unchecked by default", () => {
+    queryMode.current = "success";
+    render(<ExportPanel projectId="project-1" />);
+    const checkbox = screen.getByRole("checkbox", { name: /Write XMP sidecars/i });
+    expect(checkbox).not.toBeChecked();
+  });
+
+  it("posts include_xmp true when the XMP checkbox is checked", async () => {
+    queryMode.current = "success";
+    exportSelection.mockResolvedValue({
+      ...csvLatest,
+      include_xmp: true,
+    });
+    render(<ExportPanel projectId="project-1" />);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Write XMP sidecars/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    await waitFor(() => {
+      expect(exportSelection).toHaveBeenCalledWith("project-1", "csv", expect.arrayContaining(["Pick"]), true);
+    });
+  });
+
+  it("disables the XMP checkbox while an export is running", () => {
+    queryMode.current = "success";
+    mutationPending.current = true;
+    render(<ExportPanel projectId="project-1" />);
+    expect(screen.getByRole("checkbox", { name: /Write XMP sidecars/i })).toBeDisabled();
+  });
+
+  it("shows XMP in export history when include_xmp is true", () => {
+    queryMode.current = "success";
+    exportRecords.current = [{ ...zipHistory, include_xmp: true }];
+    render(<ExportPanel projectId="project-1" />);
+    expect(
+      screen.getByText((_content, element) => {
+        if (!(element instanceof HTMLElement) || element.tagName !== "P") {
+          return false;
+        }
+        const text = element.textContent ?? "";
+        return element.className.includes("font-medium") && text.includes("ZIP") && text.includes("XMP");
+      }),
+    ).toBeTruthy();
   });
 });

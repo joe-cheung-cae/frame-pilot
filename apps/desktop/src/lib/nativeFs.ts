@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -8,9 +9,10 @@ export type NativeFs = {
   pickImageFiles: () => Promise<string[] | null>;
   revealInFileManager: (targetPath: string) => Promise<void>;
   subscribeDragDrop: (handler: (event: NativeDragDropEvent) => void) => Promise<() => void>;
+  applyDataDirectory: (path: string) => Promise<void>;
 };
 
-const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "heic", "heif"];
+const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "heic", "heif", "avif", "dng", "arw", "cr3", "nef"];
 
 function asDirectoryPath(selected: unknown): string | null {
   return typeof selected === "string" && selected.length > 0 ? selected : null;
@@ -46,6 +48,10 @@ async function revealInFileManager(targetPath: string): Promise<void> {
   await revealItemInDir(targetPath);
 }
 
+async function applyDataDirectory(path: string): Promise<void> {
+  await invoke("apply_data_directory", { path });
+}
+
 async function subscribeDragDrop(handler: (event: NativeDragDropEvent) => void): Promise<() => void> {
   return getCurrentWebview().onDragDropEvent((event) => {
     const payload = event.payload;
@@ -70,6 +76,7 @@ const nativeFs: NativeFs = {
   pickImageFiles,
   revealInFileManager,
   subscribeDragDrop,
+  applyDataDirectory,
 };
 
 type TauriWindow = {

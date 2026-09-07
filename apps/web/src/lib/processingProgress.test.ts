@@ -7,6 +7,7 @@ import {
   activeJobOfType,
   activeProcessingJob,
   canCancelProcessing,
+  canPauseProcessing,
   firstActiveJob,
   hasActiveProcessingJob,
   jobsRefetchIntervalMs,
@@ -17,6 +18,7 @@ import {
   processingJobHasReviewableResults,
   processingJobTypeLabel,
   processingLoadRecoveryMessage,
+  processingPausePendingMessage,
   processingProgressPercent,
   processingProgressSummary,
   processingRecoveryMessage,
@@ -28,6 +30,7 @@ test("formats processing status labels", () => {
   assert.equal(processingStatusLabel("running"), "Running");
   assert.equal(processingStatusLabel("complete_with_errors"), "Complete with errors");
   assert.equal(processingStatusLabel("cancelled"), "Cancelled");
+  assert.equal(processingStatusLabel("paused"), "Paused");
   assert.equal(processingStatusLabel("failed"), "Failed");
 });
 
@@ -37,6 +40,7 @@ test("recognizes processing states with reviewable results", () => {
   assert.equal(processingJobHasReviewableResults("running"), false);
   assert.equal(processingJobHasReviewableResults("failed"), false);
   assert.equal(processingJobHasReviewableResults("cancelled"), false);
+  assert.equal(processingJobHasReviewableResults("paused"), false);
   assert.equal(processingJobHasReviewableResults(null), false);
 });
 
@@ -204,6 +208,10 @@ test("explains processing recovery for cancelled and partial jobs", () => {
     "Processing stopped at a safe checkpoint. Run grouping and ranking again when you are ready.",
   );
   assert.equal(
+    processingRecoveryMessage({ failedItems: 0, retryable: false, status: "paused" }),
+    "Processing paused at a safe checkpoint. Partial groups were cleared. Run grouping and ranking again when you are ready. Originals are unchanged.",
+  );
+  assert.equal(
     processingRecoveryMessage({ failedItems: 2, retryable: true, status: "complete_with_errors" }),
     "Successfully processed photos are ready for culling. Review 2 failed photos before exporting a final set.",
   );
@@ -236,6 +244,10 @@ test("explains how to recover from processing data load failures", () => {
     processingLoadRecoveryMessage("cancel"),
     "Confirm the local FramePilot API is running. If cancellation did not reach the job, FramePilot will keep the original files unchanged.",
   );
+  assert.equal(
+    processingLoadRecoveryMessage("pause"),
+    "Confirm the local FramePilot API is running. If pause did not reach the job, FramePilot will keep the original files unchanged.",
+  );
 });
 
 test("explains why processing action is blocked", () => {
@@ -249,7 +261,7 @@ test("explains why processing action is blocked", () => {
   );
   assert.equal(
     processingActionBlockMessage({ hasImportedPhotos: false, isImportRunning: false, isProcessing: false }),
-    "Import JPEG, PNG, WebP, or HEIC/HEIF images before running grouping and ranking.",
+    "Import JPEG, PNG, WebP, HEIC/HEIF, AVIF, or RAW images before running grouping and ranking.",
   );
 });
 
@@ -285,15 +297,36 @@ test("allows cancel only for active processing jobs without a pending request", 
   const runningProcessing = {
     cancellation_requested: false,
     job_type: "processing",
+    pause_requested: false,
     status: "running" as const,
   };
   assert.equal(canCancelProcessing(runningProcessing, false), true);
   assert.equal(canCancelProcessing({ ...runningProcessing, status: "queued" }, false), true);
   assert.equal(canCancelProcessing({ ...runningProcessing, cancellation_requested: true }, false), false);
+  assert.equal(canCancelProcessing({ ...runningProcessing, pause_requested: true }, false), false);
   assert.equal(canCancelProcessing(runningProcessing, true), false);
   assert.equal(canCancelProcessing({ ...runningProcessing, status: "cancelled" }, false), false);
   assert.equal(canCancelProcessing({ ...runningProcessing, job_type: "import" }, false), false);
   assert.equal(canCancelProcessing(undefined, false), false);
+});
+
+test("allows pause only for active processing jobs without pause or cancel pending", () => {
+  const runningProcessing = {
+    cancellation_requested: false,
+    job_type: "processing",
+    pause_requested: false,
+    status: "running" as const,
+  };
+  assert.equal(canPauseProcessing(runningProcessing, false), true);
+  assert.equal(canPauseProcessing({ ...runningProcessing, status: "queued" }, false), true);
+  assert.equal(canPauseProcessing({ ...runningProcessing, pause_requested: true }, false), false);
+  assert.equal(canPauseProcessing({ ...runningProcessing, cancellation_requested: true }, false), false);
+  assert.equal(canPauseProcessing(runningProcessing, true), false);
+  assert.equal(canPauseProcessing({ ...runningProcessing, status: "paused" }, false), false);
+  assert.equal(canPauseProcessing({ ...runningProcessing, status: "cancelled" }, false), false);
+  assert.equal(canPauseProcessing({ ...runningProcessing, job_type: "import" }, false), false);
+  assert.equal(canPauseProcessing({ ...runningProcessing, job_type: "export" }, false), false);
+  assert.equal(canPauseProcessing(undefined, false), false);
 });
 
 test("explains pending processing cancellation with the import checkpoint sentence", () => {
@@ -326,6 +359,42 @@ test("explains pending processing cancellation with the import checkpoint senten
     processingCancelPendingMessage({
       cancellationRequested: false,
       isCancelPending: false,
+      status: "running",
+    }),
+    "",
+  );
+});
+
+test("explains pending processing pause with the checkpoint sentence", () => {
+  const pendingCopy = "Pause requested. FramePilot will stop after a safe checkpoint.";
+  assert.equal(
+    processingPausePendingMessage({
+      isPausePending: false,
+      pauseRequested: true,
+      status: "running",
+    }),
+    pendingCopy,
+  );
+  assert.equal(
+    processingPausePendingMessage({
+      isPausePending: true,
+      pauseRequested: false,
+      status: "queued",
+    }),
+    pendingCopy,
+  );
+  assert.equal(
+    processingPausePendingMessage({
+      isPausePending: false,
+      pauseRequested: true,
+      status: "paused",
+    }),
+    "",
+  );
+  assert.equal(
+    processingPausePendingMessage({
+      isPausePending: false,
+      pauseRequested: false,
       status: "running",
     }),
     "",

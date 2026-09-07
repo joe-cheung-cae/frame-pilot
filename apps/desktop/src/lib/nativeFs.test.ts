@@ -9,6 +9,7 @@ type OpenDialogOptions = {
 
 const openCalls: OpenDialogOptions[] = [];
 const revealCalls: Array<string | string[]> = [];
+const invokeCalls: Array<{ cmd: string; args?: unknown }> = [];
 let openResult: unknown = null;
 
 mock.module("@tauri-apps/plugin-dialog", {
@@ -24,6 +25,17 @@ mock.module("@tauri-apps/plugin-opener", {
   namedExports: {
     async revealItemInDir(targetPath: string | string[]) {
       revealCalls.push(targetPath);
+    },
+  },
+});
+
+mock.module("@tauri-apps/api/core", {
+  namedExports: {
+    async invoke(cmd: string, args?: unknown) {
+      invokeCalls.push({ cmd, args });
+      return args && typeof args === "object" && "path" in args
+        ? (args as { path: string }).path
+        : null;
     },
   },
 });
@@ -114,6 +126,7 @@ test("getNativeFs returns desktop dialog wrappers in Tauri", async () => {
     assert.equal(typeof nativeFs?.pickImageFiles, "function");
     assert.equal(typeof nativeFs?.revealInFileManager, "function");
     assert.equal(typeof nativeFs?.subscribeDragDrop, "function");
+    assert.equal(typeof nativeFs?.applyDataDirectory, "function");
   });
 });
 
@@ -145,7 +158,7 @@ test("pickDirectory returns null when the dialog is cancelled", async () => {
   });
 });
 
-test("pickImageFiles opens a JPEG PNG WebP HEIC file dialog", async () => {
+test("pickImageFiles opens a JPEG PNG WebP HEIC AVIF RAW file dialog", async () => {
   await withTauriRuntime(async () => {
     const nativeFs = getNativeFs();
     assert.ok(nativeFs);
@@ -156,7 +169,10 @@ test("pickImageFiles opens a JPEG PNG WebP HEIC file dialog", async () => {
     assert.equal(openCalls[0]?.multiple, true);
     assert.equal(openCalls[0]?.directory, undefined);
     const extensions = openCalls[0]?.filters?.flatMap((filter) => filter.extensions) ?? [];
-    assert.deepEqual([...new Set(extensions)].sort(), ["heic", "heif", "jpeg", "jpg", "png", "webp"]);
+    assert.deepEqual(
+      [...new Set(extensions)].sort(),
+      ["arw", "avif", "cr3", "dng", "heic", "heif", "jpeg", "jpg", "nef", "png", "webp"],
+    );
   });
 });
 
@@ -185,6 +201,18 @@ test("revealInFileManager reveals the given path", async () => {
     revealCalls.length = 0;
     await nativeFs.revealInFileManager("/projects/export.csv");
     assert.deepEqual(revealCalls, ["/projects/export.csv"]);
+  });
+});
+
+test("applyDataDirectory invokes the Tauri data-dir command", async () => {
+  await withTauriRuntime(async () => {
+    const nativeFs = getNativeFs();
+    assert.ok(nativeFs);
+    invokeCalls.length = 0;
+    await nativeFs.applyDataDirectory("/tmp/new-framepilot-data");
+    assert.deepEqual(invokeCalls, [
+      { cmd: "apply_data_directory", args: { path: "/tmp/new-framepilot-data" } },
+    ]);
   });
 });
 

@@ -22,12 +22,13 @@ v2 的目标不是完全替代人的审美判断。目标是去掉明显的技�
 - `2.1.0-desktop` RC（未签名的 Tauri 2 + localhost Python sidecar）。不要当成已签名商店发行。
 - 第六阶段 / 6.1 本地持久作业回收（`npm run worker` / `python -m app.worker`；`FRAMEPILOT_JOB_RECLAIM_ON_STARTUP` 默认开启）。
 - 第七阶段协作式**处理作业取消**（J7.01–J7.06，[#148](https://github.com/joe-cheung-cae/frame-pilot/pull/148)）。暂停/恢复（J7.07）**不在**该阶段完成定义内。计划：[docs/plans/2026-09-03-phase7-processing-cancel.zh.md](docs/plans/2026-09-03-phase7-processing-cancel.zh.md)。
-- 未签名 Windows NSIS GUI 生命周期 QA（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)，2026-09-04 按 Windows-only 关闭）。macOS DMG 为 skip（没有 Mac 主机）；skip 不是 macOS pass。
-- 第八阶段本地 **HEIC/HEIF 静帧预览**（H8.01–H8.06，[#157](https://github.com/joe-cheung-cae/frame-pilot/pull/157)；[#151](https://github.com/joe-cheung-cae/frame-pilot/issues/151) 已关闭）。计划：[docs/plans/2026-09-04-heic-preview.zh.md](docs/plans/2026-09-04-heic-preview.zh.md)。原片 HEIC 原样拷贝；用 `pillow-heif` 解码；WebP 衍生件；在 RGB 上评分/分组。RAW 仍跳过。
+- 未签名 Windows NSIS GUI 生命周期 QA（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)，2026-09-04 按 Windows-only 关闭）。S9.12 包装 macOS DMG GUI 生命周期（[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)）于 `2026-09-05T12:31:10Z` 记为 **skip，不是 pass**（Linux/WSL2；`uname -s` 不是 Darwin）。skip 不是 macOS pass。
+- 第八阶段本地 **HEIC/HEIF 静帧预览**（H8.01–H8.06，[#157](https://github.com/joe-cheung-cae/frame-pilot/pull/157)；[#151](https://github.com/joe-cheung-cae/frame-pilot/issues/151) 已关闭）。计划：[docs/plans/2026-09-04-heic-preview.zh.md](docs/plans/2026-09-04-heic-preview.zh.md)。原片 HEIC 原样拷贝；用 `pillow-heif` 解码；WebP 衍生件；在 RGB 上评分/分组。该阶段仍跳过 RAW。
+- 第九阶段剩余 stretch 收口（S9.00–S9.13）。计划：[docs/plans/2026-09-04-remaining-stretch.zh.md](docs/plans/2026-09-04-remaining-stretch.zh.md)。总览 [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160)。导出取消、处理暂停、AVIF、RAW 内嵌预览、XMP 导出、托盘、独立预览、导入 worker、数据目录、检查更新、签名就绪 CI、macOS DMG GUI skip（不是 pass）、文档残留修复。
 
-**下一步：** 没有已编号的交付切片。不要发明第九阶段。
+**下一步：** 第九阶段 remaining-stretch 已关闭（S9.00–S9.13）；没有未完成的 S9 id；停止。不要发明第十阶段。
 
-剩余 stretch（未排期）：RAW 预览、导出取消、桌面 2.2、签名、J7.07 暂停、AVIF、XMP（[#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117) 为 `not_planned`）。
+已关闭队列：S9.01 导出取消 → S9.02 J7.07 暂停 → S9.03 AVIF → S9.04 RAW 预览 → S9.05 XMP（[#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165)；历史 [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117)）→ S9.06 托盘 → S9.07 独立预览 → S9.08 并发旋钮 → S9.09 数据目录 → S9.10 可选更新 → S9.11 签名就绪 CI → S9.12 macOS DMG QA → S9.13 文档残留修复。
 
 ## 2. v1 现状与 v2 动机
 
@@ -428,14 +429,14 @@ v2 不应立即引入沉重的分布式队列。
 - 同一 cancel 路由上的协作式**处理**取消（第七阶段，J7.01–J7.06）。见 [docs/plans/2026-09-03-phase7-processing-cancel.zh.md](docs/plans/2026-09-03-phase7-processing-cancel.zh.md)。
 - 本地 HEIC/HEIF 静帧预览（第八阶段，H8.01–H8.06）。见 [docs/plans/2026-09-04-heic-preview.zh.md](docs/plans/2026-09-04-heic-preview.zh.md)。
 
-**下一步：** 没有已编号的交付切片。不要发明第九阶段。
+**下一步：** 第九阶段剩余 stretch 收口，每次运行一个 issue。见 [§1.1](#11-当前交付状态与下一切片)。不要发明第十阶段。
 
-仍然推迟：
+在对应 S9 issue 完成前仍推迟：
 
-- RQ、Dramatiq 或 Celery（仅在有实测需要时）。
-- 不经过 clear-and-rerun 的分组过程中暂停/恢复（第七阶段 J7.07，非 DoD）。
-- 导出作业取消与导出回收。
-- RAW 内嵌预览、AVIF、XMP、签名。
+- RQ、Dramatiq 或 Celery（仅在有实测需要时；不在 S9 内）。
+- 分组过程中暂停/恢复（S9.02 / J7.07；恢复仍是 clear-and-rerun）。
+- 导出作业取消（S9.01）与导出回收（不在 S9 内）。
+- RAW 内嵌预览（S9.04）、AVIF（S9.03）、XMP（S9.05）、签名就绪 CI（S9.11）。
 
 ## 11. 前端架构
 
@@ -739,7 +740,7 @@ AGENTS.md
 
 ## 16. 开发里程碑
 
-本节是历史 Goal Mode 排序（v2.0–v2.6）。现行下一步指针是 [§1.1](#11-当前交付状态与下一切片)。不要从本列表重开已交付项。交付上的第七阶段是处理作业取消（已交付），不是 §16.7。HEIC 静帧预览是交付第八阶段（`docs/plans/2026-09-04-heic-preview.zh.md`）并且已经交付。没有已编号的第九阶段。
+本节是历史 Goal Mode 排序（v2.0–v2.6）。现行下一步指针是 [§1.1](#11-当前交付状态与下一切片)。不要从本列表重开已交付项。交付上的第七阶段是处理作业取消（已交付），不是 §16.7。HEIC 静帧预览是交付第八阶段（`docs/plans/2026-09-04-heic-preview.zh.md`）并且已经交付。交付第九阶段是剩余 stretch S9.00–S9.13（`docs/plans/2026-09-04-remaining-stretch.zh.md`）。不要发明第十阶段。
 
 ### 16.1 v2.0 Foundation
 
@@ -878,7 +879,7 @@ AGENTS.md
 
 ### 16.7 v2.6 Optional RAW, HEIC, and AI Model Support
 
-历史 stretch。**HEIC 静帧预览已作为独立的第八阶段交付**（H8.01–H8.06）。不要因为 HEIC 已交付就实现 RAW、AVIF、XMP 或可选模型。没有已编号的第九阶段。
+历史 stretch。**HEIC 静帧预览已作为独立的第八阶段交付**（H8.01–H8.06）。RAW、AVIF 和 XMP 已排期为 S9.03–S9.05；可选模型仍不在第九阶段。不要发明第十阶段。
 
 目标：
 

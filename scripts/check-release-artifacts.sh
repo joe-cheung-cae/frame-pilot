@@ -7,7 +7,7 @@ if ! command -v rg > /dev/null 2>&1; then
   }
 fi
 
-blocked_pattern='(^|/)(node_modules|\.venv|\.ruff_cache|\.mypy_cache|\.pytest_cache|\.next|\.next-e2e|test-results|playwright-report|exports|cache|\.framepilot-validation|\.local-validation|\.local-validation-notes)(/|$)|\.(zip|sqlite|db|jpe?g|png|webp|arw|cr3|nef|dng|heic)$'
+blocked_pattern='(^|/)(node_modules|\.venv|\.ruff_cache|\.mypy_cache|\.pytest_cache|\.next|\.next-e2e|test-results|playwright-report|exports|cache|\.framepilot-validation|\.local-validation|\.local-validation-notes)(/|$)|\.(zip|sqlite|db|jpe?g|png|webp|arw|cr3|nef|dng|heic|pfx|p12|p8)$'
 allowed_pattern='^apps/desktop/src-tauri/icons/[^/]+\.(png|ico|icns)$'
 
 matches="$(git ls-files | rg -i "$blocked_pattern" || true)"
