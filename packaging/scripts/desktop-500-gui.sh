@@ -20,6 +20,7 @@ PARSE_NETSTAT=""
 PARSE_TASKLIST=""
 FINISH_PREFIX=""
 SNAPSHOT_PREFIX=""
+WIPE_PREFIX=""
 RESULT="fail"
 RSS_IDLE_SIDECAR="null"
 RSS_IDLE_UI="null"
@@ -126,7 +127,7 @@ ci_run_url() {
 }
 
 usage() {
-  echo "usage: $0 --probe|--count N|--resolve-python|--rss-kb KB|--macos-exec APP|--parse-windows-listen NETSTAT TASKLIST|--snapshot-originals PREFIX|--finish-from-evidence PREFIX [--installer PATH]" >&2
+  echo "usage: $0 --probe|--count N|--resolve-python|--rss-kb KB|--macos-exec APP|--parse-windows-listen NETSTAT TASKLIST|--snapshot-originals PREFIX|--finish-from-evidence PREFIX|--wipe-scratch PREFIX [--installer PATH]" >&2
 }
 
 json_escape() {
@@ -195,8 +196,26 @@ copy_evidence() {
   fi
 }
 
+kill_packaged_leftovers() {
+  case "$(os_label)" in
+    windows) kill_windows_leftovers ;;
+    macos) kill_macos_leftovers ;;
+  esac
+}
+
 wipe_scratch_siblings() {
-  rm -rf "${PHOTOS_DIR}" "${PROJECT_DIR}" "${DATA_DIR}" "${EVIDENCE_DIR}"
+  local n
+  kill_packaged_leftovers
+  for n in 1 2 3 4 5; do
+    if rm -rf "${PHOTOS_DIR}" "${PROJECT_DIR}" "${DATA_DIR}" "${EVIDENCE_DIR}"; then
+      return 0
+    fi
+    kill_packaged_leftovers
+    sleep 1
+  done
+  # Probe leftovers on Windows can keep SQLite busy; do not fail the 500 run.
+  rm -rf "${PHOTOS_DIR}" "${PROJECT_DIR}" "${DATA_DIR}" "${EVIDENCE_DIR}" 2>/dev/null || true
+  return 0
 }
 
 cleanup() {
@@ -246,8 +265,7 @@ quit_gui() {
       if [[ -n "${GUI_PID}" ]]; then
         kill "${GUI_PID}" >/dev/null 2>&1 || true
       fi
-      taskkill //F //IM framepilot-desktop.exe >/dev/null 2>&1 || true
-      taskkill //F //IM framepilot-api.exe >/dev/null 2>&1 || true
+      kill_windows_leftovers
       ;;
   esac
 }
@@ -343,9 +361,23 @@ webview2_present() {
   return 1
 }
 
+windows_image_running() {
+  local image="${1:-}"
+  tasklist.exe //FI "IMAGENAME eq ${image}" 2>/dev/null | grep -qi "$image"
+}
+
 kill_windows_leftovers() {
-  taskkill //F //IM framepilot-desktop.exe >/dev/null 2>&1 || true
-  taskkill //F //IM framepilot-api.exe >/dev/null 2>&1 || true
+  local n
+  for n in 1 2 3 4 5 6 7 8 9 10; do
+    # /T kills sidecar + WebView2 children that keep SQLite busy after probe.
+    taskkill.exe //F //T //IM framepilot-desktop.exe >/dev/null 2>&1 || true
+    taskkill.exe //F //T //IM framepilot-api.exe >/dev/null 2>&1 || true
+    if ! windows_image_running "framepilot-desktop.exe" && ! windows_image_running "framepilot-api.exe"; then
+      sleep 1
+      return 0
+    fi
+    sleep 1
+  done
 }
 
 kill_macos_leftovers() {
@@ -1322,6 +1354,14 @@ while [[ $# -gt 0 ]]; do
       FINISH_PREFIX="$2"
       shift 2
       ;;
+    --wipe-scratch)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "--wipe-scratch requires a prefix directory" >&2
+        exit 1
+      fi
+      WIPE_PREFIX="$2"
+      shift 2
+      ;;
     --probe)
       MODE="probe"
       COUNT=1
@@ -1388,6 +1428,12 @@ bind_prefix_dirs() {
   EVIDENCE_DIR="${PREFIX}/evidence"
   APP_DIR="${PREFIX}/app"
 }
+
+if [[ -n "$WIPE_PREFIX" ]]; then
+  bind_prefix_dirs "$WIPE_PREFIX"
+  wipe_scratch_siblings
+  exit 0
+fi
 
 if [[ -n "$SNAPSHOT_PREFIX" ]]; then
   bind_prefix_dirs "$SNAPSHOT_PREFIX"
