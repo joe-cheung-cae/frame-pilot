@@ -645,6 +645,10 @@ expect_success \
   bash tests/desktop/desktop-500-gui-python.sh
 
 expect_success \
+  "shipped desktop-500-gui Path B wait-done / macos exec / windows listen" \
+  bash tests/desktop/desktop-500-gui-packaged-path.sh
+
+expect_success \
   "stamp-desktop-500-gui-docs dry-run no-ops without both-OS 500 JSON" \
   python3 packaging/scripts/stamp-desktop-500-gui-docs.py --dry-run
 
