@@ -41,7 +41,7 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 
 ### 2.2 Definition of Done（首个桌面版本 `2.1.0-desktop`）
 
-- [ ] Windows 与 macOS 均可通过标准安装包安装并运行 — Windows NSIS GUI 为 pass（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)）；macOS DMG GUI 是 S9.12 **skip，不是 pass**（`2026-09-05T12:31:10Z`）。不声称双平台安装包 GUI DoD。
+- [x] Windows 与 macOS 均可通过标准安装包安装并运行 — Windows NSIS GUI 为 pass（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)）；残留 macOS DMG 安装并运行（[#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)，`2026-09-07T09:34:57Z`，[desktop.yml run 34105891421](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34105891421)）。S9.12 skip（[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)）作为历史保留。完整退出+作业矩阵仍未排期。
 - [x] 应用启动时自动管理 Python sidecar，用户无感知后端进程
 - [x] 使用原生文件夹选择器与拖放导入
 - [x] 现有全部核心功能可用且行为与当前 v2 一致
@@ -52,7 +52,7 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 - [x] 桌面 sidecar 仅监听 127.0.0.1，且拒绝非回环 Host 与未授权 Origin
 - [x] 用户选择的项目根目录经过显式授权后才被接受（见实施计划 D2.00）
 
-不在 `2.1.0-desktop` 范围内（见 §5.6）：第九阶段已交付的 2.2 残留（独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10、托盘 S9.06），加上残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）。仍延后（未排期）：自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、包装桌面 ≥500 GUI、macOS GUI pass。不要发明第十阶段 / 2.3。
+不在 `2.1.0-desktop` 范围内（见 §5.6）：第九阶段已交付的 2.2 残留（独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10、托盘 S9.06），加上残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）。仍延后（未排期）：自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、包装桌面 ≥500 GUI、完整包装 macOS 退出+作业矩阵。不要发明第十阶段 / 2.3。
 
 ---
 
@@ -183,7 +183,7 @@ FramePilot Desktop
 | 处理池 | 仍是每个项目一个处理作业 | 延后（未排期） |
 | 完整 RAW 显影 | 只抽内嵌预览（S9.04）；不 demosaic | 延后（未排期） |
 | SmartScreen / 商店上架 | 签名就绪 CI 是 S9.11；不是商店发行 | 延后（未排期） |
-| 包装 macOS GUI pass | S9.12 记为 skip，不是 pass（`2026-09-05T12:31:10Z`） | 延后（未排期） |
+| 包装 macOS GUI pass | 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) **安装并运行** DoD `[x]`（`2026-09-07T09:34:57Z`）；S9.12 skip 作为历史保留；完整退出+作业矩阵仍未排期 | 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) `[x]` 安装并运行；完整退出+作业矩阵未排期 |
 
 以上项目若被跳过，必须写入 [docs/v2_known_limitations.md](v2_known_limitations.zh.md)（D5.05）。
 
@@ -400,7 +400,7 @@ frame-pilot/
 | 2.1.0-desktop | 首个正式桌面安装包发布（已锁定） |
 | 第八阶段 | HEIC/HEIF 静帧预览（已交付） |
 | 第九阶段 | 剩余 stretch S9.00–S9.13（已关闭）：AVIF、RAW 内嵌预览、XMP 导出、托盘、独立预览、导入 worker、数据目录、检查更新、签名就绪 CI、macOS QA skip、文档残留修复 |
-| 未排期 | 自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、macOS GUI pass。不要发明第十阶段 / 2.3 |
+| 未排期 | 自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、完整包装 macOS 退出+作业矩阵。不要发明第十阶段 / 2.3 |
 
 发布渠道建议：
 
@@ -462,6 +462,7 @@ frame-pilot/
 | 2026-08-18 | 1.2 | Opus 5 审阅后对齐：锁定 Vite 双壳、`2.1.0-desktop`、WSL 可感知的 Phase 0 验收、§5.6 延后清单 |
 | 2026-09-05 | 1.3 | S9.13 残留修复：勾选已交付的 2.1 DoD；2.2 残留改指向 S9 id；剩余 Target = 未排期 |
 | 2026-09-07 | 1.4 | 残留 cache 旋钮 [#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)：设置缓存大小 / 淘汰；剩余 Target 去掉 cache 旋钮 |
+| 2026-09-07 | 1.5 | 残留安装包 GUI DoD [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)：勾 §2.2 安装并运行（Windows #144 + Darwin `2026-09-07T09:34:57Z`）；完整退出+作业矩阵仍未排期 |
 
 ---
 

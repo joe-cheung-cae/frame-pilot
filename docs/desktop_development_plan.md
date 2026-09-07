@@ -41,7 +41,7 @@ The current architecture is already “local process + local HTTP”, so it is a
 
 ### 2.2 Definition of Done (first desktop version `2.1.0-desktop`)
 
-- [ ] Windows and macOS both install and run from standard installer packages — Windows NSIS GUI pass ([#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)); macOS DMG GUI is S9.12 **skip, not pass** (`2026-09-05T12:31:10Z`). Dual-platform installer GUI DoD is not claimed.
+- [x] Windows and macOS both install and run from standard installer packages — Windows NSIS GUI pass ([#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)); leftover macOS DMG install+run ([#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177), `2026-09-07T09:34:57Z`, [desktop.yml run 34105891421](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34105891421)). S9.12 skip ([#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)) stays history. Full quit+job matrix still unscheduled.
 - [x] The app auto-manages the Python sidecar on launch; users do not notice the backend process
 - [x] Native folder pickers and drag-and-drop import are used
 - [x] All existing core features work and behave the same as current v2
@@ -52,7 +52,7 @@ The current architecture is already “local process + local HTTP”, so it is a
 - [x] The desktop sidecar listens only on 127.0.0.1 and rejects non-loopback Host and unauthorized Origin
 - [x] User-chosen project root directories are accepted only after explicit authorization (see implementation plan D2.00)
 
-Out of scope for `2.1.0-desktop` (see §5.6): leftover 2.2 items Phase 9 shipped (detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10, tray S9.06) plus leftover cache knobs ([#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)). Still deferred (unscheduled): auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, packaged-desktop ≥500 GUI, and macOS GUI pass. Do not invent Phase 10 / 2.3.
+Out of scope for `2.1.0-desktop` (see §5.6): leftover 2.2 items Phase 9 shipped (detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10, tray S9.06) plus leftover cache knobs ([#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)). Still deferred (unscheduled): auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, packaged-desktop ≥500 GUI, and full packaged macOS quit+job matrix. Do not invent Phase 10 / 2.3.
 
 ---
 
@@ -183,7 +183,7 @@ Leftover 2.2 items that Phase 9 shipped are retargeted to their S9 ids. Remainin
 | Processing pool | One processing job per project remains | deferred (unscheduled) |
 | Full RAW develop | Embedded preview only (S9.04); no demosaic | deferred (unscheduled) |
 | SmartScreen / store listing | Signing-ready CI is S9.11; not a store release | deferred (unscheduled) |
-| Packaged macOS GUI pass | S9.12 recorded skip, not pass (`2026-09-05T12:31:10Z`) | deferred (unscheduled) |
+| Packaged macOS GUI pass | leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) **install+run** DoD `[x]` (`2026-09-07T09:34:57Z`); S9.12 skip stays history; full quit+job matrix still unscheduled | leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) `[x]` install+run; full quit+job matrix unscheduled |
 
 If any of the above is skipped, it must be written into [docs/v2_known_limitations.md](v2_known_limitations.md) (D5.05).
 
@@ -400,7 +400,7 @@ On top of existing `npm run verify`, API pytest, frontend unit, and E2E, add:
 | 2.1.0-desktop | First official desktop installer release (locked) |
 | Phase 8 | HEIC/HEIF still preview (shipped) |
 | Phase 9 | Remaining stretch S9.00–S9.13 (closed): AVIF, RAW embedded preview, XMP export, tray, detached preview, import workers, data-dir, check-for-updates, signing-ready CI, macOS QA skip, docs leftover repair |
-| Unscheduled | Auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, macOS GUI pass. Do not invent Phase 10 / 2.3 |
+| Unscheduled | Auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, full packaged macOS quit+job matrix. Do not invent Phase 10 / 2.3 |
 
 Suggested release channels:
 
@@ -462,6 +462,7 @@ Implementation-level task split and Goal Mode prompts (based on the 2026-08-18 r
 | 2026-08-18 | 1.2 | Align after Opus 5 review: lock Vite dual-shell, `2.1.0-desktop`, WSL-aware Phase 0 acceptance, §5.6 deferred list |
 | 2026-09-05 | 1.3 | S9.13 leftover repair: tick shipped 2.1 DoD; retarget leftover 2.2 items to S9 ids; remaining Target = unscheduled |
 | 2026-09-07 | 1.4 | Leftover cache knobs [#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175): Settings cache size / eviction; remaining Target drops cache knobs |
+| 2026-09-07 | 1.5 | Leftover installer GUI DoD [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177): tick §2.2 install+run with Windows #144 + Darwin `2026-09-07T09:34:57Z`; full quit+job matrix still unscheduled |
 
 ---
 

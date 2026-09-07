@@ -520,6 +520,38 @@ expect_success \
   ' '$repo_root/.github/workflows/desktop.yml'"
 
 expect_success \
+  "desktop.yml smokes packaged macOS DMG GUI after tauri dmg build" \
+  bash -c "awk '
+    /name: Build Tauri installer/ { in_build = 1 }
+    in_build && /^      - name:/ && !/Build Tauri installer/ { in_build = 0 }
+    in_build && /macos-dmg-gui-smoke|hdiutil attach/ { folded = 1 }
+    /name: Smoke packaged macOS DMG GUI launch/ { in_smoke = 1 }
+    in_smoke && /^      - name:/ && !/Smoke packaged macOS DMG GUI launch/ { in_smoke = 0 }
+    in_smoke && /runner.os == .macOS./ { gate = 1 }
+    in_smoke && /macos-dmg-gui-smoke.sh/ { script = 1 }
+    in_smoke && /bundle\\/dmg\\/\\*\\.dmg/ { dmg = 1 }
+    END { exit (gate && script && dmg && !folded) ? 0 : 1 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "desktop.yml does not launch packaged NSIS GUI" \
+  bash -c "awk '
+    /nsis.*gui-smoke|Smoke packaged Windows|macos-dmg-gui-smoke.sh.*nsis/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "verify.yml does not launch packaged DMG GUI smoke" \
+  bash -c "awk '
+    /macos-dmg-gui-smoke|hdiutil attach/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/.github/workflows/verify.yml'"
+
+expect_success \
+  "non-Darwin macOS DMG GUI smoke host check" \
+  bash tests/desktop/macos-dmg-gui-smoke-nondarwin.sh
+
+expect_success \
   "verify.yml still has no codesign or notarize" \
   bash -c "awk '
     /codesign|notariz|APPLE_CERTIFICATE|WINDOWS_CERTIFICATE|certificateThumbprint/ { found = 1 }
