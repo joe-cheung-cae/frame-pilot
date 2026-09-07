@@ -67,6 +67,7 @@ type QaWindow = {
   __FRAMEPILOT_DESKTOP_QA_STARTED__?: unknown;
   __FRAMEPILOT_DESKTOP_QA_NAVIGATE__?: ((href: string) => void) | null;
   __FRAMEPILOT_DESKTOP_QA_MOUNTED__?: boolean;
+  __FRAMEPILOT_DESKTOP_QA_ROUTE__?: string;
   location?: { pathname: string; hash: string };
   dispatchEvent?: (event: Event) => boolean;
 };
@@ -191,6 +192,22 @@ export function setDesktopQaNavigate(push: ((href: string) => void) | null): voi
   }
 }
 
+export function setDesktopQaRoute(pathname: string): void {
+  const win = defaultWindow();
+  if (win) {
+    win.__FRAMEPILOT_DESKTOP_QA_ROUTE__ = pathname;
+  }
+}
+
+export function readDesktopQaRoute(): string {
+  const route = defaultWindow()?.__FRAMEPILOT_DESKTOP_QA_ROUTE__;
+  return typeof route === "string" ? route : "";
+}
+
+export function routeShowsCull(href: string, route = readDesktopQaRoute()): boolean {
+  return route.includes("/cull") || (href !== "" && route.endsWith(href));
+}
+
 function readDesktopQaNavigate(): ((href: string) => void) | null {
   if (desktopQaNavigate) {
     return desktopQaNavigate;
@@ -243,8 +260,8 @@ async function waitForCullPush(
   fallback: (href: string) => void,
   href: string,
   sleep: (ms: number) => Promise<void>,
-): Promise<"react" | "history" | "hash"> {
-  let via: "react" | "history" | "hash" = "history";
+): Promise<"react" | "history"> {
+  let via: "react" | "history" = "history";
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const push = readDesktopQaNavigate();
     if (push) {
@@ -264,17 +281,8 @@ async function waitForCullPush(
   if (via !== "react") {
     fallback(href);
   }
-  if (locationShowsCull(href)) {
-    return via;
-  }
-  if (via === "react") {
-    hashPush(href);
-    if (locationShowsCull(href)) {
-      return "hash";
-    }
-  }
   for (let attempt = 0; attempt < 200; attempt += 1) {
-    if (locationShowsCull(href)) {
+    if (routeShowsCull(href)) {
       return via;
     }
     await sleep(50);
@@ -461,6 +469,7 @@ export async function runDesktopQa(options: RunDesktopQaOptions): Promise<void> 
   await writeMilestone(options.writeEvidence, "cull_push", now, {
     href: cullHref,
     via,
+    route: readDesktopQaRoute(),
     pathname: loc.pathname,
     hash: loc.hash,
   });

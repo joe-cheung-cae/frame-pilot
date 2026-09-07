@@ -1,13 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { HashRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 import { DetachedPreviewPane } from "@/components/DetachedPreviewPane";
 import { isPreviewWindow } from "@/lib/detachedPreview";
 import { MENU_EVENT, resolveMenuCommand } from "@/lib/menuRoutes";
 import { useNavigator, usePathname } from "@/lib/navigation";
 import { loadLastOpenedProjectId } from "@/lib/recentProjects";
 import { applyShellDataset } from "@/lib/shell";
-import { DesktopQaRunner, setDesktopQaNavigate } from "./lib/desktopQaRunner";
+import { DesktopQaRunner, setDesktopQaNavigate, setDesktopQaRoute } from "./lib/desktopQaRunner";
 import { AppRoutes } from "./router";
 
 const QA_NAVIGATE_EVENT = "framepilot-qa-navigate";
@@ -16,6 +16,7 @@ function NativeMenuListener() {
   const navigator = useNavigator();
   const pathname = usePathname();
   setDesktopQaNavigate((href) => navigator.push(href));
+  setDesktopQaRoute(pathname);
   useEffect(() => {
     const onMenu = (event: Event) => {
       const command = (event as CustomEvent<string>).detail;
@@ -55,11 +56,11 @@ export function App() {
   }
   return (
     <QueryClientProvider client={queryClient}>
-      <HashRouter>
+      <MemoryRouter>
         <NativeMenuListener />
         <DesktopQaRunner />
         <AppRoutes />
-      </HashRouter>
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
