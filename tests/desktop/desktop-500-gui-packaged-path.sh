@@ -35,6 +35,41 @@ if ! grep -F -q "dump_health_timeout_diagnostics" "$shipped"; then
   exit 1
 fi
 
+if ! grep -E -q '^kill_macos_leftovers\(\)|kill_macos_leftovers \(\)' "$shipped"; then
+  echo "shipped harness is missing kill_macos_leftovers" >&2
+  exit 1
+fi
+
+if ! grep -F -q 'open -n "$APP_COPY"' "$shipped"; then
+  echo "shipped harness must launch macOS via open -n so WKWebView gets Aqua" >&2
+  exit 1
+fi
+
+if ! grep -F -q -- '--env "FRAMEPILOT_DESKTOP_QA=1"' "$shipped"; then
+  echo "shipped harness must pass FRAMEPILOT_DESKTOP_QA through open --env" >&2
+  exit 1
+fi
+
+if ! grep -F -q "WindowStyle Normal" "$shipped"; then
+  echo "shipped harness must Start-Process Windows GUI with WindowStyle Normal" >&2
+  exit 1
+fi
+
+if ! grep -F -q "cygpath -w" "$shipped"; then
+  echo "shipped harness must convert Git Bash paths with cygpath -w" >&2
+  exit 1
+fi
+
+if ! grep -F -q "MSYS2_ARG_CONV_EXCL" "$shipped"; then
+  echo "shipped harness must disable MSYS path conversion for the GUI process" >&2
+  exit 1
+fi
+
+if ! grep -F -q 'cp "${EVIDENCE_DIR}/milestones.jsonl"' "$shipped"; then
+  echo "shipped harness must copy milestones.jsonl off scratch before wipe" >&2
+  exit 1
+fi
+
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 

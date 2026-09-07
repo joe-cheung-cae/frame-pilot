@@ -69,6 +69,15 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
+export function qaFailLine(now: string, error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? "desktop QA runner failed");
+  return JSON.stringify({
+    milestone: "fail",
+    t: now,
+    fail_reason: message.slice(0, 500),
+  });
+}
+
 export function readDesktopQaConfig(win: QaWindow | undefined): DesktopQaConfig | null {
   if (!win || win.__FRAMEPILOT_DESKTOP__ !== true || win.__FRAMEPILOT_WINDOW__ !== "main") {
     return null;
@@ -219,9 +228,13 @@ export function DesktopQaRunner() {
       config,
       signal: controller.signal,
     }).catch((error: unknown) => {
-      if (!controller.signal.aborted) {
-        console.error("FramePilot desktop QA runner failed", error);
+      if (controller.signal.aborted) {
+        return;
       }
+      console.error("FramePilot desktop QA runner failed", error);
+      void invoke("qa_write_evidence", { line: qaFailLine(new Date().toISOString(), error) }).catch(
+        () => undefined,
+      );
     });
     return () => controller.abort();
   }, [navigate]);

@@ -353,7 +353,11 @@ pub fn run() {
                 Err(err) => (Some(err), true, None),
             };
 
-            tauri::WebviewWindowBuilder::new(
+            let qa_state = qa::load_desktop_qa_state();
+            if qa_state.enabled {
+                let _ = qa::write_host_milestone(&qa_state, "host_window");
+            }
+            let mut builder = tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
                 tauri::WebviewUrl::App("index.html".into()),
@@ -361,8 +365,24 @@ pub fn run() {
             .title("FramePilot")
             .inner_size(1200.0, 800.0)
             .min_inner_size(1100.0, 720.0)
+            .visible(true)
+            .focused(true)
             .initialization_script(&initialization_script_for_window(port, "main"))
-            .build()?;
+            .on_page_load({
+                let qa_state = qa_state.clone();
+                move |_window, payload| {
+                    if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                        let _ = qa::write_host_milestone(&qa_state, "page_load");
+                    }
+                }
+            });
+            if qa_state.enabled {
+                builder = builder.always_on_top(true);
+            }
+            let window = builder.build()?;
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
 
             let menu = build_app_menu(app)?;
             app.set_menu(menu)?;

@@ -12,7 +12,7 @@ mock.module("@tauri-apps/api/core", {
   },
 });
 
-const { DESKTOP_QA_IMPORT_BATCH_SIZE, readDesktopQaConfig, runDesktopQa } = await import("./desktopQaRunner.ts");
+const { DESKTOP_QA_IMPORT_BATCH_SIZE, qaFailLine, readDesktopQaConfig, runDesktopQa } = await import("./desktopQaRunner.ts");
 
 const runnerSource = readFileSync(new URL("./desktopQaRunner.ts", import.meta.url), "utf8");
 
@@ -46,7 +46,17 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   assert.match(runnerSource, /api\.registerDesktopProjectRoot/);
   assert.match(runnerSource, /api\.importPhotosFromPaths/);
   assert.match(runnerSource, /IMPORT_UPLOAD_BATCH_SIZE/);
+  assert.match(runnerSource, /qaFailLine/);
   assert.equal(DESKTOP_QA_IMPORT_BATCH_SIZE, 100);
+});
+
+test("qaFailLine is a single JSON object with milestone fail", () => {
+  const line = qaFailLine("2026-09-07T13:55:50.000Z", new Error("culling preview img did not reach naturalWidth > 0"));
+  assert.equal(line.includes("\n"), false);
+  const parsed = JSON.parse(line) as { milestone: string; t: string; fail_reason: string };
+  assert.equal(parsed.milestone, "fail");
+  assert.equal(parsed.t, "2026-09-07T13:55:50.000Z");
+  assert.match(parsed.fail_reason, /naturalWidth/);
 });
 
 test("readDesktopQaConfig is a no-op without desktop main QA object", async () => {

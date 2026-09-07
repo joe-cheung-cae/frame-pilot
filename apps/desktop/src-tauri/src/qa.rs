@@ -200,7 +200,52 @@ pub fn load_desktop_qa_state() -> DesktopQaState {
 
 pub fn qa_init_script_assignment(payload: &DesktopQaPayload) -> Option<String> {
     let json = serde_json::to_string(payload).ok()?;
-    Some(format!("\nwindow.__FRAMEPILOT_DESKTOP_QA__ = {json};"))
+    Some(format!(
+        "\nwindow.__FRAMEPILOT_DESKTOP_QA__ = {json};\ntry {{ void fetch(String(window.__FRAMEPILOT_API_BASE__) + \"/health?qa=init\"); }} catch (e) {{}}"
+    ))
+}
+
+pub fn iso_utc_from_unix_secs(unix_secs: u64) -> String {
+    let z = unix_secs as i64;
+    let days = z.div_euclid(86400);
+    let tod = z.rem_euclid(86400) as u32;
+    let hh = tod / 3600;
+    let mm = (tod % 3600) / 60;
+    let ss = tod % 60;
+    let z = days + 719468;
+    let era = z.div_euclid(146097);
+    let doe = (z - era * 146097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!("{y:04}-{m:02}-{d:02}T{hh:02}:{mm:02}:{ss:02}Z")
+}
+
+fn iso_utc_now() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    iso_utc_from_unix_secs(secs)
+}
+
+pub fn write_host_milestone(state: &DesktopQaState, milestone: &str) -> Result<(), String> {
+    if !state.enabled {
+        return Ok(());
+    }
+    if milestone.is_empty() || milestone.contains('\n') || milestone.contains('\r') {
+        return Err("qa host milestone is invalid".into());
+    }
+    let line = format!(
+        "{{\"milestone\":{},\"t\":{}}}",
+        serde_json::to_string(milestone).map_err(|err| err.to_string())?,
+        serde_json::to_string(&iso_utc_now()).map_err(|err| err.to_string())?,
+    );
+    write_qa_evidence_line(true, state.evidence_path.as_deref(), &line)
 }
 
 pub fn write_qa_evidence_line(
@@ -455,5 +500,49 @@ mod tests {
         let assignment = qa_init_script_assignment(&payload).expect("json");
         assert!(assignment.contains("window.__FRAMEPILOT_DESKTOP_QA__ = "));
         assert!(assignment.contains(r"\\"));
+        assert!(
+            assignment.contains("/health?qa=init"),
+            "init script must ping sidecar so a blank WebView is visible in access logs: {assignment}"
+        );
+    }
+
+    #[test]
+    fn iso_utc_from_unix_secs_is_rfc3339_z() {
+        assert_eq!(iso_utc_from_unix_secs(0), "1970-01-01T00:00:00Z");
+        assert_eq!(iso_utc_from_unix_secs(1_700_000_000), "2023-11-14T22:13:20Z");
+    }
+
+    #[test]
+    fn write_host_milestone_noops_when_qa_off_and_appends_when_on() {
+        let dir = unique_temp_dir("host");
+        let dest = dir.join(MILESTONES_FILE);
+        let off = DesktopQaState {
+            enabled: false,
+            evidence_path: Some(dest.clone()),
+        };
+        write_host_milestone(&off, "host_window").expect("noop");
+        assert!(!dest.exists());
+        let on = DesktopQaState {
+            enabled: true,
+            evidence_path: Some(dest.clone()),
+        };
+        write_host_milestone(&on, "host_window").expect("write");
+        write_host_milestone(&on, "page_load").expect("write page_load");
+        let text = fs::read_to_string(&dest).expect("read");
+        assert!(text.contains("\"milestone\":\"host_window\""));
+        assert!(text.contains("\"milestone\":\"page_load\""));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn lib_shows_main_window_and_records_qa_page_load() {
+        let lib = include_str!("lib.rs");
+        assert!(lib.contains("PageLoadEvent::Finished"));
+        assert!(lib.contains("write_host_milestone"));
+        assert!(lib.contains(".visible(true)"));
+        assert!(lib.contains(".focused(true)"));
+        assert!(lib.contains("always_on_top(true)"));
+        assert!(lib.contains("window.show()"));
+        assert!(lib.contains("window.set_focus()"));
     }
 }
