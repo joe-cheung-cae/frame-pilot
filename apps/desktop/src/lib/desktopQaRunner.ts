@@ -208,11 +208,16 @@ export function getDesktopQaCullHref(): string {
 export function subscribeDesktopQaCull(onStoreChange: () => void): () => void {
   desktopQaCullListeners.add(onStoreChange);
   const win = defaultWindow();
+  let timer: ReturnType<typeof setInterval> | undefined;
   if (win && typeof win.addEventListener === "function") {
     win.addEventListener(DESKTOP_QA_CULL_HREF_EVENT, onStoreChange);
+    timer = setInterval(onStoreChange, 100);
     return () => {
       desktopQaCullListeners.delete(onStoreChange);
       win.removeEventListener?.(DESKTOP_QA_CULL_HREF_EVENT, onStoreChange);
+      if (timer !== undefined) {
+        clearInterval(timer);
+      }
     };
   }
   return () => {

@@ -120,7 +120,9 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
   assert.match(appSource, /MemoryRouter/);
   assert.match(appSource, /CullingWorkspace/);
-  assert.match(appSource, /useDesktopQaCullProjectId/);
+  assert.match(appSource, /readWindowCullHref/);
+  assert.match(appSource, /setInterval/);
+  assert.match(appSource, /__FRAMEPILOT_DESKTOP_QA_CULL_HREF__/);
   assert.equal(appSource.includes("BrowserRouter"), false);
   assert.equal(appSource.includes("HashRouter"), false);
 });
