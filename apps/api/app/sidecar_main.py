@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextvars
 import copy
 import os
 import socket
@@ -11,6 +12,46 @@ from pathlib import Path
 import uvicorn
 
 ALLOWED_HOSTS = {"127.0.0.1", "localhost"}
+_ACCESS_ORIGIN: contextvars.ContextVar[str] = contextvars.ContextVar("framepilot_access_origin", default="-")
+_ACCESS_UA: contextvars.ContextVar[str] = contextvars.ContextVar("framepilot_access_ua", default="-")
+
+
+class OriginAccessFormatter(uvicorn.logging.AccessFormatter):
+    """Access formatter that appends Origin and User-Agent from the ASGI request."""
+
+    def formatMessage(self, record):
+        origin = _ACCESS_ORIGIN.get() or "-"
+        ua = _ACCESS_UA.get() or "-"
+        record.origin = origin
+        record.ua = ua
+        return super().formatMessage(record)
+
+
+class OriginUaCapture:
+    """ASGI wrapper that records Origin and User-Agent for the access formatter."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        origin = "-"
+        ua = "-"
+        for key, value in scope.get("headers") or []:
+            name = key.decode("latin-1").lower()
+            if name == "origin":
+                origin = value.decode("latin-1") or "-"
+            elif name == "user-agent":
+                ua = value.decode("latin-1") or "-"
+        origin_token = _ACCESS_ORIGIN.set(origin)
+        ua_token = _ACCESS_UA.set(ua)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            _ACCESS_ORIGIN.reset(origin_token)
+            _ACCESS_UA.reset(ua_token)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -51,6 +92,10 @@ def _stderr_log_config(log_level: str) -> dict:
     config = copy.deepcopy(uvicorn.config.LOGGING_CONFIG)
     config["handlers"]["default"]["stream"] = "ext://sys.stderr"
     config["handlers"]["access"]["stream"] = "ext://sys.stderr"
+    config["formatters"]["access"]["()"] = "app.sidecar_main.OriginAccessFormatter"
+    config["formatters"]["access"]["fmt"] = (
+        '%(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s origin=%(origin)s ua=%(ua)s'
+    )
     level = log_level.upper()
     config["loggers"]["uvicorn"]["level"] = level
     config["loggers"]["uvicorn.error"]["level"] = level
@@ -62,7 +107,7 @@ def serve(app, sock: socket.socket, log_level: str = "info") -> None:
     # Windows packaged builds may not include uvloop; force the asyncio loop there.
     loop = "asyncio" if os.name == "nt" else "auto"
     config = uvicorn.Config(
-        app,
+        OriginUaCapture(app),
         host="127.0.0.1",
         log_level=log_level,
         access_log=True,

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-qa-write-evidence"
+description = "Allow appending a JSONL milestone line to the startup-cached Path B evidence file"
+commands.allow = ["qa_write_evidence"]

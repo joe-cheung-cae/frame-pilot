@@ -363,16 +363,34 @@ pub fn initialization_script(port: u16) -> String {
 }
 
 pub fn initialization_script_for_window(port: u16, window_label: &str) -> String {
+    initialization_script_for_window_with_qa(
+        port,
+        window_label,
+        crate::qa::resolve_desktop_qa_from_env().as_ref(),
+    )
+}
+
+pub(crate) fn initialization_script_for_window_with_qa(
+    port: u16,
+    window_label: &str,
+    qa: Option<&crate::qa::DesktopQaPayload>,
+) -> String {
     let label = if window_label == "preview" {
         "preview"
     } else {
         "main"
     };
-    format!(
+    let mut script = format!(
         "window.__FRAMEPILOT_API_BASE__ = \"{}\";\nwindow.__FRAMEPILOT_DESKTOP__ = true;\nwindow.__FRAMEPILOT_WINDOW__ = \"{}\";",
         api_base_url(port),
         label
-    )
+    );
+    if label != "preview" {
+        if let Some(assignment) = qa.and_then(crate::qa::qa_init_script_assignment) {
+            script.push_str(&assignment);
+        }
+    }
+    script
 }
 
 pub fn blocking_error_script(message: &str) -> String {
@@ -476,6 +494,13 @@ pub fn sidecar_spawn_spec(
     }
 }
 
+fn env_key_starts_with_ignore_ascii_case(key: &std::ffi::OsStr, prefix: &str) -> bool {
+    key.to_str().is_some_and(|name| {
+        name.get(..prefix.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
+    })
+}
+
 pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<Child> {
     if let Some(parent) = stderr_log.parent() {
         fs::create_dir_all(parent)?;
@@ -491,8 +516,17 @@ pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<C
         // Parent shells (e.g. `tauri dev`) must not leak a wide deployment
         // allowlist into the sidecar. D2.00 registration is the widen path.
         .env_remove("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST")
+        .env_remove("FRAMEPILOT_DESKTOP_QA")
+        .env_remove("FRAMEPILOT_DESKTOP_QA_PHOTOS")
+        .env_remove("FRAMEPILOT_DESKTOP_QA_PROJECT")
+        .env_remove("FRAMEPILOT_DESKTOP_QA_EVIDENCE")
         .stdout(Stdio::piped())
         .stderr(Stdio::from(log));
+    for (key, _) in std::env::vars_os() {
+        if env_key_starts_with_ignore_ascii_case(&key, "FRAMEPILOT_DESKTOP_QA") {
+            command.env_remove(key);
+        }
+    }
     if let Some(ref pythonpath) = spec.pythonpath {
         command.env("PYTHONPATH", pythonpath);
     } else {
@@ -1077,7 +1111,11 @@ mod tests {
         fs::create_dir_all(&dir).expect("temp dir");
         let log = dir.join("sidecar.log");
         let previous_allowlist = std::env::var("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST").ok();
+        let previous_qa = std::env::var("FRAMEPILOT_DESKTOP_QA").ok();
+        let previous_qa_photos = std::env::var("FRAMEPILOT_DESKTOP_QA_PHOTOS").ok();
         std::env::set_var("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST", "/");
+        std::env::set_var("FRAMEPILOT_DESKTOP_QA", "1");
+        std::env::set_var("FRAMEPILOT_DESKTOP_QA_PHOTOS", "/unsafe");
 
         let spec = SidecarSpawnSpec {
             program: PathBuf::from("python3"),
@@ -1087,6 +1125,8 @@ mod tests {
                     "import os, sys\n",
                     "sys.stdout.write('ALLOWLIST=' + repr(os.environ.get('FRAMEPILOT_PROJECT_ROOT_ALLOWLIST')) + '\\n')\n",
                     "sys.stdout.write('DESKTOP=' + os.environ.get('FRAMEPILOT_DESKTOP', '') + '\\n')\n",
+                    "sys.stdout.write('QA=' + repr(os.environ.get('FRAMEPILOT_DESKTOP_QA')) + '\\n')\n",
+                    "sys.stdout.write('QA_PHOTOS=' + repr(os.environ.get('FRAMEPILOT_DESKTOP_QA_PHOTOS')) + '\\n')\n",
                 )
                 .into(),
             ],
@@ -1105,6 +1145,14 @@ mod tests {
             Some(value) => std::env::set_var("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST", value),
             None => std::env::remove_var("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST"),
         }
+        match previous_qa {
+            Some(value) => std::env::set_var("FRAMEPILOT_DESKTOP_QA", value),
+            None => std::env::remove_var("FRAMEPILOT_DESKTOP_QA"),
+        }
+        match previous_qa_photos {
+            Some(value) => std::env::set_var("FRAMEPILOT_DESKTOP_QA_PHOTOS", value),
+            None => std::env::remove_var("FRAMEPILOT_DESKTOP_QA_PHOTOS"),
+        }
         let _ = fs::remove_dir_all(&dir);
 
         assert!(
@@ -1118,6 +1166,14 @@ mod tests {
         assert!(
             stdout.contains("DESKTOP=1"),
             "child must still receive FRAMEPILOT_DESKTOP=1: {stdout}"
+        );
+        assert!(
+            stdout.contains("QA=None"),
+            "child must not inherit FRAMEPILOT_DESKTOP_QA: {stdout}"
+        );
+        assert!(
+            stdout.contains("QA_PHOTOS=None"),
+            "child must not inherit FRAMEPILOT_DESKTOP_QA_PHOTOS: {stdout}"
         );
     }
 
@@ -1219,6 +1275,33 @@ mod tests {
             .contains("window.__FRAMEPILOT_WINDOW__ = \"preview\";"));
         assert!(initialization_script_for_window(4242, "preview")
             .contains("window.__FRAMEPILOT_DESKTOP__ = true;"));
+        assert!(
+            !initialization_script_for_window_with_qa(4242, "main", None)
+                .contains("__FRAMEPILOT_DESKTOP_QA__")
+        );
+    }
+
+    #[test]
+    fn initialization_script_omits_qa_without_gate_and_preview_omits_even_with_payload() {
+        let qa = crate::qa::DesktopQaPayload {
+            photos: "/home/alex/.cache/framepilot-desktop-500-gui/photos".into(),
+            project: "/home/alex/.cache/framepilot-desktop-500-gui/project".into(),
+            evidence: "/home/alex/.cache/framepilot-desktop-500-gui/evidence".into(),
+        };
+        let main_without = initialization_script_for_window_with_qa(4242, "main", None);
+        assert!(
+            !main_without.contains("__FRAMEPILOT_DESKTOP_QA__"),
+            "ungated main script must match production: {main_without}"
+        );
+        let preview = initialization_script_for_window_with_qa(4242, "preview", Some(&qa));
+        assert!(
+            !preview.contains("__FRAMEPILOT_DESKTOP_QA__"),
+            "preview must never receive the QA object: {preview}"
+        );
+        assert!(preview.contains("window.__FRAMEPILOT_WINDOW__ = \"preview\";"));
+        let main_with = initialization_script_for_window_with_qa(4242, "main", Some(&qa));
+        assert!(main_with.contains("window.__FRAMEPILOT_DESKTOP_QA__ = "));
+        assert!(main_with.contains("/home/alex/.cache/framepilot-desktop-500-gui/photos"));
     }
 
     #[test]
