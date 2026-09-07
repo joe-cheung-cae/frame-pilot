@@ -90,7 +90,24 @@ PY
 
 if [[ "$use_frozen" -eq 1 ]]; then
   unpacked="$repo_root/dist/framepilot-api"
-  unpacked_bytes="$(du -sb "$unpacked" | awk '{print $1}')"
+  # BSD du (Darwin) has no GNU -b; do not fail leftover macOS GUI smoke on size check.
+  unpacked_bytes="$(
+    python3 - "$unpacked" <<'PY'
+import os
+import sys
+
+root = sys.argv[1]
+total = 0
+for dirpath, _dirnames, filenames in os.walk(root):
+    for name in filenames:
+        path = os.path.join(dirpath, name)
+        try:
+            total += os.path.getsize(path)
+        except OSError:
+            continue
+print(total)
+PY
+  )"
   max_bytes=$((400 * 1024 * 1024))
   echo "unpacked sidecar bytes=$unpacked_bytes max=$max_bytes"
   if [[ "$unpacked_bytes" -gt "$max_bytes" ]]; then
