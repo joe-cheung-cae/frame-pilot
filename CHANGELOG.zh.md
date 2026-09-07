@@ -6,6 +6,13 @@
 
 ## 未发布
 
+### 残留 — 双平台安装包 GUI DoD（macOS DMG 安装并运行）
+
+- 带日期的 Darwin pass `2026-09-07T09:34:57Z`（GitHub 托管 `macos-latest`）：同一 job 内 DMG attach + 启动 + 回环 `GET /health`（`APP_VERSION=2.1.0-desktop`，port `49288`，`title_ok=true`，`result=pass`）
+- 勾 `docs/desktop_development_plan.md` §2.2 安装包行：Windows [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) + 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) + [desktop.yml run 34105891421](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34105891421)
+- S9.12 skip（[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)，`2026-09-05T12:31:10Z`）作为历史保留；完整退出+作业矩阵仍未排期
+- 不改 `APP_VERSION`，不勾包装桌面 ≥500，不声称 Gatekeeper 干净或商店上架，无第十阶段
+
 ### 残留 — 衍生缓存大小与淘汰
 
 - 设置中的 **Derivative cache** 显示各项目缩略图和预览占用（`GET /api/cache`）

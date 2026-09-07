@@ -4,7 +4,7 @@
 
 FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。本地优先：永不修改或删除相机原图。优先使用 `{root_path}/originals` 下的项目副本。
 
-`npm run verify` 是无 Rust 的 CI 门槛（lint、typecheck、测试、产物检查、验证决策）。它**不会**打开 WebView，也不会跑 `cargo`/`tauri`。GitHub Actions（`.github/workflows/verify.yml`）另有独立的 **Playwright E2E** 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 **100 张真实浏览器** 作业（`npm run test:e2e:real-browser`；不含 `test:e2e:real-browser:large`）、独立的**冻结 sidecar `/health`** 作业（先 `npm run packaging:sidecar`，再 `npm run test:sidecar`），以及独立的**桌面 HTTP 冒烟**作业（`npm run test:desktop:smoke`：`/health`、`/api/projects`、桌面 Origin CORS、攻击者 `Host` → 403）。冻结冒烟会 `unset PYTHONPATH`（与打包后的 Tauri spawn 一致）。桌面 HTTP 冒烟在没有冻结二进制时可用 venv sidecar。`.github/workflows/desktop.yml` 在 PyInstaller 之后跑冻结 sidecar 冒烟，且**不**启动打包 GUI。workflow YAML 不需要单独的 `check:pretag` 作业；`npm run verify` 已包含 `check:validation-decision`。GUI 行需要 rustc ≥1.88（以及显示环境）。未验证的 GUI 行标为带日期的 `[~]`，并写主机说明——**不要编造**通过结果。
+`npm run verify` 是无 Rust 的 CI 门槛（lint、typecheck、测试、产物检查、验证决策）。它**不会**打开 WebView，也不会跑 `cargo`/`tauri`。GitHub Actions（`.github/workflows/verify.yml`）另有独立的 **Playwright E2E** 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 **100 张真实浏览器** 作业（`npm run test:e2e:real-browser`；不含 `test:e2e:real-browser:large`）、独立的**冻结 sidecar `/health`** 作业（先 `npm run packaging:sidecar`，再 `npm run test:sidecar`），以及独立的**桌面 HTTP 冒烟**作业（`npm run test:desktop:smoke`：`/health`、`/api/projects`、桌面 Origin CORS、攻击者 `Host` → 403）。冻结冒烟会 `unset PYTHONPATH`（与打包后的 Tauri spawn 一致）。桌面 HTTP 冒烟在没有冻结二进制时可用 venv sidecar。`.github/workflows/desktop.yml` 在 PyInstaller 之后跑冻结 sidecar 冒烟，并在 macOS 上为残留安装包 DoD 启动包装 DMG GUI（`packaging/scripts/macos-dmg-gui-smoke.sh`）。仍不启动包装 NSIS GUI。`verify.yml` 保持无 Rust，也不启动 GUI。workflow YAML 不需要单独的 `check:pretag` 作业；`npm run verify` 已包含 `check:validation-decision`。GUI 行需要 rustc ≥1.88（以及显示环境）。未验证的 GUI 行标为带日期的 `[~]`，并写主机说明——**不要编造**通过结果。
 
 **相关：** [桌面壳 README](../apps/desktop/README.zh.md) · [签名手册](desktop_signing.zh.md) · [Phase 2 工作流清单](../tests/desktop/workflow.zh.md) · [Phase 5 设计](plans/2026-08-29-phase5-docs-design.zh.md)
 
@@ -125,3 +125,25 @@ FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。�
 本机 Linux 上 `npm run test:desktop:smoke` 保持绿灯（回环 sidecar 的 `2.1.0-desktop`，不是 DMG）。该 HTTP 冒烟、冻结 sidecar `/health` 与 Playwright 绿灯**不能**把本次 skip 变成 macOS GUI pass。
 
 Windows NSIS GUI 生命周期已记在 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)（仅 Windows，2026-09-04）。本切片不重跑 Windows。未签名 DMG 的 Gatekeeper 警告仍是预期；本记录不声称已签名或 Gatekeeper 干净的 Mac pass。Issue：[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)。
+
+---
+
+## 残留：双平台安装包 GUI DoD（macOS DMG 安装并运行）
+
+**结论：pass（安装并运行）。** 日期 `2026-09-07T09:34:57Z`（UTC）。这**不是**完整 S9.12 退出+作业矩阵。上文 S9.12 skip 小节作为历史保留。不要重开 [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)。
+
+| 字段 | 值 |
+| ---- | -- |
+| 日期 | `2026-09-07T09:34:57Z` |
+| OS | Darwin — GitHub 托管 `macos-latest`（`uname -s` = `Darwin`） |
+| `APP_VERSION` | 包装后 `GET /health` 得到 `2.1.0-desktop` |
+| health | `{"service": "framepilot-api", "status": "ok", "version": "2.1.0-desktop"}` |
+| port | `49288`（回环 `127.0.0.1`，未写死 `8000`/`6300`） |
+| `title_ok` | `true` |
+| `result` | `pass` |
+| CI | [desktop.yml run 34105891421](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34105891421) — 步骤 `Smoke packaged macOS DMG GUI launch` 退出码 0 |
+| 原片 | 未涉及（本次残留冒烟不导入照片） |
+
+安装并运行行：**启动（安装包）** `[x]` — 同一 job 内 DMG attach + `open` `FramePilot.app` + 回环 `GET /health` 带 `version` 与 `service`。完整退出+导入/处理/导出对话框矩阵仍未排期。
+
+Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)。未签名 Gatekeeper 警告仍是预期；本记录不声称 Gatekeeper 干净或商店上架。不改 `APP_VERSION`。不勾包装桌面 ≥500。Issue：[#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)。

@@ -51,10 +51,10 @@ Leftover dual-platform installer GUI DoD (macOS DMG install+run)
 - [x] 评审 — adversarial review vs live tree
 - [x] 归档 — 开发 handoff recorded (this commit); 开发 stays `[ ]`
 - [x] 开发 — smoke script + `desktop.yml` macOS step; leftover-plan 开发 `[x]` in that commit; **do not** tick §2.2
-- [ ] 测试
-- [ ] 上线 — dispatch `desktop.yml`, dated Darwin evidence, then tick §2.2
+- [x] 测试
+- [x] 上线 — dispatch `desktop.yml`, dated Darwin evidence, then tick §2.2
 - [x] smoke-landed
-- [ ] DoD-ticked
+- [x] DoD-ticked
 
 This 归档 commit ticks **归档** only. Leave 开发, smoke-landed, DoD-ticked, and §2.2 `[ ]`.
 
@@ -219,3 +219,18 @@ Pointers: leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/1
 ## 12. 开发 (2026-09-07)
 
 Landed `packaging/scripts/macos-dmg-gui-smoke.sh`, `tests/desktop/macos-dmg-gui-smoke-nondarwin.sh`, and a macOS-gated step on the existing `.github/workflows/desktop.yml` matrix `build` job (after the just-built DMG; not inside `Build Tauri installer`). Linux host check: skip is not pass (exit 2). Do **not** tick `docs/desktop_development_plan.md` §2.2. Do **not** tick DoD-ticked. 测试 / 上线 next: dispatch `desktop.yml` for dated Darwin evidence. Draft PR remains [#178](https://github.com/joe-cheung-cae/frame-pilot/pull/178).
+
+---
+
+## 13. 上线 (2026-09-07)
+
+Darwin GUI smoke **pass** at `2026-09-07T09:34:57Z` on GitHub-hosted `macos-latest` ([desktop.yml run 34105891421](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34105891421), job `macos-latest` 101690776637, step `Smoke packaged macOS DMG GUI launch` exit 0).
+
+- `os=Darwin`
+- `APP_VERSION=2.1.0-desktop`
+- `health={"service": "framepilot-api", "status": "ok", "version": "2.1.0-desktop"}`
+- `port=49288`
+- `title_ok=true`
+- `result=pass`
+
+Tick leftover-plan 上线 `[x]` and DoD-ticked `[x]`. Tick `docs/desktop_development_plan.md` §2.2 installer row with Windows [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) + leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) + the run URL. §5.6 packaged macOS GUI pass target = this leftover `[x]` for **install+run** DoD; full quit+job matrix still unscheduled. Do not reopen [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172). Do not tick packaged-desktop ≥500. Do not claim Gatekeeper-clean or store listing. Draft PR remains [#178](https://github.com/joe-cheung-cae/frame-pilot/pull/178).

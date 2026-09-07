@@ -6,6 +6,13 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — dual-platform installer GUI DoD (macOS DMG install+run)
+
+- Dated Darwin pass `2026-09-07T09:34:57Z` on GitHub-hosted `macos-latest`: same-job DMG attach + launch + loopback `GET /health` (`APP_VERSION=2.1.0-desktop`, port `49288`, `title_ok=true`, `result=pass`)
+- Tick `docs/desktop_development_plan.md` §2.2 installer row with Windows [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) plus leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) plus [desktop.yml run 34105891421](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34105891421)
+- Keep S9.12 skip ([#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172), `2026-09-05T12:31:10Z`) as history; full quit+job matrix still unscheduled
+- No `APP_VERSION` bump, no packaged-desktop ≥500 tick, no Gatekeeper-clean or store listing claim, no Phase 10
+
 ### Leftover — derivative cache size and eviction
 
 - Settings **Derivative cache** shows thumbnail and preview size across projects (`GET /api/cache`)
