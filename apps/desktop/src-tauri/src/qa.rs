@@ -637,10 +637,12 @@ mod tests {
             "NativeMenuListener must register React navigate on window: {app}"
         );
         assert!(
-            app.contains("useDesktopQaCullProjectId"),
-            "packaged SPA must mount CullingWorkspace from the Path B store: {app}"
+            app.contains("readWindowCullHref"),
+            "QaOrRoutes must read cull href from window, not a module-local store: {app}"
         );
+        assert!(app.contains("setInterval"));
         assert!(app.contains("CullingWorkspace"));
+        assert!(app.contains("__FRAMEPILOT_DESKTOP_QA_CULL_HREF__"));
         assert!(app.contains("MemoryRouter"));
         assert!(!app.contains("BrowserRouter"));
         assert!(!app.contains("HashRouter"));
