@@ -19,10 +19,20 @@ pub struct DesktopQaPayload {
     pub evidence: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct DesktopQaBootstrap {
+    pub photos: String,
+    pub project: String,
+    pub evidence: String,
+    pub api_base: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct DesktopQaState {
     pub enabled: bool,
     pub evidence_path: Option<PathBuf>,
+    pub payload: Option<DesktopQaPayload>,
+    pub api_base: Option<String>,
 }
 
 pub struct DesktopQaEnv<'a> {
@@ -185,17 +195,38 @@ pub fn resolve_desktop_qa_from_env() -> Option<DesktopQaPayload> {
     })
 }
 
-pub fn load_desktop_qa_state() -> DesktopQaState {
+pub fn load_desktop_qa_state(api_base: Option<String>) -> DesktopQaState {
     match resolve_desktop_qa_from_env() {
         Some(payload) => DesktopQaState {
             enabled: true,
-            evidence_path: Some(PathBuf::from(payload.evidence).join(MILESTONES_FILE)),
+            evidence_path: Some(PathBuf::from(&payload.evidence).join(MILESTONES_FILE)),
+            payload: Some(payload),
+            api_base,
         },
         None => DesktopQaState {
             enabled: false,
             evidence_path: None,
+            payload: None,
+            api_base: None,
         },
     }
+}
+
+pub fn qa_bootstrap_payload(state: &DesktopQaState) -> Option<DesktopQaBootstrap> {
+    if !state.enabled {
+        return None;
+    }
+    let payload = state.payload.as_ref()?;
+    let api_base = state.api_base.as_deref()?.trim();
+    if api_base.is_empty() {
+        return None;
+    }
+    Some(DesktopQaBootstrap {
+        photos: payload.photos.clone(),
+        project: payload.project.clone(),
+        evidence: payload.evidence.clone(),
+        api_base: api_base.to_string(),
+    })
 }
 
 pub fn qa_init_script_assignment(payload: &DesktopQaPayload) -> Option<String> {
@@ -299,6 +330,11 @@ pub fn qa_write_evidence(
     line: String,
 ) -> Result<(), String> {
     write_qa_evidence_line(state.enabled, state.evidence_path.as_deref(), &line)
+}
+
+#[tauri::command]
+pub fn qa_bootstrap(state: tauri::State<DesktopQaState>) -> Option<DesktopQaBootstrap> {
+    qa_bootstrap_payload(&state)
 }
 
 #[cfg(test)]
@@ -480,6 +516,10 @@ mod tests {
         let permission = include_str!("../permissions/qa.toml");
         assert!(permission.contains("identifier = \"allow-qa-write-evidence\""));
         assert!(permission.contains("qa_write_evidence"));
+        assert!(
+            permission.contains("qa_bootstrap"),
+            "page JS must be allowed to read the fail-closed QA payload over IPC: {permission}"
+        );
     }
 
     #[test]
@@ -487,7 +527,9 @@ mod tests {
         let lib = include_str!("lib.rs");
         assert!(lib.contains("mod qa;"));
         assert!(lib.contains("qa_write_evidence"));
+        assert!(lib.contains("qa_bootstrap"));
         assert!(lib.contains("load_desktop_qa_state"));
+        assert!(lib.contains("api_base_url(port)"));
     }
 
     #[test]
@@ -519,12 +561,16 @@ mod tests {
         let off = DesktopQaState {
             enabled: false,
             evidence_path: Some(dest.clone()),
+            payload: None,
+            api_base: None,
         };
         write_host_milestone(&off, "host_window").expect("noop");
         assert!(!dest.exists());
         let on = DesktopQaState {
             enabled: true,
             evidence_path: Some(dest.clone()),
+            payload: None,
+            api_base: None,
         };
         write_host_milestone(&on, "host_window").expect("write");
         write_host_milestone(&on, "page_load").expect("write page_load");
@@ -554,6 +600,51 @@ mod tests {
             "packaged SPA must write spa_module so a blocked Vite bundle is visible in milestones.jsonl"
         );
         assert!(main.contains("qa_write_evidence"));
+        assert!(
+            main.contains("qa_bootstrap"),
+            "packaged SPA must IPC-read QA payload; init-script window globals are not visible to page modules: {main}"
+        );
+        assert!(main.contains("spa_flags"));
+        assert!(main.contains("applyDesktopQaBootstrap"));
+    }
+
+    #[test]
+    fn qa_bootstrap_payload_is_none_when_gate_is_off() {
+        let payload = DesktopQaPayload {
+            photos: "/home/alex/.cache/framepilot-desktop-500-gui/photos".into(),
+            project: "/home/alex/.cache/framepilot-desktop-500-gui/project".into(),
+            evidence: "/home/alex/.cache/framepilot-desktop-500-gui/evidence".into(),
+        };
+        let off = DesktopQaState {
+            enabled: false,
+            evidence_path: None,
+            payload: Some(payload.clone()),
+            api_base: Some("http://127.0.0.1:4242".into()),
+        };
+        assert!(qa_bootstrap_payload(&off).is_none());
+        let missing_base = DesktopQaState {
+            enabled: true,
+            evidence_path: None,
+            payload: Some(payload.clone()),
+            api_base: None,
+        };
+        assert!(qa_bootstrap_payload(&missing_base).is_none());
+        let on = DesktopQaState {
+            enabled: true,
+            evidence_path: None,
+            payload: Some(payload),
+            api_base: Some("http://127.0.0.1:4242".into()),
+        };
+        let boot = qa_bootstrap_payload(&on).expect("enabled QA state returns bootstrap");
+        assert_eq!(
+            boot.photos,
+            "/home/alex/.cache/framepilot-desktop-500-gui/photos"
+        );
+        assert_eq!(
+            boot.project,
+            "/home/alex/.cache/framepilot-desktop-500-gui/project"
+        );
+        assert_eq!(boot.api_base, "http://127.0.0.1:4242");
     }
 
     #[test]

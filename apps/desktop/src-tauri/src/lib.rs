@@ -22,7 +22,8 @@ use menu::{build_app_menu, handle_menu_event, DesktopPaths};
 use sidecar::{
     allocate_loopback_port, api_pythonpath, app_quit_action, blocking_error_script,
     close_choice_from_handshake, close_decision, close_decision_requests_shutdown, close_job_kind,
-    default_python, find_active_job, frozen_sidecar_binary, initialization_script_for_window,
+    api_base_url, default_python, find_active_job, frozen_sidecar_binary,
+    initialization_script_for_window,
     parse_quit_choice, probe_health, quit_dialog_script, repo_root, request_cancel_then_wait,
     sidecar_spawn_spec,
     sidecar_stderr_log, spawn_sidecar, staged_sidecar_resource_root, start_sidecar_unless_shutdown,
@@ -324,11 +325,12 @@ pub fn run() {
             preview::close_detached_preview,
             apply_data_directory,
             qa::qa_write_evidence,
+            qa::qa_bootstrap,
         ])
         .manage(Arc::clone(&state))
         .manage(DesktopPaths::new(data_dir.clone()))
         .manage(preview::PreviewHost { port })
-        .manage(qa::load_desktop_qa_state())
+        .manage(qa::load_desktop_qa_state(Some(api_base_url(port))))
         .on_menu_event(|app, event| handle_menu_event(app, event))
         .setup(move |app| {
             let launch_mode = resolve_launch_mode(app.handle(), &root);
@@ -353,7 +355,7 @@ pub fn run() {
                 Err(err) => (Some(err), true, None),
             };
 
-            let qa_state = qa::load_desktop_qa_state();
+            let qa_state = qa::load_desktop_qa_state(Some(api_base_url(port)));
             if qa_state.enabled {
                 let _ = qa::write_host_milestone(&qa_state, "host_window");
             }

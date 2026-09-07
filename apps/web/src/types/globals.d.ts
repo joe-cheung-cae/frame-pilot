@@ -10,5 +10,6 @@ declare global {
       project: string;
       evidence?: string;
     };
+    __FRAMEPILOT_DESKTOP_QA_STARTED__?: boolean;
   }
 }
