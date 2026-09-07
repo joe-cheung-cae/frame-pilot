@@ -21,6 +21,13 @@ export type DesktopQaConfig = {
   project: string;
 };
 
+export type DesktopQaBootstrap = {
+  photos: string;
+  project: string;
+  evidence?: string;
+  api_base: string;
+};
+
 export type DesktopQaApi = {
   getHealth: () => Promise<HealthStatus>;
   getSettings: () => Promise<AppSettings>;
@@ -55,6 +62,8 @@ type QaWindow = {
   __FRAMEPILOT_DESKTOP__?: unknown;
   __FRAMEPILOT_WINDOW__?: unknown;
   __FRAMEPILOT_DESKTOP_QA__?: unknown;
+  __FRAMEPILOT_API_BASE__?: unknown;
+  __FRAMEPILOT_DESKTOP_QA_STARTED__?: unknown;
 };
 
 function defaultSleep(ms: number): Promise<void> {
@@ -93,6 +102,122 @@ export function readDesktopQaConfig(win: QaWindow | undefined): DesktopQaConfig 
     return null;
   }
   return { photos, project };
+}
+
+export function parseDesktopQaBootstrap(value: unknown): DesktopQaBootstrap | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as {
+    photos?: unknown;
+    project?: unknown;
+    evidence?: unknown;
+    api_base?: unknown;
+  };
+  const photos = typeof record.photos === "string" ? record.photos.trim() : "";
+  const project = typeof record.project === "string" ? record.project.trim() : "";
+  const evidence = typeof record.evidence === "string" ? record.evidence.trim() : "";
+  const apiBase = typeof record.api_base === "string" ? record.api_base.trim() : "";
+  if (!photos || !project || !apiBase) {
+    return null;
+  }
+  return { photos, project, evidence, api_base: apiBase };
+}
+
+export function applyDesktopQaBootstrap(
+  win: QaWindow | undefined,
+  boot: DesktopQaBootstrap | null | undefined,
+): boolean {
+  if (!win || !boot) {
+    return false;
+  }
+  if (win.__FRAMEPILOT_WINDOW__ === "preview") {
+    return false;
+  }
+  win.__FRAMEPILOT_DESKTOP__ = true;
+  win.__FRAMEPILOT_WINDOW__ = "main";
+  win.__FRAMEPILOT_API_BASE__ = boot.api_base;
+  win.__FRAMEPILOT_DESKTOP_QA__ = {
+    photos: boot.photos,
+    project: boot.project,
+    evidence: boot.evidence,
+  };
+  return true;
+}
+
+export function spaFlagsLine(now: string, win: QaWindow | undefined, bootstrapped: boolean): string {
+  const qa = win?.__FRAMEPILOT_DESKTOP_QA__;
+  const apiBase = win?.__FRAMEPILOT_API_BASE__;
+  return JSON.stringify({
+    milestone: "spa_flags",
+    t: now,
+    desktop: win?.__FRAMEPILOT_DESKTOP__ === true,
+    window_label: typeof win?.__FRAMEPILOT_WINDOW__ === "string" ? win.__FRAMEPILOT_WINDOW__ : "",
+    qa: Boolean(qa && typeof qa === "object"),
+    api_base: typeof apiBase === "string" && apiBase.trim() !== "",
+    bootstrapped,
+  });
+}
+
+export type StartDesktopQaOptions = {
+  win?: QaWindow;
+  api?: DesktopQaApi;
+  writeEvidence?: (line: string) => Promise<unknown>;
+  push: (href: string) => void;
+  queryPreviewImages?: RunDesktopQaOptions["queryPreviewImages"];
+  now?: () => string;
+  sleep?: (ms: number) => Promise<void>;
+  signal?: AbortSignal;
+  readBootstrap?: () => Promise<unknown>;
+};
+
+function defaultWindow(): QaWindow | undefined {
+  return typeof window === "undefined" ? undefined : window;
+}
+
+export async function startDesktopQaFromWindow(options: StartDesktopQaOptions): Promise<boolean> {
+  const win = options.win ?? defaultWindow();
+  if (!win || win.__FRAMEPILOT_WINDOW__ === "preview") {
+    return false;
+  }
+  if (win.__FRAMEPILOT_DESKTOP_QA_STARTED__ === true) {
+    return false;
+  }
+  let config = readDesktopQaConfig(win);
+  if (!config) {
+    try {
+      const raw = await (options.readBootstrap ?? (() => invoke("qa_bootstrap")))();
+      applyDesktopQaBootstrap(win, parseDesktopQaBootstrap(raw));
+      config = readDesktopQaConfig(win);
+    } catch {
+      config = readDesktopQaConfig(win);
+    }
+  }
+  if (!config) {
+    return false;
+  }
+  win.__FRAMEPILOT_DESKTOP_QA_STARTED__ = true;
+  const writeEvidence = options.writeEvidence ?? ((line: string) => invoke("qa_write_evidence", { line }));
+  try {
+    await runDesktopQa({
+      api: options.api ?? productionApi,
+      writeEvidence,
+      push: options.push,
+      queryPreviewImages:
+        options.queryPreviewImages ??
+        (() => (typeof document === "undefined" ? [] : Array.from(document.querySelectorAll("img")))),
+      config,
+      now: options.now,
+      sleep: options.sleep,
+      signal: options.signal,
+    });
+  } catch (error: unknown) {
+    if (!options.signal?.aborted) {
+      console.error("FramePilot desktop QA runner failed", error);
+      await writeEvidence(qaFailLine(new Date().toISOString(), error)).catch(() => undefined);
+    }
+  }
+  return true;
 }
 
 async function writeMilestone(
@@ -182,9 +307,7 @@ export async function runDesktopQa(options: RunDesktopQaOptions): Promise<void> 
   }
   const expected = importResult.expanded_total ?? importResult.accepted_files;
   if (importResult.accepted_files !== expected) {
-    throw new Error(
-      `accepted_files ${importResult.accepted_files} does not match count ${expected}`,
-    );
+    throw new Error(`accepted_files ${importResult.accepted_files} does not match count ${expected}`);
   }
   await writeMilestone(options.writeEvidence, "import_complete", now, {
     accepted_files: importResult.accepted_files,
@@ -197,12 +320,7 @@ export async function runDesktopQa(options: RunDesktopQaOptions): Promise<void> 
   await writeMilestone(options.writeEvidence, "process_complete", now);
 
   options.push(`/projects/${project.id}/cull`);
-  const naturalWidth = await waitForPreview(
-    options.queryPreviewImages,
-    previewTimeoutMs,
-    sleep,
-    options.signal,
-  );
+  const naturalWidth = await waitForPreview(options.queryPreviewImages, previewTimeoutMs, sleep, options.signal);
   await writeMilestone(options.writeEvidence, "first_preview", now, {
     preview_natural_width: naturalWidth,
   });
@@ -215,28 +333,9 @@ export async function runDesktopQa(options: RunDesktopQaOptions): Promise<void> 
 export function DesktopQaRunner() {
   const navigate = useNavigate();
   useEffect(() => {
-    const config = readDesktopQaConfig(typeof window === "undefined" ? undefined : window);
-    if (!config) {
-      return;
-    }
-    const controller = new AbortController();
-    void runDesktopQa({
-      api: productionApi,
-      writeEvidence: (line) => invoke("qa_write_evidence", { line }),
+    void startDesktopQaFromWindow({
       push: (href) => navigate(href),
-      queryPreviewImages: () => Array.from(document.querySelectorAll("img")),
-      config,
-      signal: controller.signal,
-    }).catch((error: unknown) => {
-      if (controller.signal.aborted) {
-        return;
-      }
-      console.error("FramePilot desktop QA runner failed", error);
-      void invoke("qa_write_evidence", { line: qaFailLine(new Date().toISOString(), error) }).catch(
-        () => undefined,
-      );
     });
-    return () => controller.abort();
   }, [navigate]);
   return null;
 }

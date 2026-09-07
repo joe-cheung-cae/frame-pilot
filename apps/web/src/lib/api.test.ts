@@ -186,6 +186,54 @@ test("createProject surfaces 422 detail verbatim", async () => {
   );
 });
 
+test("GET without a body does not set JSON Content-Type", async () => {
+  const headers: Array<HeadersInit | undefined> = [];
+  await withMockedFetch(
+    async (_url, init) => {
+      headers.push(init?.headers);
+      return new Response(JSON.stringify({ status: "ok", version: "2.1.0-desktop", service: "framepilot-api" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    async () => {
+      await api.getHealth();
+      await api.getSettings();
+    },
+  );
+  assert.equal(headers.length, 2);
+  for (const value of headers) {
+    assert.equal(
+      JSON.stringify(value ?? {})
+        .toLowerCase()
+        .includes("application/json"),
+      false,
+      `GET must not set Content-Type: application/json (CORS preflight): ${JSON.stringify(value)}`,
+    );
+  }
+});
+
+test("POST still sets JSON Content-Type", async () => {
+  const headers: Array<HeadersInit | undefined> = [];
+  await withMockedFetch(
+    async (_url, init) => {
+      headers.push(init?.headers);
+      return new Response(JSON.stringify({ path: "/picked/folder" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    async () => {
+      await api.registerDesktopProjectRoot("/picked/folder");
+    },
+  );
+  assert.equal(
+    JSON.stringify(headers[0] ?? {}).includes("application/json"),
+    true,
+    `POST must still send JSON: ${JSON.stringify(headers[0])}`,
+  );
+});
+
 test("registerDesktopProjectRoot posts the picked path", async () => {
   const calls: { url: string; body: unknown }[] = [];
   await withMockedFetch(

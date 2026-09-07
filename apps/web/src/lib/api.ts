@@ -274,10 +274,22 @@ function errorMessageFromBody(body: string, fallback: string): string {
   }
 }
 
+function requestHeaders(init?: RequestInit): HeadersInit | undefined {
+  if (init?.body instanceof FormData) {
+    return init.headers;
+  }
+  const method = String(init?.method ?? "GET").toUpperCase();
+  const hasBody = init?.body != null && init.body !== "";
+  if (!hasBody && (method === "GET" || method === "HEAD")) {
+    return init?.headers;
+  }
+  return { "Content-Type": "application/json", ...init?.headers };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${resolveApiBase()}${path}`, {
     ...init,
-    headers: init?.body instanceof FormData ? init.headers : { "Content-Type": "application/json", ...init?.headers },
+    headers: requestHeaders(init),
   });
   if (!response.ok) {
     const text = await response.text();
