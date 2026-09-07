@@ -3,6 +3,7 @@
 mod data_dir;
 mod menu;
 mod preview;
+mod qa;
 mod sidecar;
 mod tray;
 mod updater;
@@ -322,10 +323,12 @@ pub fn run() {
             preview::toggle_detached_preview,
             preview::close_detached_preview,
             apply_data_directory,
+            qa::qa_write_evidence,
         ])
         .manage(Arc::clone(&state))
         .manage(DesktopPaths::new(data_dir.clone()))
         .manage(preview::PreviewHost { port })
+        .manage(qa::load_desktop_qa_state())
         .on_menu_event(|app, event| handle_menu_event(app, event))
         .setup(move |app| {
             let launch_mode = resolve_launch_mode(app.handle(), &root);

@@ -7,6 +7,7 @@ import { MENU_EVENT, resolveMenuCommand } from "@/lib/menuRoutes";
 import { useNavigator } from "@/lib/navigation";
 import { loadLastOpenedProjectId } from "@/lib/recentProjects";
 import { applyShellDataset } from "@/lib/shell";
+import { DesktopQaRunner } from "./lib/desktopQaRunner";
 import { AppRoutes } from "./router";
 
 function NativeMenuListener() {
@@ -42,6 +43,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <NativeMenuListener />
+        <DesktopQaRunner />
         <AppRoutes />
       </BrowserRouter>
     </QueryClientProvider>

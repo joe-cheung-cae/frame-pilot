@@ -1,4 +1,6 @@
 import ast
+import asyncio
+import logging
 import os
 from pathlib import Path
 
@@ -95,9 +97,11 @@ def test_main_passes_fastapi_object_and_ready_line(tmp_path, monkeypatch, capsys
     monkeypatch.setattr(uvicorn.Server, "run", fake_run)
     exit_code = main(["--data-dir", str(tmp_path), "--port", "0"])
     assert exit_code == 0
-    assert isinstance(captured["app"], FastAPI)
-    assert captured["app"] is not None
-    assert not isinstance(captured["app"], str)
+    configured = captured["app"]
+    assert configured is not None
+    assert not isinstance(configured, str)
+    inner = configured.app if hasattr(configured, "app") and not isinstance(configured, FastAPI) else configured
+    assert isinstance(inner, FastAPI)
 
     output_lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     assert len(output_lines) == 1
@@ -158,6 +162,60 @@ def test_pyinstaller_spec_includes_asyncio_loop_and_httptools_impl():
     assert '"PIL._avif"' in hiddenimports
 
 
+def test_access_log_fmt_contains_origin_and_ua():
+    from app.sidecar_main import _ACCESS_ORIGIN, _ACCESS_UA, OriginAccessFormatter, OriginUaCapture, _stderr_log_config
+
+    config = _stderr_log_config("info")
+    fmt = config["formatters"]["access"]["fmt"]
+    assert "origin=" in fmt
+    assert "ua=" in fmt
+    assert config["formatters"]["access"]["()"] == "app.sidecar_main.OriginAccessFormatter"
+
+    formatter = OriginAccessFormatter(fmt="origin=%(origin)s ua=%(ua)s", use_colors=False)
+    record = logging.LogRecord(
+        name="uvicorn.access",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg='%s - "%s %s HTTP/%s" %d',
+        args=("127.0.0.1:1", "POST", "/api/desktop/project-roots", "1.1", 200),
+        exc_info=None,
+    )
+    origin_token = _ACCESS_ORIGIN.set("tauri://localhost")
+    ua_token = _ACCESS_UA.set("FramePilot-QA")
+    try:
+        rendered = formatter.format(record)
+    finally:
+        _ACCESS_ORIGIN.reset(origin_token)
+        _ACCESS_UA.reset(ua_token)
+    assert "origin=tauri://localhost" in rendered
+    assert "ua=FramePilot-QA" in rendered
+
+    missing = formatter.format(record)
+    assert "origin=-" in missing
+    assert "ua=-" in missing
+
+    async def inner(scope, receive, send):
+        assert _ACCESS_ORIGIN.get() == "https://tauri.localhost"
+        assert _ACCESS_UA.get() == "qa-agent"
+
+    async def run_capture():
+        wrapper = OriginUaCapture(inner)
+        await wrapper(
+            {
+                "type": "http",
+                "headers": [
+                    (b"origin", b"https://tauri.localhost"),
+                    (b"user-agent", b"qa-agent"),
+                ],
+            },
+            None,
+            None,
+        )
+
+    asyncio.run(run_capture())
+
+
 def test_tauri_spawn_strips_project_root_allowlist():
     source = Path(__file__).resolve().parents[3] / "apps" / "desktop" / "src-tauri" / "src" / "sidecar.rs"
     text = source.read_text(encoding="utf-8")
@@ -177,6 +235,8 @@ def test_tauri_spawn_strips_project_root_allowlist():
         1,
     )
     assert "FRAMEPILOT_PROJECT_ROOT_ALLOWLIST" not in remainder
+    assert 'env_remove("FRAMEPILOT_DESKTOP_QA")' in spawn_fn
+    assert "FRAMEPILOT_DESKTOP_QA" in spawn_fn
 
 
 def test_sidecar_smoke_unsets_pythonpath_for_frozen_binary():
