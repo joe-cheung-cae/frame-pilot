@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
+import { stripCrossOriginHtml } from "./stripCrossOriginHtml.ts";
 
 const desktopRoot = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(desktopRoot, "../web");
@@ -102,6 +103,16 @@ function isWebDetachedPreview(id: string): boolean {
   );
 }
 
+function stripCrossOriginForTauri(): Plugin {
+  return {
+    name: "strip-crossorigin-for-tauri",
+    enforce: "post",
+    transformIndexHtml(html) {
+      return stripCrossOriginHtml(html);
+    },
+  };
+}
+
 function aliasDetachedPreview(): Plugin {
   return {
     name: "alias-detached-preview",
@@ -125,7 +136,9 @@ function aliasDetachedPreview(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), aliasNavigationNext(), aliasNativeFs(), aliasDetachedPreview()],
+  // Relative URLs so packaged custom-protocol pages load ./assets, not CORS /assets.
+  base: "./",
+  plugins: [react(), aliasNavigationNext(), aliasNativeFs(), aliasDetachedPreview(), stripCrossOriginForTauri()],
   clearScreen: false,
   resolve: {
     alias: [
@@ -166,5 +179,6 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    modulePreload: false,
   },
 });

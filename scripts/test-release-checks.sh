@@ -649,6 +649,10 @@ expect_success \
   bash tests/desktop/desktop-500-gui-packaged-path.sh
 
 expect_success \
+  "desktop Vite index.html is Tauri custom-protocol safe" \
+  bash tests/desktop/desktop-vite-tauri-html.sh
+
+expect_success \
   "stamp-desktop-500-gui-docs dry-run no-ops without both-OS 500 JSON" \
   python3 packaging/scripts/stamp-desktop-500-gui-docs.py --dry-run
 
