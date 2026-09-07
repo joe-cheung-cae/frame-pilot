@@ -545,4 +545,22 @@ mod tests {
         assert!(lib.contains("window.show()"));
         assert!(lib.contains("window.set_focus()"));
     }
+
+    #[test]
+    fn desktop_main_reports_spa_module_when_the_bundle_runs() {
+        let main = include_str!("../../src/main.tsx");
+        assert!(
+            main.contains("spa_module"),
+            "packaged SPA must write spa_module so a blocked Vite bundle is visible in milestones.jsonl"
+        );
+        assert!(main.contains("qa_write_evidence"));
+    }
+
+    #[test]
+    fn tauri_csp_allows_custom_protocol_scripts() {
+        let conf = include_str!("../tauri.conf.json");
+        assert!(conf.contains("customprotocol:"));
+        assert!(conf.contains("http://tauri.localhost"));
+        assert!(conf.contains("tauri:"));
+    }
 }
