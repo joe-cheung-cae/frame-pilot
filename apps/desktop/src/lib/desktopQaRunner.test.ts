@@ -47,9 +47,35 @@ type TestWindow = {
   __FRAMEPILOT_API_BASE__?: unknown;
   __FRAMEPILOT_DESKTOP_QA_STARTED__?: unknown;
   __FRAMEPILOT_DESKTOP_QA_ROUTE__?: string;
+  __FRAMEPILOT_DESKTOP_QA_CULL_HREF__?: string;
   location?: { pathname: string; hash: string };
   dispatchEvent?: (event: Event) => boolean;
+  addEventListener?: (type: string, listener: (event: Event) => void) => void;
+  removeEventListener?: (type: string, listener: (event: Event) => void) => void;
 };
+
+function fakeQaWindow(extra: Partial<TestWindow> = {}): TestWindow {
+  const listeners = new Map<string, Set<(event: Event) => void>>();
+  return {
+    location: { pathname: "/", hash: "" },
+    addEventListener(type, listener) {
+      const set = listeners.get(type) ?? new Set();
+      set.add(listener);
+      listeners.set(type, set);
+    },
+    removeEventListener(type, listener) {
+      listeners.get(type)?.delete(listener);
+    },
+    dispatchEvent(event) {
+      const type = (event as { type?: string }).type ?? "";
+      for (const listener of listeners.get(type) ?? []) {
+        listener(event);
+      }
+      return true;
+    },
+    ...extra,
+  };
+}
 
 async function withWindow<T>(windowValue: TestWindow | undefined, run: () => T | Promise<T>): Promise<T> {
   const globalObject = globalThis as { window?: TestWindow };
@@ -87,6 +113,8 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   assert.match(runnerSource, /setDesktopQaCullHref/);
   assert.match(runnerSource, /useSyncExternalStore/);
   assert.match(runnerSource, /parseCullProjectId/);
+  assert.match(runnerSource, /__FRAMEPILOT_DESKTOP_QA_CULL_HREF__/);
+  assert.match(runnerSource, /framepilot-qa-cull-href/);
   assert.match(runnerSource, /cullLocationFields/);
   assert.equal(DESKTOP_QA_IMPORT_BATCH_SIZE, 100);
   const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
@@ -113,6 +141,25 @@ test("setDesktopQaCullHref notifies subscribers with the cull project id", () =>
     unsubscribe();
     setDesktopQaCullHref("");
   }
+});
+
+test("setDesktopQaCullHref shares the cull href through window for duplicated modules", async () => {
+  const win = fakeQaWindow();
+  await withWindow(win, () => {
+    const seen: string[] = [];
+    const unsubscribe = subscribeDesktopQaCull(() => {
+      seen.push(getDesktopQaCullHref());
+    });
+    try {
+      setDesktopQaCullHref("/projects/proj-1/cull");
+      assert.equal(win.__FRAMEPILOT_DESKTOP_QA_CULL_HREF__, "/projects/proj-1/cull");
+      assert.equal(getDesktopQaCullHref(), "/projects/proj-1/cull");
+      assert.equal(seen.includes("/projects/proj-1/cull"), true);
+    } finally {
+      unsubscribe();
+      setDesktopQaCullHref("");
+    }
+  });
 });
 
 test("routeShowsCull reads MemoryRouter pathname written during render", async () => {
