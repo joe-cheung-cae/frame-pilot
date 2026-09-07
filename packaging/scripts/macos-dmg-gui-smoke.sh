@@ -103,17 +103,35 @@ port_from_ps_argv() {
 }
 
 port_from_lsof() {
-  local name host port
-  while IFS= read -r name; do
-    [[ "$name" == n* ]] || continue
-    name="${name#n}"
+  local line name host port
+  # Darwin lsof -F n also emits NAME fields like n/ (cwd). Parse TCP LISTEN lines only.
+  while IFS= read -r line; do
+    case "$line" in
+      *TCP*' (LISTEN)')
+        name="${line##*TCP }"
+        name="${name%% (LISTEN)*}"
+        name="${name#"${name%%[![:space:]]*}"}"
+        name="${name%"${name##*[![:space:]]}"}"
+        ;;
+      *)
+        continue
+        ;;
+    esac
+    if [[ -z "$name" || "$name" != *:* ]]; then
+      continue
+    fi
     host="${name%:*}"
     port="${name##*:}"
-    if [[ "$host" == "0.0.0.0" || "$host" == "*" || "$host" == "[::]" || "$host" == "::" ]]; then
+    if [[ "$name" == \[*\]:* ]]; then
+      host="${name#\[}"
+      host="${host%%\]*}"
+      port="${name##*\]:}"
+    fi
+    if [[ "$host" == "0.0.0.0" || "$host" == "*" || "$host" == "::" ]]; then
       echo "sidecar LISTEN on ${name} is not loopback (rejected)" >&2
       return 3
     fi
-    if [[ "$host" != "127.0.0.1" ]]; then
+    if [[ "$host" != "127.0.0.1" && "$host" != "::1" && "$host" != "localhost" ]]; then
       echo "sidecar LISTEN on ${name} is not 127.0.0.1 (rejected)" >&2
       return 3
     fi
@@ -122,7 +140,7 @@ port_from_lsof() {
     fi
     printf '%s\n' "$port"
     return 0
-  done < <(lsof -nP -c framepilot-api -iTCP -sTCP:LISTEN -F n 2>/dev/null || true)
+  done < <(lsof -nP -c framepilot-api -iTCP -sTCP:LISTEN 2>/dev/null || true)
   return 1
 }
 
