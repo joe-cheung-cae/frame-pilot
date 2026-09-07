@@ -65,6 +65,8 @@ type QaWindow = {
   __FRAMEPILOT_DESKTOP_QA__?: unknown;
   __FRAMEPILOT_API_BASE__?: unknown;
   __FRAMEPILOT_DESKTOP_QA_STARTED__?: unknown;
+  __FRAMEPILOT_DESKTOP_QA_NAVIGATE__?: ((href: string) => void) | null;
+  __FRAMEPILOT_DESKTOP_QA_MOUNTED__?: boolean;
 };
 
 function defaultSleep(ms: number): Promise<void> {
@@ -181,11 +183,24 @@ let desktopQaNavigate: ((href: string) => void) | null = null;
 
 export function setDesktopQaNavigate(push: ((href: string) => void) | null): void {
   desktopQaNavigate = push;
+  const win = defaultWindow();
+  if (win) {
+    win.__FRAMEPILOT_DESKTOP_QA_NAVIGATE__ = push;
+  }
+}
+
+function readDesktopQaNavigate(): ((href: string) => void) | null {
+  if (desktopQaNavigate) {
+    return desktopQaNavigate;
+  }
+  const fromWindow = defaultWindow()?.__FRAMEPILOT_DESKTOP_QA_NAVIGATE__;
+  return typeof fromWindow === "function" ? fromWindow : null;
 }
 
 export function historyPush(href: string): void {
-  if (desktopQaNavigate) {
-    desktopQaNavigate(href);
+  const push = readDesktopQaNavigate();
+  if (push) {
+    push(href);
     return;
   }
   if (typeof window === "undefined") {
@@ -201,8 +216,9 @@ async function waitForCullPush(
   sleep: (ms: number) => Promise<void>,
 ): Promise<"react" | "history"> {
   for (let attempt = 0; attempt < 200; attempt += 1) {
-    if (desktopQaNavigate) {
-      desktopQaNavigate(href);
+    const push = readDesktopQaNavigate();
+    if (push) {
+      push(href);
       return "react";
     }
     await sleep(50);
@@ -399,12 +415,24 @@ export async function runDesktopQa(options: RunDesktopQaOptions): Promise<void> 
 
 export function DesktopQaRunner() {
   const navigate = useNavigate();
+  setDesktopQaNavigate((href) => navigate(href));
+  const win = defaultWindow();
+  if (win && win.__FRAMEPILOT_DESKTOP_QA_MOUNTED__ !== true) {
+    win.__FRAMEPILOT_DESKTOP_QA_MOUNTED__ = true;
+    void invoke("qa_write_evidence", {
+      line: JSON.stringify({ milestone: "qa_runner_mounted", t: new Date().toISOString() }),
+    }).catch(() => undefined);
+  }
   useEffect(() => {
     setDesktopQaNavigate((href) => navigate(href));
     void startDesktopQaFromWindow({
       push: (href) => navigate(href),
     });
-    return () => setDesktopQaNavigate(null);
+    return () => {
+      if (defaultWindow()?.__FRAMEPILOT_DESKTOP_QA_STARTED__ !== true) {
+        setDesktopQaNavigate(null);
+      }
+    };
   }, [navigate]);
   return null;
 }

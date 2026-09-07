@@ -66,6 +66,8 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   assert.match(runnerSource, /startDesktopQaFromWindow/);
   assert.match(runnerSource, /qa_started/);
   assert.match(runnerSource, /setDesktopQaNavigate/);
+  assert.match(runnerSource, /__FRAMEPILOT_DESKTOP_QA_NAVIGATE__/);
+  assert.match(runnerSource, /qa_runner_mounted/);
   assert.match(runnerSource, /cull_push/);
   assert.equal(DESKTOP_QA_IMPORT_BATCH_SIZE, 100);
 });
