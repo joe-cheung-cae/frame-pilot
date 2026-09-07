@@ -23,6 +23,7 @@ const {
   runDesktopQa,
   spaFlagsLine,
   startDesktopQaFromWindow,
+  withTimeout,
 } = await import("./desktopQaRunner.ts");
 
 const runnerSource = readFileSync(new URL("./desktopQaRunner.ts", import.meta.url), "utf8");
@@ -62,6 +63,7 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   assert.match(runnerSource, /qaFailLine/);
   assert.match(runnerSource, /invoke\("qa_bootstrap"\)/);
   assert.match(runnerSource, /startDesktopQaFromWindow/);
+  assert.match(runnerSource, /qa_started/);
   assert.equal(DESKTOP_QA_IMPORT_BATCH_SIZE, 100);
 });
 
@@ -173,13 +175,22 @@ test("spaFlagsLine records whether IPC bootstrap applied page globals", () => {
     desktop: boolean;
     qa: boolean;
     api_base: boolean;
+    resolved_base: string;
     bootstrapped: boolean;
   };
   assert.equal(parsed.milestone, "spa_flags");
   assert.equal(parsed.desktop, false);
   assert.equal(parsed.qa, false);
   assert.equal(parsed.api_base, false);
+  assert.equal(typeof parsed.resolved_base, "string");
   assert.equal(parsed.bootstrapped, false);
+});
+
+test("withTimeout rejects when the promise never settles", async () => {
+  await assert.rejects(
+    () => withTimeout(new Promise(() => undefined), 20, "GET /api/health timed out after 15s"),
+    /timed out after 15s/,
+  );
 });
 
 test("runDesktopQa calls registerDesktopProjectRoot and importPhotosFromPaths", async () => {
@@ -356,6 +367,10 @@ test("startDesktopQaFromWindow bootstraps QA flags via qa_bootstrap when init-sc
 
   assert.equal(
     invokeCalls.some((call) => call.cmd === "qa_bootstrap"),
+    true,
+  );
+  assert.equal(
+    evidence.some((line) => line.includes('"milestone":"qa_started"')),
     true,
   );
   assert.equal(calls.includes("getHealth"), true);

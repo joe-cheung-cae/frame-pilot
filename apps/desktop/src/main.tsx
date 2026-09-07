@@ -2,8 +2,15 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { applyShellDataset } from "@/lib/shell";
+import { resolveApiBase } from "@/lib/apiBase";
 import { App } from "./App";
-import { applyDesktopQaBootstrap, parseDesktopQaBootstrap, spaFlagsLine } from "./lib/desktopQaRunner";
+import {
+  applyDesktopQaBootstrap,
+  historyPush,
+  parseDesktopQaBootstrap,
+  spaFlagsLine,
+  startDesktopQaFromWindow,
+} from "./lib/desktopQaRunner";
 import "./styles.css";
 
 function writeQaLine(line: string): void {
@@ -16,6 +23,34 @@ async function bootDesktopQaFlags(): Promise<boolean> {
     return applyDesktopQaBootstrap(typeof window === "undefined" ? undefined : window, boot);
   } catch {
     return false;
+  }
+}
+
+async function probeSidecarFetch(): Promise<void> {
+  const url = `${resolveApiBase()}/api/health`;
+  writeQaLine(JSON.stringify({ milestone: "spa_fetch", t: new Date().toISOString(), url }));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    writeQaLine(
+      JSON.stringify({
+        milestone: "spa_fetch_done",
+        t: new Date().toISOString(),
+        status: response.status,
+      }),
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    writeQaLine(
+      JSON.stringify({
+        milestone: "spa_fetch_fail",
+        t: new Date().toISOString(),
+        fail_reason: message.slice(0, 200),
+      }),
+    );
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -34,4 +69,8 @@ void (async () => {
       <App />
     </StrictMode>,
   );
+  await probeSidecarFetch();
+  void startDesktopQaFromWindow({
+    push: historyPush,
+  });
 })();

@@ -10,6 +10,7 @@ import {
   type ProcessingJob,
   type Project,
 } from "../../../web/src/lib/api.ts";
+import { resolveApiBase } from "../../../web/src/lib/apiBase.ts";
 
 export const DESKTOP_QA_IMPORT_BATCH_SIZE = IMPORT_UPLOAD_BATCH_SIZE;
 export const DESKTOP_QA_IMPORT_TIMEOUT_MS = 25 * 60 * 1000;
@@ -155,8 +156,33 @@ export function spaFlagsLine(now: string, win: QaWindow | undefined, bootstrappe
     window_label: typeof win?.__FRAMEPILOT_WINDOW__ === "string" ? win.__FRAMEPILOT_WINDOW__ : "",
     qa: Boolean(qa && typeof qa === "object"),
     api_base: typeof apiBase === "string" && apiBase.trim() !== "",
+    resolved_base: resolveApiBase(),
     bootstrapped,
   });
+}
+
+export async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+export function historyPush(href: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.history.pushState({}, "", href);
+  window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
 export type StartDesktopQaOptions = {
@@ -198,16 +224,25 @@ export async function startDesktopQaFromWindow(options: StartDesktopQaOptions): 
   }
   win.__FRAMEPILOT_DESKTOP_QA_STARTED__ = true;
   const writeEvidence = options.writeEvidence ?? ((line: string) => invoke("qa_write_evidence", { line }));
+  const now = options.now ?? (() => new Date().toISOString());
+  await writeEvidence(JSON.stringify({ milestone: "qa_started", t: now(), resolved_base: resolveApiBase() })).catch(
+    () => undefined,
+  );
+  const api = options.api ?? {
+    ...productionApi,
+    getHealth: () => withTimeout(productionApi.getHealth(), 15_000, "GET /api/health timed out after 15s"),
+    getSettings: () => withTimeout(productionApi.getSettings(), 15_000, "GET /api/settings timed out after 15s"),
+  };
   try {
     await runDesktopQa({
-      api: options.api ?? productionApi,
+      api,
       writeEvidence,
       push: options.push,
       queryPreviewImages:
         options.queryPreviewImages ??
         (() => (typeof document === "undefined" ? [] : Array.from(document.querySelectorAll("img")))),
       config,
-      now: options.now,
+      now,
       sleep: options.sleep,
       signal: options.signal,
     });

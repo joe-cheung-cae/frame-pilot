@@ -606,6 +606,11 @@ mod tests {
         );
         assert!(main.contains("spa_flags"));
         assert!(main.contains("applyDesktopQaBootstrap"));
+        assert!(
+            main.contains("startDesktopQaFromWindow"),
+            "Path B must start from main.tsx so idle does not depend on React useEffect: {main}"
+        );
+        assert!(main.contains("spa_fetch"));
     }
 
     #[test]
