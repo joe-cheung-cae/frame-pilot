@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { MemoryRouter } from "react-router-dom";
 import { CullingWorkspace } from "@/components/CullingWorkspace";
 import { DetachedPreviewPane } from "@/components/DetachedPreviewPane";
@@ -10,29 +11,13 @@ import { loadLastOpenedProjectId } from "@/lib/recentProjects";
 import { applyShellDataset } from "@/lib/shell";
 import { Shell } from "@/components/Shell";
 import {
-  DESKTOP_QA_CULL_HREF_EVENT,
   DesktopQaRunner,
-  parseCullProjectId,
+  setDesktopQaMountCull,
   setDesktopQaNavigate,
   setDesktopQaRoute,
+  writeCullWorkspaceMounted,
 } from "./lib/desktopQaRunner";
 import { AppRoutes } from "./router";
-
-type CullHrefWindow = Window & { __FRAMEPILOT_DESKTOP_QA_CULL_HREF__?: unknown };
-
-function subscribeWindowCullHref(onStoreChange: () => void): () => void {
-  window.addEventListener(DESKTOP_QA_CULL_HREF_EVENT, onStoreChange);
-  const timer = window.setInterval(onStoreChange, 100);
-  return () => {
-    window.removeEventListener(DESKTOP_QA_CULL_HREF_EVENT, onStoreChange);
-    window.clearInterval(timer);
-  };
-}
-
-function readWindowCullHref(): string {
-  const href = (window as CullHrefWindow).__FRAMEPILOT_DESKTOP_QA_CULL_HREF__;
-  return typeof href === "string" ? href : "";
-}
 
 const QA_NAVIGATE_EVENT = "framepilot-qa-navigate";
 
@@ -68,17 +53,26 @@ function NativeMenuListener() {
   return null;
 }
 
-function QaOrRoutes() {
-  const href = useSyncExternalStore(subscribeWindowCullHref, readWindowCullHref, () => "");
-  const projectId = parseCullProjectId(href);
-  if (projectId) {
-    return (
-      <Shell>
-        <CullingWorkspace projectId={projectId} />
-      </Shell>
-    );
+function CullOverlay() {
+  const [projectId, setProjectId] = useState<string | null>(null);
+  setDesktopQaMountCull((id) => {
+    try {
+      flushSync(() => {
+        setProjectId(id);
+      });
+    } catch {
+      setProjectId(id);
+    }
+  });
+  if (!projectId) {
+    return <AppRoutes />;
   }
-  return <AppRoutes />;
+  writeCullWorkspaceMounted(projectId);
+  return (
+    <Shell>
+      <CullingWorkspace projectId={projectId} />
+    </Shell>
+  );
 }
 
 export function App() {
@@ -96,7 +90,7 @@ export function App() {
       <MemoryRouter>
         <NativeMenuListener />
         <DesktopQaRunner />
-        <QaOrRoutes />
+        <CullOverlay />
       </MemoryRouter>
     </QueryClientProvider>
   );

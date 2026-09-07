@@ -30,6 +30,7 @@ const {
   readDesktopQaRoute,
   routeShowsCull,
   setDesktopQaCullHref,
+  setDesktopQaMountCull,
   setDesktopQaNavigate,
   setDesktopQaRoute,
   subscribeDesktopQaCull,
@@ -48,6 +49,7 @@ type TestWindow = {
   __FRAMEPILOT_DESKTOP_QA_STARTED__?: unknown;
   __FRAMEPILOT_DESKTOP_QA_ROUTE__?: string;
   __FRAMEPILOT_DESKTOP_QA_CULL_HREF__?: string;
+  __FRAMEPILOT_DESKTOP_QA_SET_CULL_PROJECT_ID__?: ((projectId: string | null) => void) | null;
   location?: { pathname: string; hash: string };
   dispatchEvent?: (event: Event) => boolean;
   addEventListener?: (type: string, listener: (event: Event) => void) => void;
@@ -111,6 +113,10 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   assert.match(runnerSource, /cull_push/);
   assert.match(runnerSource, /framepilot-qa-navigate/);
   assert.match(runnerSource, /setDesktopQaCullHref/);
+  assert.match(runnerSource, /setDesktopQaMountCull/);
+  assert.match(runnerSource, /__FRAMEPILOT_DESKTOP_QA_MOUNT_CULL__/);
+  assert.match(runnerSource, /__FRAMEPILOT_DESKTOP_QA_SET_CULL_PROJECT_ID__/);
+  assert.match(runnerSource, /cull_workspace/);
   assert.match(runnerSource, /useSyncExternalStore/);
   assert.match(runnerSource, /parseCullProjectId/);
   assert.match(runnerSource, /__FRAMEPILOT_DESKTOP_QA_CULL_HREF__/);
@@ -120,11 +126,12 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
   assert.match(appSource, /MemoryRouter/);
   assert.match(appSource, /CullingWorkspace/);
-  assert.match(appSource, /readWindowCullHref/);
-  assert.match(appSource, /setInterval/);
-  assert.match(appSource, /__FRAMEPILOT_DESKTOP_QA_CULL_HREF__/);
+  assert.match(appSource, /setDesktopQaMountCull/);
+  assert.match(appSource, /flushSync/);
+  assert.match(appSource, /CullOverlay/);
   assert.equal(appSource.includes("BrowserRouter"), false);
   assert.equal(appSource.includes("HashRouter"), false);
+  assert.equal(appSource.includes("useSyncExternalStore"), false);
 });
 
 test("setDesktopQaCullHref notifies subscribers with the cull project id", () => {
@@ -143,6 +150,21 @@ test("setDesktopQaCullHref notifies subscribers with the cull project id", () =>
     unsubscribe();
     setDesktopQaCullHref("");
   }
+});
+
+test("setDesktopQaCullHref calls window-registered React setState with the cull project id", async () => {
+  const seen: Array<string | null> = [];
+  const win = fakeQaWindow({
+    __FRAMEPILOT_DESKTOP_QA_SET_CULL_PROJECT_ID__: (id) => {
+      seen.push(id);
+    },
+  });
+  await withWindow(win, () => {
+    setDesktopQaCullHref("/projects/proj-1/cull");
+    assert.deepEqual(seen, ["proj-1"]);
+    assert.equal(win.__FRAMEPILOT_DESKTOP_QA_CULL_HREF__, "/projects/proj-1/cull");
+    setDesktopQaCullHref("");
+  });
 });
 
 test("setDesktopQaCullHref shares the cull href through window for duplicated modules", async () => {
@@ -322,6 +344,7 @@ test("withTimeout rejects when the promise never settles", async () => {
 
 test("runDesktopQa calls registerDesktopProjectRoot and importPhotosFromPaths", async () => {
   setDesktopQaNavigate(null);
+  setDesktopQaMountCull(null);
   setDesktopQaCullHref("");
   const calls: string[] = [];
   const evidence: string[] = [];
@@ -468,6 +491,7 @@ test("runDesktopQa pushes cull through the registered React navigate", async () 
       });
     } finally {
       setDesktopQaNavigate(null);
+      setDesktopQaMountCull(null);
       setDesktopQaCullHref("");
     }
   });
@@ -477,6 +501,67 @@ test("runDesktopQa pushes cull through the registered React navigate", async () 
     .map((line) => JSON.parse(line) as { milestone?: string; via?: string; cull_project_id?: string })
     .find((line) => line.milestone === "cull_push");
   assert.equal(cullPush?.via, "store");
+  assert.equal(cullPush?.cull_project_id, "proj-1");
+});
+
+test("runDesktopQa mounts CullingWorkspace through the window-registered setState", async () => {
+  const mounted: string[] = [];
+  const evidence: string[] = [];
+  await withWindow({ location: { pathname: "/", hash: "" }, dispatchEvent: () => true }, async () => {
+    setDesktopQaMountCull((projectId) => {
+      mounted.push(projectId);
+    });
+    const fakeApi = {
+      getHealth: async () => ({ status: "ok", version: "2.1.0-desktop", service: "framepilot-api" }),
+      getSettings: async () => ({ import_workers: 1 }),
+      registerDesktopProjectRoot: async (path: string) => ({ path }),
+      createProject: async () => ({ id: "proj-1" }),
+      importPhotosFromPaths: async () => ({
+        accepted_files: 1,
+        skipped_files: 0,
+        expanded_total: 1,
+        job: { id: "import-1", status: "complete" as const },
+      }),
+      processProject: async () => ({ id: "process-1", status: "complete" as const, error_message: null }),
+      getJob: async (_projectId: string, jobId: string) => ({
+        id: jobId,
+        status: "complete" as const,
+        job_type: "import",
+        error_message: null,
+      }),
+    };
+    try {
+      await runDesktopQa({
+        api: fakeApi,
+        writeEvidence: async (line) => {
+          evidence.push(line);
+        },
+        push: () => undefined,
+        queryPreviewImages: () => [
+          {
+            src: "http://127.0.0.1:9/api/assets/proj-1/previews/a.webp",
+            currentSrc: "http://127.0.0.1:9/api/assets/proj-1/previews/a.webp",
+            complete: true,
+            naturalWidth: 3000,
+          },
+        ],
+        config: {
+          photos: "/home/a/.cache/framepilot-desktop-500-gui/photos",
+          project: "/home/a/.cache/framepilot-desktop-500-gui/project",
+        },
+        now: () => "2026-09-07T00:00:00.000Z",
+        sleep: async () => {},
+      });
+    } finally {
+      setDesktopQaMountCull(null);
+      setDesktopQaCullHref("");
+    }
+  });
+  assert.equal(mounted.includes("proj-1"), true);
+  const cullPush = evidence
+    .map((line) => JSON.parse(line) as { milestone?: string; via?: string; cull_project_id?: string })
+    .find((line) => line.milestone === "cull_push");
+  assert.equal(cullPush?.via, "mount");
   assert.equal(cullPush?.cull_project_id, "proj-1");
 });
 
