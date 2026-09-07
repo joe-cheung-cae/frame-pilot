@@ -186,6 +186,9 @@ copy_evidence() {
   if [[ -f "${EVIDENCE_DIR}/result.json" ]]; then
     cp "${EVIDENCE_DIR}/result.json" "${dest}/result.json"
   fi
+  if [[ -f "${EVIDENCE_DIR}/milestones.jsonl" ]]; then
+    cp "${EVIDENCE_DIR}/milestones.jsonl" "${dest}/milestones.jsonl"
+  fi
   sidecar="${DATA_DIR}/logs/sidecar.log"
   if [[ -f "$sidecar" ]]; then
     tail -n 200 "$sidecar" > "${dest}/sidecar.log.excerpt" 2>/dev/null || true
@@ -343,6 +346,24 @@ webview2_present() {
 kill_windows_leftovers() {
   taskkill //F //IM framepilot-desktop.exe >/dev/null 2>&1 || true
   taskkill //F //IM framepilot-api.exe >/dev/null 2>&1 || true
+}
+
+kill_macos_leftovers() {
+  osascript -e 'tell application "FramePilot" to quit' >/dev/null 2>&1 || true
+  osascript -e 'tell application id "com.framepilot.app" to quit' >/dev/null 2>&1 || true
+  pkill -f '/FramePilot\.app/Contents/MacOS/' >/dev/null 2>&1 || true
+  pkill -f 'framepilot-api' >/dev/null 2>&1 || true
+  sleep 1
+}
+
+# Git Bash POSIX paths fail the Rust QA prefix gate. Windows exe needs native paths.
+native_path() {
+  local raw="${1:-}"
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$raw"
+  else
+    printf '%s\n' "$raw"
+  fi
 }
 
 port_from_ps_argv() {
@@ -567,11 +588,13 @@ export_qa_env() {
   unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY || true
   export no_proxy='127.0.0.1,localhost,::1'
   export NO_PROXY='127.0.0.1,localhost,::1'
-  export FRAMEPILOT_DATA_DIR="$DATA_DIR"
+  export MSYS2_ARG_CONV_EXCL='*'
+  export MSYS_NO_PATHCONV=1
+  export FRAMEPILOT_DATA_DIR="$(native_path "$DATA_DIR")"
   export FRAMEPILOT_DESKTOP_QA=1
-  export FRAMEPILOT_DESKTOP_QA_PHOTOS="$PHOTOS_DIR"
-  export FRAMEPILOT_DESKTOP_QA_PROJECT="$PROJECT_DIR"
-  export FRAMEPILOT_DESKTOP_QA_EVIDENCE="$EVIDENCE_DIR"
+  export FRAMEPILOT_DESKTOP_QA_PHOTOS="$(native_path "$PHOTOS_DIR")"
+  export FRAMEPILOT_DESKTOP_QA_PROJECT="$(native_path "$PROJECT_DIR")"
+  export FRAMEPILOT_DESKTOP_QA_EVIDENCE="$(native_path "$EVIDENCE_DIR")"
 }
 
 sample_rss_once() {
@@ -688,12 +711,45 @@ payload = json.loads(open(sys.argv[1], encoding="utf-8").read())
 print(payload.get("version") or "")
 PY
         )"
+        printf '%s' "${APP_VERSION}" > "${EVIDENCE_DIR}/app_version.txt"
         printf '%s\n' "$port"
         return 0
       fi
     fi
     sleep 1
   done
+}
+
+dump_idle_timeout_diagnostics() {
+  echo "no idle JSONL within 90s after /health 200; SPA never booted" >&2
+  echo "GUI_PID=${GUI_PID:-unset}" >&2
+  echo "--- evidence ---" >&2
+  ls -la "${EVIDENCE_DIR}" >&2 || true
+  if [[ -f "${EVIDENCE_DIR}/milestones.jsonl" ]]; then
+    echo "--- milestones.jsonl ---" >&2
+    cat "${EVIDENCE_DIR}/milestones.jsonl" >&2 || true
+  else
+    echo "milestones.jsonl missing" >&2
+  fi
+  if [[ -n "${GUI_PID:-}" ]]; then
+    ps -p "${GUI_PID}" -o pid,etime,args= >&2 || echo "GUI pid ${GUI_PID} is dead" >&2
+  fi
+  case "$(os_label)" in
+    macos)
+      pgrep -alf 'FramePilot|WebKit|framepilot' >&2 || true
+      ;;
+    windows)
+      tasklist.exe //FI "IMAGENAME eq framepilot-desktop.exe" >&2 || true
+      tasklist.exe //FI "IMAGENAME eq msedgewebview2.exe" >&2 || true
+      ;;
+  esac
+  ps -axww -o args= 2>/dev/null | head -n 80 >&2 || true
+  if [[ -f "${DATA_DIR}/logs/sidecar.log" ]]; then
+    echo "--- sidecar.log head ---" >&2
+    head -n 20 "${DATA_DIR}/logs/sidecar.log" >&2 || true
+    echo "--- sidecar.log tail ---" >&2
+    tail -n 80 "${DATA_DIR}/logs/sidecar.log" >&2 || true
+  fi
 }
 
 wait_idle_jsonl() {
@@ -703,11 +759,7 @@ wait_idle_jsonl() {
     now="$(date +%s)"
     elapsed=$((now - start))
     if (( elapsed >= 90 )); then
-      echo "no idle JSONL within 90s after /health 200; SPA never booted" >&2
-      ps -axww -o args= 2>/dev/null | head -n 80 >&2 || true
-      if [[ -f "${DATA_DIR}/logs/sidecar.log" ]]; then
-        tail -n 80 "${DATA_DIR}/logs/sidecar.log" >&2 || true
-      fi
+      dump_idle_timeout_diagnostics
       return 1
     fi
     if [[ -f "${EVIDENCE_DIR}/milestones.jsonl" ]]; then
@@ -1058,14 +1110,36 @@ launch_windows() {
     return 1
   fi
   export_qa_env
-  export WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--disable-gpu --use-gl=swiftshader --disable-features=CalculateNativeWinOcclusion'
-  "$INSTALLED_EXE" &
-  GUI_PID=$!
+  export WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--disable-gpu --use-gl=swiftshader --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --disable-renderer-backgrounding'
+  local ps1 exe_win
+  ps1="${EVIDENCE_DIR}/launch-gui.ps1"
+  exe_win="$(native_path "$INSTALLED_EXE")"
+  cat > "$ps1" <<EOF
+\$ErrorActionPreference = 'Stop'
+\$env:FRAMEPILOT_DESKTOP_QA = '1'
+\$env:FRAMEPILOT_DATA_DIR = '$(native_path "$DATA_DIR")'
+\$env:FRAMEPILOT_DESKTOP_QA_PHOTOS = '$(native_path "$PHOTOS_DIR")'
+\$env:FRAMEPILOT_DESKTOP_QA_PROJECT = '$(native_path "$PROJECT_DIR")'
+\$env:FRAMEPILOT_DESKTOP_QA_EVIDENCE = '$(native_path "$EVIDENCE_DIR")'
+\$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '$WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'
+\$env:no_proxy = '127.0.0.1,localhost,::1'
+\$env:NO_PROXY = '127.0.0.1,localhost,::1'
+\$p = Start-Process -FilePath '$exe_win' -WindowStyle Normal -PassThru
+Write-Output \$p.Id
+EOF
+  GUI_PID="$(
+    MSYS2_ARG_CONV_EXCL='*' powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(native_path "$ps1")" | tr -d '\r' | tail -n 1
+  )"
+  if [[ ! "$GUI_PID" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Start-Process did not return a PID (got ${GUI_PID:-empty}); falling back to bash launch" >&2
+    "$INSTALLED_EXE" &
+    GUI_PID=$!
+  fi
   OPENED=1
 }
 
 launch_macos() {
-  local dmg mount_root attach_out app_src bundle_exe
+  local dmg mount_root attach_out app_src bundle_exe open_rc i
   dmg="$(find_dmg)"
   if [[ "$dmg" != /* ]]; then
     dmg="$(pwd)/${dmg}"
@@ -1102,14 +1176,41 @@ launch_macos() {
   rm -rf "$APP_COPY"
   cp -R "$app_src" "$APP_COPY"
   xattr -cr "$APP_COPY"
+  kill_macos_leftovers
   export_qa_env
   bundle_exe="$(macos_bundle_executable "$APP_COPY")"
   if [[ -z "$bundle_exe" || ! -f "$bundle_exe" ]]; then
     echo "could not discover CFBundleExecutable under ${APP_COPY}/Contents/MacOS" >&2
     return 1
   fi
-  "$bundle_exe" &
-  GUI_PID=$!
+  # Launch Services (`open --env`) so WKWebView gets an Aqua session. Direct
+  # Contents/MacOS child inherit env but often never paints on GHA.
+  set +e
+  open -n "$APP_COPY" \
+    --env "FRAMEPILOT_DESKTOP_QA=1" \
+    --env "FRAMEPILOT_DATA_DIR=${FRAMEPILOT_DATA_DIR}" \
+    --env "FRAMEPILOT_DESKTOP_QA_PHOTOS=${FRAMEPILOT_DESKTOP_QA_PHOTOS}" \
+    --env "FRAMEPILOT_DESKTOP_QA_PROJECT=${FRAMEPILOT_DESKTOP_QA_PROJECT}" \
+    --env "FRAMEPILOT_DESKTOP_QA_EVIDENCE=${FRAMEPILOT_DESKTOP_QA_EVIDENCE}" \
+    --env "no_proxy=127.0.0.1,localhost,::1" \
+    --env "NO_PROXY=127.0.0.1,localhost,::1"
+  open_rc=$?
+  set -e
+  if [[ "$open_rc" -ne 0 ]]; then
+    echo "open --env failed (rc=${open_rc}); launching bundle executable as child" >&2
+    "$bundle_exe" &
+    GUI_PID=$!
+  else
+    GUI_PID=""
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      GUI_PID="$(pgrep -n -f "${APP_COPY}/Contents/MacOS/" || true)"
+      if [[ -n "$GUI_PID" ]]; then
+        break
+      fi
+      sleep 0.5
+    done
+  fi
+  osascript -e 'tell application "FramePilot" to activate' >/dev/null 2>&1 || true
   OPENED=1
 }
 
@@ -1135,6 +1236,9 @@ run_packaged() {
   set +e
   port="$(wait_health)"
   set -e
+  if [[ -f "${EVIDENCE_DIR}/app_version.txt" ]]; then
+    APP_VERSION="$(cat "${EVIDENCE_DIR}/app_version.txt" || true)"
+  fi
   if [[ -z "${port:-}" ]]; then
     RESULT="fail"
     FAIL_REASON="sidecar GET /health did not return 200 within 60s"
