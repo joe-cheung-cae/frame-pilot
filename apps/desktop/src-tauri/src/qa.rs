@@ -629,7 +629,20 @@ mod tests {
             "Path B must call a window-registered React setState to mount CullingWorkspace: {runner}"
         );
         assert!(runner.contains("__FRAMEPILOT_DESKTOP_QA_MOUNT_CULL__"));
+        assert!(
+            runner.contains("mountQaCullingPreview"),
+            "Path B must mount culling on a separate React root, not the live App tree: {runner}"
+        );
+        assert!(runner.contains("appendPreviewImage"));
+        assert!(runner.contains("desktopQaCullMount"));
         assert!(runner.contains("cull_workspace"));
+        let overlay = include_str!("../../src/lib/desktopQaCullMount.tsx");
+        assert!(
+            overlay.contains("createRoot"),
+            "QA cull overlay must createRoot so App setState is not required: {overlay}"
+        );
+        assert!(overlay.contains("CullingWorkspace"));
+        assert!(overlay.contains("MemoryRouter"));
         assert!(runner.contains("useSyncExternalStore"));
         assert!(runner.contains("parseCullProjectId"));
         assert!(
