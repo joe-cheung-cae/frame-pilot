@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — derivative cache size and eviction
+
+- Settings **Derivative cache** shows thumbnail and preview size across projects (`GET /api/cache`)
+- **Clear thumbnails and previews** deletes only `{project}/thumbnails/` and `{project}/previews/` (`POST /api/cache/clear-derivatives`), clears `thumbnail_path` / `preview_path`, and leaves originals, picks, ratings, groups, and exports
+- Returns `409` while any import or processing job is queued, running, or interrupted
+- The next import or process regenerates missing derivatives
+- No `APP_VERSION` bump, no auto-install, no processing pool, no Phase 10
+
 ### Phase 9 — S9.13 docs leftover repair
 
 - Align `docs/desktop_development_plan.md` §2.2 DoD ticks with shipped 2.1 evidence; Windows-pass / macOS-skip on dual-platform installer GUI; do not tick packaged-desktop ≥500

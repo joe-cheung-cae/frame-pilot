@@ -179,4 +179,4 @@ Historical rc2 list. Later slices on `main` are noted in parentheses.
 - Optional: a license-clear photographer burst/session set, and a 2,000-photo real browser-backend run, before later milestones.
 - Revisit durable local worker architecture with measured failure modes.
 - Continue culling workspace maintainability only through focused, tested extractions.
-- Phase 9 remaining-stretch is closed (S9.00–S9.13). HEIC still preview shipped as Phase 8. Remaining deferred (unscheduled): cache knobs, auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, macOS GUI pass. Do not invent Phase 10.
+- Phase 9 remaining-stretch is closed (S9.00–S9.13). HEIC still preview shipped as Phase 8. Leftover cache knobs shipped ([#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)). Remaining deferred (unscheduled): auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, macOS GUI pass. Do not invent Phase 10.

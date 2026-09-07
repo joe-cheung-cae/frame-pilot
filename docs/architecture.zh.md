@@ -34,6 +34,8 @@ FramePilot 是一个本地 Web 应用，分为两个应用：
 
 导入衍生生成默认一个 worker。设置可将 `import_workers` 升到 2–4（`GET`/`PATCH /api/settings`，存于 `{data_dir}/app_settings.json`）。`n==1` 保持按照片顺序循环；`n=2–4` 使用进程内 `ThreadPoolExecutor`，每个任务一个 SQLAlchemy session。并发 `process_registered_import_photo` 峰值 ≤ n。取消仍是协作式（停止调度、等待在飞、不杀线程）。登记/拷贝仍顺序。处理仍是每个项目一个作业。没有 Redis、Celery 或额外操作系统 worker 进程。
 
+设置中的 **Derivative cache**（`GET /api/cache`）只统计 `{project}/thumbnails/` 与 `{project}/previews/` 里的文件。`POST /api/cache/clear-derivatives` 删除这些文件，清空 `thumbnail_path` / `preview_path`，原片、审阅状态、评分、分组、导出和 `{project}/cache/` 不动。阻塞中的导入或处理作业返回 `409`。下一次导入或处理会重新生成缺失的衍生件。
+
 桌面设置可更改 FramePilot **应用数据目录**（先走 D2.00 `POST /api/desktop/project-roots`，再 `POST /api/desktop/data-dir`）。当前 data-dir 树拷贝到已授权的空文件夹；只在目标数据库里改写前缀为旧 data dir 的已存 `root_path` / 项目拷贝 / 衍生件 / 导出路径。旧树留在磁盘。永不改写 `Project.source_root_path`，也不打开、拷贝、移动或 chmod 相机卡上的原片。旧 data dir 之外的自定义 D2.00 项目文件夹不动。桌面壳把指针写到 `{anchor}/data_dir.json`（环境变量 `FRAMEPILOT_DATA_DIR` 之后、默认 app-support / `.framepilot-desktop-dev` 之前），并用新的 `--data-dir` 重新拉起 sidecar。不添加额外的 `fs:` / `shell:` 能力。
 
 桌面 Help → **Check for updates**（S9.10 / [#167](https://github.com/joe-cheung-cae/frame-pilot/issues/167)）是原生菜单动作。辅助线程对 GitHub Releases latest 做未认证 `GET`；WebView CSP 仍仅 loopback。Releases JSON 就是清单。缺少 `tag_name` 为非致命 no-op。壳比较 MAJOR.MINOR.PATCH 核心（`2.1.0-desktop` vs `v2.2.0`）并显示本地对话框。没有启动时检查、自动安装、`tauri-plugin-updater`、额外的 `fs:` / `shell:` 能力、遥测或 GitHub token。

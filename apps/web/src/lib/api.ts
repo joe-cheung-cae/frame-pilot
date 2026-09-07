@@ -116,6 +116,13 @@ export type AppSettingsPatch = {
   import_workers?: number;
 };
 
+export type DerivativeCache = {
+  derivative_bytes: number;
+  file_count: number;
+  project_count: number;
+  deleted_files: number;
+};
+
 export type ProcessingJob = {
   id: string;
   project_id: string;
@@ -343,6 +350,8 @@ export const api = {
   getSettings: () => request<AppSettings>("/api/settings"),
   patchSettings: (patch: AppSettingsPatch) =>
     request<AppSettings>("/api/settings", { method: "PATCH", body: JSON.stringify(patch) }),
+  getCache: () => request<DerivativeCache>("/api/cache"),
+  clearDerivatives: () => request<DerivativeCache>("/api/cache/clear-derivatives", { method: "POST" }),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   getPhoto: (projectId: string, photoId: string) => request<Photo>(`/api/projects/${projectId}/photos/${photoId}`),
   importPhotosBatch: (
@@ -533,12 +542,7 @@ export const api = {
   listAllGroups,
   listExports,
   listAllExports,
-  exportSelection: (
-    projectId: string,
-    mode: "csv" | "folder" | "zip",
-    statuses: string[],
-    includeXmp = false,
-  ) =>
+  exportSelection: (projectId: string, mode: "csv" | "folder" | "zip", statuses: string[], includeXmp = false) =>
     request<ExportRecord>(`/api/projects/${projectId}/exports`, {
       method: "POST",
       body: JSON.stringify({ mode, statuses, include_xmp: includeXmp }),

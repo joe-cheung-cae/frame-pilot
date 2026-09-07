@@ -7,6 +7,13 @@ class AppSettingsRead(BaseModel):
     import_workers: int = Field(ge=1, le=4)
 
 
+class DerivativeCacheRead(BaseModel):
+    derivative_bytes: int = Field(ge=0)
+    file_count: int = Field(ge=0)
+    project_count: int = Field(ge=0)
+    deleted_files: int = Field(default=0, ge=0)
+
+
 class AppSettingsUpdate(BaseModel):
     import_workers: int | None = None
 

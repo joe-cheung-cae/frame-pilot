@@ -25,8 +25,9 @@ v2 的目标不是完全替代人的审美判断。目标是去掉明显的技�
 - 未签名 Windows NSIS GUI 生命周期 QA（[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)，2026-09-04 按 Windows-only 关闭）。S9.12 包装 macOS DMG GUI 生命周期（[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)）于 `2026-09-05T12:31:10Z` 记为 **skip，不是 pass**（Linux/WSL2；`uname -s` 不是 Darwin）。skip 不是 macOS pass。
 - 第八阶段本地 **HEIC/HEIF 静帧预览**（H8.01–H8.06，[#157](https://github.com/joe-cheung-cae/frame-pilot/pull/157)；[#151](https://github.com/joe-cheung-cae/frame-pilot/issues/151) 已关闭）。计划：[docs/plans/2026-09-04-heic-preview.zh.md](docs/plans/2026-09-04-heic-preview.zh.md)。原片 HEIC 原样拷贝；用 `pillow-heif` 解码；WebP 衍生件；在 RGB 上评分/分组。该阶段仍跳过 RAW。
 - 第九阶段剩余 stretch 收口（S9.00–S9.13）。计划：[docs/plans/2026-09-04-remaining-stretch.zh.md](docs/plans/2026-09-04-remaining-stretch.zh.md)。总览 [#160](https://github.com/joe-cheung-cae/frame-pilot/issues/160)。导出取消、处理暂停、AVIF、RAW 内嵌预览、XMP 导出、托盘、独立预览、导入 worker、数据目录、检查更新、签名就绪 CI、macOS DMG GUI skip（不是 pass）、文档残留修复。
+- 残留桌面 §5.4 cache 旋钮：设置显示缩略图和预览缓存大小；**Clear thumbnails and previews** 只删除 `{project}/thumbnails/` 与 `{project}/previews/`（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）。
 
-**下一步：** 第九阶段 remaining-stretch 已关闭（S9.00–S9.13）；没有未完成的 S9 id；停止。不要发明第十阶段。
+**下一步：** 残留衍生缓存大小与淘汰已交付（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）。仍未排期：自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、包装桌面 ≥500 GUI、macOS GUI pass。不要发明第十阶段。
 
 已关闭队列：S9.01 导出取消 → S9.02 J7.07 暂停 → S9.03 AVIF → S9.04 RAW 预览 → S9.05 XMP（[#165](https://github.com/joe-cheung-cae/frame-pilot/issues/165)；历史 [#117](https://github.com/joe-cheung-cae/frame-pilot/issues/117)）→ S9.06 托盘 → S9.07 独立预览 → S9.08 并发旋钮 → S9.09 数据目录 → S9.10 可选更新 → S9.11 签名就绪 CI → S9.12 macOS DMG QA → S9.13 文档残留修复。
 

@@ -8,13 +8,18 @@
 
 `GET /api/settings` 返回 `{ "import_workers": 1 }`（默认）。`PATCH /api/settings` 用 `{ "import_workers": 2 }` 把整数 **1–4** 持久化到 `{data_dir}/app_settings.json`（原子 tmp + replace）。省略该键或 `{}` 返回当前值。`0`、`5`、非整数和 `null` 返回 `422`。该旋钮由 API 拥有（不是 `localStorage`，不是 `/api/meta`），作用于**下一次**导入衍生作业。处理仍是每个项目一个作业。
 
+`GET /api/cache` 返回 `{ "derivative_bytes", "file_count", "project_count", "deleted_files" }`，统计各项目生成的 `{project}/thumbnails/` 与 `{project}/previews/`。原片、导出和 `{project}/cache/` 不计入。`POST /api/cache/clear-derivatives` 删除这些衍生文件，清空 `thumbnail_path` / `preview_path`，原片、`user_status`、`star_rating`、分组和导出不动。阻塞中的导入或处理作业（`queued`、`running` 或 `interrupted`）返回 `409`。下一次导入或处理会重新生成缺失的衍生件。
+
 已实现的端点：
 
 ```text
 GET    /health
 GET    /api/health
+GET    /api/meta
 GET    /api/settings
 PATCH  /api/settings
+GET    /api/cache
+POST   /api/cache/clear-derivatives
 
 POST   /api/projects
 GET    /api/projects

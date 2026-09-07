@@ -252,7 +252,7 @@ Align `docs/desktop_development_plan.md` §2.2; known limitations; README; CHANG
 - [x] §1.1 names S9.00–S9.13 and forbids inventing Phase 10
 - [x] S9.01–S9.13 each `[x]` with the commit subject in §4
 - [x] Originals never modified in tests
-- [ ] `npm run verify` green on the branch tip before S9.13 上线
+- [x] `npm run verify` green on the branch tip before S9.13 上线
 - [x] One draft PR for `feature/remaining-stretch`; `Refs #160` plus the child numbers; no `Fixes` until S9.13
 - [x] No `APP_VERSION` bump, no certs, no camera files, no model weights
 

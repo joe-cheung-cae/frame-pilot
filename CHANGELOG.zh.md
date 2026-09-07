@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 残留 — 衍生缓存大小与淘汰
+
+- 设置中的 **Derivative cache** 显示各项目缩略图和预览占用（`GET /api/cache`）
+- **Clear thumbnails and previews** 只删除 `{project}/thumbnails/` 与 `{project}/previews/`（`POST /api/cache/clear-derivatives`），清空 `thumbnail_path` / `preview_path`，原片、精选、评分、分组和导出不动
+- 任一导入或处理作业处于 queued / running / interrupted 时返回 `409`
+- 下一次导入或处理会重新生成缺失的衍生件
+- 不改 `APP_VERSION`，无自动安装，无处理池，无第十阶段
+
 ### 第九阶段 — S9.13 文档残留修复
 
 - 对齐 `docs/desktop_development_plan.zh.md` §2.2 已交付的 2.1 DoD 勾选；双平台安装包 GUI 为 Windows-pass / macOS-skip；不勾包装桌面 ≥500
