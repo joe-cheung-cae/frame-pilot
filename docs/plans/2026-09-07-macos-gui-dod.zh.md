@@ -8,7 +8,7 @@
 
 **相关：** `develop_plan.zh.md` §1.1；`docs/desktop_development_plan.zh.md` §2.2 与 §5.6；`docs/desktop_testing.zh.md` S9.12 skip 记录；工作流 `.grok/workflows/macos-gui-dod.rhai`。
 
-需求拆解 只写文档合同。本次 评审 提交按现场树修正规格漏洞。还不要实现冒烟脚本，也不要改 `.github/workflows/desktop.yml`。不要勾 开发、DoD-ticked 或 §2.2。
+需求拆解 只写文档合同。评审 已按现场树修正规格漏洞。本次 归档 提交只记录 开发 交接。还不要实现冒烟脚本，也不要改 `.github/workflows/desktop.yml`。不要勾 开发、DoD-ticked 或 §2.2。
 
 ---
 
@@ -48,15 +48,15 @@
 残留双平台安装包 GUI DoD（macOS DMG 安装并运行）
 
 - [x] 需求拆解 — 双语残留计划 + GitHub issue
-- [x] 评审 — 对照现场树对抗评审（本次提交）
-- [ ] 归档
+- [x] 评审 — 对照现场树对抗评审
+- [x] 归档 — 已记录 开发 交接（本次提交）；开发 保持 `[ ]`
 - [ ] 开发 — 冒烟脚本 + `desktop.yml` macOS 步骤；同一提交勾残留计划 开发 `[x]`；**不要**勾 §2.2
 - [ ] 测试
 - [ ] 上线 — 派发 `desktop.yml`，带日期的 Darwin 证据，然后勾 §2.2
 - [ ] smoke-landed
 - [ ] DoD-ticked
 
-本次 评审 提交只勾 **评审**。开发、DoD-ticked 与 §2.2 保持 `[ ]`。
+本次 归档 提交只勾 **归档**。开发、smoke-landed、DoD-ticked 与 §2.2 保持 `[ ]`。
 
 ---
 
@@ -111,7 +111,8 @@ Ready 行与日志路径（现场树，本残留除非必要不要改）：
 | 何时 | 勾 | 不要勾 |
 | ---- | -- | ------ |
 | 需求拆解 | 残留板 需求拆解 `[x]` | 开发、DoD-ticked、§2.2 安装包行 |
-| 评审（本次提交） | 残留板 评审 `[x]` | 开发、DoD-ticked、§2.2 安装包行 |
+| 评审 | 残留板 评审 `[x]` | 开发、DoD-ticked、§2.2 安装包行 |
+| 归档（本次提交） | 残留板 归档 `[x]` | 开发、smoke-landed、DoD-ticked、§2.2 安装包行 |
 | 开发 | 残留板 开发 `[x]`；主机检查通过才勾 smoke-landed `[x]` | §2.2 安装包行；DoD-ticked |
 | 上线 Darwin 冒烟绿灯 | 残留板 上线 `[x]` 与 DoD-ticked `[x]`；`docs/desktop_development_plan.md` §2.2 安装包行 `[x]`，写上 Windows #144 + 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) + Actions run URL；§5.6 包装 macOS GUI pass 的 Target = 本残留 `[x]`（**安装并运行** DoD），注明完整退出+作业矩阵仍未排期 | 包装桌面 ≥500；Gatekeeper 干净；商店上架；第十阶段 |
 
@@ -140,18 +141,18 @@ Ready 行与日志路径（现场树，本残留除非必要不要改）：
 
 ## 8. 文件图
 
-| 文件 | 需求拆解 | 评审（本次提交） | 开发 | 上线 |
-| ---- | -------- | ---------------- | ---- | ---- |
-| `docs/plans/2026-09-07-macos-gui-dod.md`（+ zh） | 新建；需求拆解 `[x]` | 漏洞 + 评审 `[x]` | 勾 开发 | 勾 上线 + DoD-ticked |
-| `.grok/workflows/macos-gui-dod.rhai` | 若存在则纳入 | 不变 | 不变 | 不变 |
-| `packaging/scripts/macos-dmg-gui-smoke.sh` | 不做 | 不做 | 新建 | 不变 |
-| `tests/desktop/macos-dmg-gui-smoke-nondarwin.sh` | 不做 | 不做 | 新建 | 不变 |
-| `.github/workflows/desktop.yml` | 不做 | 不做 | 新增 macOS 门控步骤 + 页眉 | 不变 |
-| `.github/workflows/verify.yml` | 不做 | 不做 | **不要改** | **不要改** |
-| `scripts/test-release-checks.sh` | 不做 | 不做 | 保持绿灯；只有需要新断言时才改 | 不做 |
-| `docs/desktop_development_plan.md`（+ zh）§2.2 | **不要勾** | **不要勾** | **不要勾** | 仅 Darwin 绿灯才勾安装包行 |
-| `docs/desktop_testing.md`（+ zh） | 不做 | 不做 | 不做 | 新增带日期结果小节；保留 S9.12 skip |
-| `develop_plan.md` §1.1、已知限制、README、CHANGELOG、`implement_goals.md`（+ zh） | 不做 | 不做 | 不做 | 仅证据提交 |
+| 文件 | 需求拆解 | 评审 | 归档（本次提交） | 开发 | 上线 |
+| ---- | -------- | ---- | ---------------- | ---- | ---- |
+| `docs/plans/2026-09-07-macos-gui-dod.md`（+ zh） | 新建；需求拆解 `[x]` | 漏洞 + 评审 `[x]` | 勾 归档 + §11 交接；开发 保持 `[ ]` | 勾 开发 | 勾 上线 + DoD-ticked |
+| `.grok/workflows/macos-gui-dod.rhai` | 若存在则纳入 | 不变 | 不变 | 不变 | 不变 |
+| `packaging/scripts/macos-dmg-gui-smoke.sh` | 不做 | 不做 | **不做** | 新建 | 不变 |
+| `tests/desktop/macos-dmg-gui-smoke-nondarwin.sh` | 不做 | 不做 | **不做** | 新建 | 不变 |
+| `.github/workflows/desktop.yml` | 不做 | 不做 | **不做** | 新增 macOS 门控步骤 + 页眉 | 不变 |
+| `.github/workflows/verify.yml` | 不做 | 不做 | **不要改** | **不要改** | **不要改** |
+| `scripts/test-release-checks.sh` | 不做 | 不做 | 不做 | 保持绿灯；只有需要新断言时才改 | 不做 |
+| `docs/desktop_development_plan.md`（+ zh）§2.2 | **不要勾** | **不要勾** | **不要勾** | **不要勾** | 仅 Darwin 绿灯才勾安装包行 |
+| `docs/desktop_testing.md`（+ zh） | 不做 | 不做 | 不做 | 不做 | 新增带日期结果小节；保留 S9.12 skip |
+| `develop_plan.md` §1.1、已知限制、README、CHANGELOG、`implement_goals.md`（+ zh） | 不做 | 不做 | 不做 | 不做 | 仅证据提交 |
 
 开发以**本评审后的计划**为准，不要跟 `.grok/workflows/macos-gui-dod.rhai` 的 `develop_prompt` 里评审前那套 sidecar.log 措辞。
 
@@ -194,3 +195,21 @@ Ready 行与日志路径（现场树，本残留除非必要不要改）：
 5. **回环 GET 必须绕过代理**，与 `tests/desktop/smoke.sh` 相同。
 
 非漏洞：Windows job 仍上传 NSIS 且不启动 GUI；不勾包装桌面 ≥500；草稿目录不是 `/tmp`；本残留不导入照片；活文档只在 上线 勾选。
+
+---
+
+## 11. 归档交接（归档，2026-09-07）
+
+评审后的计划已锁定给 开发。状态：需求拆解 `[x]`，评审 `[x]`，归档 `[x]`。开发 仍是 `[ ]`（本分支还没有 `ci: smoke packaged macOS DMG GUI launch` 提交）。
+
+**开发必须**在主题为 `ci: smoke packaged macOS DMG GUI launch` 的同一提交里：
+
+1. 按 §4 落地 `packaging/scripts/macos-dmg-gui-smoke.sh` 与 `tests/desktop/macos-dmg-gui-smoke-nondarwin.sh`（测试先行）。
+2. 按 §5 在现有 `.github/workflows/desktop.yml` matrix `build` job 上新增 macOS 门控步骤。
+3. **同一提交**勾残留计划 开发 `[x]`（英+中）。
+4. `git push -u origin HEAD`。不要开第二个 PR（草稿 PR 是 [#178](https://github.com/joe-cheung-cae/frame-pilot/pull/178)）。
+5. **不要**勾 `docs/desktop_development_plan.md` §2.2 安装包行。**不要**勾 DoD-ticked。只有 上线 在 `desktop.yml` macOS GUI 冒烟绿灯且带日期的 Darwin 证据之后才勾 §2.2。
+
+本次 归档 提交不要实现冒烟脚本。以**本评审后的计划**（§4–§5）为准，不要跟 `.grok/workflows/macos-gui-dod.rhai` 的 `develop_prompt` 里评审前那套 sidecar.log 措辞。
+
+指针：残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)；Windows pass [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)；S9.12 skip [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) 保持 skip；不要重开 #172。

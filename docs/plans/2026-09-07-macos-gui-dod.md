@@ -8,7 +8,7 @@
 
 **Related:** `develop_plan.md` §1.1; `docs/desktop_development_plan.md` §2.2 and §5.6; `docs/desktop_testing.md` S9.12 skip record; workflow `.grok/workflows/macos-gui-dod.rhai`.
 
-需求拆解 was documentation contract only. This 评审 commit corrects spec holes against the live tree. Do not implement the smoke script or edit `.github/workflows/desktop.yml` yet. Do not tick 开发, DoD-ticked, or §2.2.
+需求拆解 was documentation contract only. 评审 corrected spec holes against the live tree. This 归档 commit records the 开发 handoff only. Do not implement the smoke script or edit `.github/workflows/desktop.yml` yet. Do not tick 开发, DoD-ticked, or §2.2.
 
 ---
 
@@ -48,15 +48,15 @@ The user-approved leftover is **install+run DoD**, not a full S9.12 lifecycle re
 Leftover dual-platform installer GUI DoD (macOS DMG install+run)
 
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue
-- [x] 评审 — adversarial review vs live tree (this commit)
-- [ ] 归档
+- [x] 评审 — adversarial review vs live tree
+- [x] 归档 — 开发 handoff recorded (this commit); 开发 stays `[ ]`
 - [ ] 开发 — smoke script + `desktop.yml` macOS step; leftover-plan 开发 `[x]` in that commit; **do not** tick §2.2
 - [ ] 测试
 - [ ] 上线 — dispatch `desktop.yml`, dated Darwin evidence, then tick §2.2
 - [ ] smoke-landed
 - [ ] DoD-ticked
 
-This 评审 commit ticks **评审** only. Leave 开发, DoD-ticked, and §2.2 `[ ]`.
+This 归档 commit ticks **归档** only. Leave 开发, smoke-landed, DoD-ticked, and §2.2 `[ ]`.
 
 ---
 
@@ -111,7 +111,8 @@ Today `.github/workflows/desktop.yml` is a **single matrix `build` job** (`windo
 | When | Tick | Do not tick |
 | ---- | ---- | ----------- |
 | 需求拆解 | leftover board 需求拆解 `[x]` | 开发, DoD-ticked, §2.2 installer row |
-| 评审 (this commit) | leftover board 评审 `[x]` | 开发, DoD-ticked, §2.2 installer row |
+| 评审 | leftover board 评审 `[x]` | 开发, DoD-ticked, §2.2 installer row |
+| 归档 (this commit) | leftover board 归档 `[x]` | 开发, smoke-landed, DoD-ticked, §2.2 installer row |
 | 开发 | leftover board 开发 `[x]`; smoke-landed `[x]` only if the named host check passed | §2.2 installer row; DoD-ticked |
 | 上线 green Darwin smoke | leftover board 上线 `[x]` and DoD-ticked `[x]`; `docs/desktop_development_plan.md` §2.2 installer row `[x]` with Windows #144 + leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) + Actions run URL; §5.6 packaged macOS GUI pass target = this leftover `[x]` for **install+run** DoD, note full quit+job matrix still unscheduled | packaged-desktop ≥500; Gatekeeper-clean; store listing; Phase 10 |
 
@@ -140,18 +141,18 @@ Red or skip path: do **not** tick §2.2. Comment leftover [#177](https://github.
 
 ## 8. File map
 
-| File | 需求拆解 | 评审 (this commit) | 开发 | 上线 |
-| ---- | -------- | ------------------ | ---- | ---- |
-| `docs/plans/2026-09-07-macos-gui-dod.md` (+ zh) | create; 需求拆解 `[x]` | holes + 评审 `[x]` | tick 开发 | tick 上线 + DoD-ticked |
-| `.grok/workflows/macos-gui-dod.rhai` | include if present | unchanged | unchanged | unchanged |
-| `packaging/scripts/macos-dmg-gui-smoke.sh` | out | out | create | unchanged |
-| `tests/desktop/macos-dmg-gui-smoke-nondarwin.sh` | out | out | create | unchanged |
-| `.github/workflows/desktop.yml` | out | out | new macOS-gated step + header | unchanged |
-| `.github/workflows/verify.yml` | out | out | **do not edit** | **do not edit** |
-| `scripts/test-release-checks.sh` | out | out | keep green; edit only if a new assertion is required | out |
-| `docs/desktop_development_plan.md` (+ zh) §2.2 | **do not tick** | **do not tick** | **do not tick** | tick installer row only if Darwin green |
-| `docs/desktop_testing.md` (+ zh) | out | out | out | new dated results subsection; keep S9.12 skip |
-| `develop_plan.md` §1.1, known limitations, README, CHANGELOG, `implement_goals.md` (+ zh) | out | out | out | evidence commit only |
+| File | 需求拆解 | 评审 | 归档 (this commit) | 开发 | 上线 |
+| ---- | -------- | ---- | ------------------ | ---- | ---- |
+| `docs/plans/2026-09-07-macos-gui-dod.md` (+ zh) | create; 需求拆解 `[x]` | holes + 评审 `[x]` | tick 归档 + §11 handoff; 开发 stays `[ ]` | tick 开发 | tick 上线 + DoD-ticked |
+| `.grok/workflows/macos-gui-dod.rhai` | include if present | unchanged | unchanged | unchanged | unchanged |
+| `packaging/scripts/macos-dmg-gui-smoke.sh` | out | out | **out** | create | unchanged |
+| `tests/desktop/macos-dmg-gui-smoke-nondarwin.sh` | out | out | **out** | create | unchanged |
+| `.github/workflows/desktop.yml` | out | out | **out** | new macOS-gated step + header | unchanged |
+| `.github/workflows/verify.yml` | out | out | **do not edit** | **do not edit** | **do not edit** |
+| `scripts/test-release-checks.sh` | out | out | out | keep green; edit only if a new assertion is required | out |
+| `docs/desktop_development_plan.md` (+ zh) §2.2 | **do not tick** | **do not tick** | **do not tick** | **do not tick** | tick installer row only if Darwin green |
+| `docs/desktop_testing.md` (+ zh) | out | out | out | out | new dated results subsection; keep S9.12 skip |
+| `develop_plan.md` §1.1, known limitations, README, CHANGELOG, `implement_goals.md` (+ zh) | out | out | out | out | evidence commit only |
 
 开发 follows **this reviewed plan**, not the pre-review sidecar.log wording still duplicated in `.grok/workflows/macos-gui-dod.rhai` `develop_prompt`.
 
@@ -194,3 +195,21 @@ Holes fixed in this commit (live tree made the 需求拆解 spec wrong):
 5. **Loopback GET must bypass proxy**, same as `tests/desktop/smoke.sh`.
 
 Non-holes: Windows job still uploads NSIS with no GUI; no packaged-desktop ≥500 tick; scratch dir is not `/tmp`; this leftover does not import photos; living docs tick only on 上线.
+
+---
+
+## 11. Archive handoff (归档, 2026-09-07)
+
+Reviewed plan is locked for 开发. Status: 需求拆解 `[x]`, 评审 `[x]`, 归档 `[x]`. 开发 is still `[ ]` (no `ci: smoke packaged macOS DMG GUI launch` commit on this branch).
+
+**开发 MUST**, in one commit with subject `ci: smoke packaged macOS DMG GUI launch`:
+
+1. Land `packaging/scripts/macos-dmg-gui-smoke.sh` and `tests/desktop/macos-dmg-gui-smoke-nondarwin.sh` per §4 (tests first).
+2. Add the macOS-gated step on the existing `.github/workflows/desktop.yml` matrix `build` job per §5.
+3. Tick leftover-plan 开发 `[x]` (en+zh) in **that same commit**.
+4. `git push -u origin HEAD`. Do not open a second PR (draft PR is [#178](https://github.com/joe-cheung-cae/frame-pilot/pull/178)).
+5. **Must not** tick `docs/desktop_development_plan.md` §2.2 installer row. **Must not** tick DoD-ticked. Tick §2.2 only on 上线 after dated Darwin evidence from a green `desktop.yml` macOS GUI smoke.
+
+Do not implement the smoke in this 归档 commit. Follow **this reviewed plan** (§4–§5), not `.grok/workflows/macos-gui-dod.rhai` `develop_prompt` sidecar.log wording.
+
+Pointers: leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177); Windows pass [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144); S9.12 skip [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) stays skip; do not reopen #172.
