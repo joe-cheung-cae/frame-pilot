@@ -624,6 +624,12 @@ mod tests {
             runner.contains("setDesktopQaCullHref"),
             "Path B must mount culling via an in-module store, not the WebView URL: {runner}"
         );
+        assert!(
+            runner.contains("setDesktopQaMountCull"),
+            "Path B must call a window-registered React setState to mount CullingWorkspace: {runner}"
+        );
+        assert!(runner.contains("__FRAMEPILOT_DESKTOP_QA_MOUNT_CULL__"));
+        assert!(runner.contains("cull_workspace"));
         assert!(runner.contains("useSyncExternalStore"));
         assert!(runner.contains("parseCullProjectId"));
         assert!(
@@ -637,12 +643,12 @@ mod tests {
             "NativeMenuListener must register React navigate on window: {app}"
         );
         assert!(
-            app.contains("readWindowCullHref"),
-            "QaOrRoutes must read cull href from window, not a module-local store: {app}"
+            app.contains("setDesktopQaMountCull"),
+            "CullOverlay must register React setState on window during render: {app}"
         );
-        assert!(app.contains("setInterval"));
+        assert!(app.contains("flushSync"));
         assert!(app.contains("CullingWorkspace"));
-        assert!(app.contains("__FRAMEPILOT_DESKTOP_QA_CULL_HREF__"));
+        assert!(app.contains("CullOverlay"));
         assert!(app.contains("MemoryRouter"));
         assert!(!app.contains("BrowserRouter"));
         assert!(!app.contains("HashRouter"));

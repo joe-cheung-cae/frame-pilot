@@ -66,9 +66,12 @@ type QaWindow = {
   __FRAMEPILOT_API_BASE__?: unknown;
   __FRAMEPILOT_DESKTOP_QA_STARTED__?: unknown;
   __FRAMEPILOT_DESKTOP_QA_NAVIGATE__?: ((href: string) => void) | null;
+  __FRAMEPILOT_DESKTOP_QA_MOUNT_CULL__?: ((projectId: string) => void) | null;
   __FRAMEPILOT_DESKTOP_QA_MOUNTED__?: boolean;
+  __FRAMEPILOT_DESKTOP_QA_CULL_MOUNTED__?: boolean;
   __FRAMEPILOT_DESKTOP_QA_ROUTE__?: string;
   __FRAMEPILOT_DESKTOP_QA_CULL_HREF__?: string;
+  __FRAMEPILOT_DESKTOP_QA_SET_CULL_PROJECT_ID__?: ((projectId: string | null) => void) | null;
   location?: { pathname: string; hash: string };
   dispatchEvent?: (event: Event) => boolean;
   addEventListener?: (type: string, listener: (event: Event) => void) => void;
@@ -186,6 +189,7 @@ export async function withTimeout<T>(promise: Promise<T>, ms: number, message: s
 }
 
 let desktopQaNavigate: ((href: string) => void) | null = null;
+let desktopQaMountCull: ((projectId: string) => void) | null = null;
 let desktopQaCullHref = "";
 const desktopQaCullListeners = new Set<() => void>();
 
@@ -228,8 +232,13 @@ export function subscribeDesktopQaCull(onStoreChange: () => void): () => void {
 export function setDesktopQaCullHref(href: string): void {
   desktopQaCullHref = href;
   const win = defaultWindow();
+  const projectId = parseCullProjectId(href);
   if (win) {
     win.__FRAMEPILOT_DESKTOP_QA_CULL_HREF__ = href;
+    const setter = win.__FRAMEPILOT_DESKTOP_QA_SET_CULL_PROJECT_ID__;
+    if (projectId && typeof setter === "function") {
+      setter(projectId);
+    }
     if (typeof win.dispatchEvent === "function") {
       win.dispatchEvent(
         typeof Event === "function"
@@ -254,6 +263,46 @@ export function setDesktopQaNavigate(push: ((href: string) => void) | null): voi
   if (win) {
     win.__FRAMEPILOT_DESKTOP_QA_NAVIGATE__ = push;
   }
+}
+
+export function setDesktopQaMountCull(mount: ((projectId: string) => void) | null): void {
+  desktopQaMountCull = mount;
+  const win = defaultWindow();
+  if (win) {
+    win.__FRAMEPILOT_DESKTOP_QA_MOUNT_CULL__ = mount;
+    win.__FRAMEPILOT_DESKTOP_QA_SET_CULL_PROJECT_ID__ = mount
+      ? (id) => {
+          if (id) {
+            mount(id);
+          }
+        }
+      : null;
+  }
+}
+
+function readDesktopQaMountCull(): ((projectId: string) => void) | null {
+  if (desktopQaMountCull) {
+    return desktopQaMountCull;
+  }
+  const fromWindow = defaultWindow()?.__FRAMEPILOT_DESKTOP_QA_MOUNT_CULL__;
+  return typeof fromWindow === "function" ? fromWindow : null;
+}
+
+export function writeCullWorkspaceMounted(projectId: string): void {
+  const win = defaultWindow();
+  if (win && win.__FRAMEPILOT_DESKTOP_QA_CULL_MOUNTED__ === true) {
+    return;
+  }
+  if (win) {
+    win.__FRAMEPILOT_DESKTOP_QA_CULL_MOUNTED__ = true;
+  }
+  void invoke("qa_write_evidence", {
+    line: JSON.stringify({
+      milestone: "cull_workspace",
+      t: new Date().toISOString(),
+      project_id: projectId,
+    }),
+  }).catch(() => undefined);
 }
 
 export function setDesktopQaRoute(pathname: string): void {
@@ -324,10 +373,16 @@ async function waitForCullPush(
   fallback: (href: string) => void,
   href: string,
   sleep: (ms: number) => Promise<void>,
-): Promise<"store" | "react" | "history"> {
+): Promise<"mount" | "store" | "react" | "history"> {
   const projectId = parseCullProjectId(href);
+  let mounted = false;
   if (projectId) {
     setDesktopQaCullHref(href);
+    const mount = readDesktopQaMountCull();
+    if (mount) {
+      mount(projectId);
+      mounted = true;
+    }
   }
   const push = readDesktopQaNavigate();
   if (push) {
@@ -343,6 +398,9 @@ async function waitForCullPush(
     fallback(href);
   }
   await sleep(0);
+  if (mounted) {
+    return "mount";
+  }
   if (parseCullProjectId(getDesktopQaCullHref())) {
     return "store";
   }
