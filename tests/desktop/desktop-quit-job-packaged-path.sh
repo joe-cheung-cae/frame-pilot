@@ -75,6 +75,16 @@ if ! grep -F -q 'osascript' "$shipped"; then
   exit 1
 fi
 
+if ! awk '
+  /wait_milestone "\$running_ms"/ { in_job = 1 }
+  in_job && /osascript/ { found = 1 }
+  in_job && /wait_milestone "quit_dialog"/ { in_job = 0 }
+  END { exit found ? 1 : 0 }
+' "$shipped"; then
+  echo "job rows must not osascript before quit_dialog (GHA Apple Event terminates)" >&2
+  exit 1
+fi
+
 if ! grep -F -q 'originals.manifest' "$shipped"; then
   echo "harness must snapshot and verify originals" >&2
   exit 1

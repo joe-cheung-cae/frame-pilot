@@ -52,9 +52,9 @@
 - [ ] 上线 — 调度 `desktop.yml`；仅当四行 Darwin 都是 `result=pass` 才勾活文档
 - [ ] DoD-ticked
 
-**上线阻塞（2026-09-08）：** 本代理的 `gh` token（`cursor` GitHub App）对 `workflow_dispatch` 返回 HTTP 403。`5cb9034` 上的 `verify.yml` 已绿。本分支没有 `desktop.yml` run。Skip ≠ pass。不要伪造 Darwin 通过。
+**上线阻塞（2026-09-08）：** [desktop.yml run 34209655915](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34209655915)（`095505a`）：quit-clean `pass`；quit-import `fail`（`quit dialog did not appear`）。sidecar 日志在 import 之后没有 `GET /api/projects` —— GHA 上 `osascript quit` 会直接终止进程，不走 `ExitRequested` / `handle_close_requested`。Skip ≠ pass。不要伪造 Darwin 通过。
 
-需要 Joe（或任何带 Actions write 的 token）执行：
+Path B 立即调用 `qa_request_close` 的修复之后请重新调度：
 
 ```bash
 gh workflow run desktop.yml --ref cursor/desktop-quit-job-matrix-186e

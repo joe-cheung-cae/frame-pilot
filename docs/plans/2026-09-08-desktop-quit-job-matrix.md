@@ -52,9 +52,9 @@ Leftover packaged macOS quit+job matrix
 - [ ] 上线 — dispatch `desktop.yml`; tick living docs only if all four Darwin rows are `result=pass`
 - [ ] DoD-ticked
 
-**上线 blocker (2026-09-08):** this agent's `gh` token (`cursor` GitHub App) gets HTTP 403 on `workflow_dispatch`. `verify.yml` on `5cb9034` is green. No `desktop.yml` run exists on this branch. Skip ≠ pass. Do **not** invent a Darwin pass.
+**上线 blocker (2026-09-08):** [desktop.yml run 34209655915](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34209655915) (`095505a`): quit-clean `pass`; quit-import `fail` (`quit dialog did not appear`). Sidecar log has no `GET /api/projects` after import — GHA `osascript quit` terminated the process without `ExitRequested` / `handle_close_requested`. Skip ≠ pass. Do **not** invent a Darwin pass.
 
-Joe (or any token with Actions write) must run:
+Re-dispatch after the Path B immediate `qa_request_close` fix:
 
 ```bash
 gh workflow run desktop.yml --ref cursor/desktop-quit-job-matrix-186e

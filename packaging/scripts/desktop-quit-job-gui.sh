@@ -866,8 +866,10 @@ run_row() {
         FAIL_REASON="${row}: ${running_ms} not written before complete"
         return 1
       fi
-      osascript -e 'tell application "FramePilot" to quit' >/dev/null 2>&1 || true
-      osascript -e 'tell application id "com.framepilot.app" to quit' >/dev/null 2>&1 || true
+      # Do not Apple-Event quit here. On GHA macos-latest, `tell application
+      # to quit` terminates the process without ExitRequested / handle_close_requested
+      # (sidecar log has no GET /api/projects after import). Path B invokes
+      # production handle_close_requested via fail-closed qa_request_close.
       if ! wait_milestone "quit_dialog" 60; then
         FAIL_REASON="${row}: quit dialog did not appear"
         return 1

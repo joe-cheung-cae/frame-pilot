@@ -694,6 +694,21 @@ async function waitForPreview(
   );
 }
 
+async function requestProductionClose(options: {
+  writeEvidence: (line: string) => Promise<unknown>;
+  now: () => string;
+  requestClose?: () => Promise<unknown>;
+}): Promise<void> {
+  try {
+    await (options.requestClose ?? defaultRequestClose)();
+    await writeMilestone(options.writeEvidence, "close_requested", options.now);
+  } catch (error: unknown) {
+    await writeMilestone(options.writeEvidence, "close_request_failed", options.now, {
+      error: error instanceof Error ? error.message : String(error),
+    }).catch(() => undefined);
+  }
+}
+
 async function waitAndClickQuitCancel(options: {
   writeEvidence: (line: string) => Promise<unknown>;
   now: () => string;
@@ -708,7 +723,9 @@ async function waitAndClickQuitCancel(options: {
   const query = options.queryQuitDialog ?? (() => readQuitDialog());
   const click = options.clickQuitChoice ?? ((choice: string) => clickQuitDialogChoice(choice));
   const deadline = Date.now() + options.timeoutMs;
-  let askedClose = false;
+  // GHA `osascript quit` terminates FramePilot without ExitRequested. Invoke the
+  // production handle_close_requested path immediately; do not wait 1.5s.
+  await requestProductionClose(options);
   while (Date.now() < deadline) {
     throwIfAborted(options.signal);
     const dialog = query();
@@ -733,14 +750,6 @@ async function waitAndClickQuitCancel(options: {
         choice: "cancel_and_quit",
       });
       return dialog;
-    }
-    if (!askedClose && Date.now() + options.timeoutMs - deadline >= 1500) {
-      askedClose = true;
-      try {
-        await (options.requestClose ?? defaultRequestClose)();
-      } catch {
-        // Fail-closed when QA is off; keep waiting for a production dialog.
-      }
     }
     await options.sleep(100);
   }
