@@ -1,0 +1,5 @@
+{
+  "identifier": "qa",
+  "windows": ["main"],
+  "permissions": ["allow-qa-write-evidence"]
+}

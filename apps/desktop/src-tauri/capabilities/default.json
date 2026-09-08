@@ -8,7 +8,6 @@
     "core:window:allow-set-focus",
     "window-state:default",
     "dialog:default",
-    "opener:allow-reveal-item-in-dir",
-    "allow-qa-write-evidence"
+    "opener:allow-reveal-item-in-dir"
   ]
 }

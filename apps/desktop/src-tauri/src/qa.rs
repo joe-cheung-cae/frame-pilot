@@ -11,6 +11,25 @@ const QA_EVIDENCE: &str = "FRAMEPILOT_DESKTOP_QA_EVIDENCE";
 const DATA_DIR_ENV: &str = "FRAMEPILOT_DATA_DIR";
 const SCRATCH_DIR_NAME: &str = "framepilot-desktop-500-gui";
 const MILESTONES_FILE: &str = "milestones.jsonl";
+const QA_ALLOWED_MILESTONES: &[&str] = &[
+    "host_window",
+    "page_load",
+    "spa_module",
+    "spa_fetch",
+    "spa_fetch_done",
+    "spa_fetch_fail",
+    "spa_flags",
+    "qa_started",
+    "qa_runner_mounted",
+    "idle",
+    "import_complete",
+    "process_complete",
+    "cull_push",
+    "cull_workspace",
+    "first_preview",
+    "done",
+    "fail",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct DesktopQaPayload {
@@ -132,6 +151,60 @@ fn is_same_or_descendant(path: &str, ancestor: &str) -> bool {
     }
 }
 
+fn is_allowed_qa_milestone(milestone: &str) -> bool {
+    QA_ALLOWED_MILESTONES.contains(&milestone)
+}
+
+fn strip_windows_verbatim_prefix(raw: &str) -> String {
+    const UNC_PREFIX: &str = r"\\?\UNC\";
+    const VERBATIM_PREFIX: &str = r"\\?\";
+    if let Some(rest) = raw.strip_prefix(UNC_PREFIX) {
+        format!(r"\\{rest}")
+    } else if let Some(rest) = raw.strip_prefix(VERBATIM_PREFIX) {
+        rest.to_string()
+    } else {
+        raw.to_string()
+    }
+}
+
+fn canonicalize_qa_path(raw: &str) -> Option<String> {
+    let canonical = fs::canonicalize(raw).ok()?;
+    let stripped = strip_windows_verbatim_prefix(canonical.to_str()?);
+    if stripped.starts_with(r"\\.\") {
+        return None;
+    }
+    Some(stripped)
+}
+
+fn confirm_canonical_qa_paths(
+    photos: &str,
+    project: &str,
+    evidence: &str,
+    data_dir: &str,
+    prefix: &str,
+) -> Option<DesktopQaPayload> {
+    let prefix = canonicalize_qa_path(prefix)?;
+    let photos = canonicalize_qa_path(photos)?;
+    let project = canonicalize_qa_path(project)?;
+    let evidence = canonicalize_qa_path(evidence)?;
+    let data_dir = canonicalize_qa_path(data_dir)?;
+    if !is_absolute_under_prefix(&photos, &prefix)
+        || !is_absolute_under_prefix(&project, &prefix)
+        || !is_absolute_under_prefix(&evidence, &prefix)
+        || !is_absolute_under_prefix(&data_dir, &prefix)
+    {
+        return None;
+    }
+    if is_same_or_descendant(&data_dir, &project) {
+        return None;
+    }
+    Some(DesktopQaPayload {
+        photos,
+        project,
+        evidence,
+    })
+}
+
 pub fn qa_scratch_prefix_from_env() -> Option<String> {
     if cfg!(windows) {
         let local = std::env::var("LOCALAPPDATA").ok()?;
@@ -185,14 +258,21 @@ pub fn resolve_desktop_qa_from_env() -> Option<DesktopQaPayload> {
     let project = std::env::var(QA_PROJECT).ok();
     let evidence = std::env::var(QA_EVIDENCE).ok();
     let data_dir = std::env::var(DATA_DIR_ENV).ok();
-    resolve_desktop_qa(DesktopQaEnv {
+    let payload = resolve_desktop_qa(DesktopQaEnv {
         qa_flag: qa_flag.as_deref(),
         photos: photos.as_deref(),
         project: project.as_deref(),
         evidence: evidence.as_deref(),
         data_dir: data_dir.as_deref(),
         prefix: &prefix,
-    })
+    })?;
+    confirm_canonical_qa_paths(
+        &payload.photos,
+        &payload.project,
+        &payload.evidence,
+        data_dir.as_deref()?.trim(),
+        &prefix,
+    )
 }
 
 pub fn load_desktop_qa_state(api_base: Option<String>) -> DesktopQaState {
@@ -302,12 +382,18 @@ pub fn write_qa_evidence_line(
     let obj = parsed
         .as_object()
         .ok_or_else(|| "qa evidence must be a JSON object".to_string())?;
-    match (obj.get("milestone"), obj.get("t")) {
+    let milestone = match (obj.get("milestone"), obj.get("t")) {
         (Some(serde_json::Value::String(milestone)), Some(serde_json::Value::String(t)))
-            if !milestone.is_empty() && !t.is_empty() => {}
+            if !milestone.is_empty() && !t.is_empty() =>
+        {
+            milestone.as_str()
+        }
         _ => {
             return Err("qa evidence must include string milestone and t".into());
         }
+    };
+    if !is_allowed_qa_milestone(milestone) {
+        return Err("qa evidence milestone is not allowlisted".into());
     }
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
@@ -505,14 +591,167 @@ mod tests {
     }
 
     #[test]
+    fn qa_write_evidence_rejects_unknown_milestone() {
+        let dir = unique_temp_dir("unknown-ms");
+        let dest = dir.join(MILESTONES_FILE);
+        for milestone in ["unknown", "Idle", "DONE"] {
+            let line = format!(r#"{{"milestone":"{milestone}","t":"2026-09-07T00:00:00Z"}}"#);
+            let err = write_qa_evidence_line(true, Some(&dest), &line)
+                .expect_err("unknown milestone");
+            assert!(
+                err.contains("allowlisted"),
+                "reject message should mention allowlisted: {err}"
+            );
+        }
+        assert!(!dest.exists(), "unknown milestone must not write dest");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn qa_write_evidence_accepts_all_allowlisted_milestones() {
+        let dir = unique_temp_dir("allow-ms");
+        let dest = dir.join(MILESTONES_FILE);
+        for milestone in QA_ALLOWED_MILESTONES {
+            let line = format!(r#"{{"milestone":"{milestone}","t":"2026-09-07T00:00:00Z"}}"#);
+            write_qa_evidence_line(true, Some(&dest), &line).expect(milestone);
+        }
+        let text = fs::read_to_string(&dest).expect("read jsonl");
+        for milestone in QA_ALLOWED_MILESTONES {
+            assert!(
+                text.contains(&format!(r#""milestone":"{milestone}""#)),
+                "missing {milestone} in {text}"
+            );
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn strip_windows_verbatim_prefix_normalizes_extended_paths() {
+        assert_eq!(
+            strip_windows_verbatim_prefix(r"\\?\UNC\server\share\foo"),
+            r"\\server\share\foo"
+        );
+        assert_eq!(
+            strip_windows_verbatim_prefix(r"\\?\C:\Users\runner\AppData\Local\foo"),
+            r"C:\Users\runner\AppData\Local\foo"
+        );
+        assert_eq!(
+            strip_windows_verbatim_prefix("/home/alex/.cache/framepilot-desktop-500-gui"),
+            "/home/alex/.cache/framepilot-desktop-500-gui"
+        );
+        assert_eq!(
+            strip_windows_verbatim_prefix(r"C:\Users\runner\foo"),
+            r"C:\Users\runner\foo"
+        );
+    }
+
+    #[test]
+    fn confirm_canonical_qa_paths_accepts_real_siblings_under_prefix() {
+        let prefix = unique_temp_dir("canon-ok");
+        let photos = prefix.join("photos");
+        let project = prefix.join("project");
+        let evidence = prefix.join("evidence");
+        let data = prefix.join("data");
+        for dir in [&photos, &project, &evidence, &data] {
+            fs::create_dir_all(dir).expect("sibling");
+        }
+        let payload = confirm_canonical_qa_paths(
+            photos.to_str().expect("photos utf8"),
+            project.to_str().expect("project utf8"),
+            evidence.to_str().expect("evidence utf8"),
+            data.to_str().expect("data utf8"),
+            prefix.to_str().expect("prefix utf8"),
+        )
+        .expect("real siblings under prefix");
+        assert!(!payload.photos.contains(r"\\?\"));
+        assert!(!payload.project.contains(r"\\?\"));
+        assert!(!payload.evidence.contains(r"\\?\"));
+        assert_eq!(
+            payload.photos,
+            canonicalize_qa_path(photos.to_str().expect("photos utf8")).expect("canon photos")
+        );
+        assert!(payload.photos.ends_with("photos"));
+        let _ = fs::remove_dir_all(&prefix);
+    }
+
+    #[test]
+    fn confirm_canonical_qa_paths_rejects_missing_path() {
+        let prefix = unique_temp_dir("canon-miss");
+        let photos = prefix.join("photos");
+        let project = prefix.join("project");
+        let evidence = prefix.join("evidence");
+        let data = prefix.join("data");
+        for dir in [&project, &evidence, &data] {
+            fs::create_dir_all(dir).expect("sibling");
+        }
+        assert!(
+            confirm_canonical_qa_paths(
+                photos.to_str().expect("photos utf8"),
+                project.to_str().expect("project utf8"),
+                evidence.to_str().expect("evidence utf8"),
+                data.to_str().expect("data utf8"),
+                prefix.to_str().expect("prefix utf8"),
+            )
+            .is_none(),
+            "missing photos must fail canonicalize"
+        );
+        let _ = fs::remove_dir_all(&prefix);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn confirm_canonical_qa_paths_rejects_symlink_escape() {
+        let prefix = unique_temp_dir("canon-link");
+        let photos = prefix.join("photos");
+        let project = prefix.join("project");
+        let evidence = prefix.join("evidence");
+        let data = prefix.join("data");
+        for dir in [&project, &evidence, &data] {
+            fs::create_dir_all(dir).expect("sibling");
+        }
+        let photos_s = photos.to_str().expect("photos utf8");
+        let project_s = project.to_str().expect("project utf8");
+        let evidence_s = evidence.to_str().expect("evidence utf8");
+        let data_s = data.to_str().expect("data utf8");
+        let prefix_s = prefix.to_str().expect("prefix utf8");
+
+        std::os::unix::fs::symlink("/etc", &photos).expect("symlink /etc");
+        assert!(
+            confirm_canonical_qa_paths(photos_s, project_s, evidence_s, data_s, prefix_s).is_none(),
+            "photos symlink to /etc must be rejected"
+        );
+
+        fs::remove_file(&photos).expect("remove /etc symlink");
+        let home = std::env::var("HOME").expect("HOME");
+        std::os::unix::fs::symlink(&home, &photos).expect("symlink HOME");
+        assert!(
+            confirm_canonical_qa_paths(photos_s, project_s, evidence_s, data_s, prefix_s).is_none(),
+            "photos symlink to $HOME must be rejected"
+        );
+        let _ = fs::remove_dir_all(&prefix);
+    }
+
+    #[test]
     fn default_capabilities_allow_qa_write_evidence_without_fs_or_shell() {
         let text = include_str!("../capabilities/default.json");
         assert!(
-            text.contains("allow-qa-write-evidence"),
-            "explicit ACL required: {text}"
+            !text.contains("allow-qa-write-evidence"),
+            "QA ACL must not be on default/preview: {text}"
         );
         assert!(!text.contains("fs:"));
         assert!(!text.contains("shell:"));
+        let qa_text = include_str!("../capabilities/qa.json");
+        assert!(
+            qa_text.contains("allow-qa-write-evidence"),
+            "explicit ACL required: {qa_text}"
+        );
+        assert!(qa_text.contains("\"main\""), "QA ACL is main-only: {qa_text}");
+        assert!(
+            !qa_text.contains("\"preview\""),
+            "QA ACL must not include preview: {qa_text}"
+        );
+        assert!(!qa_text.contains("fs:"));
+        assert!(!qa_text.contains("shell:"));
         let permission = include_str!("../permissions/qa.toml");
         assert!(permission.contains("identifier = \"allow-qa-write-evidence\""));
         assert!(permission.contains("qa_write_evidence"));

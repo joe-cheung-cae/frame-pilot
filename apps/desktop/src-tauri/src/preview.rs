@@ -170,6 +170,23 @@ mod tests {
             !text.contains("opener:default"),
             "must not grant opener:default"
         );
+        assert!(
+            !text.contains("allow-qa-write-evidence"),
+            "QA ACL must not be on default/preview: {text}"
+        );
+        let qa_text = include_str!("../capabilities/qa.json");
+        assert!(
+            qa_text.contains("\"main\""),
+            "QA capability is main-only: {qa_text}"
+        );
+        assert!(
+            !qa_text.contains("\"preview\""),
+            "QA capability must not include preview: {qa_text}"
+        );
+        assert!(
+            qa_text.contains("allow-qa-write-evidence"),
+            "QA ACL lives on qa.json: {qa_text}"
+        );
     }
 
     #[test]
