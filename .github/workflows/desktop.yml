@@ -335,7 +335,7 @@ jobs:
             echo "No DMG found under apps/desktop/src-tauri/target/release/bundle/dmg" >&2
             exit 1
           fi
-          bash packaging/scripts/desktop-quit-job-gui.sh --count 30 --installer "${dmgs[0]}"
+          bash packaging/scripts/desktop-quit-job-gui.sh --count 500 --installer "${dmgs[0]}"
 
       - name: Upload packaged macOS quit+job matrix evidence
         if: always() && runner.os == 'macOS'

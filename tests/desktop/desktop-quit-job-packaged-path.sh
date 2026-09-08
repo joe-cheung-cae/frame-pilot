@@ -50,8 +50,8 @@ if ! grep -F -q 'quit-export' "$shipped"; then
   exit 1
 fi
 
-if ! grep -F -q 'COUNT=30' "$shipped" && ! grep -E -q 'COUNT:-30|--count 30' "$shipped"; then
-  echo "default corpus must be 30 JPEGs" >&2
+if ! grep -F -q 'COUNT=500' "$shipped" && ! grep -E -q 'COUNT:-500|--count 500' "$shipped"; then
+  echo "default corpus must be 500 JPEGs so processing stays cancellable" >&2
   exit 1
 fi
 

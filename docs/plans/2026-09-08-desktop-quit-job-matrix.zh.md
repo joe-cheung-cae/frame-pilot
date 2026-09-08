@@ -33,7 +33,7 @@
 9. **不改 `APP_VERSION`。** 窗口标题仍是 `FramePilot`。版本仍是 `2.1.0-desktop`。
 10. **本残留不签名。** 不声称 Gatekeeper 干净或商店上架。
 11. **草稿前缀：** `$HOME/.cache/framepilot-desktop-quit-job`（`chmod 700`）。QA 照片不要放 `/tmp`。同级目录：`photos/`、`project/`、`data/`、`evidence/`（可选 `app/`）。失败关闭的前缀门必须接受此前缀，并继续接受 #179 的 `framepilot-desktop-500-gui`。
-12. **30** 张生成的 3000×2000 q88 JPEG，让导入/分组/导出足够久以弹出对话。若 GHA 仍抢先 `complete`，提高 harness 张数——不要在生产代码里加 sleep。
+12. **500** 张生成的 3000×2000 q88 JPEG，让导入/分组/导出足够久以便取消。GHA [34227247641](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34227247641) 上 30 张分组在 cancel 发出时已经是 `complete`（HTTP 200，不是 202）。不要在生产代码里加 sleep。
 13. **Keep working / Quit anyway** 仍由 Rust 单元测试覆盖。包装证据仍须在点 Cancel 之前记录三个按钮都在。
 14. **Windows 不是本残留的勾选项。** 不要重开 #144。
 15. **代码、注释、测试、提交说明用英文。** 活文档双语。
@@ -52,9 +52,9 @@
 - [ ] 上线 — 调度 `desktop.yml`；仅当四行 Darwin 都是 `result=pass` 才勾活文档
 - [ ] DoD-ticked
 
-**上线阻塞（2026-09-08）：** [desktop.yml run 34209655915](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34209655915)（`095505a`）：quit-clean `pass`；quit-import `fail`（`quit dialog did not appear`）。sidecar 日志在 import 之后没有 `GET /api/projects` —— GHA 上 `osascript quit` 会直接终止进程，不走 `ExitRequested` / `handle_close_requested`。Skip ≠ pass。不要伪造 Darwin 通过。
+**上线阻塞（2026-09-08）：** [desktop.yml run 34227247641](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34227247641)（`adf06da`）：quit-clean `pass`；quit-import `pass`；quit-processing `fail`（`job did not end cancelled` —— 30 张分组在 cancel 时已是 `complete`，HTTP 200）。Skip ≠ pass。不要伪造 Darwin 通过。
 
-Path B 立即调用 `qa_request_close` 的修复之后请重新调度：
+把 harness 提到 500 张之后请重新调度：
 
 ```bash
 gh workflow run desktop.yml --ref cursor/desktop-quit-job-matrix-186e
