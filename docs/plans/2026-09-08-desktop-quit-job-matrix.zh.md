@@ -52,6 +52,14 @@
 - [ ] 上线 — 调度 `desktop.yml`；仅当四行 Darwin 都是 `result=pass` 才勾活文档
 - [ ] DoD-ticked
 
+**上线阻塞（2026-09-08）：** 本代理的 `gh` token（`cursor` GitHub App）对 `workflow_dispatch` 返回 HTTP 403。`5cb9034` 上的 `verify.yml` 已绿。本分支没有 `desktop.yml` run。Skip ≠ pass。不要伪造 Darwin 通过。
+
+需要 Joe（或任何带 Actions write 的 token）执行：
+
+```bash
+gh workflow run desktop.yml --ref cursor/desktop-quit-job-matrix-186e
+```
+
 开发阶段不要勾 `docs/desktop_development_plan.md` §5.6 退出+作业行，也不要重勾 §2.2 安装并运行 / ≥500。
 
 ---

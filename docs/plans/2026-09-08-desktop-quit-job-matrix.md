@@ -52,6 +52,14 @@ Leftover packaged macOS quit+job matrix
 - [ ] 上线 — dispatch `desktop.yml`; tick living docs only if all four Darwin rows are `result=pass`
 - [ ] DoD-ticked
 
+**上线 blocker (2026-09-08):** this agent's `gh` token (`cursor` GitHub App) gets HTTP 403 on `workflow_dispatch`. `verify.yml` on `5cb9034` is green. No `desktop.yml` run exists on this branch. Skip ≠ pass. Do **not** invent a Darwin pass.
+
+Joe (or any token with Actions write) must run:
+
+```bash
+gh workflow run desktop.yml --ref cursor/desktop-quit-job-matrix-186e
+```
+
 Do **not** tick `docs/desktop_development_plan.md` §5.6 quit+job row or §2.2 install+run / ≥500 in 开发.
 
 ---
