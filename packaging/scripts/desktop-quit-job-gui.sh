@@ -10,7 +10,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WIDTH=3000
 HEIGHT=2000
 QUALITY=88
-COUNT=30
+COUNT=500
 MODE=""
 INSTALLER=""
 RESULT="fail"
@@ -907,8 +907,8 @@ run_row() {
         FAIL_REASON="${row}: leftover framepilot-api LISTEN"
         return 1
       fi
-      if ! verify_job_cancelled "$(jsonl_field "$running_ms" "job_id")"; then
-        FAIL_REASON="${row}: job did not end cancelled"
+      if ! job_cancel_msg="$(verify_job_cancelled "$(jsonl_field "$running_ms" "job_id")" 2>&1)"; then
+        FAIL_REASON="${row}: job did not end cancelled${job_cancel_msg:+ (${job_cancel_msg})}"
         return 1
       fi
       if [[ "$row" == "quit-processing" ]] && ! verify_groups_cleared; then

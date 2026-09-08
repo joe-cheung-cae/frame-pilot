@@ -33,7 +33,7 @@ Do **not** invent Phase 10 / S10 / 2.3. Product stays `2.1.0-desktop`. Do not bu
 9. **No `APP_VERSION` bump.** Window title stays `FramePilot`. Version stays `2.1.0-desktop`.
 10. **Do not sign** in this leftover. Do not claim Gatekeeper-clean or store listing.
 11. **Scratch prefix:** `$HOME/.cache/framepilot-desktop-quit-job` (`chmod 700`). Never `/tmp` for QA photos. Siblings: `photos/`, `project/`, `data/`, `evidence/` (optional `app/`). Fail-closed prefix gate must accept this prefix **and** keep the #179 `framepilot-desktop-500-gui` prefix.
-12. **30** generated 3000×2000 q88 JPEGs so import/processing/export stay active long enough for the dialog. If a GHA row races to `complete`, raise the harness count — do not add production sleeps.
+12. **500** generated 3000×2000 q88 JPEGs so import/processing/export stay active long enough for cancel. GHA [34227247641](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34227247641) showed 30-photo processing already `complete` when cancel posted (HTTP 200, not 202). Do not add production sleeps.
 13. **Stay / Quit anyway** stay Rust unit-tested. Packaged evidence must still record all three dialog buttons before the Cancel click.
 14. **Windows is not this leftover’s tick.** Do not reopen #144.
 15. **English** for code, comments, tests, commits. **Bilingual** living docs.
@@ -52,9 +52,9 @@ Leftover packaged macOS quit+job matrix
 - [ ] 上线 — dispatch `desktop.yml`; tick living docs only if all four Darwin rows are `result=pass`
 - [ ] DoD-ticked
 
-**上线 blocker (2026-09-08):** [desktop.yml run 34209655915](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34209655915) (`095505a`): quit-clean `pass`; quit-import `fail` (`quit dialog did not appear`). Sidecar log has no `GET /api/projects` after import — GHA `osascript quit` terminated the process without `ExitRequested` / `handle_close_requested`. Skip ≠ pass. Do **not** invent a Darwin pass.
+**上线 blocker (2026-09-08):** [desktop.yml run 34227247641](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34227247641) (`adf06da`): quit-clean `pass`; quit-import `pass`; quit-processing `fail` (`job did not end cancelled` — cancel HTTP 200 because the 30-photo job was already `complete`). Skip ≠ pass. Do **not** invent a Darwin pass.
 
-Re-dispatch after the Path B immediate `qa_request_close` fix:
+Re-dispatch after the 500-photo harness raise:
 
 ```bash
 gh workflow run desktop.yml --ref cursor/desktop-quit-job-matrix-186e
