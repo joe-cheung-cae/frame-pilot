@@ -48,7 +48,7 @@
 
 - [x] 需求拆解 — 双语残留计划 + GitHub issue [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
 - [x] 开发 — Path B 退出模式 + harness + `desktop.yml` macOS 步骤
-- [ ] 测试 — Linux skip-not-pass + `npm run verify`
+- [x] 测试 — Linux skip-not-pass + `npm run verify`
 - [ ] 上线 — 调度 `desktop.yml`；仅当四行 Darwin 都是 `result=pass` 才勾活文档
 - [ ] DoD-ticked
 
