@@ -18,9 +18,14 @@ const {
   DESKTOP_QA_IMPORT_BATCH_SIZE,
   applyDesktopQaBootstrap,
   parseDesktopQaBootstrap,
+  parseDesktopQaMode,
   qaFailLine,
   readDesktopQaConfig,
+  readQuitDialog,
+  clickQuitDialogChoice,
+  jobStatusIsActive,
   runDesktopQa,
+  runDesktopQaQuitMatrix,
   cullLocationFields,
   getDesktopQaCullHref,
   hashPush,
@@ -265,6 +270,7 @@ test("readDesktopQaConfig is a no-op without desktop main QA object", async () =
     {
       photos: "/home/a/.cache/framepilot-desktop-500-gui/photos",
       project: "/home/a/.cache/framepilot-desktop-500-gui/project",
+      mode: "cull",
     },
   );
 });
@@ -284,6 +290,7 @@ test("parseDesktopQaBootstrap requires photos, project, and api_base", () => {
       project: "/home/a/.cache/framepilot-desktop-500-gui/project",
       evidence: "/home/a/.cache/framepilot-desktop-500-gui/evidence",
       api_base: "http://127.0.0.1:18000",
+      mode: "cull",
     },
   );
 });
@@ -306,6 +313,7 @@ test("applyDesktopQaBootstrap makes isolated page globals readable by readDeskto
   assert.deepEqual(readDesktopQaConfig(win), {
     photos: "/home/a/.cache/framepilot-desktop-500-gui/photos",
     project: "/home/a/.cache/framepilot-desktop-500-gui/project",
+    mode: "cull",
   });
   assert.equal(
     applyDesktopQaBootstrap(
@@ -407,6 +415,7 @@ test("runDesktopQa calls registerDesktopProjectRoot and importPhotosFromPaths", 
     config: {
       photos: "/home/a/.cache/framepilot-desktop-500-gui/photos",
       project: "/home/a/.cache/framepilot-desktop-500-gui/project",
+      mode: "cull",
     },
     now: () => "2026-09-07T00:00:00.000Z",
     sleep: async () => {},
@@ -489,6 +498,7 @@ test("runDesktopQa pushes cull through the registered React navigate", async () 
         config: {
           photos: "/home/a/.cache/framepilot-desktop-500-gui/photos",
           project: "/home/a/.cache/framepilot-desktop-500-gui/project",
+          mode: "cull",
         },
         now: () => "2026-09-07T00:00:00.000Z",
         sleep: async () => {},
@@ -552,6 +562,7 @@ test("runDesktopQa mounts CullingWorkspace through the window-registered setStat
         config: {
           photos: "/home/a/.cache/framepilot-desktop-500-gui/photos",
           project: "/home/a/.cache/framepilot-desktop-500-gui/project",
+          mode: "cull",
         },
         now: () => "2026-09-07T00:00:00.000Z",
         sleep: async () => {},
@@ -718,4 +729,355 @@ test("startDesktopQaFromWindow is a no-op on the preview window", async () => {
     push: () => undefined,
   });
   assert.equal(started, false);
+});
+
+test("parseDesktopQaMode accepts quit-matrix modes and defaults to cull", () => {
+  assert.equal(parseDesktopQaMode("quit-clean"), "quit-clean");
+  assert.equal(parseDesktopQaMode("quit-import"), "quit-import");
+  assert.equal(parseDesktopQaMode("quit-processing"), "quit-processing");
+  assert.equal(parseDesktopQaMode("quit-export"), "quit-export");
+  assert.equal(parseDesktopQaMode("cull"), "cull");
+  assert.equal(parseDesktopQaMode("other"), "cull");
+  assert.equal(parseDesktopQaMode(undefined), "cull");
+});
+
+test("jobStatusIsActive is true only for queued running interrupted", () => {
+  assert.equal(jobStatusIsActive("queued"), true);
+  assert.equal(jobStatusIsActive("running"), true);
+  assert.equal(jobStatusIsActive("interrupted"), true);
+  assert.equal(jobStatusIsActive("complete"), false);
+  assert.equal(jobStatusIsActive("cancelled"), false);
+});
+
+test("readQuitDialog and clickQuitDialogChoice read #framepilot-quit-dialog", () => {
+  const clicks: string[] = [];
+  const overlay = {
+    querySelector(selector: string) {
+      if (selector === "h2") {
+        return { textContent: "Import is still running" };
+      }
+      return null;
+    },
+    querySelectorAll() {
+      return [
+        { getAttribute: () => "stay" },
+        { getAttribute: () => "cancel_and_quit" },
+        { getAttribute: () => "quit_anyway" },
+      ];
+    },
+  };
+  const root = {
+    getElementById(id: string) {
+      return id === "framepilot-quit-dialog" ? overlay : null;
+    },
+  };
+  assert.deepEqual(readQuitDialog(root), {
+    title: "Import is still running",
+    buttons: ["stay", "cancel_and_quit", "quit_anyway"],
+  });
+  const clickable = {
+    querySelector(selector: string) {
+      if (String(selector).includes("cancel_and_quit")) {
+        return {
+          click() {
+            clicks.push("cancel_and_quit");
+          },
+        };
+      }
+      return null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+  };
+  const previousHTMLElement = (globalThis as { HTMLElement?: typeof HTMLElement }).HTMLElement;
+  class FakeElement {
+    click() {
+      clicks.push("cancel_and_quit");
+    }
+  }
+  (globalThis as { HTMLElement: typeof FakeElement }).HTMLElement = FakeElement;
+  try {
+    const clicked = clickQuitDialogChoice("cancel_and_quit", {
+      getElementById(id: string) {
+        return id === "framepilot-quit-dialog"
+          ? {
+              querySelector(selector: string) {
+                if (String(selector).includes("cancel_and_quit")) {
+                  return new FakeElement();
+                }
+                return null;
+              },
+            }
+          : null;
+      },
+    });
+    assert.equal(clicked, true);
+    assert.deepEqual(clicks, ["cancel_and_quit"]);
+    assert.equal(clickable.querySelector("h2"), null);
+  } finally {
+    if (previousHTMLElement === undefined) {
+      delete (globalThis as { HTMLElement?: typeof HTMLElement }).HTMLElement;
+    } else {
+      (globalThis as { HTMLElement: typeof HTMLElement }).HTMLElement = previousHTMLElement;
+    }
+  }
+});
+
+function quitMatrixApi(calls: string[], importStatus: "queued" | "running" | "complete" = "running") {
+  return {
+    getHealth: async () => {
+      calls.push("getHealth");
+      return { status: "ok", version: "2.1.0-desktop", service: "framepilot-api" };
+    },
+    getSettings: async () => {
+      calls.push("getSettings");
+      return { import_workers: 1 };
+    },
+    registerDesktopProjectRoot: async (path: string) => {
+      calls.push(`registerDesktopProjectRoot:${path}`);
+      return { path };
+    },
+    createProject: async (name: string, rootPath?: string) => {
+      calls.push(`createProject:${name}:${rootPath ?? ""}`);
+      return { id: "proj-1" };
+    },
+    importPhotosFromPaths: async (projectId: string, paths: readonly string[]) => {
+      calls.push(`importPhotosFromPaths:${projectId}:${paths.join(",")}`);
+      return {
+        accepted_files: 30,
+        skipped_files: 0,
+        expanded_total: 30,
+        job: { id: "import-1", status: importStatus, job_type: "import" },
+      };
+    },
+    processProject: async (projectId: string) => {
+      calls.push(`processProject:${projectId}`);
+      return { id: "process-1", status: "running" as const, error_message: null };
+    },
+    getJob: async (projectId: string, jobId: string) => {
+      calls.push(`getJob:${projectId}:${jobId}`);
+      if (jobId.startsWith("import") || jobId.startsWith("process")) {
+        return {
+          id: jobId,
+          status: "complete" as const,
+          job_type: jobId.startsWith("import") ? "import" : "processing",
+          error_message: null,
+        };
+      }
+      return { id: jobId, status: "running" as const, job_type: "export", error_message: null };
+    },
+    listPhotos: async () => [{ id: "photo-1" }],
+    batchUpdatePhotos: async () => {
+      calls.push("batchUpdatePhotos");
+      return [];
+    },
+    exportSelection: async () => {
+      calls.push("exportSelection");
+      return { id: "export-1", status: "running" as const };
+    },
+  };
+}
+
+test("runDesktopQaQuitMatrix quit-clean writes idle and done without starting a job", async () => {
+  const calls: string[] = [];
+  const evidence: string[] = [];
+  await runDesktopQaQuitMatrix({
+    api: quitMatrixApi(calls),
+    writeEvidence: async (line) => {
+      evidence.push(line);
+    },
+    config: {
+      photos: "/home/a/.cache/framepilot-desktop-quit-job/photos",
+      project: "/home/a/.cache/framepilot-desktop-quit-job/project",
+      mode: "quit-clean",
+    },
+    mode: "quit-clean",
+    now: () => "2026-09-08T00:00:00.000Z",
+    sleep: async () => {},
+  });
+  assert.equal(calls.includes("getHealth"), true);
+  assert.equal(
+    calls.some((call) => call.startsWith("importPhotosFromPaths:")),
+    false,
+  );
+  const milestones = evidence.map((line) => JSON.parse(line) as { milestone: string; row?: string });
+  assert.equal(
+    milestones.some((row) => row.milestone === "idle"),
+    true,
+  );
+  assert.equal(
+    milestones.some((row) => row.milestone === "done" && row.row === "quit-clean"),
+    true,
+  );
+});
+
+test("runDesktopQaQuitMatrix quit-import writes import_running and clicks cancel_and_quit", async () => {
+  const calls: string[] = [];
+  const evidence: string[] = [];
+  const dialog = {
+    title: "Import is still running",
+    buttons: ["stay", "cancel_and_quit", "quit_anyway"],
+  };
+  const clicked: string[] = [];
+  await runDesktopQaQuitMatrix({
+    api: quitMatrixApi(calls),
+    writeEvidence: async (line) => {
+      evidence.push(line);
+    },
+    config: {
+      photos: "/home/a/.cache/framepilot-desktop-quit-job/photos",
+      project: "/home/a/.cache/framepilot-desktop-quit-job/project",
+      mode: "quit-import",
+    },
+    mode: "quit-import",
+    now: () => "2026-09-08T00:00:00.000Z",
+    sleep: async () => {},
+    queryQuitDialog: () => dialog,
+    clickQuitChoice: (choice) => {
+      clicked.push(choice);
+      return true;
+    },
+  });
+  assert.equal(
+    calls.includes("importPhotosFromPaths:proj-1:/home/a/.cache/framepilot-desktop-quit-job/photos"),
+    true,
+  );
+  assert.equal(calls.includes("processProject:proj-1"), false);
+  assert.deepEqual(clicked, ["cancel_and_quit"]);
+  const milestones = evidence.map(
+    (line) => JSON.parse(line) as { milestone: string; title?: string; buttons?: string[]; choice?: string },
+  );
+  assert.equal(
+    milestones.some((row) => row.milestone === "import_running"),
+    true,
+  );
+  const dialogLine = milestones.find((row) => row.milestone === "quit_dialog");
+  assert.equal(dialogLine?.title, "Import is still running");
+  assert.deepEqual(dialogLine?.buttons, ["stay", "cancel_and_quit", "quit_anyway"]);
+  assert.equal(
+    milestones.some((row) => row.milestone === "quit_choice" && row.choice === "cancel_and_quit"),
+    true,
+  );
+});
+
+test("runDesktopQaQuitMatrix quit-processing writes process_running without waiting for process complete", async () => {
+  const calls: string[] = [];
+  const evidence: string[] = [];
+  await runDesktopQaQuitMatrix({
+    api: quitMatrixApi(calls),
+    writeEvidence: async (line) => {
+      evidence.push(line);
+    },
+    config: {
+      photos: "/home/a/.cache/framepilot-desktop-quit-job/photos",
+      project: "/home/a/.cache/framepilot-desktop-quit-job/project",
+      mode: "quit-processing",
+    },
+    mode: "quit-processing",
+    now: () => "2026-09-08T00:00:00.000Z",
+    sleep: async () => {},
+    queryQuitDialog: () => ({
+      title: "Grouping and ranking is still running",
+      buttons: ["stay", "cancel_and_quit", "quit_anyway"],
+    }),
+    clickQuitChoice: () => true,
+  });
+  assert.equal(calls.includes("processProject:proj-1"), true);
+  assert.equal(calls.includes("exportSelection"), false);
+  const milestones = evidence.map((line) => JSON.parse(line) as { milestone: string });
+  assert.equal(
+    milestones.some((row) => row.milestone === "import_complete"),
+    true,
+  );
+  assert.equal(
+    milestones.some((row) => row.milestone === "process_running"),
+    true,
+  );
+  assert.equal(
+    milestones.some((row) => row.milestone === "process_complete"),
+    false,
+  );
+});
+
+test("runDesktopQaQuitMatrix quit-export writes export_running and does not require preview naturalWidth", async () => {
+  const calls: string[] = [];
+  const evidence: string[] = [];
+  await runDesktopQaQuitMatrix({
+    api: quitMatrixApi(calls),
+    writeEvidence: async (line) => {
+      evidence.push(line);
+    },
+    config: {
+      photos: "/home/a/.cache/framepilot-desktop-quit-job/photos",
+      project: "/home/a/.cache/framepilot-desktop-quit-job/project",
+      mode: "quit-export",
+    },
+    mode: "quit-export",
+    now: () => "2026-09-08T00:00:00.000Z",
+    sleep: async () => {},
+    queryQuitDialog: () => ({
+      title: "Export is still running",
+      buttons: ["stay", "cancel_and_quit", "quit_anyway"],
+    }),
+    clickQuitChoice: () => true,
+  });
+  assert.equal(calls.includes("batchUpdatePhotos"), true);
+  assert.equal(calls.includes("exportSelection"), true);
+  const milestones = evidence.map((line) => JSON.parse(line) as { milestone: string });
+  assert.equal(
+    milestones.some((row) => row.milestone === "export_running"),
+    true,
+  );
+  assert.equal(
+    milestones.some((row) => row.milestone === "first_preview"),
+    false,
+  );
+});
+
+test("startDesktopQaFromWindow dispatches quit-import instead of the cull preview path", async () => {
+  const calls: string[] = [];
+  const evidence: string[] = [];
+  const fakeApi = quitMatrixApi(calls);
+  const started = await startDesktopQaFromWindow({
+    win: {
+      __FRAMEPILOT_DESKTOP__: true,
+      __FRAMEPILOT_WINDOW__: "main",
+      __FRAMEPILOT_DESKTOP_QA__: {
+        photos: "/home/a/.cache/framepilot-desktop-quit-job/photos",
+        project: "/home/a/.cache/framepilot-desktop-quit-job/project",
+        mode: "quit-import",
+      },
+    },
+    api: fakeApi,
+    writeEvidence: async (line) => {
+      evidence.push(line);
+    },
+    push: (href) => {
+      calls.push(`push:${href}`);
+    },
+    queryPreviewImages: () => {
+      throw new Error("quit-import must not wait for /previews/ naturalWidth");
+    },
+    now: () => "2026-09-08T00:00:00.000Z",
+    sleep: async () => {},
+    queryQuitDialog: () => ({
+      title: "Import is still running",
+      buttons: ["stay", "cancel_and_quit", "quit_anyway"],
+    }),
+    clickQuitChoice: () => true,
+  });
+  assert.equal(started, true);
+  assert.equal(
+    calls.some((call) => call.startsWith("push:")),
+    false,
+  );
+  assert.equal(
+    evidence.some((line) => line.includes('"milestone":"import_running"')),
+    true,
+  );
+  assert.equal(
+    evidence.some((line) => line.includes('"milestone":"cull_push"')),
+    false,
+  );
 });

@@ -47,7 +47,7 @@ Do **not** invent Phase 10 / S10 / 2.3. Product stays `2.1.0-desktop`. Do not bu
 Leftover packaged macOS quit+job matrix
 
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
-- [ ] 开发 — Path B quit modes + harness + `desktop.yml` macOS step
+- [x] 开发 — Path B quit modes + harness + `desktop.yml` macOS step
 - [ ] 测试 — Linux skip-not-pass + `npm run verify`
 - [ ] 上线 — dispatch `desktop.yml`; tick living docs only if all four Darwin rows are `result=pass`
 - [ ] DoD-ticked

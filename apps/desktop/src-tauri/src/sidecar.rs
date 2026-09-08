@@ -1287,6 +1287,7 @@ mod tests {
             photos: "/home/alex/.cache/framepilot-desktop-500-gui/photos".into(),
             project: "/home/alex/.cache/framepilot-desktop-500-gui/project".into(),
             evidence: "/home/alex/.cache/framepilot-desktop-500-gui/evidence".into(),
+            mode: None,
         };
         let main_without = initialization_script_for_window_with_qa(4242, "main", None);
         assert!(
