@@ -6,7 +6,7 @@
 
 **Branch:** `cursor/desktop-quit-job-windows-7bb0` from `origin/main` @ `cf79b1829c9f22e52431bec971c1040b8f0ffae4`. Isolation worktree is false. Do not checkout `main` for commits. Do not merge to `main`. Do not squash. Do not force-push.
 
-**Related:** `develop_plan.md` §1.1; `docs/desktop_development_plan.md` §2.2 and §5.6; `docs/desktop_testing.md`; `.github/workflows/desktop.yml`. macOS leftover plan: [2026-09-08-desktop-quit-job-matrix.md](2026-09-08-desktop-quit-job-matrix.md).
+**Related:** `develop_plan.md` §1.1; `docs/desktop_development_plan.md` §2.2 and §5.6; `docs/desktop_testing.md`; `.github/workflows/desktop.yml`. macOS leftover plan: [2026-09-08-desktop-quit-job-matrix.md](2026-09-08-desktop-quit-job-matrix.md). Draft PR [#185](https://github.com/joe-cheung-cae/frame-pilot/pull/185).
 
 ---
 

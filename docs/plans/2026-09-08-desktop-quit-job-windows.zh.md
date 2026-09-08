@@ -6,7 +6,7 @@
 
 **分支：** 从 `origin/main` @ `cf79b1829c9f22e52431bec971c1040b8f0ffae4` 建 `cursor/desktop-quit-job-windows-7bb0`。`isolation_worktree` 为 false。不要为了提交切回 `main`。不要合进 `main`。不要 squash。不要 force-push。
 
-**相关：** `develop_plan.zh.md` §1.1；`docs/desktop_development_plan.zh.md` §2.2 与 §5.6；`docs/desktop_testing.zh.md`；`.github/workflows/desktop.yml`。macOS 残留计划：[2026-09-08-desktop-quit-job-matrix.zh.md](2026-09-08-desktop-quit-job-matrix.zh.md)。
+**相关：** `develop_plan.zh.md` §1.1；`docs/desktop_development_plan.zh.md` §2.2 与 §5.6；`docs/desktop_testing.zh.md`；`.github/workflows/desktop.yml`。macOS 残留计划：[2026-09-08-desktop-quit-job-matrix.zh.md](2026-09-08-desktop-quit-job-matrix.zh.md)。草稿 PR [#185](https://github.com/joe-cheung-cae/frame-pilot/pull/185)。
 
 ---
 
