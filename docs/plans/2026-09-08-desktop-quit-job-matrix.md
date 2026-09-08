@@ -48,7 +48,7 @@ Leftover packaged macOS quit+job matrix
 
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
 - [x] 开发 — Path B quit modes + harness + `desktop.yml` macOS step
-- [ ] 测试 — Linux skip-not-pass + `npm run verify`
+- [x] 测试 — Linux skip-not-pass + `npm run verify`
 - [ ] 上线 — dispatch `desktop.yml`; tick living docs only if all four Darwin rows are `result=pass`
 - [ ] DoD-ticked
 
