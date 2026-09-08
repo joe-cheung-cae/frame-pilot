@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 残留 — 包装 macOS 退出+作业矩阵
+
+- 四行 Darwin `result=pass`（[desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)，`8658e14`，`2026-09-08T13:26:18Z`）：Quit clean、Quit+导入、Quit+分组排序、Quit+导出
+- Path B 启动作业；生产 `handle_close_requested`；**Quit and cancel**；原生选文件夹对话框 stub；500 张 JPEG 3000×2000 q88；`originals_unchanged=true`；`APP_VERSION=2.1.0-desktop`
+- 勾 `docs/desktop_development_plan.md` §5.6 退出+作业行：残留 [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) + run URL；不要重勾 §2.2
+- S9.12 skip（[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)）以及残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) 作为历史保留
+- 不改 `APP_VERSION`，不声称 Gatekeeper 干净或商店上架，无第十阶段
+
 ### 残留 — 无人值守包装桌面 ≥500 GUI
 
 - 双平台 500 `result=pass`（[desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835)，`b2fe1ff`）：包装 WebView from-paths + 审片预览（**原生对话框 stub**）；`accepted_files=500`；3000×2000 q88；`APP_VERSION=2.1.0-desktop`

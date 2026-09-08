@@ -6,7 +6,7 @@
 
 **分支：** 从 `origin/main` @ `d75a8dc` 建 `cursor/desktop-quit-job-matrix-186e`。`isolation_worktree` 为 false。不要为了提交切回 `main`。不要合进 `main`。不要 squash。不要 force-push。
 
-**相关：** `develop_plan.zh.md` §1.1；`docs/desktop_development_plan.zh.md` §2.2 与 §5.6；`docs/desktop_testing.zh.md`；`.github/workflows/desktop.yml`。
+**相关：** `develop_plan.zh.md` §1.1；`docs/desktop_development_plan.zh.md` §2.2 与 §5.6；`docs/desktop_testing.zh.md`；`.github/workflows/desktop.yml`。实现已合入 [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182)。
 
 ---
 
@@ -14,7 +14,7 @@
 
 第九阶段 remaining-stretch 已在 `main` 关闭（[#174](https://github.com/joe-cheung-cae/frame-pilot/pull/174)）。缓存旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）、双平台安装并运行（[#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)）、包装桌面 ≥500 GUI（[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)）已交付。
 
-`develop_plan.md` §1.1 仍把 **完整包装 macOS 退出+作业矩阵** 列为未排期。[#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) 只认 **安装并运行**。[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) S9.12 仍是 **skip，不是 pass**。[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) 仍是 Windows-only 历史（Quit clean / Quit+导入；分组/导出退出对话是后来加的）。
+本残留开始时 `develop_plan.md` §1.1 仍把 **完整包装 macOS 退出+作业矩阵** 列为未排期。[#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) 只认 **安装并运行**。[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) S9.12 仍是 **skip，不是 pass**。[#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) 仍是 Windows-only 历史（Quit clean / Quit+导入；分组/导出退出对话是后来加的）。本残留后来经 [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182) 合入 `main`，再加本上线文档戳。
 
 不要发明第十阶段 / S10 / 2.3。产品仍是 `2.1.0-desktop`。不升 `APP_VERSION`。
 
@@ -49,18 +49,10 @@
 - [x] 需求拆解 — 双语残留计划 + GitHub issue [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
 - [x] 开发 — Path B 退出模式 + harness + `desktop.yml` macOS 步骤
 - [x] 测试 — Linux skip-not-pass + `npm run verify`
-- [ ] 上线 — 调度 `desktop.yml`；仅当四行 Darwin 都是 `result=pass` 才勾活文档
-- [ ] DoD-ticked
+- [x] 上线 — [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)（`8658e14`，`2026-09-08T13:26:18Z`）四行 Darwin `result=pass`；实现已合入 [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182)（仅 `Refs`）；本上线文档戳使用 `Fixes` [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
+- [x] DoD-ticked — 残留板上线 + `docs/desktop_development_plan.md` §5.6 退出+作业 `[x]` 带 run URL；**不要**重勾 §2.2
 
-**上线阻塞（2026-09-08）：** [desktop.yml run 34227247641](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34227247641)（`adf06da`）：quit-clean `pass`；quit-import `pass`；quit-processing `fail`（`job did not end cancelled` —— 30 张分组在 cancel 时已是 `complete`，HTTP 200）。Skip ≠ pass。不要伪造 Darwin 通过。
-
-把 harness 提到 500 张之后请重新调度：
-
-```bash
-gh workflow run desktop.yml --ref cursor/desktop-quit-job-matrix-186e
-```
-
-开发阶段不要勾 `docs/desktop_development_plan.md` §5.6 退出+作业行，也不要重勾 §2.2 安装并运行 / ≥500。
+失败的 Darwin 记录作为历史保留：[34209655915](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34209655915)（`osascript` 在 `quit_dialog` 前退出）；[34227247641](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34227247641)（30 张分组已是 `complete`）。Skip ≠ pass。不要再伪造 Darwin 通过。
 
 ---
 

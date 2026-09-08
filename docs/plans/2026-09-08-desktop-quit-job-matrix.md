@@ -6,7 +6,7 @@
 
 **Branch:** `cursor/desktop-quit-job-matrix-186e` from `origin/main` @ `d75a8dc` (`fix(desktop): harden Path B QA ACL, milestone allowlist, and canonicalize`). Isolation worktree is false. Do not checkout `main` for commits. Do not merge to `main`. Do not squash. Do not force-push.
 
-**Related:** `develop_plan.md` §1.1; `docs/desktop_development_plan.md` §2.2 and §5.6; `docs/desktop_testing.md`; `.github/workflows/desktop.yml`.
+**Related:** `develop_plan.md` §1.1; `docs/desktop_development_plan.md` §2.2 and §5.6; `docs/desktop_testing.md`; `.github/workflows/desktop.yml`. Implementation merged as [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182).
 
 ---
 
@@ -14,7 +14,7 @@
 
 Phase 9 remaining-stretch is closed on `main` ([#174](https://github.com/joe-cheung-cae/frame-pilot/pull/174)). Cache knobs ([#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)), dual-platform install+run ([#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)), and packaged-desktop ≥500 GUI ([#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)) shipped.
 
-`develop_plan.md` §1.1 still lists **full packaged macOS quit+job matrix** as unscheduled. [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) claimed **install+run only**. [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) S9.12 stays **skip, not pass**. [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) stays Windows-only history (Quit clean / Quit+import; processing/export quit dialogs shipped later).
+`develop_plan.md` §1.1 listed **full packaged macOS quit+job matrix** as unscheduled when this leftover started. [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) claimed **install+run only**. [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) S9.12 stays **skip, not pass**. [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) stays Windows-only history (Quit clean / Quit+import; processing/export quit dialogs shipped later). This leftover later shipped on `main` via [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182) plus this 上线 docs stamp.
 
 Do **not** invent Phase 10 / S10 / 2.3. Product stays `2.1.0-desktop`. Do not bump `APP_VERSION`.
 
@@ -49,18 +49,10 @@ Leftover packaged macOS quit+job matrix
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
 - [x] 开发 — Path B quit modes + harness + `desktop.yml` macOS step
 - [x] 测试 — Linux skip-not-pass + `npm run verify`
-- [ ] 上线 — dispatch `desktop.yml`; tick living docs only if all four Darwin rows are `result=pass`
-- [ ] DoD-ticked
+- [x] 上线 — [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750) (`8658e14`, `2026-09-08T13:26:18Z`) four Darwin rows `result=pass`; implementation merged as [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182) (`Refs` only); this 上线 docs stamp uses `Fixes` [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
+- [x] DoD-ticked — leftover-plan 上线 + `docs/desktop_development_plan.md` §5.6 quit+job `[x]` with the run URL; do **not** re-tick §2.2
 
-**上线 blocker (2026-09-08):** [desktop.yml run 34227247641](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34227247641) (`adf06da`): quit-clean `pass`; quit-import `pass`; quit-processing `fail` (`job did not end cancelled` — cancel HTTP 200 because the 30-photo job was already `complete`). Skip ≠ pass. Do **not** invent a Darwin pass.
-
-Re-dispatch after the 500-photo harness raise:
-
-```bash
-gh workflow run desktop.yml --ref cursor/desktop-quit-job-matrix-186e
-```
-
-Do **not** tick `docs/desktop_development_plan.md` §5.6 quit+job row or §2.2 install+run / ≥500 in 开发.
+Failed Darwin oracles stay history: [34209655915](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34209655915) (`osascript` quit before `quit_dialog`); [34227247641](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34227247641) (30-photo processing already `complete`). Skip ≠ pass. Do **not** invent a later Darwin pass.
 
 ---
 
