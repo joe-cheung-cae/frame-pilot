@@ -135,6 +135,37 @@ if ! grep -F -q 'CloseMainWindow' "$shipped"; then
   exit 1
 fi
 
+if ! grep -F -q "Get-Process -Name" "$shipped"; then
+  echo "Windows process probe must use Get-Process -Name (Git Bash tasklist is UTF-16)" >&2
+  exit 1
+fi
+
+if ! grep -E -q '^dump_leftover_listen_diagnostics\(\)|dump_leftover_listen_diagnostics \(\)' "$shipped"; then
+  echo "harness is missing dump_leftover_listen_diagnostics" >&2
+  exit 1
+fi
+
+if ! python3 - "$shipped" <<'PY'
+from pathlib import Path
+import sys
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = text.find("dump_leftover_listen_diagnostics()")
+if start < 0:
+    raise SystemExit("dump_leftover_listen_diagnostics missing")
+chunk = text[start:]
+win = chunk.find("windows)")
+star = chunk.find("*)", win)
+if win < 0 or star < 0:
+    raise SystemExit("dump_leftover_listen_diagnostics missing windows/* branches")
+if "lsof" in chunk[win:star]:
+    raise SystemExit("Windows leftover diagnostics must not call lsof")
+PY
+then
+  echo "Windows leftover diagnostics must not call lsof" >&2
+  exit 1
+fi
+
 if ! grep -E -q '^parse_windows_listen\(\)|parse_windows_listen \(\)' "$shipped"; then
   echo "harness is missing parse_windows_listen" >&2
   exit 1
@@ -171,6 +202,27 @@ set -e
 if [[ "$listen_status" -ne 0 || "$listen_port" != "14198" ]]; then
   echo "expected Windows LISTEN parser to return 14198 for framepilot-api.exe, got: ${listen_port}" >&2
   cat "$tmpdir/listen.err" >&2 || true
+  exit 1
+fi
+
+python3 - "$tmpdir/tasklist-utf16.txt" <<'PY'
+from pathlib import Path
+import sys
+
+Path(sys.argv[1]).write_text(
+    "Image Name                     PID Session Name        Session#    Mem Usage\n"
+    "========================= ======== ================ =========== ============\n"
+    "framepilot-api.exe             44316 Console                    1     12,345 K\n",
+    encoding="utf-16",
+)
+PY
+set +e
+utf16_port="$(bash "$shipped" --parse-windows-listen "$tmpdir/netstat.txt" "$tmpdir/tasklist-utf16.txt" 2>"$tmpdir/listen-utf16.err")"
+utf16_status=$?
+set -e
+if [[ "$utf16_status" -ne 0 || "$utf16_port" != "14198" ]]; then
+  echo "expected UTF-16 tasklist LISTEN parser to return 14198, got: ${utf16_port}" >&2
+  cat "$tmpdir/listen-utf16.err" >&2 || true
   exit 1
 fi
 
