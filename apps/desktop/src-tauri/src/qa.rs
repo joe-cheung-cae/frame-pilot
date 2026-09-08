@@ -30,6 +30,8 @@ const QA_ALLOWED_MILESTONES: &[&str] = &[
     "process_complete",
     "process_running",
     "export_running",
+    "close_requested",
+    "close_request_failed",
     "cull_push",
     "cull_workspace",
     "first_preview",

@@ -131,6 +131,9 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   assert.match(runnerSource, /__FRAMEPILOT_DESKTOP_QA_CULL_HREF__/);
   assert.match(runnerSource, /framepilot-qa-cull-href/);
   assert.match(runnerSource, /cullLocationFields/);
+  assert.match(runnerSource, /invoke\("qa_request_close"\)/);
+  assert.match(runnerSource, /close_requested/);
+  assert.equal(runnerSource.includes("1500"), false);
   assert.equal(DESKTOP_QA_IMPORT_BATCH_SIZE, 100);
   const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
   assert.match(appSource, /MemoryRouter/);
@@ -959,6 +962,48 @@ test("runDesktopQaQuitMatrix quit-import writes import_running and clicks cancel
     milestones.some((row) => row.milestone === "quit_choice" && row.choice === "cancel_and_quit"),
     true,
   );
+});
+
+test("runDesktopQaQuitMatrix quit-import requests production close immediately", async () => {
+  const evidence: string[] = [];
+  const closeCalls: number[] = [];
+  let dialogVisible = false;
+  await runDesktopQaQuitMatrix({
+    api: quitMatrixApi([]),
+    writeEvidence: async (line) => {
+      evidence.push(line);
+    },
+    config: {
+      photos: "/home/a/.cache/framepilot-desktop-quit-job/photos",
+      project: "/home/a/.cache/framepilot-desktop-quit-job/project",
+      mode: "quit-import",
+    },
+    mode: "quit-import",
+    now: () => "2026-09-08T00:00:00.000Z",
+    sleep: async () => {},
+    requestClose: async () => {
+      closeCalls.push(Date.now());
+      dialogVisible = true;
+    },
+    queryQuitDialog: () =>
+      dialogVisible
+        ? {
+            title: "Import is still running",
+            buttons: ["stay", "cancel_and_quit", "quit_anyway"],
+          }
+        : null,
+    clickQuitChoice: () => true,
+  });
+  assert.equal(closeCalls.length, 1);
+  const milestones = evidence.map((line) => JSON.parse(line) as { milestone: string });
+  const runningAt = milestones.findIndex((row) => row.milestone === "import_running");
+  const closeAt = milestones.findIndex((row) => row.milestone === "close_requested");
+  const dialogAt = milestones.findIndex((row) => row.milestone === "quit_dialog");
+  assert.equal(runningAt >= 0, true);
+  assert.equal(closeAt >= 0, true);
+  assert.equal(dialogAt >= 0, true);
+  assert.equal(closeAt > runningAt, true);
+  assert.equal(dialogAt > closeAt, true);
 });
 
 test("runDesktopQaQuitMatrix quit-processing writes process_running without waiting for process complete", async () => {
