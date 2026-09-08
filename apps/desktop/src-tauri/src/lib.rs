@@ -174,6 +174,28 @@ fn handle_close_requested(window: tauri::Window, state: Arc<SidecarState>, port:
 }
 
 #[tauri::command]
+fn qa_request_close(app: tauri::AppHandle) -> Result<(), String> {
+    let enabled = app
+        .try_state::<qa::DesktopQaState>()
+        .is_some_and(|state| state.enabled);
+    qa::require_qa_enabled(enabled)?;
+    let Some(webview) = app.get_webview_window("main") else {
+        return Err("main window is missing".into());
+    };
+    let window = webview.as_ref().window();
+    let Some(state) = app.try_state::<Arc<SidecarState>>() else {
+        return Err("sidecar state is not configured".into());
+    };
+    let port = app
+        .try_state::<preview::PreviewHost>()
+        .map(|host| host.port)
+        .ok_or_else(|| "preview host is not configured".to_string())?;
+    let sidecar = Arc::clone(&state);
+    thread::spawn(move || handle_close_requested(window, sidecar, port));
+    Ok(())
+}
+
+#[tauri::command]
 fn apply_data_directory(app: tauri::AppHandle, path: String) -> Result<String, String> {
     let new_dir = PathBuf::from(&path);
     if !new_dir.is_absolute() {
@@ -326,6 +348,7 @@ pub fn run() {
             apply_data_directory,
             qa::qa_write_evidence,
             qa::qa_bootstrap,
+            qa_request_close,
         ])
         .manage(Arc::clone(&state))
         .manage(DesktopPaths::new(data_dir.clone()))

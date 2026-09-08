@@ -6,8 +6,11 @@ import {
   assetUrl,
   IMPORT_UPLOAD_BATCH_SIZE,
   type AppSettings,
+  type ExportRecord,
   type HealthStatus,
   type ImportResult,
+  type Photo,
+  type PhotoPatch,
   type ProcessingJob,
   type Project,
 } from "../../../web/src/lib/api.ts";
@@ -17,10 +20,16 @@ export const DESKTOP_QA_IMPORT_BATCH_SIZE = IMPORT_UPLOAD_BATCH_SIZE;
 export const DESKTOP_QA_IMPORT_TIMEOUT_MS = 25 * 60 * 1000;
 export const DESKTOP_QA_PROCESS_TIMEOUT_MS = 10 * 60 * 1000;
 export const DESKTOP_QA_PREVIEW_TIMEOUT_MS = 60 * 1000;
+export const DESKTOP_QA_QUIT_DIALOG_TIMEOUT_MS = 60 * 1000;
+export const DESKTOP_QA_QUIT_MODES = ["quit-clean", "quit-import", "quit-processing", "quit-export"] as const;
+
+export type DesktopQaQuitMode = (typeof DESKTOP_QA_QUIT_MODES)[number];
+export type DesktopQaMode = "cull" | DesktopQaQuitMode;
 
 export type DesktopQaConfig = {
   photos: string;
   project: string;
+  mode: DesktopQaMode;
 };
 
 export type DesktopQaBootstrap = {
@@ -28,6 +37,7 @@ export type DesktopQaBootstrap = {
   project: string;
   evidence?: string;
   api_base: string;
+  mode?: DesktopQaMode;
 };
 
 export type DesktopQaApi = {
@@ -44,6 +54,18 @@ export type DesktopQaApi = {
     projectId: string,
     jobId: string,
   ) => Promise<Pick<ProcessingJob, "id" | "status" | "job_type" | "error_message">>;
+  listPhotos?: (projectId: string) => Promise<Array<Pick<Photo, "id">>>;
+  batchUpdatePhotos?: (projectId: string, photoIds: string[], patch: PhotoPatch) => Promise<unknown>;
+  exportSelection?: (
+    projectId: string,
+    mode: "csv" | "folder" | "zip",
+    statuses: string[],
+  ) => Promise<Pick<ExportRecord, "id" | "status">>;
+};
+
+export type QuitDialogSnapshot = {
+  title: string;
+  buttons: string[];
 };
 
 export type RunDesktopQaOptions = {
@@ -100,6 +122,18 @@ export function qaFailLine(now: string, error: unknown): string {
   });
 }
 
+export function parseDesktopQaMode(value: unknown): DesktopQaMode {
+  if (
+    value === "quit-clean" ||
+    value === "quit-import" ||
+    value === "quit-processing" ||
+    value === "quit-export"
+  ) {
+    return value;
+  }
+  return "cull";
+}
+
 export function readDesktopQaConfig(win: QaWindow | undefined): DesktopQaConfig | null {
   if (!win || win.__FRAMEPILOT_DESKTOP__ !== true || win.__FRAMEPILOT_WINDOW__ !== "main") {
     return null;
@@ -108,13 +142,13 @@ export function readDesktopQaConfig(win: QaWindow | undefined): DesktopQaConfig 
   if (!qa || typeof qa !== "object") {
     return null;
   }
-  const record = qa as { photos?: unknown; project?: unknown };
+  const record = qa as { photos?: unknown; project?: unknown; mode?: unknown };
   const photos = typeof record.photos === "string" ? record.photos.trim() : "";
   const project = typeof record.project === "string" ? record.project.trim() : "";
   if (!photos || !project) {
     return null;
   }
-  return { photos, project };
+  return { photos, project, mode: parseDesktopQaMode(record.mode) };
 }
 
 export function parseDesktopQaBootstrap(value: unknown): DesktopQaBootstrap | null {
@@ -126,6 +160,7 @@ export function parseDesktopQaBootstrap(value: unknown): DesktopQaBootstrap | nu
     project?: unknown;
     evidence?: unknown;
     api_base?: unknown;
+    mode?: unknown;
   };
   const photos = typeof record.photos === "string" ? record.photos.trim() : "";
   const project = typeof record.project === "string" ? record.project.trim() : "";
@@ -134,7 +169,7 @@ export function parseDesktopQaBootstrap(value: unknown): DesktopQaBootstrap | nu
   if (!photos || !project || !apiBase) {
     return null;
   }
-  return { photos, project, evidence, api_base: apiBase };
+  return { photos, project, evidence, api_base: apiBase, mode: parseDesktopQaMode(record.mode) };
 }
 
 export function applyDesktopQaBootstrap(
@@ -154,6 +189,7 @@ export function applyDesktopQaBootstrap(
     photos: boot.photos,
     project: boot.project,
     evidence: boot.evidence,
+    mode: parseDesktopQaMode(boot.mode),
   };
   return true;
 }
@@ -468,7 +504,61 @@ export type StartDesktopQaOptions = {
   sleep?: (ms: number) => Promise<void>;
   signal?: AbortSignal;
   readBootstrap?: () => Promise<unknown>;
+  requestClose?: () => Promise<unknown>;
+  queryQuitDialog?: () => QuitDialogSnapshot | null;
+  clickQuitChoice?: (choice: string) => boolean;
 };
+
+export type RunDesktopQaQuitOptions = {
+  api: DesktopQaApi;
+  writeEvidence: (line: string) => Promise<unknown>;
+  config: DesktopQaConfig;
+  mode: DesktopQaQuitMode;
+  now?: () => string;
+  sleep?: (ms: number) => Promise<void>;
+  signal?: AbortSignal;
+  requestClose?: () => Promise<unknown>;
+  queryQuitDialog?: () => QuitDialogSnapshot | null;
+  clickQuitChoice?: (choice: string) => boolean;
+  dialogTimeoutMs?: number;
+};
+
+export function jobStatusIsActive(status: string): boolean {
+  return status === "queued" || status === "running" || status === "interrupted";
+}
+
+export function readQuitDialog(
+  root?: { getElementById?: (id: string) => Element | null } | null,
+): QuitDialogSnapshot | null {
+  const doc = root ?? (typeof document === "undefined" ? null : document);
+  const overlay = doc?.getElementById?.("framepilot-quit-dialog");
+  if (!overlay) {
+    return null;
+  }
+  const title = overlay.querySelector("h2")?.textContent?.trim() ?? "";
+  const buttons = Array.from(overlay.querySelectorAll("[data-choice]"))
+    .map((node) => node.getAttribute("data-choice")?.trim() ?? "")
+    .filter(Boolean);
+  return { title, buttons };
+}
+
+export function clickQuitDialogChoice(
+  choice: string,
+  root?: { getElementById?: (id: string) => Element | null } | null,
+): boolean {
+  const doc = root ?? (typeof document === "undefined" ? null : document);
+  const overlay = doc?.getElementById?.("framepilot-quit-dialog");
+  const button = overlay?.querySelector(`[data-choice="${choice}"], [data-choice=${choice}]`);
+  if (!(button instanceof HTMLElement)) {
+    return false;
+  }
+  button.click();
+  return true;
+}
+
+function defaultRequestClose(): Promise<unknown> {
+  return invoke("qa_request_close");
+}
 
 function defaultWindow(): QaWindow | undefined {
   return typeof window === "undefined" ? undefined : window;
@@ -507,18 +597,34 @@ export async function startDesktopQaFromWindow(options: StartDesktopQaOptions): 
     getSettings: () => withTimeout(productionApi.getSettings(), 15_000, "GET /api/settings timed out after 15s"),
   };
   try {
-    await runDesktopQa({
-      api,
-      writeEvidence,
-      push: options.push,
-      queryPreviewImages:
-        options.queryPreviewImages ??
-        (() => (typeof document === "undefined" ? [] : Array.from(document.querySelectorAll("img")))),
-      config,
-      now,
-      sleep: options.sleep,
-      signal: options.signal,
-    });
+    const mode = parseDesktopQaMode(config.mode);
+    if (mode !== "cull") {
+      await runDesktopQaQuitMatrix({
+        api,
+        writeEvidence,
+        config: { ...config, mode },
+        mode,
+        now,
+        sleep: options.sleep,
+        signal: options.signal,
+        requestClose: options.requestClose,
+        queryQuitDialog: options.queryQuitDialog,
+        clickQuitChoice: options.clickQuitChoice,
+      });
+    } else {
+      await runDesktopQa({
+        api,
+        writeEvidence,
+        push: options.push,
+        queryPreviewImages:
+          options.queryPreviewImages ??
+          (() => (typeof document === "undefined" ? [] : Array.from(document.querySelectorAll("img")))),
+        config,
+        now,
+        sleep: options.sleep,
+        signal: options.signal,
+      });
+    }
   } catch (error: unknown) {
     if (!options.signal?.aborted) {
       console.error("FramePilot desktop QA runner failed", error);
@@ -586,6 +692,172 @@ async function waitForPreview(
   throw new Error(
     `culling preview img did not reach naturalWidth > 0 (imgs=${images.length}, previews=${previewCount})`,
   );
+}
+
+async function waitAndClickQuitCancel(options: {
+  writeEvidence: (line: string) => Promise<unknown>;
+  now: () => string;
+  sleep: (ms: number) => Promise<void>;
+  signal?: AbortSignal;
+  requestClose?: () => Promise<unknown>;
+  queryQuitDialog?: () => QuitDialogSnapshot | null;
+  clickQuitChoice?: (choice: string) => boolean;
+  timeoutMs: number;
+  expectedTitle?: string;
+}): Promise<QuitDialogSnapshot> {
+  const query = options.queryQuitDialog ?? (() => readQuitDialog());
+  const click = options.clickQuitChoice ?? ((choice: string) => clickQuitDialogChoice(choice));
+  const deadline = Date.now() + options.timeoutMs;
+  let askedClose = false;
+  while (Date.now() < deadline) {
+    throwIfAborted(options.signal);
+    const dialog = query();
+    if (dialog) {
+      if (options.expectedTitle && dialog.title !== options.expectedTitle) {
+        throw new Error(`quit dialog title ${dialog.title} != ${options.expectedTitle}`);
+      }
+      const missing = ["stay", "cancel_and_quit", "quit_anyway"].filter(
+        (choice) => !dialog.buttons.includes(choice),
+      );
+      if (missing.length > 0) {
+        throw new Error(`quit dialog missing buttons: ${missing.join(",")}`);
+      }
+      await writeMilestone(options.writeEvidence, "quit_dialog", options.now, {
+        title: dialog.title,
+        buttons: dialog.buttons,
+      });
+      if (!click("cancel_and_quit")) {
+        throw new Error("quit dialog cancel button was not clickable");
+      }
+      await writeMilestone(options.writeEvidence, "quit_choice", options.now, {
+        choice: "cancel_and_quit",
+      });
+      return dialog;
+    }
+    if (!askedClose && Date.now() + options.timeoutMs - deadline >= 1500) {
+      askedClose = true;
+      try {
+        await (options.requestClose ?? defaultRequestClose)();
+      } catch {
+        // Fail-closed when QA is off; keep waiting for a production dialog.
+      }
+    }
+    await options.sleep(100);
+  }
+  throw new Error("quit dialog did not appear");
+}
+
+async function ensureProject(api: DesktopQaApi, config: DesktopQaConfig): Promise<string> {
+  await api.registerDesktopProjectRoot(config.project);
+  const project = await api.createProject("desktop-quit-job", config.project);
+  return project.id;
+}
+
+export async function runDesktopQaQuitMatrix(options: RunDesktopQaQuitOptions): Promise<void> {
+  const api = options.api;
+  const sleep = options.sleep ?? defaultSleep;
+  const now = options.now ?? (() => new Date().toISOString());
+  const dialogTimeoutMs = options.dialogTimeoutMs ?? DESKTOP_QA_QUIT_DIALOG_TIMEOUT_MS;
+  throwIfAborted(options.signal);
+  await api.getHealth();
+  const settings = await api.getSettings();
+  const importWorkers =
+    Number.isFinite(settings.import_workers) && settings.import_workers > 0 ? settings.import_workers : 1;
+  await writeMilestone(options.writeEvidence, "idle", now, { import_workers: importWorkers, mode: options.mode });
+
+  if (options.mode === "quit-clean") {
+    await writeMilestone(options.writeEvidence, "done", now, { row: "quit-clean" });
+    return;
+  }
+
+  const projectId = await ensureProject(api, options.config);
+  let runningMilestone: "import_running" | "process_running" | "export_running" = "import_running";
+  let expectedTitle = "Import is still running";
+  let jobId = "";
+  let jobType = "import";
+
+  if (options.mode === "quit-import") {
+    const importResult = await api.importPhotosFromPaths(projectId, [options.config.photos]);
+    jobId = importResult.job?.id ?? "";
+    jobType = importResult.job?.job_type ?? "import";
+    if (!jobId) {
+      throw new Error("import did not return a job id");
+    }
+    if (importResult.job?.status && !jobStatusIsActive(importResult.job.status)) {
+      throw new Error(`import job already ${importResult.job.status}; raise harness photo count`);
+    }
+    runningMilestone = "import_running";
+    expectedTitle = "Import is still running";
+  } else {
+    const importResult = await api.importPhotosFromPaths(projectId, [options.config.photos]);
+    if (importResult.job?.id) {
+      await waitForJob(api, projectId, importResult.job.id, DESKTOP_QA_IMPORT_TIMEOUT_MS, sleep, options.signal);
+    }
+    await writeMilestone(options.writeEvidence, "import_complete", now, {
+      accepted_files: importResult.accepted_files,
+    });
+    if (options.mode === "quit-processing") {
+      const processJob = await api.processProject(projectId);
+      jobId = processJob.id;
+      jobType = "processing";
+      if (!jobId) {
+        throw new Error("process did not return a job id");
+      }
+      if (processJob.status && !jobStatusIsActive(processJob.status) && processJob.status !== "complete") {
+        throw new Error(`process job already ${processJob.status}; raise harness photo count`);
+      }
+      if (processJob.status === "complete") {
+        throw new Error("process job already complete; raise harness photo count");
+      }
+      runningMilestone = "process_running";
+      expectedTitle = "Grouping and ranking is still running";
+    } else {
+      const processJob = await api.processProject(projectId);
+      if (processJob.id && processJob.status !== "complete") {
+        await waitForJob(api, projectId, processJob.id, DESKTOP_QA_PROCESS_TIMEOUT_MS, sleep, options.signal);
+      }
+      await writeMilestone(options.writeEvidence, "process_complete", now);
+      const photos = await (api.listPhotos ?? ((id: string) => productionApi.listAllPhotos(id)))(projectId);
+      const photoIds = photos.map((photo) => photo.id);
+      if (photoIds.length < 1) {
+        throw new Error("export row needs at least one photo");
+      }
+      await (api.batchUpdatePhotos ?? productionApi.batchUpdatePhotos)(projectId, photoIds, {
+        user_status: "Pick",
+      });
+      const exported = await (api.exportSelection ?? productionApi.exportSelection)(projectId, "zip", ["Pick"]);
+      jobId = exported.id;
+      jobType = "export";
+      if (exported.status && !jobStatusIsActive(exported.status)) {
+        throw new Error(`export job already ${exported.status}; raise harness photo count`);
+      }
+      runningMilestone = "export_running";
+      expectedTitle = "Export is still running";
+    }
+  }
+
+  await writeMilestone(options.writeEvidence, runningMilestone, now, {
+    project_id: projectId,
+    job_id: jobId,
+    job_type: jobType,
+  });
+  await waitAndClickQuitCancel({
+    writeEvidence: options.writeEvidence,
+    now,
+    sleep,
+    signal: options.signal,
+    requestClose: options.requestClose,
+    queryQuitDialog: options.queryQuitDialog,
+    clickQuitChoice: options.clickQuitChoice,
+    timeoutMs: dialogTimeoutMs,
+    expectedTitle,
+  });
+  await writeMilestone(options.writeEvidence, "done", now, {
+    row: options.mode,
+    project_id: projectId,
+    job_id: jobId,
+    job_type: jobType,
+  });
 }
 
 export async function runDesktopQa(options: RunDesktopQaOptions): Promise<void> {

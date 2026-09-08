@@ -8,8 +8,11 @@ const QA_FLAG: &str = "FRAMEPILOT_DESKTOP_QA";
 const QA_PHOTOS: &str = "FRAMEPILOT_DESKTOP_QA_PHOTOS";
 const QA_PROJECT: &str = "FRAMEPILOT_DESKTOP_QA_PROJECT";
 const QA_EVIDENCE: &str = "FRAMEPILOT_DESKTOP_QA_EVIDENCE";
+const QA_MODE: &str = "FRAMEPILOT_DESKTOP_QA_MODE";
 const DATA_DIR_ENV: &str = "FRAMEPILOT_DATA_DIR";
-const SCRATCH_DIR_NAME: &str = "framepilot-desktop-500-gui";
+const SCRATCH_DIR_500: &str = "framepilot-desktop-500-gui";
+const SCRATCH_DIR_QUIT: &str = "framepilot-desktop-quit-job";
+const SCRATCH_DIR_NAMES: &[&str] = &[SCRATCH_DIR_500, SCRATCH_DIR_QUIT];
 const MILESTONES_FILE: &str = "milestones.jsonl";
 const QA_ALLOWED_MILESTONES: &[&str] = &[
     "host_window",
@@ -23,10 +26,15 @@ const QA_ALLOWED_MILESTONES: &[&str] = &[
     "qa_runner_mounted",
     "idle",
     "import_complete",
+    "import_running",
     "process_complete",
+    "process_running",
+    "export_running",
     "cull_push",
     "cull_workspace",
     "first_preview",
+    "quit_dialog",
+    "quit_choice",
     "done",
     "fail",
 ];
@@ -36,6 +44,8 @@ pub struct DesktopQaPayload {
     pub photos: String,
     pub project: String,
     pub evidence: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -44,6 +54,8 @@ pub struct DesktopQaBootstrap {
     pub project: String,
     pub evidence: String,
     pub api_base: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -202,24 +214,57 @@ fn confirm_canonical_qa_paths(
         photos,
         project,
         evidence,
+        mode: None,
     })
 }
 
-pub fn qa_scratch_prefix_from_env() -> Option<String> {
+fn qa_mode_from_raw(raw: Option<&str>) -> Option<String> {
+    let value = raw?.trim();
+    match value {
+        "cull" | "quit-clean" | "quit-import" | "quit-processing" | "quit-export" => {
+            Some(value.to_string())
+        }
+        _ => None,
+    }
+}
+
+pub fn qa_scratch_prefixes_from_env() -> Vec<String> {
     if cfg!(windows) {
-        let local = std::env::var("LOCALAPPDATA").ok()?;
+        let Ok(local) = std::env::var("LOCALAPPDATA") else {
+            return Vec::new();
+        };
         let trimmed = local.trim_end_matches(['\\', '/']);
         if trimmed.is_empty() {
-            return None;
+            return Vec::new();
         }
-        Some(format!(r"{trimmed}\{SCRATCH_DIR_NAME}"))
+        SCRATCH_DIR_NAMES
+            .iter()
+            .map(|name| format!(r"{trimmed}\{name}"))
+            .collect()
     } else {
-        let home = std::env::var("HOME").ok()?;
+        let Ok(home) = std::env::var("HOME") else {
+            return Vec::new();
+        };
         let trimmed = home.trim_end_matches('/');
         if trimmed.is_empty() {
-            return None;
+            return Vec::new();
         }
-        Some(format!("{trimmed}/.cache/{SCRATCH_DIR_NAME}"))
+        SCRATCH_DIR_NAMES
+            .iter()
+            .map(|name| format!("{trimmed}/.cache/{name}"))
+            .collect()
+    }
+}
+
+pub fn qa_scratch_prefix_from_env() -> Option<String> {
+    qa_scratch_prefixes_from_env().into_iter().next()
+}
+
+pub fn require_qa_enabled(enabled: bool) -> Result<(), String> {
+    if enabled {
+        Ok(())
+    } else {
+        Err("qa request close is disabled".into())
     }
 }
 
@@ -248,31 +293,44 @@ pub fn resolve_desktop_qa(input: DesktopQaEnv<'_>) -> Option<DesktopQaPayload> {
         photos: photos.to_string(),
         project: project.to_string(),
         evidence: evidence.to_string(),
+        mode: None,
     })
 }
 
 pub fn resolve_desktop_qa_from_env() -> Option<DesktopQaPayload> {
-    let prefix = qa_scratch_prefix_from_env()?;
+    let prefixes = qa_scratch_prefixes_from_env();
+    if prefixes.is_empty() {
+        return None;
+    }
     let qa_flag = std::env::var(QA_FLAG).ok();
     let photos = std::env::var(QA_PHOTOS).ok();
     let project = std::env::var(QA_PROJECT).ok();
     let evidence = std::env::var(QA_EVIDENCE).ok();
     let data_dir = std::env::var(DATA_DIR_ENV).ok();
-    let payload = resolve_desktop_qa(DesktopQaEnv {
-        qa_flag: qa_flag.as_deref(),
-        photos: photos.as_deref(),
-        project: project.as_deref(),
-        evidence: evidence.as_deref(),
-        data_dir: data_dir.as_deref(),
-        prefix: &prefix,
-    })?;
-    confirm_canonical_qa_paths(
-        &payload.photos,
-        &payload.project,
-        &payload.evidence,
-        data_dir.as_deref()?.trim(),
-        &prefix,
-    )
+    let mode = qa_mode_from_raw(std::env::var(QA_MODE).ok().as_deref());
+    for prefix in &prefixes {
+        let Some(payload) = resolve_desktop_qa(DesktopQaEnv {
+            qa_flag: qa_flag.as_deref(),
+            photos: photos.as_deref(),
+            project: project.as_deref(),
+            evidence: evidence.as_deref(),
+            data_dir: data_dir.as_deref(),
+            prefix,
+        }) else {
+            continue;
+        };
+        if let Some(mut confirmed) = confirm_canonical_qa_paths(
+            &payload.photos,
+            &payload.project,
+            &payload.evidence,
+            data_dir.as_deref()?.trim(),
+            prefix,
+        ) {
+            confirmed.mode = mode;
+            return Some(confirmed);
+        }
+    }
+    None
 }
 
 pub fn load_desktop_qa_state(api_base: Option<String>) -> DesktopQaState {
@@ -306,6 +364,7 @@ pub fn qa_bootstrap_payload(state: &DesktopQaState) -> Option<DesktopQaBootstrap
         project: payload.project.clone(),
         evidence: payload.evidence.clone(),
         api_base: api_base.to_string(),
+        mode: payload.mode.clone(),
     })
 }
 
@@ -411,10 +470,7 @@ pub fn write_qa_evidence_line(
 }
 
 #[tauri::command]
-pub fn qa_write_evidence(
-    state: tauri::State<DesktopQaState>,
-    line: String,
-) -> Result<(), String> {
+pub fn qa_write_evidence(state: tauri::State<DesktopQaState>, line: String) -> Result<(), String> {
     write_qa_evidence_line(state.enabled, state.evidence_path.as_deref(), &line)
 }
 
@@ -513,6 +569,57 @@ mod tests {
     }
 
     #[test]
+    fn qa_gate_accepts_quit_job_prefix_siblings() {
+        let prefix = "/home/alex/.cache/framepilot-desktop-quit-job";
+        let payload = resolve_desktop_qa(posix_env(
+            "1",
+            &format!("{prefix}/photos"),
+            &format!("{prefix}/project"),
+            &format!("{prefix}/evidence"),
+            &format!("{prefix}/data"),
+            prefix,
+        ))
+        .expect("quit-job siblings under prefix");
+        assert_eq!(payload.photos, format!("{prefix}/photos"));
+        assert_eq!(payload.mode, None);
+        assert_eq!(
+            qa_mode_from_raw(Some("quit-import")).as_deref(),
+            Some("quit-import")
+        );
+        assert_eq!(qa_mode_from_raw(Some("unknown")), None);
+    }
+
+    #[test]
+    fn qa_request_close_is_denied_when_qa_is_off() {
+        assert!(require_qa_enabled(false).is_err());
+        assert!(require_qa_enabled(true).is_ok());
+    }
+
+    #[test]
+    fn qa_scratch_prefixes_include_500_and_quit_job() {
+        let prefixes = qa_scratch_prefixes_from_env();
+        if prefixes.is_empty() {
+            return;
+        }
+        assert!(
+            prefixes
+                .iter()
+                .any(|prefix| prefix.ends_with("framepilot-desktop-500-gui")),
+            "500 prefix must stay allowed: {prefixes:?}"
+        );
+        assert!(
+            prefixes
+                .iter()
+                .any(|prefix| prefix.ends_with("framepilot-desktop-quit-job")),
+            "quit-job prefix must be allowed: {prefixes:?}"
+        );
+        assert_eq!(
+            qa_scratch_prefix_from_env().as_deref(),
+            prefixes.first().map(String::as_str)
+        );
+    }
+
+    #[test]
     fn qa_gate_accepts_windows_siblings_under_localappdata_prefix() {
         let prefix = r"C:\Users\runner\AppData\Local\framepilot-desktop-500-gui";
         let payload = resolve_desktop_qa(posix_env(
@@ -534,14 +641,14 @@ mod tests {
         let project = format!("{prefix}/project");
         let evidence = format!("{prefix}/evidence");
         let data = format!("{prefix}/data");
-        assert!(
-            resolve_desktop_qa(posix_env("true", &photos, &project, &evidence, &data, prefix))
-                .is_none()
-        );
-        assert!(
-            resolve_desktop_qa(posix_env("1", &photos, &project, &evidence, "/var/tmp", prefix))
-                .is_none()
-        );
+        assert!(resolve_desktop_qa(posix_env(
+            "true", &photos, &project, &evidence, &data, prefix
+        ))
+        .is_none());
+        assert!(resolve_desktop_qa(posix_env(
+            "1", &photos, &project, &evidence, "/var/tmp", prefix
+        ))
+        .is_none());
         assert!(resolve_desktop_qa(posix_env(
             "1",
             &format!("{prefix}/photos/../.."),
@@ -573,8 +680,12 @@ mod tests {
         let dest = dir.join(MILESTONES_FILE);
         let ok = r#"{"milestone":"idle","t":"2026-09-07T00:00:00Z"}"#;
         write_qa_evidence_line(true, Some(&dest), ok).expect("write");
-        write_qa_evidence_line(true, Some(&dest), r#"{"milestone":"done","t":"2026-09-07T00:00:01Z"}"#)
-            .expect("second write");
+        write_qa_evidence_line(
+            true,
+            Some(&dest),
+            r#"{"milestone":"done","t":"2026-09-07T00:00:01Z"}"#,
+        )
+        .expect("second write");
         let text = fs::read_to_string(&dest).expect("read jsonl");
         assert!(text.contains("\"milestone\":\"idle\""));
         assert!(text.contains("\"milestone\":\"done\""));
@@ -585,8 +696,12 @@ mod tests {
             "{\"milestone\":\"idle\",\"t\":\"a\nb\"}"
         )
         .is_err());
-        assert!(write_qa_evidence_line(true, Some(&dest), "[{\"milestone\":\"idle\",\"t\":\"1\"}]")
-            .is_err());
+        assert!(write_qa_evidence_line(
+            true,
+            Some(&dest),
+            "[{\"milestone\":\"idle\",\"t\":\"1\"}]"
+        )
+        .is_err());
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -596,8 +711,8 @@ mod tests {
         let dest = dir.join(MILESTONES_FILE);
         for milestone in ["unknown", "Idle", "DONE"] {
             let line = format!(r#"{{"milestone":"{milestone}","t":"2026-09-07T00:00:00Z"}}"#);
-            let err = write_qa_evidence_line(true, Some(&dest), &line)
-                .expect_err("unknown milestone");
+            let err =
+                write_qa_evidence_line(true, Some(&dest), &line).expect_err("unknown milestone");
             assert!(
                 err.contains("allowlisted"),
                 "reject message should mention allowlisted: {err}"
@@ -745,7 +860,10 @@ mod tests {
             qa_text.contains("allow-qa-write-evidence"),
             "explicit ACL required: {qa_text}"
         );
-        assert!(qa_text.contains("\"main\""), "QA ACL is main-only: {qa_text}");
+        assert!(
+            qa_text.contains("\"main\""),
+            "QA ACL is main-only: {qa_text}"
+        );
         assert!(
             !qa_text.contains("\"preview\""),
             "QA ACL must not include preview: {qa_text}"
@@ -759,6 +877,14 @@ mod tests {
             permission.contains("qa_bootstrap"),
             "page JS must be allowed to read the fail-closed QA payload over IPC: {permission}"
         );
+        assert!(
+            permission.contains("qa_request_close"),
+            "fail-closed close fallback must stay on the QA ACL: {permission}"
+        );
+        assert!(
+            !text.contains("qa_request_close") && !text.contains("allow-qa-"),
+            "QA commands must not be on default.json: {text}"
+        );
     }
 
     #[test]
@@ -767,6 +893,7 @@ mod tests {
         assert!(lib.contains("mod qa;"));
         assert!(lib.contains("qa_write_evidence"));
         assert!(lib.contains("qa_bootstrap"));
+        assert!(lib.contains("qa_request_close"));
         assert!(lib.contains("load_desktop_qa_state"));
         assert!(lib.contains("api_base_url(port)"));
     }
@@ -777,6 +904,7 @@ mod tests {
             photos: r"C:\Users\a\AppData\Local\framepilot-desktop-500-gui\photos".into(),
             project: r"C:\Users\a\AppData\Local\framepilot-desktop-500-gui\project".into(),
             evidence: r"C:\Users\a\AppData\Local\framepilot-desktop-500-gui\evidence".into(),
+            mode: Some("quit-import".into()),
         };
         let assignment = qa_init_script_assignment(&payload).expect("json");
         assert!(assignment.contains("window.__FRAMEPILOT_DESKTOP_QA__ = "));
@@ -790,7 +918,10 @@ mod tests {
     #[test]
     fn iso_utc_from_unix_secs_is_rfc3339_z() {
         assert_eq!(iso_utc_from_unix_secs(0), "1970-01-01T00:00:00Z");
-        assert_eq!(iso_utc_from_unix_secs(1_700_000_000), "2023-11-14T22:13:20Z");
+        assert_eq!(
+            iso_utc_from_unix_secs(1_700_000_000),
+            "2023-11-14T22:13:20Z"
+        );
     }
 
     #[test]
@@ -912,6 +1043,7 @@ mod tests {
             photos: "/home/alex/.cache/framepilot-desktop-500-gui/photos".into(),
             project: "/home/alex/.cache/framepilot-desktop-500-gui/project".into(),
             evidence: "/home/alex/.cache/framepilot-desktop-500-gui/evidence".into(),
+            mode: Some("cull".into()),
         };
         let off = DesktopQaState {
             enabled: false,
@@ -943,6 +1075,7 @@ mod tests {
             "/home/alex/.cache/framepilot-desktop-500-gui/project"
         );
         assert_eq!(boot.api_base, "http://127.0.0.1:4242");
+        assert_eq!(boot.mode.as_deref(), Some("cull"));
     }
 
     #[test]

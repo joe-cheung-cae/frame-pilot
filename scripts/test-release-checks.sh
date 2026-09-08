@@ -590,14 +590,15 @@ expect_success \
   ' '$repo_root/.github/workflows/desktop.yml'"
 
 expect_success \
-  "desktop.yml header allows DMG smoke and desktop-500-gui.sh, not verify.yml GUI" \
+  "desktop.yml header allows DMG smoke, desktop-500-gui.sh, and quit+job, not verify.yml GUI" \
   bash -c "awk '
     /^name:/ { after = 1 }
     !after && /macos-dmg-gui-smoke.sh/ { smoke = 1 }
     !after && /desktop-500-gui.sh/ { gui = 1 }
+    !after && /desktop-quit-job-gui.sh/ { quit = 1 }
     !after && /Do not launch the packaged NSIS GUI/ { old = 1 }
     !after && /verify.yml/ { verify = 1 }
-    END { exit (smoke && gui && verify && !old) ? 0 : 1 }
+    END { exit (smoke && gui && quit && verify && !old) ? 0 : 1 }
   ' '$repo_root/.github/workflows/desktop.yml'"
 
 expect_success \
@@ -626,6 +627,38 @@ expect_success \
   ' '$repo_root/packaging/scripts/macos-dmg-gui-smoke.sh'"
 
 expect_success \
+  "desktop.yml packaged quit+job matrix is a distinct macOS step after 500" \
+  bash -c "awk '
+    /id: gui500-macos/ { gm = NR }
+    /id: quit-job-macos/ { q = NR; in_q = 1 }
+    in_q && /^      - / && !/id: quit-job-macos/ { in_q = 0 }
+    in_q && /always\(\)/ { q_always = 1 }
+    in_q && /runner.os == .macOS./ { q_os = 1 }
+    in_q && /desktop-quit-job-gui.sh/ { q_script = 1 }
+    in_q && /macos-dmg-gui-smoke.sh/ { folded_177 = 1 }
+    in_q && /desktop-500-gui.sh/ { folded_179 = 1 }
+    /name: FramePilot-desktop-quit-job-macos/ { art = 1 }
+    /desktop-quit-job\\// { path = 1 }
+    END {
+      exit (gm && q > gm && q_always && q_os && q_script && art && path && !folded_177 && !folded_179) ? 0 : 1
+    }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "quit+job is not folded into #177/#179 scripts" \
+  bash -c "awk '
+    /desktop-quit-job-gui/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/packaging/scripts/macos-dmg-gui-smoke.sh' '$repo_root/packaging/scripts/desktop-500-gui.sh'"
+
+expect_success \
+  "verify.yml does not launch packaged quit+job GUI" \
+  bash -c "awk '
+    /desktop-quit-job-gui|macos-dmg-gui-smoke|hdiutil attach/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/.github/workflows/verify.yml'"
+
+expect_success \
   "verify.yml does not launch packaged DMG GUI smoke" \
   bash -c "awk '
     /macos-dmg-gui-smoke|hdiutil attach/ { found = 1 }
@@ -639,6 +672,14 @@ expect_success \
 expect_success \
   "Linux packaged desktop ≥500 GUI skip-not-pass host check" \
   bash tests/desktop/desktop-500-gui-linux.sh
+
+expect_success \
+  "Linux packaged macOS quit+job matrix skip-not-pass host check" \
+  bash tests/desktop/desktop-quit-job-linux.sh
+
+expect_success \
+  "shipped desktop-quit-job Path B four-launch packaged path" \
+  bash tests/desktop/desktop-quit-job-packaged-path.sh
 
 expect_success \
   "Windows-safe python discovery prefers Scripts/python.exe" \
