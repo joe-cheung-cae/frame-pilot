@@ -2,9 +2,9 @@
 
 > Language: **English** | [中文](desktop_development_plan.zh.md)
 
-> **Document version**: 1.7  
+> **Document version**: 1.8  
 > **Created**: 2026-08-18  
-> **Last reviewed**: 2026-09-08 (leftover Windows quit+job #184)  
+> **Last reviewed**: 2026-09-08 (leftover Windows quit+job #184 pass)  
 > **Goal**: Redesign and package the current local web app (v2.0.0-rc2) as installable Windows and macOS desktop apps  
 > **Repository**: https://github.com/joe-cheung-cae/frame-pilot  
 > **Related existing plan**: `develop_plan.md` already lists “Local desktop packaging with Tauri or Electron” as a stretch goal; this document productizes it.  
@@ -52,7 +52,7 @@ The current architecture is already “local process + local HTTP”, so it is a
 - [x] The desktop sidecar listens only on 127.0.0.1 and rejects non-loopback Host and unauthorized Origin
 - [x] User-chosen project root directories are accepted only after explicit authorization (see implementation plan D2.00)
 
-Out of scope for `2.1.0-desktop` (see §5.6): leftover 2.2 items Phase 9 shipped (detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10, tray S9.06) plus leftover cache knobs ([#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)), leftover packaged-desktop ≥500 GUI ([#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)), and leftover packaged macOS quit+job matrix ([#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)). Leftover packaged Windows quit+job matrix is leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) (do not re-tick this install+run / ≥500 / Darwin #181). Still deferred (unscheduled): auto-download/install, processing pool, full RAW develop, SmartScreen/store listing. Do not invent Phase 10 / 2.3.
+Out of scope for `2.1.0-desktop` (see §5.6): leftover 2.2 items Phase 9 shipped (detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10, tray S9.06) plus leftover cache knobs ([#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)), leftover packaged-desktop ≥500 GUI ([#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)), and leftover packaged macOS quit+job matrix ([#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)), and leftover packaged Windows quit+job matrix ([#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184), `2026-09-08T15:29:33Z`, [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)). Do not re-tick this install+run / ≥500 / Darwin #181. Still deferred (unscheduled): auto-download/install, processing pool, full RAW develop, SmartScreen/store listing. Do not invent Phase 10 / 2.3.
 
 ---
 
@@ -186,7 +186,7 @@ Leftover 2.2 items that Phase 9 shipped are retargeted to their S9 ids. Remainin
 | Packaged-desktop ≥500 GUI | leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) packaged WebView from-paths + culling preview (**native dialog stubbed**); both-OS 500 `result=pass` | leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) `[x]` |
 | Packaged macOS GUI pass | leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) **install+run** DoD `[x]` (`2026-09-07T09:34:57Z`); S9.12 skip stays history | leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) `[x]` install+run |
 | Packaged macOS quit+job matrix | leftover [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) four Darwin rows `result=pass` (`2026-09-08T13:26:18Z`, [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)) | leftover [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) `[x]` |
-| Packaged Windows quit+job matrix | leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) four Windows NSIS rows; Path B + production quit + **Quit and cancel**; do not reopen [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) | leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) |
+| Packaged Windows quit+job matrix | leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) four Windows rows `result=pass` (`2026-09-08T15:29:33Z`, [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)) | leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) `[x]` |
 
 If any of the above is skipped, it must be written into [docs/v2_known_limitations.md](v2_known_limitations.md) (D5.05).
 
@@ -468,6 +468,7 @@ Implementation-level task split and Goal Mode prompts (based on the 2026-08-18 r
 | 2026-09-07 | 1.5 | Leftover installer GUI DoD [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177): tick §2.2 install+run with Windows #144 + Darwin `2026-09-07T09:34:57Z`; full quit+job matrix still unscheduled |
 | 2026-09-08 | 1.6 | Leftover quit+job matrix [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181): tick §5.6 quit+job row with [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750); do not re-tick §2.2 |
 | 2026-09-08 | 1.7 | Leftover Windows quit+job matrix [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184): add §5.6 Windows row (unticked); do not re-tick §2.2 / ≥500 / Darwin #181 |
+| 2026-09-08 | 1.8 | Leftover Windows quit+job matrix [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184): tick §5.6 Windows row with [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942); do not re-tick §2.2 / ≥500 / Darwin #181 |
 
 ---
 

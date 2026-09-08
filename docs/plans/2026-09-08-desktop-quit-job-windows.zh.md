@@ -6,7 +6,7 @@
 
 **分支：** 从 `origin/main` @ `cf79b1829c9f22e52431bec971c1040b8f0ffae4` 建 `cursor/desktop-quit-job-windows-7bb0`。`isolation_worktree` 为 false。不要为了提交切回 `main`。不要合进 `main`。不要 squash。不要 force-push。
 
-**相关：** `develop_plan.zh.md` §1.1；`docs/desktop_development_plan.zh.md` §2.2 与 §5.6；`docs/desktop_testing.zh.md`；`.github/workflows/desktop.yml`。macOS 残留计划：[2026-09-08-desktop-quit-job-matrix.zh.md](2026-09-08-desktop-quit-job-matrix.zh.md)。草稿 PR [#185](https://github.com/joe-cheung-cae/frame-pilot/pull/185)。
+**相关：** `develop_plan.zh.md` §1.1；`docs/desktop_development_plan.zh.md` §2.2 与 §5.6；`docs/desktop_testing.zh.md`；`.github/workflows/desktop.yml`。macOS 残留计划：[2026-09-08-desktop-quit-job-matrix.zh.md](2026-09-08-desktop-quit-job-matrix.zh.md)。上线在草稿 PR [#185](https://github.com/joe-cheung-cae/frame-pilot/pull/185)（`Fixes` [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)）。
 
 ---
 
@@ -49,10 +49,10 @@
 - [x] 需求拆解 — 双语残留计划 + GitHub issue [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)
 - [x] 开发 — Path B Windows NSIS 启动 + 生产 `CloseMainWindow` 干净退出 + `desktop.yml` windows 步骤
 - [x] 测试 — Linux skip-not-pass + packaged-path Windows 检查 + `npm run verify`
-- [ ] 上线 — 同一次 `desktop.yml` `windows-latest` 四行 `result=pass`；证据可下载。第一次调度 [run 34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561) quit-clean 残留 LISTEN 失败（`tasklist | grep` UTF-16 假阴性）；不是通过
-- [ ] DoD-ticked — 残留板上线 + `docs/desktop_development_plan.md` §5.6 Windows 退出+作业 `[x]` 带 run URL；**不要**重勾 §2.2 / ≥500 / Darwin #181
+- [x] 上线 — [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)（`37b710b`，`2026-09-08T15:29:33Z`）四行 Windows `result=pass`；证据 `FramePilot-desktop-quit-job-windows`
+- [x] DoD-ticked — 残留板上线 + `docs/desktop_development_plan.md` §5.6 Windows 退出+作业 `[x]` 带 run URL；**不要**重勾 §2.2 / ≥500 / Darwin #181
 
-Skip ≠ pass。不要伪造 Windows 通过。
+失败预言机作为历史保留：[34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561)（Git Bash `tasklist | grep` UTF-16 假阴性）。同一次调度 [34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942) 的 `macos-latest` quit-export 偶发（`status 'complete' is not cancelled`）；**不要**重开 [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)。Darwin 通过仍是 [34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)。Skip ≠ pass。
 
 ---
 

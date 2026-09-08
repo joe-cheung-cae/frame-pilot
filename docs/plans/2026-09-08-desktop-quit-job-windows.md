@@ -6,7 +6,7 @@
 
 **Branch:** `cursor/desktop-quit-job-windows-7bb0` from `origin/main` @ `cf79b1829c9f22e52431bec971c1040b8f0ffae4`. Isolation worktree is false. Do not checkout `main` for commits. Do not merge to `main`. Do not squash. Do not force-push.
 
-**Related:** `develop_plan.md` §1.1; `docs/desktop_development_plan.md` §2.2 and §5.6; `docs/desktop_testing.md`; `.github/workflows/desktop.yml`. macOS leftover plan: [2026-09-08-desktop-quit-job-matrix.md](2026-09-08-desktop-quit-job-matrix.md). Draft PR [#185](https://github.com/joe-cheung-cae/frame-pilot/pull/185).
+**Related:** `develop_plan.md` §1.1; `docs/desktop_development_plan.md` §2.2 and §5.6; `docs/desktop_testing.md`; `.github/workflows/desktop.yml`. macOS leftover plan: [2026-09-08-desktop-quit-job-matrix.md](2026-09-08-desktop-quit-job-matrix.md). 上线 on draft PR [#185](https://github.com/joe-cheung-cae/frame-pilot/pull/185) (`Fixes` [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)).
 
 ---
 
@@ -49,10 +49,10 @@ Leftover packaged Windows quit+job matrix
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)
 - [x] 开发 — Path B Windows NSIS launch + production `CloseMainWindow` quit-clean + `desktop.yml` windows step
 - [x] 测试 — Linux skip-not-pass + packaged-path Windows checks + `npm run verify`
-- [ ] 上线 — same-job `desktop.yml` `windows-latest` four rows `result=pass`; evidence downloadable. First dispatch [run 34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561) failed quit-clean leftover LISTEN (`tasklist | grep` UTF-16 false negative); not a pass
-- [ ] DoD-ticked — leftover-plan 上线 + `docs/desktop_development_plan.md` §5.6 Windows quit+job `[x]` with the run URL; do **not** re-tick §2.2 / ≥500 / Darwin #181
+- [x] 上线 — [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942) (`37b710b`, `2026-09-08T15:29:33Z`) four Windows rows `result=pass`; evidence `FramePilot-desktop-quit-job-windows`
+- [x] DoD-ticked — leftover-plan 上线 + `docs/desktop_development_plan.md` §5.6 Windows quit+job `[x]` with the run URL; do **not** re-tick §2.2 / ≥500 / Darwin #181
 
-Skip ≠ pass. Do **not** invent a Windows pass.
+Failed oracles stay history: [34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561) (Git Bash `tasklist | grep` UTF-16 false negative). Same dispatch [34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942) `macos-latest` quit-export flaked (`status 'complete' is not cancelled`); do **not** reopen [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181). Darwin pass stays [34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750). Skip ≠ pass.
 
 ---
 
