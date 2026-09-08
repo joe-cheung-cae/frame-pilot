@@ -30,6 +30,15 @@ REQUIRED_FIELDS = (
 
 NSIS_OLD_EN = "It still does not launch the packaged NSIS GUI."
 NSIS_OLD_ZH = "仍不启动包装 NSIS GUI。"
+NSIS_NEW_EN = (
+    "It also launches the packaged NSIS and DMG GUIs for leftover "
+    "packaged-desktop ≥500 Path B (`packaging/scripts/desktop-500-gui.sh`; "
+    "native dialog stubbed)."
+)
+NSIS_NEW_ZH = (
+    "也会为残留包装桌面 ≥500 Path B 启动包装 NSIS 与 DMG GUI"
+    "（`packaging/scripts/desktop-500-gui.sh`；原生对话框 stub）。"
+)
 
 
 def load_result(path: Path) -> dict:
@@ -71,7 +80,16 @@ def stamp_docs(_windows: dict, _macos: dict, *, dry_run: bool) -> None:
         print(f"dry-run: would stamp {testing} replacing {NSIS_OLD_EN!r}")
         print(f"dry-run: would stamp {testing_zh} replacing {NSIS_OLD_ZH!r}")
         return
-    # 上线 performs the write after both OS 500 JSON are result=pass.
+    en = testing.read_text(encoding="utf-8")
+    zh = testing_zh.read_text(encoding="utf-8")
+    if NSIS_OLD_EN not in en:
+        raise ValueError(f"{testing} missing {NSIS_OLD_EN!r}")
+    if NSIS_OLD_ZH not in zh:
+        raise ValueError(f"{testing_zh} missing {NSIS_OLD_ZH!r}")
+    testing.write_text(en.replace(NSIS_OLD_EN, NSIS_NEW_EN, 1), encoding="utf-8")
+    testing_zh.write_text(zh.replace(NSIS_OLD_ZH, NSIS_NEW_ZH, 1), encoding="utf-8")
+    print(f"stamped {testing}")
+    print(f"stamped {testing_zh}")
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:

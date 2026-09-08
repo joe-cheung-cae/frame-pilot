@@ -62,6 +62,17 @@ npm run perf:api -- --output /tmp/framepilot-desktop-from-paths-100 --count 100 
 
 注意：合成 JPEG；非相机多样性；非打包 PyInstaller 二进制 RSS。有 GUI 的主机仍待补 UI/WebView RSS。见 [#97](https://github.com/joe-cheung-cae/frame-pilot/issues/97)。
 
+## 包装桌面 ≥500 GUI（残留 #179）
+
+刚打出的未签名 NSIS/DMG 上无人值守 Path B：包装 WebView 内 QA 注入、copy-mode `from-paths`、审片预览（`naturalWidth > 0`）。**原生选文件夹对话框 stub。** 不是 `perf:api`，也不是 Playwright `test:e2e:real-browser:large`。
+
+| 日期 | 主机 | 数量 | 状态 | `accepted_files` | `preview_natural_width` | Sidecar 峰值 RSS MB | UI / WebView 峰值 RSS MB | 原生对话框 |
+| ---- | ---- | ---: | ---- | ---------------: | ----------------------: | ------------------: | -----------------------: | ---------- |
+| `2026-09-07T19:39:23Z` | GitHub 托管 `windows-latest` | 500 | pass | 500 | 1800 | 213.05 | 317.56 | stub |
+| `2026-09-07T19:30:33Z` | GitHub 托管 `macos-latest` | 500 | pass | 500 | 1800 | 566.66 | 568.92 | stub |
+
+数据集：500 张合成 JPEG 3000×2000 q88。`APP_VERSION=2.1.0-desktop`。CI：[desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835)。Issue：[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)。预览来自 Path B `createRoot` overlay，不是完整 cull 路由点击。
+
 
 ## 浏览器规模筛选 smoke
 

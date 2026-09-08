@@ -46,13 +46,13 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 - [x] 使用原生文件夹选择器与拖放导入
 - [x] 现有全部核心功能可用且行为与当前 v2 一致
 - [x] 原图安全规则与本地优先原则保持不变
-- [ ] 大项目（≥500 张）不崩溃，内存占用可接受 — Web Playwright `test:e2e:real-browser:large` 与 API `perf:api` 500 **不是**包装桌面 GUI 证据
+- [x] 大项目（≥500 张）不崩溃，内存占用可接受 — 残留 [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) 包装 WebView from-paths + 审片预览（**原生对话框 stub**）；Windows `2026-09-07T19:39:23Z` + macOS `2026-09-07T19:30:33Z`（[desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835)）。不是完整 S9.12 点击走查。Web Playwright `test:e2e:real-browser:large` 与 API `perf:api` 500 **不是**包装桌面 GUI 证据。
 - [x] 提供用户安装说明与开发者构建文档
 - [x] CI 可自动构建双平台安装包（代码签名可后续完善）
 - [x] 桌面 sidecar 仅监听 127.0.0.1，且拒绝非回环 Host 与未授权 Origin
 - [x] 用户选择的项目根目录经过显式授权后才被接受（见实施计划 D2.00）
 
-不在 `2.1.0-desktop` 范围内（见 §5.6）：第九阶段已交付的 2.2 残留（独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10、托盘 S9.06），加上残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）。仍延后（未排期）：自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、包装桌面 ≥500 GUI、完整包装 macOS 退出+作业矩阵。不要发明第十阶段 / 2.3。
+不在 `2.1.0-desktop` 范围内（见 §5.6）：第九阶段已交付的 2.2 残留（独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10、托盘 S9.06），加上残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）与残留包装桌面 ≥500 GUI（[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)）。仍延后（未排期）：自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架、完整包装 macOS 退出+作业矩阵。不要发明第十阶段 / 2.3。
 
 ---
 
@@ -183,6 +183,7 @@ FramePilot Desktop
 | 处理池 | 仍是每个项目一个处理作业 | 延后（未排期） |
 | 完整 RAW 显影 | 只抽内嵌预览（S9.04）；不 demosaic | 延后（未排期） |
 | SmartScreen / 商店上架 | 签名就绪 CI 是 S9.11；不是商店发行 | 延后（未排期） |
+| 包装桌面 ≥500 GUI | 残留 [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) 包装 WebView from-paths + 审片预览（**原生对话框 stub**）；双平台 500 `result=pass` | 残留 [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) `[x]` |
 | 包装 macOS GUI pass | 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) **安装并运行** DoD `[x]`（`2026-09-07T09:34:57Z`）；S9.12 skip 作为历史保留；完整退出+作业矩阵仍未排期 | 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) `[x]` 安装并运行；完整退出+作业矩阵未排期 |
 
 以上项目若被跳过，必须写入 [docs/v2_known_limitations.md](v2_known_limitations.zh.md)（D5.05）。

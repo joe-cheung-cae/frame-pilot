@@ -62,6 +62,17 @@ npm run perf:api -- --output /tmp/framepilot-desktop-from-paths-100 --count 100 
 
 Caveats: synthetic JPEGs; not camera diversity; not a packaged PyInstaller binary RSS. UI/WebView RSS still pending on GUI hosts. See [#97](https://github.com/joe-cheung-cae/frame-pilot/issues/97).
 
+## Packaged-desktop ≥500 GUI (leftover #179)
+
+Unattended Path B on the just-built unsigned NSIS/DMG: QA injection inside the packaged WebView, copy-mode `from-paths`, culling preview (`naturalWidth > 0`). **Native folder dialog stubbed.** Not `perf:api` and not Playwright `test:e2e:real-browser:large`.
+
+| Date | Host | Count | Status | `accepted_files` | `preview_natural_width` | Sidecar peak RSS MB | UI / WebView peak RSS MB | Native dialog |
+| ---- | ---- | ----: | ------ | ---------------: | ----------------------: | ------------------: | -----------------------: | ------------- |
+| `2026-09-07T19:39:23Z` | GitHub-hosted `windows-latest` | 500 | pass | 500 | 1800 | 213.05 | 317.56 | stubbed |
+| `2026-09-07T19:30:33Z` | GitHub-hosted `macos-latest` | 500 | pass | 500 | 1800 | 566.66 | 568.92 | stubbed |
+
+Dataset: 500 generated JPEG 3000×2000 q88. `APP_VERSION=2.1.0-desktop`. CI: [desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835). Issue: [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179). Preview came from a Path B `createRoot` overlay, not a full cull-route click-through.
+
 
 ## Browser-Scale Culling Smoke
 
