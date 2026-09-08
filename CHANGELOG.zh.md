@@ -12,6 +12,7 @@
 - Windows `2026-09-07T19:39:23Z`（`preview_natural_width=1800`，sidecar 峰值 RSS 213.05 MB，UI 峰值 317.56 MB）；macOS `2026-09-07T19:30:33Z`（`preview_natural_width=1800`，sidecar 峰值 RSS 566.66 MB，UI 峰值 568.92 MB）
 - 勾 `docs/desktop_development_plan.md` §2.2 ≥500：残留 [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) + run URL；不是完整 S9.12 点击走查
 - 不改 `APP_VERSION`，不声称 Gatekeeper 干净或商店上架，无第十阶段
+- 同一残留上的可选 Path B 加固（不是新的 DoD）：QA IPC ACL 仅给 main；milestone 白名单；启用时对 env 路径 canonicalize。
 
 ### 残留 — 双平台安装包 GUI DoD（macOS DMG 安装并运行）
 

@@ -12,6 +12,7 @@ All notable FramePilot releases are listed here. Version strings for the API com
 - Windows `2026-09-07T19:39:23Z` (`preview_natural_width=1800`, sidecar peak RSS 213.05 MB, UI peak 317.56 MB); macOS `2026-09-07T19:30:33Z` (`preview_natural_width=1800`, sidecar peak RSS 566.66 MB, UI peak 568.92 MB)
 - Tick `docs/desktop_development_plan.md` §2.2 ≥500 with leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) plus the run URL; not a full S9.12 click-through
 - No `APP_VERSION` bump, no Gatekeeper-clean or store listing claim, no Phase 10
+- Optional Path B hardening on the same leftover (not a new DoD): QA IPC ACL on main only; milestone allowlist; canonicalize env paths on enable.
 
 ### Leftover — dual-platform installer GUI DoD (macOS DMG install+run)
 
