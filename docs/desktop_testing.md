@@ -202,18 +202,27 @@ Same-job Path B (`packaging/scripts/desktop-quit-job-gui.sh`) after the just-bui
 
 ## Leftover packaged Windows quit+job matrix
 
-**Verdict: not yet (leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)).** Same-job Path B + production `CloseRequested` / `handle_close_requested` + **Quit and cancel** against the just-built unsigned NSIS. Tick only when all four Windows rows are `result=pass` on the same `desktop.yml` `windows-latest` job. Do not invent a pass. Do not reopen [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) / [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181). Do not re-stamp the Darwin #181 table above.
+**Verdict: pass (four Windows rows).** Dated `2026-09-08T15:29:33Z` (UTC). Path B starts the job; production `CloseMainWindow` / `handle_close_requested`; **Quit and cancel** click. Native folder dialog stays stubbed. Do not reopen [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) / [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181). Do not re-stamp the Darwin #181 table above.
 
 | Field | Value |
 | ----- | ----- |
-| OS | Windows — GitHub-hosted `windows-latest` |
-| `APP_VERSION` | `2.1.0-desktop` (no bump) |
-| Path B modes | `quit-clean` / `quit-import` / `quit-processing` / `quit-export` |
+| Date | `2026-09-08T15:29:33Z` |
+| OS | Windows — GitHub-hosted `windows-latest` (`uname` `MINGW64_NT-10.0-26100`) |
+| `APP_VERSION` | `2.1.0-desktop` |
+| `mode` / `result` | `quit-job-matrix` / `pass` |
 | `native_dialog` | `stubbed` |
 | Corpus | 500 JPEG 3000×2000 q88 |
+| `originals_unchanged` | `true` |
+| `leftover_listen` | `false` |
 | Production quit-clean | `CloseMainWindow` → `CloseRequested` |
 | Job-row quit | fail-closed `qa_request_close` + `[data-choice=cancel_and_quit]` |
+| CI | [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942) on `37b710b` |
 
-First `windows-latest` dispatch ([desktop.yml run 34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561)) failed quit-clean leftover `framepilot-api` LISTEN: Git Bash `tasklist | grep` is a UTF-16 false negative, so `wait_app_exit` returned while the sidecar was still listening. Harness now waits via `Get-Process`. Not a pass.
+| Row | Result | Dialog |
+| --- | ------ | ------ |
+| Quit clean | `pass` | no dialog (no active job) |
+| Quit + import | `pass` | `Import is still running`; stay / cancel_and_quit / quit_anyway |
+| Quit + processing | `pass` | `Grouping and ranking is still running`; stay / cancel_and_quit / quit_anyway |
+| Quit + export | `pass` | `Export is still running`; stay / cancel_and_quit / quit_anyway |
 
-Linux/WSL2 remains exit 2 / skip is not pass. Stay / Quit anyway stay Rust unit-tested. No signing. No SmartScreen-clean or store listing claim. Plan: [docs/plans/2026-09-08-desktop-quit-job-windows.md](plans/2026-09-08-desktop-quit-job-windows.md).
+Same-job Path B (`packaging/scripts/desktop-quit-job-gui.sh`) after the just-built unsigned NSIS. First dispatch [34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561) failed quit-clean leftover LISTEN (`tasklist | grep` UTF-16); harness waits via `Get-Process`. Same-run `macos-latest` quit-export flaked (`complete` before cancel); do not reopen #181. Linux/WSL2 remains exit 2 / skip is not pass. Stay / Quit anyway stay Rust unit-tested. No signing. No SmartScreen-clean or store listing claim. Issue: [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184).

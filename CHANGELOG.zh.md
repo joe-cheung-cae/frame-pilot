@@ -8,11 +8,11 @@
 
 ### 残留 — 包装 Windows 退出+作业矩阵
 
-- 同一 job 未签名 NSIS Path B harness + `desktop.yml` windows 步骤（残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)）
-- 四行：Quit clean、Quit+导入、Quit+分组排序、Quit+导出；生产 `CloseMainWindow` / `qa_request_close`；**Quit and cancel**
-- 第一次 `windows-latest` 调度（[desktop.yml run 34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561)）：quit-clean 因 Git Bash `tasklist | grep` 把 UTF-16 当成“进程已退出”而误报残留 `framepilot-api` LISTEN；harness 改为用 `Get-Process` 等待。不是通过
-- Linux/WSL2 skip ≠ pass（exit 2）。四行 Windows 都是 `result=pass` 之前不要勾活文档
-- 不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) / [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)。不改 `APP_VERSION`。不签名。无第十阶段
+- 四行 Windows `result=pass`（[desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)，`37b710b`，`2026-09-08T15:29:33Z`）：Quit clean、Quit+导入、Quit+分组排序、Quit+导出
+- Path B 启动作业；生产 `CloseMainWindow` / `handle_close_requested`；**Quit and cancel**；原生选文件夹对话框 stub；500 张 JPEG 3000×2000 q88；`originals_unchanged=true`；`APP_VERSION=2.1.0-desktop`
+- 勾 `docs/desktop_development_plan.md` §5.6 Windows 退出+作业行：残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) + run URL；不要重勾 §2.2 / ≥500 / Darwin [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
+- 同一次调度的 `macos-latest` quit-export 偶发（取消前已 `complete`）。不要重开 #181。Darwin 通过仍是 [34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)
+- 不改 `APP_VERSION`，不声称 SmartScreen 干净或商店上架，无第十阶段
 
 ### 残留 — 包装 macOS 退出+作业矩阵
 

@@ -202,18 +202,27 @@ Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilo
 
 ## 残留：包装 Windows 退出+作业矩阵
 
-**结论：尚未（残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)）。** 同一 job 内，刚打出的未签名 NSIS 走 Path B + 生产 `CloseRequested` / `handle_close_requested` + **Quit and cancel**。只有同一次 `desktop.yml` `windows-latest` 四行都是 `result=pass` 才能勾。不要伪造通过。不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) / [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)。不要重戳上面的 Darwin #181 表。
+**结论：通过（四行 Windows）。** 日期 `2026-09-08T15:29:33Z`（UTC）。Path B 启动作业；生产 `CloseMainWindow` / `handle_close_requested`；点 **Quit and cancel**。原生选文件夹对话框保持 stub。不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) / [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)。不要重戳上面的 Darwin #181 表。
 
 | 字段 | 值 |
 | ---- | -- |
-| OS | Windows — GitHub 托管 `windows-latest` |
-| `APP_VERSION` | `2.1.0-desktop`（不升） |
-| Path B 模式 | `quit-clean` / `quit-import` / `quit-processing` / `quit-export` |
+| 日期 | `2026-09-08T15:29:33Z` |
+| OS | Windows — GitHub 托管 `windows-latest`（`uname` `MINGW64_NT-10.0-26100`） |
+| `APP_VERSION` | `2.1.0-desktop` |
+| `mode` / `result` | `quit-job-matrix` / `pass` |
 | `native_dialog` | `stubbed` |
 | 语料 | 500 张 JPEG 3000×2000 q88 |
+| `originals_unchanged` | `true` |
+| `leftover_listen` | `false` |
 | 生产 Quit clean | `CloseMainWindow` → `CloseRequested` |
 | 作业行退出 | 失败关闭的 `qa_request_close` + `[data-choice=cancel_and_quit]` |
+| CI | [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)，`37b710b` |
 
-第一次 `windows-latest` 调度（[desktop.yml run 34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561)）quit-clean 残留 `framepilot-api` LISTEN 失败：Git Bash 的 `tasklist | grep` 对 UTF-16 是假阴性，`wait_app_exit` 在 sidecar 仍在听时就返回了。harness 改为用 `Get-Process` 等待。不是通过。
+| 行 | 结果 | 对话 |
+| --- | ------ | ------ |
+| Quit clean | `pass` | 无对话（无活动作业） |
+| Quit + 导入 | `pass` | `Import is still running`；stay / cancel_and_quit / quit_anyway |
+| Quit + 分组排序 | `pass` | `Grouping and ranking is still running`；stay / cancel_and_quit / quit_anyway |
+| Quit + 导出 | `pass` | `Export is still running`；stay / cancel_and_quit / quit_anyway |
 
-Linux/WSL2 仍是 exit 2 / skip 不是 pass。Stay / Quit anyway 仍由 Rust 单测覆盖。不签名。不声称 SmartScreen 干净或商店上架。计划：[docs/plans/2026-09-08-desktop-quit-job-windows.zh.md](plans/2026-09-08-desktop-quit-job-windows.zh.md)。
+同一 job 内，刚打出的未签名 NSIS 走 Path B（`packaging/scripts/desktop-quit-job-gui.sh`）。第一次调度 [34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561) quit-clean 残留 LISTEN 失败（`tasklist | grep` UTF-16）；harness 改用 `Get-Process` 等待。同一次调度的 `macos-latest` quit-export 偶发（取消前已 `complete`）；不要重开 #181。Linux/WSL2 仍是 exit 2 / skip 不是 pass。Stay / Quit anyway 仍由 Rust 单测覆盖。不签名。不声称 SmartScreen 干净或商店上架。议题：[#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)。

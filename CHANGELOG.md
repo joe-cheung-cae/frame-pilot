@@ -8,11 +8,11 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ### Leftover — packaged Windows quit+job matrix
 
-- Same-job unsigned NSIS Path B harness + `desktop.yml` windows step (leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184))
-- Four rows: Quit clean, Quit+import, Quit+processing, Quit+export; production `CloseMainWindow` / `qa_request_close`; **Quit and cancel**
-- First `windows-latest` dispatch ([desktop.yml run 34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561)): quit-clean failed leftover `framepilot-api` LISTEN because Git Bash `tasklist | grep` is a UTF-16 false negative; harness now waits via `Get-Process`. Not a pass
-- Linux/WSL2 skip ≠ pass (exit 2). Do not tick living docs until all four Windows rows are `result=pass`
-- Do not reopen [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) / [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181). No `APP_VERSION` bump. No signing. No Phase 10
+- Four Windows rows `result=pass` on [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942) (`37b710b`, `2026-09-08T15:29:33Z`): Quit clean, Quit+import, Quit+processing, Quit+export
+- Path B starts the job; production `CloseMainWindow` / `handle_close_requested`; **Quit and cancel**; native folder dialog stubbed; 500 JPEG 3000×2000 q88; `originals_unchanged=true`; `APP_VERSION=2.1.0-desktop`
+- Tick `docs/desktop_development_plan.md` §5.6 Windows quit+job row with leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) plus the run URL; do not re-tick §2.2 / ≥500 / Darwin [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
+- Same dispatch `macos-latest` quit-export flaked (`complete` before cancel). Do not reopen #181. Darwin pass stays [34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)
+- No `APP_VERSION` bump, no SmartScreen-clean or store listing claim, no Phase 10
 
 ### Leftover — packaged macOS quit+job matrix
 

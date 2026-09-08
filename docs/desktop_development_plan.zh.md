@@ -2,9 +2,9 @@
 
 > 语言：[English](desktop_development_plan.md) | **中文**
 
-> **文档版本**：1.7  
+> **文档版本**：1.8  
 > **创建日期**：2026-08-18  
-> **最近审阅**：2026-09-08（残留 Windows 退出+作业 #184）  
+> **最近审阅**：2026-09-08（残留 Windows 退出+作业 #184 通过）  
 > **目标**：将当前本地 Web 应用（v2.0.0-rc2）重新设计并打包为可安装的 Windows 与 macOS 桌面应用  
 > **仓库**：https://github.com/joe-cheung-cae/frame-pilot  
 > **相关已有规划**：`develop_plan.md` 已将 “Local desktop packaging with Tauri or Electron” 列为 stretch goal；本文件将其正式产品化。  
@@ -52,7 +52,7 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 - [x] 桌面 sidecar 仅监听 127.0.0.1，且拒绝非回环 Host 与未授权 Origin
 - [x] 用户选择的项目根目录经过显式授权后才被接受（见实施计划 D2.00）
 
-不在 `2.1.0-desktop` 范围内（见 §5.6）：第九阶段已交付的 2.2 残留（独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10、托盘 S9.06），加上残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）、残留包装桌面 ≥500 GUI（[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)）与残留包装 macOS 退出+作业矩阵（[#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)）。残留包装 Windows 退出+作业矩阵见 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)（不要重勾本安装并运行 / ≥500 / Darwin #181）。仍延后（未排期）：自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架。不要发明第十阶段 / 2.3。
+不在 `2.1.0-desktop` 范围内（见 §5.6）：第九阶段已交付的 2.2 残留（独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10、托盘 S9.06），加上残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）、残留包装桌面 ≥500 GUI（[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)）与残留包装 macOS 退出+作业矩阵（[#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)），以及残留包装 Windows 退出+作业矩阵（[#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)，`2026-09-08T15:29:33Z`，[desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)）。不要重勾本安装并运行 / ≥500 / Darwin #181。仍延后（未排期）：自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架。不要发明第十阶段 / 2.3。
 
 ---
 
@@ -186,7 +186,7 @@ FramePilot Desktop
 | 包装桌面 ≥500 GUI | 残留 [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) 包装 WebView from-paths + 审片预览（**原生对话框 stub**）；双平台 500 `result=pass` | 残留 [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) `[x]` |
 | 包装 macOS GUI pass | 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) **安装并运行** DoD `[x]`（`2026-09-07T09:34:57Z`）；S9.12 skip 作为历史保留 | 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) `[x]` 安装并运行 |
 | 包装 macOS 退出+作业矩阵 | 残留 [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) 四行 Darwin `result=pass`（`2026-09-08T13:26:18Z`，[desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)） | 残留 [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) `[x]` |
-| 包装 Windows 退出+作业矩阵 | 残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) 四行 Windows NSIS；Path B + 生产退出 + **Quit and cancel**；不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) | 残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) |
+| 包装 Windows 退出+作业矩阵 | 残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) 四行 Windows `result=pass`（`2026-09-08T15:29:33Z`，[desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)） | 残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) `[x]` |
 
 以上项目若被跳过，必须写入 [docs/v2_known_limitations.md](v2_known_limitations.zh.md)（D5.05）。
 
@@ -468,6 +468,7 @@ frame-pilot/
 | 2026-09-07 | 1.5 | 残留安装包 GUI DoD [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)：勾 §2.2 安装并运行（Windows #144 + Darwin `2026-09-07T09:34:57Z`）；完整退出+作业矩阵仍未排期 |
 | 2026-09-08 | 1.6 | 残留退出+作业矩阵 [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)：勾 §5.6 退出+作业行，证据 [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)；不要重勾 §2.2 |
 | 2026-09-08 | 1.7 | 残留 Windows 退出+作业矩阵 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)：增加 §5.6 Windows 行（未勾）；不要重勾 §2.2 / ≥500 / Darwin #181 |
+| 2026-09-08 | 1.8 | 残留 Windows 退出+作业矩阵 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)：勾 §5.6 Windows 行，证据 [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)；不要重勾 §2.2 / ≥500 / Darwin #181 |
 
 ---
 
