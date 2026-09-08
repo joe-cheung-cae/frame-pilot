@@ -49,7 +49,7 @@
 - [x] 需求拆解 — 双语残留计划 + GitHub issue [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)
 - [x] 开发 — Path B Windows NSIS 启动 + 生产 `CloseMainWindow` 干净退出 + `desktop.yml` windows 步骤
 - [x] 测试 — Linux skip-not-pass + packaged-path Windows 检查 + `npm run verify`
-- [ ] 上线 — 同一次 `desktop.yml` `windows-latest` 四行 `result=pass`；证据可下载
+- [ ] 上线 — 同一次 `desktop.yml` `windows-latest` 四行 `result=pass`；证据可下载。第一次调度 [run 34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561) quit-clean 残留 LISTEN 失败（`tasklist | grep` UTF-16 假阴性）；不是通过
 - [ ] DoD-ticked — 残留板上线 + `docs/desktop_development_plan.md` §5.6 Windows 退出+作业 `[x]` 带 run URL；**不要**重勾 §2.2 / ≥500 / Darwin #181
 
 Skip ≠ pass。不要伪造 Windows 通过。

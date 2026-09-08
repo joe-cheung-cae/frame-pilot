@@ -10,6 +10,7 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 - Same-job unsigned NSIS Path B harness + `desktop.yml` windows step (leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184))
 - Four rows: Quit clean, Quit+import, Quit+processing, Quit+export; production `CloseMainWindow` / `qa_request_close`; **Quit and cancel**
+- First `windows-latest` dispatch ([desktop.yml run 34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561)): quit-clean failed leftover `framepilot-api` LISTEN because Git Bash `tasklist | grep` is a UTF-16 false negative; harness now waits via `Get-Process`. Not a pass
 - Linux/WSL2 skip ≠ pass (exit 2). Do not tick living docs until all four Windows rows are `result=pass`
 - Do not reopen [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) / [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181). No `APP_VERSION` bump. No signing. No Phase 10
 

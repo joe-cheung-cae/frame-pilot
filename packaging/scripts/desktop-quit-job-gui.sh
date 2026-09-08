@@ -158,6 +158,11 @@ copy_row_evidence() {
   if [[ -f "$sidecar" ]]; then
     tail -n 200 "$sidecar" > "${dest}/sidecar.log.excerpt" 2>/dev/null || true
   fi
+  for extra in app_version.txt leftover-netstat.txt leftover-processes.txt leftover-tasklist.txt; do
+    if [[ -f "${EVIDENCE_DIR}/${extra}" ]]; then
+      cp "${EVIDENCE_DIR}/${extra}" "${dest}/${extra}"
+    fi
+  done
 }
 
 copy_summary_evidence() {
@@ -342,7 +347,18 @@ webview2_present() {
 
 windows_image_running() {
   local image="${1:-}"
-  tasklist.exe //FI "IMAGENAME eq ${image}" 2>/dev/null | grep -qi "$image"
+  local name="${image%.exe}"
+  if [[ -z "$name" ]]; then
+    return 1
+  fi
+  # Git Bash: tasklist.exe writes UTF-16, so `tasklist | grep` is a false
+  # negative and wait_app_exit returns while framepilot-api is still LISTEN.
+  if ! command -v powershell.exe >/dev/null 2>&1; then
+    return 1
+  fi
+  MSYS2_ARG_CONV_EXCL='*' powershell.exe -NoProfile -Command \
+    "if (Get-Process -Name '${name}' -ErrorAction SilentlyContinue) { exit 0 }; exit 1" \
+    >/dev/null 2>&1
 }
 
 kill_windows_leftovers() {
@@ -416,9 +432,17 @@ parse_windows_listen() {
 import re
 import sys
 
+def read_dump(path):
+    raw = open(path, "rb").read()
+    if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
+        return raw.decode("utf-16")
+    if b"\x00" in raw[:64]:
+        return raw.decode("utf-16-le", errors="replace")
+    return raw.decode("utf-8", errors="replace")
+
 netstat_path, tasklist_path = sys.argv[1], sys.argv[2]
 pids = set()
-for raw in open(tasklist_path, encoding="utf-8", errors="replace"):
+for raw in read_dump(tasklist_path).splitlines():
     line = raw.strip()
     if "framepilot-api" not in line.lower():
         continue
@@ -430,7 +454,7 @@ for raw in open(tasklist_path, encoding="utf-8", errors="replace"):
 if not pids:
     sys.exit(1)
 
-for raw in open(netstat_path, encoding="utf-8", errors="replace"):
+for raw in read_dump(netstat_path).splitlines():
     line = raw.strip()
     upper = line.upper()
     if "LISTEN" not in upper:
@@ -681,6 +705,7 @@ payload = json.loads(open(sys.argv[1], encoding="utf-8").read())
 print(payload.get("version") or "")
 PY
         )"
+        printf '%s\n' "$APP_VERSION" > "${EVIDENCE_DIR}/app_version.txt"
         printf '%s\n' "$port"
         return 0
       fi
@@ -835,15 +860,36 @@ for rel, size, nsec, digest in expected:
 PY
 }
 
+dump_leftover_listen_diagnostics() {
+  echo "--- leftover framepilot-api LISTEN diagnostics ---" >&2
+  case "$(os_label)" in
+    windows)
+      if command -v powershell.exe >/dev/null 2>&1; then
+        MSYS2_ARG_CONV_EXCL='*' powershell.exe -NoProfile -Command \
+          "Get-Process framepilot-api,framepilot-desktop -ErrorAction SilentlyContinue | Format-List Name,Id" \
+          | tee "${EVIDENCE_DIR:-/tmp}/leftover-processes.txt" >&2 || true
+      fi
+      if command -v netstat >/dev/null 2>&1; then
+        netstat -ano 2>/dev/null | tee "${EVIDENCE_DIR:-/tmp}/leftover-netstat.txt" \
+          | grep -E '127\.0\.0\.1|\[::1\]' >&2 || true
+      fi
+      if command -v tasklist.exe >/dev/null 2>&1; then
+        tasklist.exe //FI "IMAGENAME eq framepilot-api.exe" \
+          > "${EVIDENCE_DIR:-/tmp}/leftover-tasklist.txt" 2>/dev/null || true
+      fi
+      ;;
+    *)
+      lsof -nP -c framepilot-api -iTCP -sTCP:LISTEN >&2 || true
+      ;;
+  esac
+}
+
 verify_no_leftover_listen() {
   local count
   count="$(framepilot_api_listen_count)"
   if [[ "${count:-0}" -gt 0 ]]; then
     echo "leftover framepilot-api LISTEN count=${count}" >&2
-    lsof -nP -c framepilot-api -iTCP -sTCP:LISTEN >&2 || true
-    if command -v netstat >/dev/null 2>&1; then
-      netstat -ano 2>/dev/null | head -n 40 >&2 || true
-    fi
+    dump_leftover_listen_diagnostics
     LEFTOVER_LISTEN=true
     return 1
   fi
@@ -866,7 +912,11 @@ wait_app_exit() {
       windows)
         if ! windows_image_running "framepilot-desktop.exe" \
           && ! windows_image_running "framepilot-api.exe"; then
-          return 0
+          sleep 1
+          if ! windows_image_running "framepilot-desktop.exe" \
+            && ! windows_image_running "framepilot-api.exe"; then
+            return 0
+          fi
         fi
         ;;
       *)
@@ -966,10 +1016,14 @@ windows_close_main_window() {
     echo "powershell.exe not found for production CloseMainWindow" >&2
     return 1
   fi
-  powershell.exe -NoProfile -Command '
+  MSYS2_ARG_CONV_EXCL='*' powershell.exe -NoProfile -Command '
 $p = Get-Process -Name framepilot-desktop -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $p) { exit 1 }
-if (-not $p.CloseMainWindow()) { exit 1 }
+if ($p.CloseMainWindow()) { exit 0 }
+Start-Sleep -Milliseconds 500
+$p.Refresh()
+if ($p.CloseMainWindow()) { exit 0 }
+exit 1
 ' >/dev/null
 }
 
@@ -1194,6 +1248,9 @@ run_row() {
   if [[ -z "${port:-}" ]]; then
     FAIL_REASON="${row}: sidecar GET /health did not return 200 within 60s"
     return 1
+  fi
+  if [[ -f "${EVIDENCE_DIR}/app_version.txt" ]]; then
+    APP_VERSION="$(tr -d '\r\n' < "${EVIDENCE_DIR}/app_version.txt")"
   fi
   if ! wait_milestone "idle" 90; then
     FAIL_REASON="${row}: no idle JSONL within 90s after /health 200"

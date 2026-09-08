@@ -214,4 +214,6 @@ Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilo
 | 生产 Quit clean | `CloseMainWindow` → `CloseRequested` |
 | 作业行退出 | 失败关闭的 `qa_request_close` + `[data-choice=cancel_and_quit]` |
 
+第一次 `windows-latest` 调度（[desktop.yml run 34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561)）quit-clean 残留 `framepilot-api` LISTEN 失败：Git Bash 的 `tasklist | grep` 对 UTF-16 是假阴性，`wait_app_exit` 在 sidecar 仍在听时就返回了。harness 改为用 `Get-Process` 等待。不是通过。
+
 Linux/WSL2 仍是 exit 2 / skip 不是 pass。Stay / Quit anyway 仍由 Rust 单测覆盖。不签名。不声称 SmartScreen 干净或商店上架。计划：[docs/plans/2026-09-08-desktop-quit-job-windows.zh.md](plans/2026-09-08-desktop-quit-job-windows.zh.md)。

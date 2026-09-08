@@ -214,4 +214,6 @@ Same-job Path B (`packaging/scripts/desktop-quit-job-gui.sh`) after the just-bui
 | Production quit-clean | `CloseMainWindow` → `CloseRequested` |
 | Job-row quit | fail-closed `qa_request_close` + `[data-choice=cancel_and_quit]` |
 
+First `windows-latest` dispatch ([desktop.yml run 34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561)) failed quit-clean leftover `framepilot-api` LISTEN: Git Bash `tasklist | grep` is a UTF-16 false negative, so `wait_app_exit` returned while the sidecar was still listening. Harness now waits via `Get-Process`. Not a pass.
+
 Linux/WSL2 remains exit 2 / skip is not pass. Stay / Quit anyway stay Rust unit-tested. No signing. No SmartScreen-clean or store listing claim. Plan: [docs/plans/2026-09-08-desktop-quit-job-windows.md](plans/2026-09-08-desktop-quit-job-windows.md).

@@ -49,7 +49,7 @@ Leftover packaged Windows quit+job matrix
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)
 - [x] 开发 — Path B Windows NSIS launch + production `CloseMainWindow` quit-clean + `desktop.yml` windows step
 - [x] 测试 — Linux skip-not-pass + packaged-path Windows checks + `npm run verify`
-- [ ] 上线 — same-job `desktop.yml` `windows-latest` four rows `result=pass`; evidence downloadable
+- [ ] 上线 — same-job `desktop.yml` `windows-latest` four rows `result=pass`; evidence downloadable. First dispatch [run 34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561) failed quit-clean leftover LISTEN (`tasklist | grep` UTF-16 false negative); not a pass
 - [ ] DoD-ticked — leftover-plan 上线 + `docs/desktop_development_plan.md` §5.6 Windows quit+job `[x]` with the run URL; do **not** re-tick §2.2 / ≥500 / Darwin #181
 
 Skip ≠ pass. Do **not** invent a Windows pass.
