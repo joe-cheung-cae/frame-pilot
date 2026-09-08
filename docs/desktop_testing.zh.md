@@ -4,7 +4,7 @@
 
 FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。本地优先：永不修改或删除相机原图。优先使用 `{root_path}/originals` 下的项目副本。
 
-`npm run verify` 是无 Rust 的 CI 门槛（lint、typecheck、测试、产物检查、验证决策）。它**不会**打开 WebView，也不会跑 `cargo`/`tauri`。GitHub Actions（`.github/workflows/verify.yml`）另有独立的 **Playwright E2E** 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 **100 张真实浏览器** 作业（`npm run test:e2e:real-browser`；不含 `test:e2e:real-browser:large`）、独立的**冻结 sidecar `/health`** 作业（先 `npm run packaging:sidecar`，再 `npm run test:sidecar`），以及独立的**桌面 HTTP 冒烟**作业（`npm run test:desktop:smoke`：`/health`、`/api/projects`、桌面 Origin CORS、攻击者 `Host` → 403）。冻结冒烟会 `unset PYTHONPATH`（与打包后的 Tauri spawn 一致）。桌面 HTTP 冒烟在没有冻结二进制时可用 venv sidecar。`.github/workflows/desktop.yml` 在 PyInstaller 之后跑冻结 sidecar 冒烟，并在 macOS 上为残留安装包 DoD 启动包装 DMG GUI（`packaging/scripts/macos-dmg-gui-smoke.sh`）。也会为残留包装桌面 ≥500 Path B 启动包装 NSIS 与 DMG GUI（`packaging/scripts/desktop-500-gui.sh`；原生对话框 stub）。`verify.yml` 保持无 Rust，也不启动 GUI。workflow YAML 不需要单独的 `check:pretag` 作业；`npm run verify` 已包含 `check:validation-decision`。GUI 行需要 rustc ≥1.88（以及显示环境）。未验证的 GUI 行标为带日期的 `[~]`，并写主机说明——**不要编造**通过结果。
+`npm run verify` 是无 Rust 的 CI 门槛（lint、typecheck、测试、产物检查、验证决策）。它**不会**打开 WebView，也不会跑 `cargo`/`tauri`。GitHub Actions（`.github/workflows/verify.yml`）另有独立的 **Playwright E2E** 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 **100 张真实浏览器** 作业（`npm run test:e2e:real-browser`；不含 `test:e2e:real-browser:large`）、独立的**冻结 sidecar `/health`** 作业（先 `npm run packaging:sidecar`，再 `npm run test:sidecar`），以及独立的**桌面 HTTP 冒烟**作业（`npm run test:desktop:smoke`：`/health`、`/api/projects`、桌面 Origin CORS、攻击者 `Host` → 403）。冻结冒烟会 `unset PYTHONPATH`（与打包后的 Tauri spawn 一致）。桌面 HTTP 冒烟在没有冻结二进制时可用 venv sidecar。`.github/workflows/desktop.yml` 在 PyInstaller 之后跑冻结 sidecar 冒烟，并在 macOS 上为残留安装包 DoD 启动包装 DMG GUI（`packaging/scripts/macos-dmg-gui-smoke.sh`）。也会为残留包装桌面 ≥500 Path B 启动包装 NSIS 与 DMG GUI（`packaging/scripts/desktop-500-gui.sh`；原生对话框 stub）。也会为残留退出+作业 Path B 启动包装 macOS DMG GUI（`packaging/scripts/desktop-quit-job-gui.sh`；原生对话框 stub）。`verify.yml` 保持无 Rust，也不启动 GUI。workflow YAML 不需要单独的 `check:pretag` 作业；`npm run verify` 已包含 `check:validation-decision`。GUI 行需要 rustc ≥1.88（以及显示环境）。未验证的 GUI 行标为带日期的 `[~]`，并写主机说明——**不要编造**通过结果。
 
 **相关：** [桌面壳 README](../apps/desktop/README.zh.md) · [签名手册](desktop_signing.zh.md) · [Phase 2 工作流清单](../tests/desktop/workflow.zh.md) · [Phase 5 设计](plans/2026-08-29-phase5-docs-design.zh.md)
 
@@ -144,7 +144,7 @@ Windows NSIS GUI 生命周期已记在 [#144](https://github.com/joe-cheung-cae/
 | CI | [desktop.yml run 34105891421](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34105891421) — 步骤 `Smoke packaged macOS DMG GUI launch` 退出码 0 |
 | 原片 | 未涉及（本次残留冒烟不导入照片） |
 
-安装并运行行：**启动（安装包）** `[x]` — 同一 job 内 DMG attach + `open` `FramePilot.app` + 回环 `GET /health` 带 `version` 与 `service`。完整退出+导入/处理/导出对话框矩阵仍未排期。
+安装并运行行：**启动（安装包）** `[x]` — 同一 job 内 DMG attach + `open` `FramePilot.app` + 回环 `GET /health` 带 `version` 与 `service`。退出+导入/处理/导出对话框矩阵后来作为残留 [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) 交付。
 
 Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)。未签名 Gatekeeper 警告仍是预期；本记录不声称 Gatekeeper 干净或商店上架。不改 `APP_VERSION`。Issue：[#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)。
 
@@ -170,3 +170,30 @@ Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilo
 | CI | [desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835) | 同一 run，`macos-latest` 作业 |
 
 同一 job 内，刚打出的未签名 NSIS/DMG 走 Path B（`packaging/scripts/desktop-500-gui.sh`）。预览来自 Path B `createRoot` overlay（`via=root`），不是原生选文件夹对话框，也不是完整 cull 路由点击。Linux/WSL2 `--probe` 仍是 exit 2 / skip 不是 pass。不改 `APP_VERSION`。Issue：[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)。
+
+---
+
+## 残留：包装 macOS 退出+作业矩阵
+
+**结论：pass（四行 Darwin）。** 日期 `2026-09-08T13:26:18Z`（UTC）。Path B 启动作业；生产 `handle_close_requested`；点 **Quit and cancel**。原生选文件夹对话框仍 stub。上文 S9.12 skip 以及残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) 作为历史保留。不要重开 [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)。
+
+| 字段 | 值 |
+| ---- | -- |
+| 日期 | `2026-09-08T13:26:18Z` |
+| OS | Darwin — GitHub 托管 `macos-latest`（`uname` `Darwin`） |
+| `APP_VERSION` | `2.1.0-desktop` |
+| `mode` / `result` | `quit-job-matrix` / `pass` |
+| `native_dialog` | `stubbed` |
+| 语料 | 500 张 JPEG 3000×2000 q88 |
+| `originals_unchanged` | `true` |
+| `leftover_listen` | `false` |
+| CI | [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)，`8658e14` |
+
+| 行 | 结果 | 对话 |
+| --- | ------ | ------ |
+| Quit clean | `pass` | 无对话（无活动作业） |
+| Quit + 导入 | `pass` | `Import is still running`；stay / cancel_and_quit / quit_anyway |
+| Quit + 分组排序 | `pass` | `Grouping and ranking is still running`；stay / cancel_and_quit / quit_anyway |
+| Quit + 导出 | `pass` | `Export is still running`；stay / cancel_and_quit / quit_anyway |
+
+同一 job 内，刚打出的未签名 DMG 走 Path B（`packaging/scripts/desktop-quit-job-gui.sh`）。Linux/WSL2 仍是 exit 2 / skip 不是 pass。Stay / Quit anyway 仍由 Rust 单测覆盖。不改 `APP_VERSION`。不声称 Gatekeeper 干净或商店上架。Issue：[#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)。

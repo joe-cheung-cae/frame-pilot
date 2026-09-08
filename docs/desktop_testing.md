@@ -4,7 +4,7 @@
 
 Manual and command-driven checks for FramePilot desktop (`2.1.0-desktop` track). Local-first: never modify or delete original camera files. Prefer project copies under `{root_path}/originals`.
 
-`npm run verify` is the rust-free CI gate (lint, typecheck, tests, artifacts, validation-decision). It does **not** open a WebView or run `cargo`/`tauri`. GitHub Actions (`.github/workflows/verify.yml`) also runs an independent **Playwright E2E** job (`npm run test:e2e`: mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), an independent **100-photo real-browser** job (`npm run test:e2e:real-browser`; not `test:e2e:real-browser:large`), an independent **frozen sidecar `/health`** job (`npm run packaging:sidecar` then `npm run test:sidecar`), and an independent **desktop HTTP smoke** job (`npm run test:desktop:smoke`: `/health`, `/api/projects`, desktop Origin CORS, attacker `Host` → 403). Frozen smoke unsets `PYTHONPATH` (same as packaged Tauri spawn). Desktop HTTP smoke may use the venv sidecar when no frozen binary is present. `.github/workflows/desktop.yml` runs the frozen sidecar smoke after PyInstaller and launches the packaged macOS DMG GUI for leftover installer DoD smoke (`packaging/scripts/macos-dmg-gui-smoke.sh`). It also launches the packaged NSIS and DMG GUIs for leftover packaged-desktop ≥500 Path B (`packaging/scripts/desktop-500-gui.sh`; native dialog stubbed). `verify.yml` stays rust-free and does not launch GUI. Workflow YAML does not need a separate `check:pretag` job; `npm run verify` already includes `check:validation-decision`. GUI rows need a host with rustc ≥1.88 (and a display). Mark unverified GUI rows `[~]` with date and host notes — never invent pass results.
+`npm run verify` is the rust-free CI gate (lint, typecheck, tests, artifacts, validation-decision). It does **not** open a WebView or run `cargo`/`tauri`. GitHub Actions (`.github/workflows/verify.yml`) also runs an independent **Playwright E2E** job (`npm run test:e2e`: mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), an independent **100-photo real-browser** job (`npm run test:e2e:real-browser`; not `test:e2e:real-browser:large`), an independent **frozen sidecar `/health`** job (`npm run packaging:sidecar` then `npm run test:sidecar`), and an independent **desktop HTTP smoke** job (`npm run test:desktop:smoke`: `/health`, `/api/projects`, desktop Origin CORS, attacker `Host` → 403). Frozen smoke unsets `PYTHONPATH` (same as packaged Tauri spawn). Desktop HTTP smoke may use the venv sidecar when no frozen binary is present. `.github/workflows/desktop.yml` runs the frozen sidecar smoke after PyInstaller and launches the packaged macOS DMG GUI for leftover installer DoD smoke (`packaging/scripts/macos-dmg-gui-smoke.sh`). It also launches the packaged NSIS and DMG GUIs for leftover packaged-desktop ≥500 Path B (`packaging/scripts/desktop-500-gui.sh`; native dialog stubbed). It also launches the packaged macOS DMG GUI for leftover quit+job Path B (`packaging/scripts/desktop-quit-job-gui.sh`; native dialog stubbed). `verify.yml` stays rust-free and does not launch GUI. Workflow YAML does not need a separate `check:pretag` job; `npm run verify` already includes `check:validation-decision`. GUI rows need a host with rustc ≥1.88 (and a display). Mark unverified GUI rows `[~]` with date and host notes — never invent pass results.
 
 **Related:** [Desktop shell README](../apps/desktop/README.md) · [Signing runbook](desktop_signing.md) · [Phase 2 workflow checklist](../tests/desktop/workflow.md) · [Phase 5 design](plans/2026-08-29-phase5-docs-design.md)
 
@@ -144,7 +144,7 @@ Windows NSIS GUI lifecycle is already recorded on [#144](https://github.com/joe-
 | CI | [desktop.yml run 34105891421](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34105891421) — step `Smoke packaged macOS DMG GUI launch` exit 0 |
 | Originals | Not involved (leftover smoke does not import photos) |
 
-Install+run row: **Start (installed)** `[x]` — same-job DMG attach + `open` of `FramePilot.app` + loopback `GET /health` with `version` and `service`. Full quit+import/processing/export dialog matrix remains unscheduled.
+Install+run row: **Start (installed)** `[x]` — same-job DMG attach + `open` of `FramePilot.app` + loopback `GET /health` with `version` and `service`. The quit+import/processing/export dialog matrix later shipped as leftover [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181).
 
 Windows NSIS GUI pass remains [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144). Unsigned Gatekeeper warnings remain expected; this record does not claim Gatekeeper-clean or store listing. No `APP_VERSION` bump. Issue: [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177).
 
@@ -170,3 +170,30 @@ Windows NSIS GUI pass remains [#144](https://github.com/joe-cheung-cae/frame-pil
 | CI | [desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835) | same run, job `macos-latest` |
 
 Same-job Path B (`packaging/scripts/desktop-500-gui.sh`) after the just-built unsigned NSIS/DMG. Preview came from a Path B `createRoot` overlay (`via=root`), not a native folder dialog or a full cull-route click-through. Linux/WSL2 `--probe` remains exit 2 / skip is not pass. No `APP_VERSION` bump. Issue: [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179).
+
+---
+
+## Leftover packaged macOS quit+job matrix
+
+**Verdict: pass (four Darwin rows).** Dated `2026-09-08T13:26:18Z` (UTC). Path B starts the job; production `handle_close_requested`; **Quit and cancel** click. Native folder dialog stays stubbed. The S9.12 skip subsection and leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) records stay history. Do not reopen [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172).
+
+| Field | Value |
+| ----- | ----- |
+| Date | `2026-09-08T13:26:18Z` |
+| OS | Darwin — GitHub-hosted `macos-latest` (`uname` `Darwin`) |
+| `APP_VERSION` | `2.1.0-desktop` |
+| `mode` / `result` | `quit-job-matrix` / `pass` |
+| `native_dialog` | `stubbed` |
+| Corpus | 500 JPEG 3000×2000 q88 |
+| `originals_unchanged` | `true` |
+| `leftover_listen` | `false` |
+| CI | [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750) on `8658e14` |
+
+| Row | Result | Dialog |
+| --- | ------ | ------ |
+| Quit clean | `pass` | no dialog (no active job) |
+| Quit + import | `pass` | `Import is still running`; stay / cancel_and_quit / quit_anyway |
+| Quit + processing | `pass` | `Grouping and ranking is still running`; stay / cancel_and_quit / quit_anyway |
+| Quit + export | `pass` | `Export is still running`; stay / cancel_and_quit / quit_anyway |
+
+Same-job Path B (`packaging/scripts/desktop-quit-job-gui.sh`) after the just-built unsigned DMG. Linux/WSL2 remains exit 2 / skip is not pass. Stay / Quit anyway stay Rust unit-tested. No `APP_VERSION` bump. No Gatekeeper-clean or store listing claim. Issue: [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181).

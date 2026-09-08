@@ -10,7 +10,7 @@ FramePilot v2 应把现有 v1 MVP 演进为可靠的本地优先照片筛选工�
 
 当你希望 Codex 自主但安全地继续开发本项目时，在 Codex Goal Mode 中使用这些提示词。
 
-现行下一步指针是 `develop_plan.md` §1.1。第八阶段 HEIC 静帧预览（H8.01–H8.06）已经交付。交付第九阶段 remaining-stretch（S9.00–S9.13，`docs/plans/2026-09-04-remaining-stretch.md`）已关闭。残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）已交付。残留双平台安装包 GUI DoD 安装并运行（[#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)）已交付。残留包装桌面 ≥500 GUI（[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)）已交付。若 §1.1 没有点名的下一切片，停止。不要发明第十阶段。长时提示词里的 Phase 0–7 / v2.0–v2.6 列表是历史产品排序。交付上的第七阶段是处理作业取消，已经交付；不要把 Goal Mode 的「Phase 7: v2.6」当成当前工作。
+现行下一步指针是 `develop_plan.md` §1.1。第八阶段 HEIC 静帧预览（H8.01–H8.06）已经交付。交付第九阶段 remaining-stretch（S9.00–S9.13，`docs/plans/2026-09-04-remaining-stretch.md`）已关闭。残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）已交付。残留双平台安装包 GUI DoD 安装并运行（[#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)）已交付。残留包装桌面 ≥500 GUI（[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)）已交付。残留包装 macOS 退出+作业矩阵（[#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)）已交付。若 §1.1 没有点名的下一切片，停止。不要发明第十阶段。长时提示词里的 Phase 0–7 / v2.0–v2.6 列表是历史产品排序。交付上的第七阶段是处理作业取消，已经交付；不要把 Goal Mode 的「Phase 7: v2.6」当成当前工作。
 
 ## 2. 长时间自动迭代提示词
 
@@ -100,7 +100,7 @@ Before starting implementation:
 3. Do not overwrite user changes.
 4. If the working tree is dirty because of previous Codex work, either continue from it safely or commit only after tests pass.
 5. Read `develop_plan.md` §1.1 first. That subsection is the living next-slice pointer. Stretch lists later in `develop_plan.md` and the Phase 0–7 / v2.0–v2.6 list below are historical product sequencing. Do not reopen a shipped item.
-6. Phase 9 remaining stretch is closed (S9.00–S9.13). Leftover cache knobs (#175) shipped. Leftover dual-platform installer GUI DoD install+run (#177) shipped. Leftover packaged-desktop ≥500 GUI (#179) shipped. Phase 8 HEIC still preview is shipped; do not re-implement it. Do not invent Phase 10. If §1.1 names no next slice, stop rather than picking from historical lists.
+6. Phase 9 remaining stretch is closed (S9.00–S9.13). Leftover cache knobs (#175) shipped. Leftover dual-platform installer GUI DoD install+run (#177) shipped. Leftover packaged-desktop ≥500 GUI (#179) shipped. Leftover packaged macOS quit+job matrix (#181) shipped. Phase 8 HEIC still preview is shipped; do not re-implement it. Do not invent Phase 10. If §1.1 names no next slice, stop rather than picking from historical lists.
 
 Numbering warning:
 - Goal Mode “Phase 7: v2.6 Optional Advanced Support” is **not** delivery Phase 7. Delivery Phase 7 is processing job cancel (J7.01–J7.06) and already shipped.
@@ -310,7 +310,7 @@ Requirements:
 
 Acceptance criteria:
 - The Phase 8 Definition of Done in that plan is already ticked.
-- Phase 9 remaining-stretch is closed (S9.00–S9.13). Leftover cache knobs (#175) shipped. Leftover dual-platform installer GUI DoD install+run (#177) shipped. Leftover packaged-desktop ≥500 GUI (#179) shipped. If §1.1 names no next slice, do not start a new implementation loop.
+- Phase 9 remaining-stretch is closed (S9.00–S9.13). Leftover cache knobs (#175) shipped. Leftover dual-platform installer GUI DoD install+run (#177) shipped. Leftover packaged-desktop ≥500 GUI (#179) shipped. Leftover packaged macOS quit+job matrix (#181) shipped. If §1.1 names no next slice, do not start a new implementation loop.
 
 Per-iteration workflow details:
 
