@@ -6,6 +6,13 @@
 
 ## 未发布
 
+### 残留 — 包装 Windows 退出+作业矩阵
+
+- 同一 job 未签名 NSIS Path B harness + `desktop.yml` windows 步骤（残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)）
+- 四行：Quit clean、Quit+导入、Quit+分组排序、Quit+导出；生产 `CloseMainWindow` / `qa_request_close`；**Quit and cancel**
+- Linux/WSL2 skip ≠ pass（exit 2）。四行 Windows 都是 `result=pass` 之前不要勾活文档
+- 不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) / [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)。不改 `APP_VERSION`。不签名。无第十阶段
+
 ### 残留 — 包装 macOS 退出+作业矩阵
 
 - 四行 Darwin `result=pass`（[desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)，`8658e14`，`2026-09-08T13:26:18Z`）：Quit clean、Quit+导入、Quit+分组排序、Quit+导出

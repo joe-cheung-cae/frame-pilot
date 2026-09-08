@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Host check for leftover packaged macOS quit+job matrix: skip is not pass on Linux.
+# Host check for leftover packaged NSIS/DMG quit+job matrix: skip is not pass on Linux.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

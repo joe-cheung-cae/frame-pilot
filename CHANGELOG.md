@@ -6,6 +6,13 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — packaged Windows quit+job matrix
+
+- Same-job unsigned NSIS Path B harness + `desktop.yml` windows step (leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184))
+- Four rows: Quit clean, Quit+import, Quit+processing, Quit+export; production `CloseMainWindow` / `qa_request_close`; **Quit and cancel**
+- Linux/WSL2 skip ≠ pass (exit 2). Do not tick living docs until all four Windows rows are `result=pass`
+- Do not reopen [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) / [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181). No `APP_VERSION` bump. No signing. No Phase 10
+
 ### Leftover — packaged macOS quit+job matrix
 
 - Four Darwin rows `result=pass` on [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750) (`8658e14`, `2026-09-08T13:26:18Z`): Quit clean, Quit+import, Quit+processing, Quit+export

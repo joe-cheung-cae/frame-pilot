@@ -4,7 +4,7 @@
 
 FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。本地优先：永不修改或删除相机原图。优先使用 `{root_path}/originals` 下的项目副本。
 
-`npm run verify` 是无 Rust 的 CI 门槛（lint、typecheck、测试、产物检查、验证决策）。它**不会**打开 WebView，也不会跑 `cargo`/`tauri`。GitHub Actions（`.github/workflows/verify.yml`）另有独立的 **Playwright E2E** 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 **100 张真实浏览器** 作业（`npm run test:e2e:real-browser`；不含 `test:e2e:real-browser:large`）、独立的**冻结 sidecar `/health`** 作业（先 `npm run packaging:sidecar`，再 `npm run test:sidecar`），以及独立的**桌面 HTTP 冒烟**作业（`npm run test:desktop:smoke`：`/health`、`/api/projects`、桌面 Origin CORS、攻击者 `Host` → 403）。冻结冒烟会 `unset PYTHONPATH`（与打包后的 Tauri spawn 一致）。桌面 HTTP 冒烟在没有冻结二进制时可用 venv sidecar。`.github/workflows/desktop.yml` 在 PyInstaller 之后跑冻结 sidecar 冒烟，并在 macOS 上为残留安装包 DoD 启动包装 DMG GUI（`packaging/scripts/macos-dmg-gui-smoke.sh`）。也会为残留包装桌面 ≥500 Path B 启动包装 NSIS 与 DMG GUI（`packaging/scripts/desktop-500-gui.sh`；原生对话框 stub）。也会为残留退出+作业 Path B 启动包装 macOS DMG GUI（`packaging/scripts/desktop-quit-job-gui.sh`；原生对话框 stub）。`verify.yml` 保持无 Rust，也不启动 GUI。workflow YAML 不需要单独的 `check:pretag` 作业；`npm run verify` 已包含 `check:validation-decision`。GUI 行需要 rustc ≥1.88（以及显示环境）。未验证的 GUI 行标为带日期的 `[~]`，并写主机说明——**不要编造**通过结果。
+`npm run verify` 是无 Rust 的 CI 门槛（lint、typecheck、测试、产物检查、验证决策）。它**不会**打开 WebView，也不会跑 `cargo`/`tauri`。GitHub Actions（`.github/workflows/verify.yml`）另有独立的 **Playwright E2E** 作业（`npm run test:e2e`：mocked E2E 加上 `tests/e2e/real-local-smoke.spec.ts`）、独立的 **100 张真实浏览器** 作业（`npm run test:e2e:real-browser`；不含 `test:e2e:real-browser:large`）、独立的**冻结 sidecar `/health`** 作业（先 `npm run packaging:sidecar`，再 `npm run test:sidecar`），以及独立的**桌面 HTTP 冒烟**作业（`npm run test:desktop:smoke`：`/health`、`/api/projects`、桌面 Origin CORS、攻击者 `Host` → 403）。冻结冒烟会 `unset PYTHONPATH`（与打包后的 Tauri spawn 一致）。桌面 HTTP 冒烟在没有冻结二进制时可用 venv sidecar。`.github/workflows/desktop.yml` 在 PyInstaller 之后跑冻结 sidecar 冒烟，并在 macOS 上为残留安装包 DoD 启动包装 DMG GUI（`packaging/scripts/macos-dmg-gui-smoke.sh`）。也会为残留包装桌面 ≥500 Path B 启动包装 NSIS 与 DMG GUI（`packaging/scripts/desktop-500-gui.sh`；原生对话框 stub）。也会为残留退出+作业 Path B 启动包装 macOS DMG 与 Windows NSIS GUI（`packaging/scripts/desktop-quit-job-gui.sh`；原生对话框 stub）。`verify.yml` 保持无 Rust，也不启动 GUI。workflow YAML 不需要单独的 `check:pretag` 作业；`npm run verify` 已包含 `check:validation-decision`。GUI 行需要 rustc ≥1.88（以及显示环境）。未验证的 GUI 行标为带日期的 `[~]`，并写主机说明——**不要编造**通过结果。
 
 **相关：** [桌面壳 README](../apps/desktop/README.zh.md) · [签名手册](desktop_signing.zh.md) · [Phase 2 工作流清单](../tests/desktop/workflow.zh.md) · [Phase 5 设计](plans/2026-08-29-phase5-docs-design.zh.md)
 
@@ -197,3 +197,21 @@ Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilo
 | Quit + 导出 | `pass` | `Export is still running`；stay / cancel_and_quit / quit_anyway |
 
 同一 job 内，刚打出的未签名 DMG 走 Path B（`packaging/scripts/desktop-quit-job-gui.sh`）。Linux/WSL2 仍是 exit 2 / skip 不是 pass。Stay / Quit anyway 仍由 Rust 单测覆盖。不改 `APP_VERSION`。不声称 Gatekeeper 干净或商店上架。Issue：[#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)。
+
+---
+
+## 残留：包装 Windows 退出+作业矩阵
+
+**结论：尚未（残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)）。** 同一 job 内，刚打出的未签名 NSIS 走 Path B + 生产 `CloseRequested` / `handle_close_requested` + **Quit and cancel**。只有同一次 `desktop.yml` `windows-latest` 四行都是 `result=pass` 才能勾。不要伪造通过。不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172) / [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) / [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)。不要重戳上面的 Darwin #181 表。
+
+| 字段 | 值 |
+| ---- | -- |
+| OS | Windows — GitHub 托管 `windows-latest` |
+| `APP_VERSION` | `2.1.0-desktop`（不升） |
+| Path B 模式 | `quit-clean` / `quit-import` / `quit-processing` / `quit-export` |
+| `native_dialog` | `stubbed` |
+| 语料 | 500 张 JPEG 3000×2000 q88 |
+| 生产 Quit clean | `CloseMainWindow` → `CloseRequested` |
+| 作业行退出 | 失败关闭的 `qa_request_close` + `[data-choice=cancel_and_quit]` |
+
+Linux/WSL2 仍是 exit 2 / skip 不是 pass。Stay / Quit anyway 仍由 Rust 单测覆盖。不签名。不声称 SmartScreen 干净或商店上架。计划：[docs/plans/2026-09-08-desktop-quit-job-windows.zh.md](plans/2026-09-08-desktop-quit-job-windows.zh.md)。

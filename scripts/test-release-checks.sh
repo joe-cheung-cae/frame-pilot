@@ -645,6 +645,23 @@ expect_success \
   ' '$repo_root/.github/workflows/desktop.yml'"
 
 expect_success \
+  "desktop.yml packaged quit+job matrix is a distinct Windows step after 500" \
+  bash -c "awk '
+    /id: gui500-windows/ { gw = NR }
+    /id: quit-job-windows/ { q = NR; in_q = 1 }
+    in_q && /^      - / && !/id: quit-job-windows/ { in_q = 0 }
+    in_q && /always\(\)/ { q_always = 1 }
+    in_q && /runner.os == .Windows./ { q_os = 1 }
+    in_q && /desktop-quit-job-gui.sh/ { q_script = 1 }
+    in_q && /macos-dmg-gui-smoke.sh/ { folded_177 = 1 }
+    in_q && /desktop-500-gui.sh/ { folded_179 = 1 }
+    /name: FramePilot-desktop-quit-job-windows/ { art = 1 }
+    END {
+      exit (gw && q > gw && q_always && q_os && q_script && art && !folded_177 && !folded_179) ? 0 : 1
+    }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
   "quit+job is not folded into #177/#179 scripts" \
   bash -c "awk '
     /desktop-quit-job-gui/ { found = 1 }

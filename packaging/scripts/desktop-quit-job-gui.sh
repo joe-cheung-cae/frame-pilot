@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Packaged macOS quit+job matrix (leftover #181, Path B start + production quit).
-# Linux/WSL2: skip is not pass (exit 2) before generating photos.
-# Do not print result=pass on Linux. Do not call npm generate:synthetic.
-# Do not set PYTHONPATH. Do not call macos-dmg-gui-smoke.sh or desktop-500-gui.sh.
+# Packaged macOS/Windows quit+job matrix (leftover #181 Darwin / leftover #184 Windows).
+# Path B start + production quit. Linux/WSL2: skip is not pass (exit 2) before
+# generating photos. Do not print result=pass on Linux. Do not call npm
+# generate:synthetic. Do not set PYTHONPATH. Do not call macos-dmg-gui-smoke.sh
+# or desktop-500-gui.sh.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -22,6 +23,10 @@ CLEANUP_DONE=0
 GUI_PID=""
 ATTACH_DEV=""
 APP_COPY=""
+INSTALLED_EXE=""
+UNINSTALL_EXE=""
+PARSE_NETSTAT=""
+PARSE_TASKLIST=""
 OPENED=0
 ROW=""
 ROW_QUIT_CLEAN="fail"
@@ -42,7 +47,13 @@ os_label() {
 }
 
 scratch_prefix() {
-  printf '%s\n' "${HOME}/.cache/framepilot-desktop-quit-job"
+  local label
+  label="$(os_label)"
+  if [[ "$label" == "windows" && -n "${LOCALAPPDATA:-}" ]]; then
+    printf '%s\n' "${LOCALAPPDATA}/framepilot-desktop-quit-job"
+  else
+    printf '%s\n' "${HOME}/.cache/framepilot-desktop-quit-job"
+  fi
 }
 
 python_is_usable() {
@@ -61,10 +72,12 @@ resolve_python() {
   local python_bin=""
   if python_is_usable "${PYTHON:-}"; then
     python_bin="$PYTHON"
+  elif python_is_usable "$repo_root/.venv/Scripts/python.exe"; then
+    python_bin="$repo_root/.venv/Scripts/python.exe"
   elif python_is_usable "$repo_root/.venv/bin/python"; then
     python_bin="$repo_root/.venv/bin/python"
   else
-    echo "python interpreter not found (PYTHON, .venv/bin/python)" >&2
+    echo "python interpreter not found (PYTHON, .venv/Scripts/python.exe, .venv/bin/python)" >&2
     return 1
   fi
   printf '%s\n' "$python_bin"
@@ -81,7 +94,7 @@ ci_run_url() {
 }
 
 usage() {
-  echo "usage: $0 --probe|--count N [--installer PATH]" >&2
+  echo "usage: $0 --probe|--count N [--installer PATH]|--parse-windows-listen NETSTAT TASKLIST" >&2
 }
 
 json_escape() {
@@ -165,12 +178,29 @@ kill_macos_leftovers() {
 }
 
 wipe_launch_siblings() {
-  rm -rf "${PROJECT_DIR}" "${DATA_DIR}" "${EVIDENCE_DIR}"
+  local n
+  kill_packaged_leftovers || true
+  for n in 1 2 3 4 5; do
+    if rm -rf "${PROJECT_DIR}" "${DATA_DIR}" "${EVIDENCE_DIR}"; then
+      mkdir -p "${PROJECT_DIR}" "${DATA_DIR}" "${EVIDENCE_DIR}"
+      return 0
+    fi
+    kill_packaged_leftovers || true
+    sleep 1
+  done
+  rm -rf "${PROJECT_DIR}" "${DATA_DIR}" "${EVIDENCE_DIR}" 2>/dev/null || true
   mkdir -p "${PROJECT_DIR}" "${DATA_DIR}" "${EVIDENCE_DIR}"
 }
 
+kill_packaged_leftovers() {
+  case "$(os_label)" in
+    windows) kill_windows_leftovers ;;
+    macos) kill_macos_leftovers ;;
+  esac
+}
+
 wipe_scratch_siblings() {
-  kill_macos_leftovers || true
+  kill_packaged_leftovers || true
   rm -rf "${PHOTOS_DIR}" "${PROJECT_DIR}" "${DATA_DIR}" "${EVIDENCE_DIR}" "${APP_DIR}" 2>/dev/null || true
 }
 
@@ -188,6 +218,10 @@ cleanup() {
     hdiutil detach "${ATTACH_DEV}" >/dev/null 2>&1 || hdiutil detach "${ATTACH_DEV}" -force >/dev/null 2>&1
     ATTACH_DEV=""
   fi
+  if [[ -n "${UNINSTALL_EXE}" && -f "${UNINSTALL_EXE}" ]]; then
+    "${UNINSTALL_EXE}" //S >/dev/null 2>&1 || true
+    UNINSTALL_EXE=""
+  fi
   if [[ -n "${PREFIX:-}" ]]; then
     mkdir -p "${PREFIX}/evidence"
     write_result_json "${PREFIX}/evidence/result.json" || true
@@ -198,11 +232,22 @@ cleanup() {
 }
 
 quit_gui() {
-  osascript -e 'tell application "FramePilot" to quit' >/dev/null 2>&1 || true
-  osascript -e 'tell application id "com.framepilot.app" to quit' >/dev/null 2>&1 || true
-  if [[ -n "${GUI_PID}" ]]; then
-    kill "${GUI_PID}" >/dev/null 2>&1 || true
-  fi
+  case "$(os_label)" in
+    macos)
+      osascript -e 'tell application "FramePilot" to quit' >/dev/null 2>&1 || true
+      osascript -e 'tell application id "com.framepilot.app" to quit' >/dev/null 2>&1 || true
+      if [[ -n "${GUI_PID}" ]]; then
+        kill "${GUI_PID}" >/dev/null 2>&1 || true
+      fi
+      ;;
+    windows)
+      windows_close_main_window >/dev/null 2>&1 || true
+      if [[ -n "${GUI_PID}" ]]; then
+        kill "${GUI_PID}" >/dev/null 2>&1 || true
+      fi
+      kill_windows_leftovers
+      ;;
+  esac
 }
 
 prepare_scratch() {
@@ -219,9 +264,9 @@ prepare_scratch() {
 }
 
 linux_skip() {
-  echo "skip is not pass: uname -s is ${os}; packaged DMG quit+job matrix cannot run here" >&2
+  echo "skip is not pass: uname -s is ${os}; packaged NSIS/DMG quit+job matrix cannot run here" >&2
   RESULT="skip"
-  FAIL_REASON="skip is not pass: uname -s is ${os}; packaged DMG quit+job matrix cannot run here"
+  FAIL_REASON="skip is not pass: uname -s is ${os}; packaged NSIS/DMG quit+job matrix cannot run here"
   ORIGINALS_UNCHANGED=true
   write_result_json "${EVIDENCE_DIR}/result.json" || true
   exit 2
@@ -261,6 +306,68 @@ find_dmg() {
   printf '%s\n' "${files[0]}"
 }
 
+find_nsis() {
+  local dir files
+  if [[ -n "$INSTALLER" ]]; then
+    printf '%s\n' "$INSTALLER"
+    return 0
+  fi
+  dir="$repo_root/apps/desktop/src-tauri/target/release/bundle/nsis"
+  shopt -s nullglob
+  files=("$dir"/*.exe)
+  shopt -u nullglob
+  if [[ "${#files[@]}" -lt 1 ]]; then
+    echo "NSIS installer not found under ${dir}" >&2
+    return 1
+  fi
+  printf '%s\n' "${files[0]}"
+}
+
+webview2_present() {
+  local base
+  if command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command \
+      "if (Get-ItemProperty HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5} -ErrorAction SilentlyContinue) { exit 0 }; if (Test-Path \$env:LOCALAPPDATA\\Microsoft\\EdgeWebView\\Application) { exit 0 }; exit 1" \
+      >/dev/null 2>&1 && return 0
+  fi
+  for base in \
+    "${LOCALAPPDATA:-}/Microsoft/EdgeWebView/Application" \
+    "/c/Program Files (x86)/Microsoft/EdgeWebView/Application"; do
+    if [[ -d "$base" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+windows_image_running() {
+  local image="${1:-}"
+  tasklist.exe //FI "IMAGENAME eq ${image}" 2>/dev/null | grep -qi "$image"
+}
+
+kill_windows_leftovers() {
+  local n
+  for n in 1 2 3 4 5 6 7 8 9 10; do
+    taskkill.exe //F //T //IM framepilot-desktop.exe >/dev/null 2>&1 || true
+    taskkill.exe //F //T //IM framepilot-api.exe >/dev/null 2>&1 || true
+    if ! windows_image_running "framepilot-desktop.exe" && ! windows_image_running "framepilot-api.exe"; then
+      sleep 1
+      return 0
+    fi
+    sleep 1
+  done
+}
+
+# Git Bash POSIX paths fail the Rust QA prefix gate. Windows exe needs native paths.
+native_path() {
+  local raw="${1:-}"
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$raw"
+  else
+    printf '%s\n' "$raw"
+  fi
+}
+
 port_from_ps_argv() {
   local args host port
   while IFS= read -r args; do
@@ -296,6 +403,98 @@ port_from_ps_argv() {
     printf '%s\n' "$port"
     return 0
   done < <(ps -axww -o args= 2>/dev/null || true)
+  return 1
+}
+
+parse_windows_listen() {
+  local netstat_file="${1:-}"
+  local tasklist_file="${2:-}"
+  if [[ ! -f "$netstat_file" || ! -f "$tasklist_file" ]]; then
+    return 1
+  fi
+  python3 - "$netstat_file" "$tasklist_file" <<'PY'
+import re
+import sys
+
+netstat_path, tasklist_path = sys.argv[1], sys.argv[2]
+pids = set()
+for raw in open(tasklist_path, encoding="utf-8", errors="replace"):
+    line = raw.strip()
+    if "framepilot-api" not in line.lower():
+        continue
+    parts = line.split()
+    for index, part in enumerate(parts):
+        if "framepilot-api" in part.lower() and index + 1 < len(parts) and parts[index + 1].isdigit():
+            pids.add(parts[index + 1])
+            break
+if not pids:
+    sys.exit(1)
+
+for raw in open(netstat_path, encoding="utf-8", errors="replace"):
+    line = raw.strip()
+    upper = line.upper()
+    if "LISTEN" not in upper:
+        continue
+    if re.match(r"TCP\s+(0\.0\.0\.0|\*|\[::\]):", line, re.I):
+        continue
+    match = re.search(r"(127\.0\.0\.1|\[::1\]):(\d+)", line)
+    if not match:
+        continue
+    port = match.group(2)
+    if port == "0":
+        continue
+    numbers = re.findall(r"\b(\d+)\b", line)
+    pid = numbers[-1] if numbers else ""
+    if pid in pids:
+        print(port)
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+
+port_from_powershell_listen() {
+  local port
+  if ! command -v powershell.exe >/dev/null 2>&1; then
+    return 1
+  fi
+  port="$(
+    powershell.exe -NoProfile -Command '
+$p = Get-Process -Name framepilot-api -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $p) { exit 1 }
+$c = Get-NetTCPConnection -OwningProcess $p.Id -State Listen -ErrorAction SilentlyContinue |
+  Where-Object { $_.LocalAddress -eq "127.0.0.1" } |
+  Select-Object -First 1
+if (-not $c) { exit 1 }
+Write-Output $c.LocalPort
+' 2>/dev/null | tr -d "\r" | tail -n 1
+  )"
+  if [[ "$port" =~ ^[1-9][0-9]*$ ]]; then
+    printf '%s\n' "$port"
+    return 0
+  fi
+  return 1
+}
+
+port_from_windows_netstat() {
+  local netstat_file tasklist_file port
+  netstat_file="${EVIDENCE_DIR:-/tmp}/netstat-listen.txt"
+  tasklist_file="${EVIDENCE_DIR:-/tmp}/tasklist-api.txt"
+  mkdir -p "$(dirname "$netstat_file")"
+  netstat -ano 2>/dev/null > "$netstat_file" || true
+  if command -v tasklist.exe >/dev/null 2>&1; then
+    tasklist.exe //FI "IMAGENAME eq framepilot-api.exe" > "$tasklist_file" 2>/dev/null || true
+  elif command -v tasklist >/dev/null 2>&1; then
+    tasklist //FI "IMAGENAME eq framepilot-api.exe" > "$tasklist_file" 2>/dev/null || true
+  else
+    return 1
+  fi
+  set +e
+  port="$(parse_windows_listen "$netstat_file" "$tasklist_file")"
+  set -e
+  if [[ -n "${port:-}" ]]; then
+    printf '%s\n' "$port"
+    return 0
+  fi
   return 1
 }
 
@@ -364,11 +563,47 @@ discover_port() {
     printf '%s\n' "$port"
     return 0
   fi
+  if [[ "$(os_label)" == "windows" ]]; then
+    set +e
+    port="$(port_from_powershell_listen)"
+    rc=$?
+    set -e
+    if [[ "$rc" -eq 0 && -n "$port" ]]; then
+      printf '%s\n' "$port"
+      return 0
+    fi
+    set +e
+    port="$(port_from_windows_netstat)"
+    rc=$?
+    set -e
+    if [[ "$rc" -eq 0 && -n "$port" ]]; then
+      printf '%s\n' "$port"
+      return 0
+    fi
+  fi
   return 1
 }
 
 framepilot_api_listen_count() {
-  lsof -nP -c framepilot-api -iTCP -sTCP:LISTEN 2>/dev/null | grep -c 'LISTEN' || true
+  local port
+  case "$(os_label)" in
+    windows)
+      set +e
+      port="$(port_from_powershell_listen)"
+      if [[ -z "${port:-}" ]]; then
+        port="$(port_from_windows_netstat)"
+      fi
+      set -e
+      if [[ -n "${port:-}" ]]; then
+        printf '1\n'
+      else
+        printf '0\n'
+      fi
+      ;;
+    *)
+      lsof -nP -c framepilot-api -iTCP -sTCP:LISTEN 2>/dev/null | grep -c 'LISTEN' || true
+      ;;
+  esac
 }
 
 export_qa_env() {
@@ -376,11 +611,13 @@ export_qa_env() {
   unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY || true
   export no_proxy='127.0.0.1,localhost,::1'
   export NO_PROXY='127.0.0.1,localhost,::1'
-  export FRAMEPILOT_DATA_DIR="$DATA_DIR"
+  export MSYS2_ARG_CONV_EXCL='*'
+  export MSYS_NO_PATHCONV=1
+  export FRAMEPILOT_DATA_DIR="$(native_path "$DATA_DIR")"
   export FRAMEPILOT_DESKTOP_QA=1
-  export FRAMEPILOT_DESKTOP_QA_PHOTOS="$PHOTOS_DIR"
-  export FRAMEPILOT_DESKTOP_QA_PROJECT="$PROJECT_DIR"
-  export FRAMEPILOT_DESKTOP_QA_EVIDENCE="$EVIDENCE_DIR"
+  export FRAMEPILOT_DESKTOP_QA_PHOTOS="$(native_path "$PHOTOS_DIR")"
+  export FRAMEPILOT_DESKTOP_QA_PROJECT="$(native_path "$PROJECT_DIR")"
+  export FRAMEPILOT_DESKTOP_QA_EVIDENCE="$(native_path "$EVIDENCE_DIR")"
   export FRAMEPILOT_DESKTOP_QA_MODE="$mode"
 }
 
@@ -388,6 +625,17 @@ dump_health_timeout_diagnostics() {
   echo "--- health-timeout diagnostics ---" >&2
   echo "os=$(os_label) uname=${uname_s} data_dir=${DATA_DIR:-} row=${ROW:-}" >&2
   ps -axww -o pid,args= 2>/dev/null | head -n 80 >&2 || true
+  if command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command \
+      "Get-Process framepilot-api,framepilot-desktop,msedgewebview2 -ErrorAction SilentlyContinue | Format-Table Name,Id,WorkingSet64 -AutoSize" \
+      >&2 || true
+  fi
+  if command -v tasklist >/dev/null 2>&1; then
+    tasklist 2>/dev/null | head -n 40 >&2 || true
+  fi
+  if command -v netstat >/dev/null 2>&1; then
+    netstat -ano 2>/dev/null | head -n 40 >&2 || true
+  fi
   if [[ -n "${DATA_DIR:-}" && -f "${DATA_DIR}/logs/sidecar.log" ]]; then
     echo "--- sidecar.log (stderr; last 80) ---" >&2
     tail -n 80 "${DATA_DIR}/logs/sidecar.log" >&2 || true
@@ -593,6 +841,9 @@ verify_no_leftover_listen() {
   if [[ "${count:-0}" -gt 0 ]]; then
     echo "leftover framepilot-api LISTEN count=${count}" >&2
     lsof -nP -c framepilot-api -iTCP -sTCP:LISTEN >&2 || true
+    if command -v netstat >/dev/null 2>&1; then
+      netstat -ano 2>/dev/null | head -n 40 >&2 || true
+    fi
     LEFTOVER_LISTEN=true
     return 1
   fi
@@ -611,10 +862,20 @@ wait_app_exit() {
       echo "FramePilot did not exit within ${timeout_s}s after quit" >&2
       return 1
     fi
-    if ! pgrep -f '/FramePilot\.app/Contents/MacOS/' >/dev/null 2>&1 \
-      && ! pgrep -f 'framepilot-api' >/dev/null 2>&1; then
-      return 0
-    fi
+    case "$(os_label)" in
+      windows)
+        if ! windows_image_running "framepilot-desktop.exe" \
+          && ! windows_image_running "framepilot-api.exe"; then
+          return 0
+        fi
+        ;;
+      *)
+        if ! pgrep -f '/FramePilot\.app/Contents/MacOS/' >/dev/null 2>&1 \
+          && ! pgrep -f 'framepilot-api' >/dev/null 2>&1; then
+          return 0
+        fi
+        ;;
+    esac
     sleep 1
   done
 }
@@ -698,6 +959,102 @@ launch_macos() {
   fi
   osascript -e 'tell application "FramePilot" to activate' >/dev/null 2>&1 || true
   OPENED=1
+}
+
+windows_close_main_window() {
+  if ! command -v powershell.exe >/dev/null 2>&1; then
+    echo "powershell.exe not found for production CloseMainWindow" >&2
+    return 1
+  fi
+  powershell.exe -NoProfile -Command '
+$p = Get-Process -Name framepilot-desktop -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $p) { exit 1 }
+if (-not $p.CloseMainWindow()) { exit 1 }
+' >/dev/null
+}
+
+install_windows() {
+  local installer
+  installer="$(find_nsis)"
+  if [[ ! -f "$installer" ]]; then
+    echo "NSIS installer not found: ${installer}" >&2
+    return 1
+  fi
+  if ! webview2_present; then
+    echo "WebView2 runtime is missing" >&2
+    return 1
+  fi
+  kill_windows_leftovers
+  if [[ -f "${LOCALAPPDATA}/FramePilot/uninstall.exe" ]]; then
+    "${LOCALAPPDATA}/FramePilot/uninstall.exe" //S >/dev/null 2>&1 || true
+  fi
+  "$installer" //S
+  INSTALLED_EXE="${LOCALAPPDATA}/FramePilot/framepilot-desktop.exe"
+  UNINSTALL_EXE="${LOCALAPPDATA}/FramePilot/uninstall.exe"
+  if [[ ! -f "$INSTALLED_EXE" ]]; then
+    echo "framepilot-desktop.exe missing after NSIS /S (productName=FramePilot)" >&2
+    return 1
+  fi
+}
+
+launch_windows() {
+  local mode="${1:-}"
+  local ps1 exe_win
+  if [[ -z "${INSTALLED_EXE}" || ! -f "$INSTALLED_EXE" ]]; then
+    echo "Windows app is not installed; call install_windows first" >&2
+    return 1
+  fi
+  kill_windows_leftovers
+  export_qa_env "$mode"
+  export WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--disable-gpu --use-gl=swiftshader --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --disable-renderer-backgrounding'
+  ps1="${EVIDENCE_DIR}/launch-gui.ps1"
+  exe_win="$(native_path "$INSTALLED_EXE")"
+  cat > "$ps1" <<EOF
+\$ErrorActionPreference = 'Stop'
+\$env:FRAMEPILOT_DESKTOP_QA = '1'
+\$env:FRAMEPILOT_DATA_DIR = '$(native_path "$DATA_DIR")'
+\$env:FRAMEPILOT_DESKTOP_QA_PHOTOS = '$(native_path "$PHOTOS_DIR")'
+\$env:FRAMEPILOT_DESKTOP_QA_PROJECT = '$(native_path "$PROJECT_DIR")'
+\$env:FRAMEPILOT_DESKTOP_QA_EVIDENCE = '$(native_path "$EVIDENCE_DIR")'
+\$env:FRAMEPILOT_DESKTOP_QA_MODE = '$mode'
+\$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '$WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'
+\$env:no_proxy = '127.0.0.1,localhost,::1'
+\$env:NO_PROXY = '127.0.0.1,localhost,::1'
+\$p = Start-Process -FilePath '$exe_win' -WindowStyle Normal -PassThru
+Write-Output \$p.Id
+EOF
+  GUI_PID="$(
+    MSYS2_ARG_CONV_EXCL='*' powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(native_path "$ps1")" | tr -d '\r' | tail -n 1
+  )"
+  if [[ ! "$GUI_PID" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Start-Process did not return a PID (got ${GUI_PID:-empty}); falling back to bash launch" >&2
+    "$INSTALLED_EXE" &
+    GUI_PID=$!
+  fi
+  OPENED=1
+}
+
+launch_packaged() {
+  local mode="${1:-}"
+  case "$(os_label)" in
+    windows) launch_windows "$mode" ;;
+    macos) launch_macos "$mode" ;;
+    *)
+      echo "packaged NSIS/DMG launch is not supported on $(os_label)" >&2
+      return 1
+      ;;
+  esac
+}
+
+prepare_package() {
+  case "$(os_label)" in
+    windows) install_windows ;;
+    macos) attach_dmg ;;
+    *)
+      echo "packaged NSIS/DMG prepare is not supported on $(os_label)" >&2
+      return 1
+      ;;
+  esac
 }
 
 jsonl_field() {
@@ -830,7 +1187,7 @@ run_row() {
   EVIDENCE_DIR="${PREFIX}/evidence/${row}"
   wipe_launch_siblings
   mkdir -p "$EVIDENCE_DIR"
-  launch_macos "$row"
+  launch_packaged "$row"
   set +e
   port="$(wait_health)"
   set -e
@@ -844,8 +1201,18 @@ run_row() {
   fi
   case "$row" in
     quit-clean)
-      osascript -e 'tell application "FramePilot" to quit' >/dev/null 2>&1 || true
-      osascript -e 'tell application id "com.framepilot.app" to quit' >/dev/null 2>&1 || true
+      case "$(os_label)" in
+        macos)
+          osascript -e 'tell application "FramePilot" to quit' >/dev/null 2>&1 || true
+          osascript -e 'tell application id "com.framepilot.app" to quit' >/dev/null 2>&1 || true
+          ;;
+        windows)
+          if ! windows_close_main_window; then
+            FAIL_REASON="${row}: production CloseMainWindow failed"
+            return 1
+          fi
+          ;;
+      esac
       if ! wait_app_exit 45; then
         FAIL_REASON="${row}: app did not exit after clean quit"
         return 1
@@ -866,10 +1233,11 @@ run_row() {
         FAIL_REASON="${row}: ${running_ms} not written before complete"
         return 1
       fi
-      # Do not Apple-Event quit here. On GHA macos-latest, `tell application
-      # to quit` terminates the process without ExitRequested / handle_close_requested
-      # (sidecar log has no GET /api/projects after import). Path B invokes
-      # production handle_close_requested via fail-closed qa_request_close.
+      # Do not send a production window-close from the harness here. On GHA
+      # macos-latest, `tell application to quit` terminates the process without
+      # ExitRequested / handle_close_requested (sidecar log has no GET
+      # /api/projects after import). Path B invokes production
+      # handle_close_requested via fail-closed qa_request_close.
       if ! wait_milestone "quit_dialog" 60; then
         FAIL_REASON="${row}: quit dialog did not appear"
         return 1
@@ -944,7 +1312,7 @@ run_matrix() {
   fi
   generate_dataset
   snapshot_originals
-  attach_dmg
+  prepare_package
   for row in quit-clean quit-import quit-processing quit-export; do
     if ! run_row "$row"; then
       write_result_json "${EVIDENCE_DIR}/result.json" || true
@@ -956,7 +1324,7 @@ run_matrix() {
   if [[ "$ROW_QUIT_CLEAN" != "pass" || "$ROW_QUIT_IMPORT" != "pass" \
     || "$ROW_QUIT_PROCESSING" != "pass" || "$ROW_QUIT_EXPORT" != "pass" ]]; then
     RESULT="fail"
-    FAIL_REASON="not all four Darwin rows passed"
+    FAIL_REASON="not all four $(os_label) rows passed"
     exit 1
   fi
   RESULT="pass"
@@ -991,6 +1359,15 @@ while [[ $# -gt 0 ]]; do
       INSTALLER="$2"
       shift 2
       ;;
+    --parse-windows-listen)
+      if [[ $# -lt 3 || -z "${2:-}" || -z "${3:-}" ]]; then
+        echo "--parse-windows-listen requires NETSTAT and TASKLIST files" >&2
+        exit 1
+      fi
+      PARSE_NETSTAT="$2"
+      PARSE_TASKLIST="$3"
+      shift 3
+      ;;
     -h|--help)
       usage
       exit 0
@@ -1003,6 +1380,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -n "$PARSE_NETSTAT" ]]; then
+  parse_windows_listen "$PARSE_NETSTAT" "$PARSE_TASKLIST"
+  exit $?
+fi
+
 if [[ -z "$MODE" ]]; then
   MODE="quit-job-matrix"
 fi
@@ -1014,12 +1396,16 @@ if [[ "$os" == "Linux" ]]; then
   linux_skip
 fi
 
-if [[ "$os" != "Darwin" ]]; then
-  echo "packaged macOS quit+job matrix cannot run on $(os_label)" >&2
-  RESULT="fail"
-  FAIL_REASON="packaged DMG quit+job matrix is Darwin-only"
-  write_result_json "${EVIDENCE_DIR}/result.json" || true
-  exit 1
-fi
+case "$(os_label)" in
+  macos|windows)
+    ;;
+  *)
+    echo "packaged quit+job matrix cannot run on $(os_label)" >&2
+    RESULT="fail"
+    FAIL_REASON="packaged NSIS/DMG quit+job matrix is Darwin/Windows only"
+    write_result_json "${EVIDENCE_DIR}/result.json" || true
+    exit 1
+    ;;
+esac
 
 run_matrix

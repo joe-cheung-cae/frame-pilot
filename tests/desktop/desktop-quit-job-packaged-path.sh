@@ -100,4 +100,78 @@ if ! grep -F -q 'cancel_and_quit' "$shipped"; then
   exit 1
 fi
 
+if ! grep -F -q 'LOCALAPPDATA' "$shipped" || ! grep -F -q 'framepilot-desktop-quit-job' "$shipped"; then
+  echo "Windows scratch prefix must use LOCALAPPDATA/framepilot-desktop-quit-job" >&2
+  exit 1
+fi
+
+if ! grep -F -q '.venv/Scripts/python.exe' "$shipped"; then
+  echo "Windows python discovery must prefer Scripts/python.exe" >&2
+  exit 1
+fi
+
+if ! grep -F -q 'find_nsis' "$shipped"; then
+  echo "harness must discover the unsigned NSIS installer" >&2
+  exit 1
+fi
+
+if ! grep -F -q "WindowStyle Normal" "$shipped"; then
+  echo "harness must Start-Process Windows GUI with WindowStyle Normal" >&2
+  exit 1
+fi
+
+if ! grep -F -q "cygpath -w" "$shipped"; then
+  echo "harness must convert Git Bash paths with cygpath -w" >&2
+  exit 1
+fi
+
+if ! grep -F -q "MSYS2_ARG_CONV_EXCL" "$shipped"; then
+  echo "harness must disable MSYS path conversion for the GUI process" >&2
+  exit 1
+fi
+
+if ! grep -F -q 'CloseMainWindow' "$shipped"; then
+  echo "quit-clean must use production CloseMainWindow on Windows" >&2
+  exit 1
+fi
+
+if ! grep -E -q '^parse_windows_listen\(\)|parse_windows_listen \(\)' "$shipped"; then
+  echo "harness is missing parse_windows_listen" >&2
+  exit 1
+fi
+
+if ! awk '
+  /wait_milestone "\$running_ms"/ { in_job = 1 }
+  in_job && /CloseMainWindow/ { found = 1 }
+  in_job && /taskkill/ { found = 1 }
+  in_job && /wait_milestone "quit_dialog"/ { in_job = 0 }
+  END { exit found ? 1 : 0 }
+' "$shipped"; then
+  echo "job rows must not CloseMainWindow or taskkill before quit_dialog" >&2
+  exit 1
+fi
+
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+cat > "$tmpdir/netstat.txt" <<'NET'
+  TCP    0.0.0.0:8000           0.0.0.0:0              LISTENING       1
+  TCP    127.0.0.1:14198        0.0.0.0:0              LISTENING       44316
+  TCP    192.168.1.9:445        0.0.0.0:0              LISTENING       4
+NET
+cat > "$tmpdir/tasklist.txt" <<'TL'
+Image Name                     PID Session Name        Session#    Mem Usage
+========================= ======== ================ =========== ============
+svchost.exe                        1 Services                   0      1,024 K
+framepilot-api.exe             44316 Console                    1     12,345 K
+TL
+set +e
+listen_port="$(bash "$shipped" --parse-windows-listen "$tmpdir/netstat.txt" "$tmpdir/tasklist.txt" 2>"$tmpdir/listen.err")"
+listen_status=$?
+set -e
+if [[ "$listen_status" -ne 0 || "$listen_port" != "14198" ]]; then
+  echo "expected Windows LISTEN parser to return 14198 for framepilot-api.exe, got: ${listen_port}" >&2
+  cat "$tmpdir/listen.err" >&2 || true
+  exit 1
+fi
+
 echo "desktop-quit-job-packaged-path ok"
