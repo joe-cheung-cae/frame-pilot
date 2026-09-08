@@ -637,6 +637,22 @@ mod tests {
     }
 
     #[test]
+    fn qa_gate_accepts_windows_quit_job_prefix_siblings() {
+        let prefix = r"C:\Users\runner\AppData\Local\framepilot-desktop-quit-job";
+        let payload = resolve_desktop_qa(posix_env(
+            "1",
+            &format!(r"{prefix}\photos"),
+            &format!(r"{prefix}\project"),
+            &format!(r"{prefix}\evidence"),
+            &format!(r"{prefix}\data"),
+            prefix,
+        ))
+        .expect("windows quit-job siblings");
+        assert!(payload.photos.ends_with(r"\photos"));
+        assert_eq!(payload.mode, None);
+    }
+
+    #[test]
     fn qa_gate_requires_flag_one_and_absolute_data_dir() {
         let prefix = "/home/alex/.cache/framepilot-desktop-500-gui";
         let photos = format!("{prefix}/photos");

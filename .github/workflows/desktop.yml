@@ -19,9 +19,9 @@
 # smoke (packaging/scripts/macos-dmg-gui-smoke.sh against the just-built
 # DMG), (b) packaging/scripts/desktop-500-gui.sh probe + 500 against
 # the just-built NSIS/DMG, and (c) packaging/scripts/desktop-quit-job-gui.sh
-# packaged macOS quit+job matrix against the just-built DMG. Still do not
-# launch GUI from verify.yml. Do not download installer artifacts into a
-# second job.
+# packaged macOS/Windows quit+job matrix against the just-built DMG/NSIS.
+# Still do not launch GUI from verify.yml. Do not download installer
+# artifacts into a second job.
 
 name: desktop
 
@@ -318,6 +318,32 @@ jobs:
           name: FramePilot-desktop-500-gui-500-macos
           path: ${{ runner.temp }}/desktop-500-gui/500-macos/
           if-no-files-found: ${{ steps.gui500-macos.outcome == 'success' && 'error' || 'warn' }}
+
+      # Leftover #184 Path B + production quit. Do not fold into
+      # macos-dmg-gui-smoke.sh or desktop-500-gui.sh. A red #179 500 must
+      # not skip this leftover.
+      - id: quit-job-windows
+        name: Packaged Windows quit+job matrix
+        if: always() && runner.os == 'Windows'
+        timeout-minutes: 80
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          nsis=(apps/desktop/src-tauri/target/release/bundle/nsis/*.exe)
+          if [[ "${#nsis[@]}" -lt 1 ]]; then
+            echo "No NSIS installer found under apps/desktop/src-tauri/target/release/bundle/nsis" >&2
+            exit 1
+          fi
+          bash packaging/scripts/desktop-quit-job-gui.sh --count 500 --installer "${nsis[0]}"
+
+      - name: Upload packaged Windows quit+job matrix evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FramePilot-desktop-quit-job-windows
+          path: ${{ runner.temp }}/desktop-quit-job/
+          if-no-files-found: ${{ steps.quit-job-windows.outcome == 'success' && 'error' || 'warn' }}
 
       # Leftover #181 Path B + production quit. Do not fold into
       # macos-dmg-gui-smoke.sh or desktop-500-gui.sh. A red #179 500 must
