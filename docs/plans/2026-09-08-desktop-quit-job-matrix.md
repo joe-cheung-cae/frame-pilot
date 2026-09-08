@@ -6,7 +6,7 @@
 
 **Branch:** `cursor/desktop-quit-job-matrix-186e` from `origin/main` @ `d75a8dc` (`fix(desktop): harden Path B QA ACL, milestone allowlist, and canonicalize`). Isolation worktree is false. Do not checkout `main` for commits. Do not merge to `main`. Do not squash. Do not force-push.
 
-**Related:** `develop_plan.md` §1.1; `docs/desktop_development_plan.md` §2.2 and §5.6; `docs/desktop_testing.md`; `.github/workflows/desktop.yml`. Implementation merged as [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182).
+**Related:** `develop_plan.md` §1.1; `docs/desktop_development_plan.md` §2.2 and §5.6; `docs/desktop_testing.md`; `.github/workflows/desktop.yml`. Implementation merged as [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182). 上线 docs PR: [#183](https://github.com/joe-cheung-cae/frame-pilot/pull/183).
 
 ---
 
@@ -49,7 +49,7 @@ Leftover packaged macOS quit+job matrix
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
 - [x] 开发 — Path B quit modes + harness + `desktop.yml` macOS step
 - [x] 测试 — Linux skip-not-pass + `npm run verify`
-- [x] 上线 — [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750) (`8658e14`, `2026-09-08T13:26:18Z`) four Darwin rows `result=pass`; implementation merged as [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182) (`Refs` only); this 上线 docs stamp uses `Fixes` [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
+- [x] 上线 — [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750) (`8658e14`, `2026-09-08T13:26:18Z`) four Darwin rows `result=pass`; implementation merged as [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182) (`Refs` only); 上线 docs PR [#183](https://github.com/joe-cheung-cae/frame-pilot/pull/183) uses `Fixes` [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
 - [x] DoD-ticked — leftover-plan 上线 + `docs/desktop_development_plan.md` §5.6 quit+job `[x]` with the run URL; do **not** re-tick §2.2
 
 Failed Darwin oracles stay history: [34209655915](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34209655915) (`osascript` quit before `quit_dialog`); [34227247641](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34227247641) (30-photo processing already `complete`). Skip ≠ pass. Do **not** invent a later Darwin pass.

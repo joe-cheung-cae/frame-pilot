@@ -6,7 +6,7 @@
 
 **分支：** 从 `origin/main` @ `d75a8dc` 建 `cursor/desktop-quit-job-matrix-186e`。`isolation_worktree` 为 false。不要为了提交切回 `main`。不要合进 `main`。不要 squash。不要 force-push。
 
-**相关：** `develop_plan.zh.md` §1.1；`docs/desktop_development_plan.zh.md` §2.2 与 §5.6；`docs/desktop_testing.zh.md`；`.github/workflows/desktop.yml`。实现已合入 [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182)。
+**相关：** `develop_plan.zh.md` §1.1；`docs/desktop_development_plan.zh.md` §2.2 与 §5.6；`docs/desktop_testing.zh.md`；`.github/workflows/desktop.yml`。实现已合入 [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182)。上线文档 PR：[#183](https://github.com/joe-cheung-cae/frame-pilot/pull/183)。
 
 ---
 
@@ -49,7 +49,7 @@
 - [x] 需求拆解 — 双语残留计划 + GitHub issue [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
 - [x] 开发 — Path B 退出模式 + harness + `desktop.yml` macOS 步骤
 - [x] 测试 — Linux skip-not-pass + `npm run verify`
-- [x] 上线 — [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)（`8658e14`，`2026-09-08T13:26:18Z`）四行 Darwin `result=pass`；实现已合入 [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182)（仅 `Refs`）；本上线文档戳使用 `Fixes` [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
+- [x] 上线 — [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)（`8658e14`，`2026-09-08T13:26:18Z`）四行 Darwin `result=pass`；实现已合入 [#182](https://github.com/joe-cheung-cae/frame-pilot/pull/182)（仅 `Refs`）；上线文档 PR [#183](https://github.com/joe-cheung-cae/frame-pilot/pull/183) 使用 `Fixes` [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)
 - [x] DoD-ticked — 残留板上线 + `docs/desktop_development_plan.md` §5.6 退出+作业 `[x]` 带 run URL；**不要**重勾 §2.2
 
 失败的 Darwin 记录作为历史保留：[34209655915](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34209655915)（`osascript` 在 `quit_dialog` 前退出）；[34227247641](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34227247641)（30 张分组已是 `complete`）。Skip ≠ pass。不要再伪造 Darwin 通过。
