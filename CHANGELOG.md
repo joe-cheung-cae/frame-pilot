@@ -6,6 +6,13 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — unattended packaged-desktop ≥500 GUI
+
+- Both-OS 500 `result=pass` on [desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835) (`b2fe1ff`): packaged WebView from-paths + culling preview (**native dialog stubbed**); `accepted_files=500`; 3000×2000 q88; `APP_VERSION=2.1.0-desktop`
+- Windows `2026-09-07T19:39:23Z` (`preview_natural_width=1800`, sidecar peak RSS 213.05 MB, UI peak 317.56 MB); macOS `2026-09-07T19:30:33Z` (`preview_natural_width=1800`, sidecar peak RSS 566.66 MB, UI peak 568.92 MB)
+- Tick `docs/desktop_development_plan.md` §2.2 ≥500 with leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) plus the run URL; not a full S9.12 click-through
+- No `APP_VERSION` bump, no Gatekeeper-clean or store listing claim, no Phase 10
+
 ### Leftover — dual-platform installer GUI DoD (macOS DMG install+run)
 
 - Dated Darwin pass `2026-09-07T09:34:57Z` on GitHub-hosted `macos-latest`: same-job DMG attach + launch + loopback `GET /health` (`APP_VERSION=2.1.0-desktop`, port `49288`, `title_ok=true`, `result=pass`)

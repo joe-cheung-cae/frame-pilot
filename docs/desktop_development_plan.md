@@ -46,13 +46,13 @@ The current architecture is already “local process + local HTTP”, so it is a
 - [x] Native folder pickers and drag-and-drop import are used
 - [x] All existing core features work and behave the same as current v2
 - [x] Original-file safety rules and local-first principles remain unchanged
-- [ ] Large projects (≥500 photos) do not crash; memory use is acceptable — web Playwright `test:e2e:real-browser:large` and API `perf:api` 500 are not packaged-desktop GUI evidence
+- [x] Large projects (≥500 photos) do not crash; memory use is acceptable — leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) packaged WebView from-paths + culling preview (**native dialog stubbed**); Windows `2026-09-07T19:39:23Z` + macOS `2026-09-07T19:30:33Z` ([desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835)). Not a full S9.12 click-through. Web Playwright `test:e2e:real-browser:large` and API `perf:api` 500 are not packaged-desktop GUI evidence.
 - [x] User install notes and developer build docs are provided
 - [x] CI can auto-build installers for both platforms (code signing can be completed later)
 - [x] The desktop sidecar listens only on 127.0.0.1 and rejects non-loopback Host and unauthorized Origin
 - [x] User-chosen project root directories are accepted only after explicit authorization (see implementation plan D2.00)
 
-Out of scope for `2.1.0-desktop` (see §5.6): leftover 2.2 items Phase 9 shipped (detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10, tray S9.06) plus leftover cache knobs ([#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)). Still deferred (unscheduled): auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, packaged-desktop ≥500 GUI, and full packaged macOS quit+job matrix. Do not invent Phase 10 / 2.3.
+Out of scope for `2.1.0-desktop` (see §5.6): leftover 2.2 items Phase 9 shipped (detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10, tray S9.06) plus leftover cache knobs ([#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)) and leftover packaged-desktop ≥500 GUI ([#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)). Still deferred (unscheduled): auto-download/install, processing pool, full RAW develop, SmartScreen/store listing, and full packaged macOS quit+job matrix. Do not invent Phase 10 / 2.3.
 
 ---
 
@@ -183,6 +183,7 @@ Leftover 2.2 items that Phase 9 shipped are retargeted to their S9 ids. Remainin
 | Processing pool | One processing job per project remains | deferred (unscheduled) |
 | Full RAW develop | Embedded preview only (S9.04); no demosaic | deferred (unscheduled) |
 | SmartScreen / store listing | Signing-ready CI is S9.11; not a store release | deferred (unscheduled) |
+| Packaged-desktop ≥500 GUI | leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) packaged WebView from-paths + culling preview (**native dialog stubbed**); both-OS 500 `result=pass` | leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) `[x]` |
 | Packaged macOS GUI pass | leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) **install+run** DoD `[x]` (`2026-09-07T09:34:57Z`); S9.12 skip stays history; full quit+job matrix still unscheduled | leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) `[x]` install+run; full quit+job matrix unscheduled |
 
 If any of the above is skipped, it must be written into [docs/v2_known_limitations.md](v2_known_limitations.md) (D5.05).

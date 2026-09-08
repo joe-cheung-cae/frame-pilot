@@ -6,6 +6,13 @@
 
 ## 未发布
 
+### 残留 — 无人值守包装桌面 ≥500 GUI
+
+- 双平台 500 `result=pass`（[desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835)，`b2fe1ff`）：包装 WebView from-paths + 审片预览（**原生对话框 stub**）；`accepted_files=500`；3000×2000 q88；`APP_VERSION=2.1.0-desktop`
+- Windows `2026-09-07T19:39:23Z`（`preview_natural_width=1800`，sidecar 峰值 RSS 213.05 MB，UI 峰值 317.56 MB）；macOS `2026-09-07T19:30:33Z`（`preview_natural_width=1800`，sidecar 峰值 RSS 566.66 MB，UI 峰值 568.92 MB）
+- 勾 `docs/desktop_development_plan.md` §2.2 ≥500：残留 [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) + run URL；不是完整 S9.12 点击走查
+- 不改 `APP_VERSION`，不声称 Gatekeeper 干净或商店上架，无第十阶段
+
 ### 残留 — 双平台安装包 GUI DoD（macOS DMG 安装并运行）
 
 - 带日期的 Darwin pass `2026-09-07T09:34:57Z`（GitHub 托管 `macos-latest`）：同一 job 内 DMG attach + 启动 + 回环 `GET /health`（`APP_VERSION=2.1.0-desktop`，port `49288`，`title_ok=true`，`result=pass`）

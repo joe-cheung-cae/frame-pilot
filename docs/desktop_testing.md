@@ -4,7 +4,7 @@
 
 Manual and command-driven checks for FramePilot desktop (`2.1.0-desktop` track). Local-first: never modify or delete original camera files. Prefer project copies under `{root_path}/originals`.
 
-`npm run verify` is the rust-free CI gate (lint, typecheck, tests, artifacts, validation-decision). It does **not** open a WebView or run `cargo`/`tauri`. GitHub Actions (`.github/workflows/verify.yml`) also runs an independent **Playwright E2E** job (`npm run test:e2e`: mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), an independent **100-photo real-browser** job (`npm run test:e2e:real-browser`; not `test:e2e:real-browser:large`), an independent **frozen sidecar `/health`** job (`npm run packaging:sidecar` then `npm run test:sidecar`), and an independent **desktop HTTP smoke** job (`npm run test:desktop:smoke`: `/health`, `/api/projects`, desktop Origin CORS, attacker `Host` → 403). Frozen smoke unsets `PYTHONPATH` (same as packaged Tauri spawn). Desktop HTTP smoke may use the venv sidecar when no frozen binary is present. `.github/workflows/desktop.yml` runs the frozen sidecar smoke after PyInstaller and launches the packaged macOS DMG GUI for leftover installer DoD smoke (`packaging/scripts/macos-dmg-gui-smoke.sh`). It still does not launch the packaged NSIS GUI. `verify.yml` stays rust-free and does not launch GUI. Workflow YAML does not need a separate `check:pretag` job; `npm run verify` already includes `check:validation-decision`. GUI rows need a host with rustc ≥1.88 (and a display). Mark unverified GUI rows `[~]` with date and host notes — never invent pass results.
+`npm run verify` is the rust-free CI gate (lint, typecheck, tests, artifacts, validation-decision). It does **not** open a WebView or run `cargo`/`tauri`. GitHub Actions (`.github/workflows/verify.yml`) also runs an independent **Playwright E2E** job (`npm run test:e2e`: mocked E2E plus `tests/e2e/real-local-smoke.spec.ts`), an independent **100-photo real-browser** job (`npm run test:e2e:real-browser`; not `test:e2e:real-browser:large`), an independent **frozen sidecar `/health`** job (`npm run packaging:sidecar` then `npm run test:sidecar`), and an independent **desktop HTTP smoke** job (`npm run test:desktop:smoke`: `/health`, `/api/projects`, desktop Origin CORS, attacker `Host` → 403). Frozen smoke unsets `PYTHONPATH` (same as packaged Tauri spawn). Desktop HTTP smoke may use the venv sidecar when no frozen binary is present. `.github/workflows/desktop.yml` runs the frozen sidecar smoke after PyInstaller and launches the packaged macOS DMG GUI for leftover installer DoD smoke (`packaging/scripts/macos-dmg-gui-smoke.sh`). It also launches the packaged NSIS and DMG GUIs for leftover packaged-desktop ≥500 Path B (`packaging/scripts/desktop-500-gui.sh`; native dialog stubbed). `verify.yml` stays rust-free and does not launch GUI. Workflow YAML does not need a separate `check:pretag` job; `npm run verify` already includes `check:validation-decision`. GUI rows need a host with rustc ≥1.88 (and a display). Mark unverified GUI rows `[~]` with date and host notes — never invent pass results.
 
 **Related:** [Desktop shell README](../apps/desktop/README.md) · [Signing runbook](desktop_signing.md) · [Phase 2 workflow checklist](../tests/desktop/workflow.md) · [Phase 5 design](plans/2026-08-29-phase5-docs-design.md)
 
@@ -146,4 +146,27 @@ Windows NSIS GUI lifecycle is already recorded on [#144](https://github.com/joe-
 
 Install+run row: **Start (installed)** `[x]` — same-job DMG attach + `open` of `FramePilot.app` + loopback `GET /health` with `version` and `service`. Full quit+import/processing/export dialog matrix remains unscheduled.
 
-Windows NSIS GUI pass remains [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144). Unsigned Gatekeeper warnings remain expected; this record does not claim Gatekeeper-clean or store listing. No `APP_VERSION` bump. No packaged-desktop ≥500 tick. Issue: [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177).
+Windows NSIS GUI pass remains [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144). Unsigned Gatekeeper warnings remain expected; this record does not claim Gatekeeper-clean or store listing. No `APP_VERSION` bump. Issue: [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177).
+
+---
+
+## Leftover unattended packaged-desktop ≥500 GUI
+
+**Verdict: pass (both OS 500).** Dated Windows `2026-09-07T19:39:23Z` and macOS `2026-09-07T19:30:33Z` (UTC). Packaged WebView from-paths + culling preview (**native dialog stubbed**). This is **not** a full S9.12 click-through. Probe-only is not this tick. Playwright `test:e2e:real-browser:large` and `perf:api` 500 are not packaged-desktop GUI evidence.
+
+| Field | Windows | macOS |
+| ----- | ------- | ----- |
+| Date | `2026-09-07T19:39:23Z` | `2026-09-07T19:30:33Z` |
+| OS | `windows` (`uname` `MINGW64_NT-10.0-26100`) | `macos` (`uname` `Darwin`) |
+| `APP_VERSION` | `2.1.0-desktop` | `2.1.0-desktop` |
+| `mode` / `result` | `500` / `pass` | `500` / `pass` |
+| `native_dialog` | `stubbed` | `stubbed` |
+| `accepted_files` | 500 | 500 |
+| Dataset | 3000×2000 q88 | 3000×2000 q88 |
+| `preview_natural_width` | 1800 | 1800 |
+| `originals_unchanged` | `true` | `true` |
+| Sidecar peak RSS MB | 213.05 | 566.66 |
+| UI peak RSS MB | 317.56 | 568.92 |
+| CI | [desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835) | same run, job `macos-latest` |
+
+Same-job Path B (`packaging/scripts/desktop-500-gui.sh`) after the just-built unsigned NSIS/DMG. Preview came from a Path B `createRoot` overlay (`via=root`), not a native folder dialog or a full cull-route click-through. Linux/WSL2 `--probe` remains exit 2 / skip is not pass. No `APP_VERSION` bump. Issue: [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179).
