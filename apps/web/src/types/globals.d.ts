@@ -11,5 +11,6 @@ declare global {
       evidence?: string;
     };
     __FRAMEPILOT_DESKTOP_QA_STARTED__?: boolean;
+    __FRAMEPILOT_MENU_READY__?: boolean;
   }
 }
