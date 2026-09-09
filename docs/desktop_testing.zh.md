@@ -240,3 +240,16 @@ Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilo
 | Windows 第一次启动 | 从 `v2.1.2-desktop` 装全新未签名 NSIS → 开始菜单 **FramePilot**（不要预先跑 `framepilot-api.exe`） | 窗口标题 `FramePilot`；项目 UI；两分钟内没有 ready-line timeout；可选 `sidecar.ready` + 对分配端口 `GET /health` |
 
 不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)。不要动托盘 / D3.06 / #41。不改 `APP_VERSION`。不签名。手工路径：[未签名桌面安装教程](desktop_install.zh.md)。Win11 冷首启与导入/导出安装包：残留 [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) `v2.1.2-desktop`（不要在此编造通过）。
+
+---
+
+## 残留：NSIS 升级时 `_internal` 被锁
+
+**结论：代码已落地；不要编造 Windows GUI pass。** 议题 [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198)。Joe 在 Windows 11 上升级未签名 `v2.1.2-desktop` NSIS 时，对 `framepilot-api\_internal\MSVCP140.dll` 出现 **Error opening file for writing**。连续**忽略**留下残缺 `_internal` 树，导入/导出空白。这是残缺安装，不是 #195 回退。Tauri 只停 `framepilot-desktop.exe`；sidecar 仍锁着 DLL。
+
+| 检查 | 命令 / 动作 | 通过 |
+| ---- | ----------- | ---- |
+| Hook 接线 | `bash scripts/check-nsis-locked-upgrade-hooks.sh` | 退出码 0；`installerHooks` → `windows/hooks.nsh`；只有 Retry/Cancel；没有忽略 |
+| Win11 应用仍在运行时升级 | 已装旧 NSIS + FramePilot UI 已起来 + 跑 **#198+** NSIS | 安装程序以 Retry/Cancel 停住；Cancel 保持旧树；File → Quit + Retry 后 `_internal\MSVCP140.dll` 存在；新建工程 → 导入/导出能打开 |
+
+已发布的 `v2.1.2-desktop` NSIS **不含**这些 hook。若该向导弹出文件占用对话框，点 **Abort**，退出 FramePilot，再重试——永远不要点忽略。书面路径：[未签名桌面安装教程](desktop_install.zh.md#升级先关掉应用)。计划：[docs/plans/2026-09-09-nsis-locked-internal-upgrade.md](plans/2026-09-09-nsis-locked-internal-upgrade.zh.md)。不要重开 #194 / #196 / #190。不要动托盘 / D3.06 / #41。不改 `APP_VERSION`。不签名。

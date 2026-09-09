@@ -240,3 +240,16 @@ Same-job Path B (`packaging/scripts/desktop-quit-job-gui.sh`) after the just-bui
 | Windows first Start | Fresh unsigned NSIS from `v2.1.2-desktop` → Start menu **FramePilot** (do not pre-run `framepilot-api.exe`) | Window title `FramePilot`; project UI; no ready-line timeout within two minutes; optional `sidecar.ready` + `GET /health` on the allocated port |
 
 Do not reopen [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184). Do not touch tray / D3.06 / #41. No `APP_VERSION` bump. No signing. Manual path: [Unsigned desktop install tutorial](desktop_install.md). Win11 cold first-start and Import/Export packages: leftover [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) `v2.1.2-desktop` (do not invent a pass here).
+
+---
+
+## Leftover NSIS locked `_internal` upgrade
+
+**Verdict: code landed; do not invent a Windows GUI pass.** Issue [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198). Joe’s unsigned `v2.1.2-desktop` NSIS upgrade on Windows 11 hit **Error opening file for writing** on `framepilot-api\_internal\MSVCP140.dll`. Repeated **Ignore** left a half-written `_internal` tree and blank Import/Export. That is a broken install, not a #195 regression. Tauri only stops `framepilot-desktop.exe`; the sidecar keeps the DLLs locked.
+
+| Check | Command / action | Pass |
+| ----- | ---------------- | ---- |
+| Hook wiring | `bash scripts/check-nsis-locked-upgrade-hooks.sh` | Exit 0; `installerHooks` → `windows/hooks.nsh`; Retry/Cancel only; no Ignore |
+| Win11 upgrade while running | Previous NSIS installed + FramePilot UI up + run a **#198+** NSIS | Installer stops with Retry/Cancel; Cancel leaves the old tree intact; after File → Quit + Retry, `_internal\MSVCP140.dll` exists; create project → Import/Export open |
+
+Published `v2.1.2-desktop` NSIS does **not** include the hooks. If that wizard shows the file-in-use dialog, click **Abort**, quit FramePilot, retry — never Ignore. Written path: [Unsigned desktop install tutorial](desktop_install.md#upgrade-close-the-app-first). Plan: [docs/plans/2026-09-09-nsis-locked-internal-upgrade.md](plans/2026-09-09-nsis-locked-internal-upgrade.md). Do not reopen #194 / #196 / #190. Do not touch tray / D3.06 / #41. No `APP_VERSION` bump. No signing.

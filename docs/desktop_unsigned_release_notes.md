@@ -30,6 +30,10 @@ Do **not** install leftover GUI-evidence zips (`FramePilot-desktop-500-gui-*`, `
 
 This is not a signed public store release. Do not treat it as Gatekeeper-clean.
 
+## Upgrade while FramePilot is open
+
+Quit FramePilot (**File → Quit**) before running this NSIS over an existing install. The sidecar locks files under `framepilot-api\_internal`. If Windows says **Error opening file for writing**, click **Abort**, not **Ignore**. Ignore leaves a broken install (Import/Export may stay blank). That is not a [#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195) regression. Later NSIS builds from leftover [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) stop with Retry/Cancel instead of Ignore-through. Written steps: [docs/desktop_install.md](desktop_install.md#upgrade-close-the-app-first).
+
 ## Windows 11 Import/Export check
 
 1. Install the NSIS `.exe` from **this** Release (`v2.1.2-desktop`), not `v2.1.1-desktop` or `v2.1.0-desktop`.

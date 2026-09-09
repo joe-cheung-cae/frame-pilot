@@ -16,7 +16,7 @@ Opening the Vite URL in a normal browser (without Tauri) makes `getNativeFs()` r
 
 Requires a user-space Rust toolchain (`rustup`). If `cargo`/`rustc` are missing, the script prints a clear error and exits 1. Do not install brew/apt Rust from this tree.
 
-Windows NSIS and macOS DMG installers are produced by `.github/workflows/desktop.yml` (unsigned for internal testing). The leftover unsigned GitHub Release is published by `.github/workflows/desktop-release.yml`. Install walkthrough: [Unsigned desktop install tutorial](../../docs/desktop_install.md). End-user workflow: [Desktop User Guide](../../docs/desktop_user_guide.md). Signing: [Desktop Code Signing Runbook](../../docs/desktop_signing.md). Manual matrix: [Desktop Testing Matrix](../../docs/desktop_testing.md).
+Windows NSIS and macOS DMG installers are produced by `.github/workflows/desktop.yml` (unsigned for internal testing). The leftover unsigned GitHub Release is published by `.github/workflows/desktop-release.yml`. Quit FramePilot before running a newer NSIS so `framepilot-api\_internal` DLLs are not locked ([#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198)). Install walkthrough: [Unsigned desktop install tutorial](../../docs/desktop_install.md). End-user workflow: [Desktop User Guide](../../docs/desktop_user_guide.md). Signing: [Desktop Code Signing Runbook](../../docs/desktop_signing.md). Manual matrix: [Desktop Testing Matrix](../../docs/desktop_testing.md).
 
 ## Data directory
 

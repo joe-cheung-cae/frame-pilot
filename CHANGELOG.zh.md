@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 残留 — NSIS 升级在 sidecar `_internal` 被锁时停住
+
+- 根因：FramePilot 或 `framepilot-api` 仍在运行时升级/安装会锁住 `%LOCALAPPDATA%\FramePilot\framepilot-api\_internal` 下的 DLL（Joe：`MSVCP140.dll`）。自带 NSIS 提供**忽略**；忽略会留下残缺树，导入/导出空白。Tauri 只停 `framepilot-desktop.exe`。
+- 修复：`bundle.windows.nsis.installerHooks`（`apps/desktop/src-tauri/windows/hooks.nsh`）PREINSTALL/PREUNINSTALL 等到壳、sidecar 与已知锁目标空闲。对话框只有 Retry/Cancel。Cancel 在 File 拷贝前 Abort。静默/被动先强关一次，仍被锁则 Abort。
+- 验收：[docs/desktop_install.md](docs/desktop_install.zh.md) 的 Win11「应用仍在运行时升级」步骤；`bash scripts/check-nsis-locked-upgrade-hooks.sh`。不要编造 Win11 GUI pass。
+- 不改 `APP_VERSION`，不签名、不公证、不上架，不动托盘 / D3.06，无第十阶段
+- Issue：[#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198)
+
 ### 残留 — 含导入/导出修的未签名桌面 Release
 
 - `.github/workflows/desktop-release.yml` 从含 [#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195)（`6b147160`+）的 `desktop.yml` 运行发布**未签名** GitHub Release `v2.1.2-desktop`（Windows NSIS + macOS DMG）

@@ -840,6 +840,10 @@ expect_success \
   ' '$repo_root/.github/workflows/verify.yml'"
 
 expect_success \
+  "NSIS locked-upgrade hooks block Ignore-through installs" \
+  bash scripts/check-nsis-locked-upgrade-hooks.sh
+
+expect_success \
   "install tutorial prefers the unsigned GitHub Release" \
   bash -c "awk '
     /v2\\.1\\.2-desktop/ { tag = 1 }

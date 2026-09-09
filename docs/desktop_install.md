@@ -50,6 +50,31 @@ GitHub Actions artifacts expire. GitHub Release assets do not expire with the Ac
 2. Double-click the installer. NSIS is configured for **current user** (`installMode: currentUser`), so a normal install does not need an Administrator UAC prompt.
 3. Complete the NSIS wizard. The app lands under the per-user install directory (typically `%LOCALAPPDATA%\FramePilot`). The wizard adds a Start menu shortcut named **FramePilot**.
 
+### Upgrade (close the app first)
+
+Quit FramePilot **before** running a newer NSIS over an existing install. The Python sidecar (`framepilot-api.exe`) keeps DLLs under `%LOCALAPPDATA%\FramePilot\framepilot-api\_internal` open. If those files stay locked, a stock NSIS **Ignore** continues past them and leaves a half-written tree — Import/Export can then stay blank (Joe’s `v2.1.2-desktop` Win11 repro). That is a broken install, not a [#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195) regression.
+
+1. Quit FramePilot: **File → Quit**, **Ctrl+Q**, or the window **X**. Wait until the window is gone.
+2. Optional: Task Manager should show no `framepilot-desktop.exe` and no `framepilot-api.exe`.
+3. Then run the new setup `.exe`.
+
+Installers that include leftover [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) **stop** if those processes (or locked `_internal` files such as `MSVCP140.dll`) are still in use. The dialog is **Retry / Cancel** only — not Ignore. **Retry** after you quit (the installer may also force-close leftovers). **Cancel** aborts so the previous `_internal` tree is not half-overwritten.
+
+`v2.1.2-desktop` and older NSIS builds can still show **Error opening file for writing** with Abort / Retry / **Ignore**. Click **Abort — not Ignore**. Then quit FramePilot and run the installer again.
+
+If you already Ignore-through a broken install: quit FramePilot and `framepilot-api`, then re-run a #198+ NSIS (or uninstall and reinstall). Do not treat blank Import/Export as a #195 regression until `_internal` is complete.
+
+### Win11 acceptance: upgrade while the app is still running
+
+Use this after a #198+ NSIS exists (a `desktop.yml` artifact from this leftover, or a later unsigned Release — not the published `v2.1.2-desktop` setup). Do not invent a pass here.
+
+1. Install a previous unsigned NSIS (`v2.1.2-desktop` is a valid baseline).
+2. Start **FramePilot**. Wait until the project UI is up. Do **not** quit.
+3. Run the **new** NSIS.
+4. Pass: the installer stops with Retry / Cancel (close FramePilot / `framepilot-api`). Cancel leaves the previous tree intact. There is no Ignore-through loop.
+5. **File → Quit**, then Retry (or re-run the installer). Finish the wizard.
+6. Pass: `%LOCALAPPDATA%\FramePilot\framepilot-api\_internal\MSVCP140.dll` exists. Cold start → create a project → Import / Export open.
+
 ### SmartScreen / unknown publisher
 
 Unsigned NSIS builds often trigger Microsoft Defender SmartScreen.
@@ -161,7 +186,7 @@ Use this as the written path for a manual unsigned install check. Record date, O
 ### Windows
 
 1. Download the NSIS `.exe` from [FramePilot 2.1.2-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases) (`v2.1.2-desktop`). Fall back to unzipping `FramePilot-windows-nsis` from a green [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) run if the Release is missing. Do not use `v2.1.0-desktop` for this check. Do not use `v2.1.1-desktop` to verify new-project Import/Export.
-2. Handle SmartScreen / unknown publisher as above, then finish the NSIS wizard.
+2. If FramePilot is already installed, quit it first (**Upgrade (close the app first)**). Handle SmartScreen / unknown publisher as above, then finish the NSIS wizard. If the wizard says the app is still running, Retry after **File → Quit**, or Cancel — do not Ignore locked-file errors.
 3. Start **FramePilot** from the Start menu. On a **first** launch after NSIS, wait up to two minutes. Confirm the window title is `FramePilot` and that you see the project list (not “timed out waiting for sidecar ready line”).
 4. Optional: from another terminal, `GET http://127.0.0.1:<port>/health` only if you already know the allocated loopback port from the sidecar ready file (`%APPDATA%\FramePilot\logs\sidecar.ready`). Expect `version` + `service`. Do not assume port `8000`.
 5. Quit with **File → Quit** or the window close button. Confirm the window is gone (close is quit, not hide-to-tray).
