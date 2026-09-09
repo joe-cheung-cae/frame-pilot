@@ -78,28 +78,44 @@ export function projectProgressSummary(project: ProjectProgressState): string {
   return `${project.processed_images} of ${project.total_images} ${photoLabel(project.total_images)} processed`;
 }
 
+export const PROJECT_WORKFLOW_TABS = [
+  { step: "import", label: "Import" },
+  { step: "process", label: "Process" },
+  { step: "cull", label: "Cull" },
+  { step: "export", label: "Export" },
+] as const;
+
+export function projectWorkflowTabHref(projectId: string, step: ProjectWorkflowStep): string {
+  return `/projects/${projectId}/${step}`;
+}
+
+export function projectWorkflowStepFromPathname(pathname: string): ProjectWorkflowStep | null {
+  const match = pathname.match(/^\/projects\/[^/]+\/(import|process|cull|export)(?:\/|$)/);
+  const step = match?.[1];
+  if (step === "import" || step === "process" || step === "cull" || step === "export") {
+    return step;
+  }
+  return null;
+}
+
 export function projectWorkflowStepHref(project: ProjectRouteState, step: ProjectWorkflowStep): string {
-  if (step === "import") {
-    return `/projects/${project.id}/import`;
+  if (step === "import" || step === "export") {
+    return projectWorkflowTabHref(project.id, step);
   }
 
-  if (projectHasActiveImport(project) && (step === "process" || step === "cull" || step === "export")) {
-    return `/projects/${project.id}/import`;
+  if (projectHasActiveImport(project) && (step === "process" || step === "cull")) {
+    return projectWorkflowTabHref(project.id, "import");
   }
 
   if (project.total_images <= 0) {
-    return `/projects/${project.id}/import`;
+    return projectWorkflowTabHref(project.id, "import");
   }
 
   if (step === "cull" && project.processed_images <= 0) {
-    return `/projects/${project.id}/process`;
+    return projectWorkflowTabHref(project.id, "process");
   }
 
-  if (step === "export" && project.processed_images <= 0) {
-    return `/projects/${project.id}/process`;
-  }
-
-  return `/projects/${project.id}/${step}`;
+  return projectWorkflowTabHref(project.id, step);
 }
 
 export function projectWorkflowStepHint(project: ProjectActionState, step: ProjectWorkflowStep): string {

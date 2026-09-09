@@ -4,8 +4,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { MENU_WORKFLOW_QUERY, menuWorkflowPrompt } from "@/lib/menuRoutes";
 import { getNativeFs } from "@/lib/nativeFs";
-import { useNavigator } from "@/lib/navigation";
+import { useNavigator, useQueryParams } from "@/lib/navigation";
 import {
   createProjectWithNonemptyConfirm,
   normalizeProjectCreateDraft,
@@ -15,6 +16,7 @@ import {
   projectDataFolderHint,
   registerPickedProjectRoot,
 } from "@/lib/projectCreation";
+import { saveLastOpenedProjectId } from "@/lib/recentProjects";
 
 export function ProjectCreator() {
   const nativeFs = getNativeFs();
@@ -22,6 +24,8 @@ export function ProjectCreator() {
   const [rootPath, setRootPath] = useState("");
   const [browseError, setBrowseError] = useState("");
   const navigator = useNavigator();
+  const queryParams = useQueryParams();
+  const workflowPrompt = menuWorkflowPrompt(queryParams.get(MENU_WORKFLOW_QUERY));
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: (draft: NormalizedProjectCreateDraft) =>
@@ -30,6 +34,7 @@ export function ProjectCreator() {
         confirmNonempty: (message) => window.confirm(message),
       }),
     onSuccess: async (project) => {
+      saveLastOpenedProjectId(project.id);
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       navigator.push(`/projects/${project.id}/import`);
     },
@@ -112,6 +117,7 @@ export function ProjectCreator() {
         Create and Import
       </button>
       {createBlockMessage ? <p className="text-sm text-muted">{createBlockMessage}</p> : null}
+      {workflowPrompt ? <p className="text-sm text-coral">{workflowPrompt}</p> : null}
       {errorMessage ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{errorMessage}</p>

@@ -42,7 +42,7 @@ Uninstall removes the application binary. The app data directory may remain on d
 1. Use **New project** (or File → New on desktop).
 2. Enter a name. On desktop, **Browse** opens the native folder picker, registers the folder (`POST /api/desktop/project-roots`), then fills the project data folder.
 3. If the folder already has files, confirm that FramePilot will create its project subfolders inside it and will **not** modify existing files.
-4. **Create and Import** opens Import Images. Dashboard **Open project folder** reveals `root_path` in the OS file manager.
+4. **Create and Import** opens Import Images. The **Import** / **Export** workflow tabs (and File → Import / File → Export) switch those pages even on an empty new project. If no project exists yet, those commands stay on Create Project and show a visible prompt instead of doing nothing. Dashboard **Open project folder** reveals `root_path` in the OS file manager.
 
 ---
 

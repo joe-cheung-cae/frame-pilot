@@ -8,8 +8,10 @@ import {
   projectLoadRecoveryMessage,
   projectProgressSummary,
   projectsHaveActiveImport,
+  projectWorkflowStepFromPathname,
   projectWorkflowStepHint,
   projectWorkflowStepHref,
+  projectWorkflowTabHref,
 } from "./projectRouting.ts";
 
 test("extracts a project id from a project pathname", () => {
@@ -133,7 +135,7 @@ test("summarizes project progress by workflow stage", () => {
 test("routes workflow cards to the next available prerequisite", () => {
   assert.equal(
     projectWorkflowStepHref({ id: "p1", total_images: 0, processed_images: 0, active_import_job: null }, "export"),
-    "/projects/p1/import",
+    "/projects/p1/export",
   );
   assert.equal(
     projectWorkflowStepHref(
@@ -147,7 +149,7 @@ test("routes workflow cards to the next available prerequisite", () => {
       { id: "p1", total_images: 3, processed_images: 0, active_import_job: { status: "running" } },
       "export",
     ),
-    "/projects/p1/import",
+    "/projects/p1/export",
   );
   assert.equal(
     projectWorkflowStepHref({ id: "p1", total_images: 3, processed_images: 0, active_import_job: null }, "cull"),
@@ -155,12 +157,21 @@ test("routes workflow cards to the next available prerequisite", () => {
   );
   assert.equal(
     projectWorkflowStepHref({ id: "p1", total_images: 3, processed_images: 0, active_import_job: null }, "export"),
-    "/projects/p1/process",
+    "/projects/p1/export",
   );
   assert.equal(
     projectWorkflowStepHref({ id: "p1", total_images: 3, processed_images: 2, active_import_job: null }, "export"),
     "/projects/p1/export",
   );
+});
+
+test("workflow tabs always open their own project pages", () => {
+  assert.equal(projectWorkflowTabHref("p1", "import"), "/projects/p1/import");
+  assert.equal(projectWorkflowTabHref("p1", "export"), "/projects/p1/export");
+  assert.equal(projectWorkflowStepFromPathname("/projects/p1/import"), "import");
+  assert.equal(projectWorkflowStepFromPathname("/projects/p1/export"), "export");
+  assert.equal(projectWorkflowStepFromPathname("/projects/p1"), null);
+  assert.equal(projectWorkflowStepFromPathname("/projects/new"), null);
 });
 
 test("explains workflow card prerequisites", () => {

@@ -24,6 +24,28 @@ const PROJECT_COMMANDS: Partial<Record<NavigableMenuCommand, "import" | "export"
   cull: "cull",
 };
 
+export const MENU_WORKFLOW_QUERY = "workflow";
+
+export function menuNeedsProjectHref(command: "import" | "export" | "process" | "cull"): string {
+  return `/projects/new?${MENU_WORKFLOW_QUERY}=${command}`;
+}
+
+export function menuWorkflowPrompt(workflow: string | null | undefined): string {
+  if (workflow === "import") {
+    return "Create a project before opening Import.";
+  }
+  if (workflow === "export") {
+    return "Create a project before opening Export.";
+  }
+  if (workflow === "process") {
+    return "Create a project before opening Process.";
+  }
+  if (workflow === "cull") {
+    return "Create a project before opening Culling.";
+  }
+  return "";
+}
+
 export function menuHrefForCommand(
   command: string,
   pathname: string,
@@ -44,7 +66,7 @@ export function menuHrefForCommand(
   }
   const projectId = projectIdFromPathname(pathname) ?? lastOpenedProjectId;
   if (!projectId) {
-    return null;
+    return menuNeedsProjectHref(command);
   }
   return `/projects/${projectId}/${suffix}`;
 }

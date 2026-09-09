@@ -34,6 +34,7 @@ import {
   processingStatusLabel,
 } from "@/lib/processingProgress";
 import { invalidateProjectWorkflowQueries } from "@/lib/queryInvalidation";
+import { useRememberOpenedProject } from "@/lib/rememberOpenedProject";
 
 function pluralize(count: number, singular: string, plural = `${singular}s`) {
   return count === 1 ? singular : plural;
@@ -53,6 +54,7 @@ const IMPORT_MESSAGE_CLASS: Record<ImportFeedbackTone, string> = {
 type ImportRequest = { files: readonly File[] } | { paths: readonly string[] };
 
 export function ImportPanel({ projectId }: { projectId: string }) {
+  useRememberOpenedProject(projectId);
   const desktopShell = isDesktopShell();
   const copy = copyForShell(desktopShell);
   const nativeFs = getNativeFs();

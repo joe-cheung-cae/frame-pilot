@@ -36,6 +36,10 @@ function throwingStorage() {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const projectListSource = fs.readFileSync(path.resolve(here, "../components/ProjectList.tsx"), "utf8");
 const projectDashboardSource = fs.readFileSync(path.resolve(here, "../components/ProjectDashboard.tsx"), "utf8");
+const projectCreatorSource = fs.readFileSync(path.resolve(here, "../components/ProjectCreator.tsx"), "utf8");
+const importPanelSource = fs.readFileSync(path.resolve(here, "../components/ImportPanel.tsx"), "utf8");
+const exportPanelSource = fs.readFileSync(path.resolve(here, "../components/ExportPanel.tsx"), "utf8");
+const rememberOpenedSource = fs.readFileSync(path.resolve(here, "rememberOpenedProject.ts"), "utf8");
 const apiSource = fs.readFileSync(path.resolve(here, "api.ts"), "utf8");
 
 test("saves last-opened project id in localStorage", () => {
@@ -97,5 +101,9 @@ test("GET /api/projects remains the project list with no second database", () =>
   assert.doesNotMatch(projectListSource, /indexedDB|sqlite|openDatabase/i);
   assert.match(projectListSource, /orderProjectsByLastOpened/);
   assert.match(projectListSource, /saveLastOpenedProjectId/);
-  assert.match(projectDashboardSource, /saveLastOpenedProjectId\(projectId\)/);
+  assert.match(projectDashboardSource, /useRememberOpenedProject\(projectId\)/);
+  assert.match(projectCreatorSource, /saveLastOpenedProjectId\(project\.id\)/);
+  assert.match(importPanelSource, /useRememberOpenedProject\(projectId\)/);
+  assert.match(exportPanelSource, /useRememberOpenedProject\(projectId\)/);
+  assert.match(rememberOpenedSource, /saveLastOpenedProjectId\(projectId\)/);
 });

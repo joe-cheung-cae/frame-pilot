@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — Win11 new-project Import/Export no response
+
+- Root cause: File → Import/Export (and dashboard Export on an empty project) could no-op. Cold first-start has no last-opened project id, `/projects/new` is not a project id, create did not persist last-opened, and Export cards redirected back to Import.
+- Fix: remember the project on create and every project page; File → Import/Export always navigates (to the project or to Create Project with a visible prompt); workflow tabs always open Import and Export
+- Acceptance: create a project, click Import/Export (workflow tab, dashboard card, or File menu). Import Images / Export Selection must open. Playwright: `opens Import and Export from a newly created empty project` in `tests/e2e/local-workflow.spec.ts`
+- No `APP_VERSION` bump, no signing, notarization, store listing, tray / D3.06, or Phase 10
+- Issue: [#194](https://github.com/joe-cheung-cae/frame-pilot/issues/194)
+
 ### Leftover — unsigned desktop Release with sidecar cold-start fix
 
 - `.github/workflows/desktop-release.yml` publishes **unsigned** GitHub Release `v2.1.1-desktop` (Windows NSIS + macOS DMG) from a `desktop.yml` run that includes [#191](https://github.com/joe-cheung-cae/frame-pilot/pull/191) (`602c022`+)

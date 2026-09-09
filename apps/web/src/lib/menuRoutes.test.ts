@@ -6,8 +6,11 @@ import assert from "node:assert/strict";
 
 import {
   MENU_EVENT,
+  MENU_WORKFLOW_QUERY,
   desktopMenuHelpSection,
   menuHrefForCommand,
+  menuNeedsProjectHref,
+  menuWorkflowPrompt,
   resolveMenuCommand,
 } from "./menuRoutes.ts";
 import { projectIdFromPathname } from "./projectRouting.ts";
@@ -31,9 +34,12 @@ const NATIVE_OWNED = [
 
 test("TypeScript resolves only navigable menu commands", () => {
   const source = fs.readFileSync(new URL("./menuRoutes.ts", import.meta.url), "utf8");
+  const shellSource = fs.readFileSync(new URL("../components/Shell.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(source, /export const MENU_ITEMS/);
   assert.doesNotMatch(source, /menuNativeAction/);
   assert.equal(MENU_EVENT, "framepilot-menu");
+  assert.match(shellSource, /MenuCommandListener/);
+  assert.match(shellSource, /ProjectWorkflowNav/);
   for (const id of NAVIGABLE) {
     const resolved = resolveMenuCommand(id, "/projects/abc/cull", "abc");
     assert.equal(resolved.type, "navigate");
@@ -63,8 +69,14 @@ test("routes Import Export Process Culling from the current project path", () =>
 test("ignores the new-project path and uses last opened project id", () => {
   assert.equal(menuHrefForCommand("import", "/projects/new", "last-id"), "/projects/last-id/import");
   assert.equal(menuHrefForCommand("cull", "/", "last-id"), "/projects/last-id/cull");
-  assert.equal(menuHrefForCommand("process", "/help", null), null);
-  assert.equal(menuHrefForCommand("export", "/projects/new", null), null);
+  assert.equal(menuHrefForCommand("process", "/help", null), menuNeedsProjectHref("process"));
+  assert.equal(menuHrefForCommand("export", "/projects/new", null), menuNeedsProjectHref("export"));
+  assert.deepEqual(resolveMenuCommand("import", "/projects/new", null), {
+    type: "navigate",
+    href: `/projects/new?${MENU_WORKFLOW_QUERY}=import`,
+  });
+  assert.equal(menuWorkflowPrompt("export"), "Create a project before opening Export.");
+  assert.equal(menuWorkflowPrompt("import"), "Create a project before opening Import.");
 });
 
 test("projectIdFromPathname is a generic path helper", () => {

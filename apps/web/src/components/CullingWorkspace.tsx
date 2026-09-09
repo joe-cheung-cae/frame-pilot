@@ -67,6 +67,7 @@ import {
   reviewShortcutNeedsPreventDefault,
   type ReviewShortcutCommand,
 } from "@/lib/reviewShortcuts";
+import { useRememberOpenedProject } from "@/lib/rememberOpenedProject";
 import { photosQueryKey } from "@/lib/reviewPhotosQuery";
 import {
   mergeLoadedPhotosWithCurrentReviews,
@@ -80,6 +81,7 @@ const FILMSTRIP_ITEM_WIDTH = 120;
 const GROUP_ITEM_HEIGHT = 64;
 
 export function CullingWorkspace({ projectId }: { projectId: string }) {
+  useRememberOpenedProject(projectId);
   const copy = copyForShell(isDesktopShell());
   const queryClient = useQueryClient();
   const navigator = useNavigator();
