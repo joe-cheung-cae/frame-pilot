@@ -30,6 +30,10 @@
 
 这不是已签名的公开商店发行。不要把它当成 Gatekeeper 干净。
 
+## FramePilot 仍开着时升级
+
+跑本 NSIS 覆盖已有安装前，先退出 FramePilot（**File → Quit**）。sidecar 会锁住 `framepilot-api\_internal` 下的文件。若 Windows 提示 **Error opening file for writing**，点 **Abort**，不要点 **Ignore**。忽略会留下残缺安装（导入/导出可能空白）。那不是 [#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195) 回退。残留 [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) 之后的 NSIS 会用 Retry/Cancel 停住，而不是一路 Ignore。书面步骤：[docs/desktop_install.md](desktop_install.zh.md#升级先关掉应用)。
+
 ## Windows 11 导入/导出检查
 
 1. 从**本** Release（`v2.1.2-desktop`）安装 NSIS `.exe`，不要用 `v2.1.1-desktop` 或 `v2.1.0-desktop`。

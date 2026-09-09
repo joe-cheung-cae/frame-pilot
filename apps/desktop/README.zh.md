@@ -16,7 +16,7 @@ Tauri 2 + Vite SPA，通过 HTTP 复用 `apps/web` 组件，对接本地 Python 
 
 需要用户空间的 Rust 工具链（`rustup`）。缺少 `cargo`/`rustc` 时脚本会打印明确错误并以 1 退出。不要从本仓库安装 brew/apt 的 Rust。
 
-Windows NSIS 和 macOS DMG 安装包由 `.github/workflows/desktop.yml` 产出（未签名，供内部测试）。残留未签名 GitHub Release 由 `.github/workflows/desktop-release.yml` 发布。安装走查：[未签名桌面安装教程](../../docs/desktop_install.zh.md)。最终用户工作流：[桌面用户指南](../../docs/desktop_user_guide.zh.md)。签名：[桌面代码签名手册](../../docs/desktop_signing.zh.md)。手工矩阵：[桌面测试矩阵](../../docs/desktop_testing.zh.md)。
+Windows NSIS 和 macOS DMG 安装包由 `.github/workflows/desktop.yml` 产出（未签名，供内部测试）。残留未签名 GitHub Release 由 `.github/workflows/desktop-release.yml` 发布。跑更新的 NSIS 前先退出 FramePilot，以免 `framepilot-api\_internal` DLL 被锁（[#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198)）。安装走查：[未签名桌面安装教程](../../docs/desktop_install.zh.md)。最终用户工作流：[桌面用户指南](../../docs/desktop_user_guide.zh.md)。签名：[桌面代码签名手册](../../docs/desktop_signing.zh.md)。手工矩阵：[桌面测试矩阵](../../docs/desktop_testing.zh.md)。
 
 ## 数据目录
 

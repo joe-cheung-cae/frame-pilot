@@ -50,6 +50,31 @@ GitHub Actions artifact 会过期。GitHub Release 资源不会随 Actions 保�
 2. 双击安装程序。NSIS 配置为**当前用户**（`installMode: currentUser`），正常安装不需要管理员 UAC。
 3. 走完 NSIS 向导。应用装在每用户安装目录（通常是 `%LOCALAPPDATA%\FramePilot`）。向导会添加名为 **FramePilot** 的开始菜单快捷方式。
 
+### 升级（先关掉应用）
+
+在已有安装上跑更新的 NSIS **之前**先退出 FramePilot。Python sidecar（`framepilot-api.exe`）会占用 `%LOCALAPPDATA%\FramePilot\framepilot-api\_internal` 下的 DLL。这些文件仍被锁时，自带 NSIS 的**忽略**会越过它们，留下写到一半的树——导入/导出就会空白（Joe 的 `v2.1.2-desktop` Win11 复现）。那是残缺安装，不是 [#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195) 回退。
+
+1. 退出 FramePilot：**File → Quit**、**Ctrl+Q**，或窗口 **X**。等到窗口消失。
+2. 可选：任务管理器里不应再有 `framepilot-desktop.exe` 和 `framepilot-api.exe`。
+3. 再跑新的 setup `.exe`。
+
+含残留 [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) 的安装包若这些进程（或被锁的 `_internal` 文件，例如 `MSVCP140.dll`）仍在用，会**停住**。对话框只有 **Retry / Cancel**，没有忽略。你退出后再点 **Retry**（安装程序也可能强关残留进程）。**Cancel** 会中止，以免旧的 `_internal` 树被写到一半。
+
+`v2.1.2-desktop` 及更旧的 NSIS 仍可能弹出 **Error opening file for writing**，带 Abort / Retry / **Ignore**。点 **Abort**，**不要点「忽略」**。然后退出 FramePilot，再跑安装程序。
+
+若已经靠忽略装出残缺包：退出 FramePilot 和 `framepilot-api`，再跑一份 #198+ NSIS（或先卸载再装）。在 `_internal` 完整之前，不要把空白导入/导出当成 #195 回退。
+
+### Win11 验收：应用仍在运行时升级
+
+等有 #198+ NSIS 之后再走（本残留的 `desktop.yml` 产物，或之后的未签名 Release——不要用已发布的 `v2.1.2-desktop` setup）。不要在此编造通过。
+
+1. 先装一份旧的未签名 NSIS（`v2.1.2-desktop` 可作为基线）。
+2. 启动 **FramePilot**。等到项目 UI 出来。**不要**退出。
+3. 跑**新的** NSIS。
+4. 通过：安装程序停住，只有 Retry / Cancel（关闭 FramePilot / `framepilot-api`）。Cancel 保持旧树完整。没有一路忽略。
+5. **File → Quit**，再点 Retry（或重跑安装程序）。走完向导。
+6. 通过：`%LOCALAPPDATA%\FramePilot\framepilot-api\_internal\MSVCP140.dll` 存在。冷启动 → 新建工程 → 导入 / 导出能打开。
+
 ### SmartScreen / 未知发布者
 
 未签名 NSIS 构建常会触发 Microsoft Defender SmartScreen。
@@ -161,7 +186,7 @@ xattr -d com.apple.quarantine /Applications/FramePilot.app
 ### Windows
 
 1. 从 [FramePilot 2.1.2-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases)（`v2.1.2-desktop`）下载 NSIS `.exe`。若 Release 还没有，再从一次绿色的 [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) 运行解压 `FramePilot-windows-nsis`。本检查不要用 `v2.1.0-desktop`。验新建工程导入/导出不要用 `v2.1.1-desktop`。
-2. 按上文处理 SmartScreen / 未知发布者，然后走完 NSIS 向导。
+2. 若已经装过 FramePilot，先退出（见 **升级（先关掉应用）**）。按上文处理 SmartScreen / 未知发布者，然后走完 NSIS 向导。若向导说应用仍在运行，退出后再点 Retry，或点 Cancel——不要点「忽略」锁定文件错误。
 3. 从开始菜单启动 **FramePilot**。NSIS **第一次**启动最多等两分钟。确认窗口标题为 `FramePilot`，并且能看到项目列表（不是 “timed out waiting for sidecar ready line”）。
 4. 可选：只有在已经从 sidecar ready 文件（`%APPDATA%\FramePilot\logs\sidecar.ready`）读到分配端口时，才对 `GET http://127.0.0.1:<port>/health`。应看到 `version` + `service`。不要写死端口 `8000`。
 5. 用 **File → Quit** 或窗口关闭按钮退出。确认窗口已消失（关窗口即退出，不是藏到托盘）。
