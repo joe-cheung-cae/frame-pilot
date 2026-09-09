@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — Windows packaged sidecar ready-line timeout
+
+- Root cause: packaged Windows first launch after NSIS waits only **15s** for the sidecar stdout ready line, then **retries by killing** a still-booting PyInstaller one-dir process (Defender + numpy/scipy/HEIF/RAW). Joe’s `v2.1.0-desktop` first Start failed both attempts.
+- Fix: Windows startup budget **120s**; persist `{data_dir}/logs/sidecar.ready`; skip stdout preamble; spawn with `PYTHONUNBUFFERED`, sidecar working directory, and `CREATE_NO_WINDOW`; timeout errors include the sidecar log tail
+- Acceptance: `npm run test:api -- apps/api/tests/test_sidecar_cli.py` plus `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`; Windows first Start after unsigned NSIS must show the project UI (not “timed out waiting for sidecar ready line”). Manual steps: [docs/desktop_install.md](docs/desktop_install.md)
+- No `APP_VERSION` bump, no signing, notarization, store listing, tray / D3.06, or Phase 10
+- Issue: [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190)
+
 ### Leftover — unsigned desktop GitHub Release
 
 - `.github/workflows/desktop-release.yml` publishes one **unsigned** GitHub Release (`v2.1.0-desktop`) with Windows NSIS + macOS DMG from a successful `desktop.yml` run

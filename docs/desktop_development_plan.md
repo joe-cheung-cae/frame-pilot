@@ -2,9 +2,9 @@
 
 > Language: **English** | [中文](desktop_development_plan.zh.md)
 
-> **Document version**: 1.10  
+> **Document version**: 1.11  
 > **Created**: 2026-08-18  
-> **Last reviewed**: 2026-09-09 (leftover unsigned desktop GitHub Release #188)  
+> **Last reviewed**: 2026-09-09 (leftover Windows packaged sidecar ready-line timeout #190)  
 > **Goal**: Redesign and package the current local web app (v2.0.0-rc2) as installable Windows and macOS desktop apps  
 > **Repository**: https://github.com/joe-cheung-cae/frame-pilot  
 > **Related existing plan**: `develop_plan.md` already lists “Local desktop packaging with Tauri or Electron” as a stretch goal; this document productizes it.  
@@ -187,6 +187,7 @@ Leftover 2.2 items that Phase 9 shipped are retargeted to their S9 ids. Remainin
 | Packaged macOS GUI pass | leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) **install+run** DoD `[x]` (`2026-09-07T09:34:57Z`); S9.12 skip stays history | leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) `[x]` install+run |
 | Packaged macOS quit+job matrix | leftover [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) four Darwin rows `result=pass` (`2026-09-08T13:26:18Z`, [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)) | leftover [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) `[x]` |
 | Packaged Windows quit+job matrix | leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) four Windows rows `result=pass` (`2026-09-08T15:29:33Z`, [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)) | leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) `[x]` |
+| Windows packaged sidecar first-launch timeout | leftover [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) cold NSIS ready-line timeout; 120s Windows budget + `sidecar.ready` fallback | leftover [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) `[x]` code |
 
 If any of the above is skipped, it must be written into [docs/v2_known_limitations.md](v2_known_limitations.md) (D5.05).
 
@@ -475,6 +476,7 @@ Implementation-level task split and Goal Mode prompts (based on the 2026-08-18 r
 | 2026-09-08 | 1.8 | Leftover Windows quit+job matrix [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184): tick §5.6 Windows row with [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942); do not re-tick §2.2 / ≥500 / Darwin #181 |
 | 2026-09-09 | 1.9 | Leftover unsigned install tutorial [#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186): add [docs/desktop_install.md](desktop_install.md); do not re-tick §2.2 / invent Phase 10 |
 | 2026-09-09 | 1.10 | Leftover unsigned desktop GitHub Release [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188): `desktop-release.yml` publishes unsigned NSIS + DMG; do not re-tick §2.2 / invent Phase 10 |
+| 2026-09-09 | 1.11 | Leftover Windows packaged sidecar ready-line timeout [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190): 120s Windows budget + ready-file fallback; do not re-tick §2.2 / tray / invent Phase 10 |
 
 ---
 

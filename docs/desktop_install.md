@@ -74,6 +74,17 @@ Bypass SmartScreen only when you trust that Release or Actions run. This page do
 2. The window title is `FramePilot`. You do not start uvicorn or open a browser.
 3. The Python sidecar binds loopback only (`127.0.0.1`). Other devices on the LAN cannot open the API.
 4. Default data directory: `%APPDATA%\FramePilot`. Uninstall does not always delete it.
+5. **First launch after install** can take up to about two minutes while Windows scans the local API under `%LOCALAPPDATA%\FramePilot`. Wait for the window. Do not force-quit and immediately retry — that used to kill a still-booting sidecar (#190).
+
+### Sidecar failed to start (Windows)
+
+If the window says **FramePilot could not start the local API** / `timed out waiting for sidecar ready line`:
+
+1. Confirm you launched the installed **FramePilot** shortcut, not the NSIS setup `.exe` again.
+2. Wait a full two minutes on a brand-new install before deciding it failed.
+3. Open `%APPDATA%\FramePilot\logs\sidecar.log` and `%APPDATA%\FramePilot\logs\sidecar.ready`. An empty log usually means the process was still in the PyInstaller bootloader / Defender scan. A ready file plus a later `/health` means the API did start.
+4. Quit, start **FramePilot** once more, and wait again. After the first scan, later launches should be much faster.
+5. Do not treat this as a signing, SmartScreen-exemption, or tray issue.
 
 ### Stop
 
@@ -151,8 +162,9 @@ Use this as the written path for a manual unsigned install check. Record date, O
 
 1. Download the NSIS `.exe` from [FramePilot 2.1.0-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases) (`v2.1.0-desktop`). Fall back to unzipping `FramePilot-windows-nsis` from a green [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) run if the Release is missing.
 2. Handle SmartScreen / unknown publisher as above, then finish the NSIS wizard.
-3. Start **FramePilot** from the Start menu. Confirm the window title is `FramePilot`.
-4. Quit with **File → Quit** or the window close button. Confirm the window is gone (close is quit, not hide-to-tray).
+3. Start **FramePilot** from the Start menu. On a **first** launch after NSIS, wait up to two minutes. Confirm the window title is `FramePilot` and that you see the project list (not “timed out waiting for sidecar ready line”).
+4. Optional: from another terminal, `GET http://127.0.0.1:<port>/health` only if you already know the allocated loopback port from the sidecar ready file (`%APPDATA%\FramePilot\logs\sidecar.ready`). Expect `version` + `service`. Do not assume port `8000`.
+5. Quit with **File → Quit** or the window close button. Confirm the window is gone (close is quit, not hide-to-tray).
 
 ### macOS
 

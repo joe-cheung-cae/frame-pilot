@@ -45,7 +45,7 @@ FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。�
 | 行 | 命令 / 动作 | 通过标准 | 可自动化？ |
 | -- | ----------- | -------- | ---------- |
 | 启动（开发） | `npm run dev:desktop` | 窗口标题 `FramePilot`；sidecar 回环；`GET /health` → 200 且含 `version` + `service` | 手工 GUI |
-| 启动（安装包） | 启动 CI 或本地 `tauri build` 的 NSIS/DMG | 同上，且无需自跑 uvicorn | 手工 |
+| 启动（安装包） | 启动 CI 或本地 `tauri build` 的 NSIS/DMG | 同上，且无需自跑 uvicorn。Windows 在 NSIS 后第一次启动最多约两分钟（#190）；窗口若出现 `timed out waiting for sidecar ready line` 则失败 | 手工 |
 | HTTP 冒烟 | `npm run test:desktop:smoke` | 退出码 0；`/health`、`/api/projects`、桌面 Origin CORS、攻击者 `Host` → 403 | 是（CI） |
 | 冻结 sidecar `/health` | 先 `npm run packaging:sidecar`，再 `npm run test:sidecar` | 退出码 0；冻结 `GET /health` 且 `unset PYTHONPATH` | 是（CI） |
 | Playwright E2E | `npm run test:e2e` | 退出码 0；mocked E2E 加上 `real-local-smoke` | 是（CI） |
@@ -226,3 +226,17 @@ Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilo
 | Quit + 导出 | `pass` | `Export is still running`；stay / cancel_and_quit / quit_anyway |
 
 同一 job 内，刚打出的未签名 NSIS 走 Path B（`packaging/scripts/desktop-quit-job-gui.sh`）。第一次调度 [34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561) quit-clean 残留 LISTEN 失败（`tasklist | grep` UTF-16）；harness 改用 `Get-Process` 等待。同一次调度的 `macos-latest` quit-export 偶发（取消前已 `complete`）；不要重开 #181。Linux/WSL2 仍是 exit 2 / skip 不是 pass。Stay / Quit anyway 仍由 Rust 单测覆盖。不签名。不声称 SmartScreen 干净或商店上架。议题：[#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)。
+
+---
+
+## 残留：Windows 包装 sidecar 首启 timeout
+
+**结论：代码已落地；不要编造 Windows GUI pass。** 议题 [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190)。Joe 在 Windows 11 上装未签名 `v2.1.0-desktop` NSIS 后第一次打开失败，报 `timed out waiting for sidecar ready line`（重试也失败）。暖和的 `windows-latest` GUI 残留（#179 / #184）抓不到超过 15 秒的冷 Defender + PyInstaller 启动。
+
+| 检查 | 命令 / 动作 | 通过 |
+| ---- | ----------- | ---- |
+| API sidecar CLI | `npm run test:api -- apps/api/tests/test_sidecar_cli.py` | 退出码 0；ready 标记 + Windows 120 秒源码断言 |
+| Rust sidecar 单测 | `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` | 退出码 0；跳过前导输出、ready 文件回退、spawn cwd / `PYTHONUNBUFFERED` |
+| Windows 第一次启动 | 全新未签名 NSIS → 开始菜单 **FramePilot**（不要预先跑 `framepilot-api.exe`） | 窗口标题 `FramePilot`；项目 UI；两分钟内没有 ready-line timeout；可选 `sidecar.ready` + 对分配端口 `GET /health` |
+
+不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)。不要动托盘 / D3.06 / #41。不改 `APP_VERSION`。不签名。手工路径：[未签名桌面安装教程](desktop_install.zh.md)。

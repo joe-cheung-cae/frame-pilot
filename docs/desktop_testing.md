@@ -45,7 +45,7 @@ No extra npm alias is required for this matrix; use the scripts above directly.
 | Row | Command / action | Pass criteria | Automates? |
 | --- | ---------------- | ------------- | ---------- |
 | Start (dev) | `npm run dev:desktop` | Window title `FramePilot`; sidecar on loopback; `GET /health` → 200 with `version` + `service` | Manual GUI |
-| Start (installed) | Launch NSIS/DMG build from CI or local `tauri build` | Same as above without running uvicorn yourself | Manual |
+| Start (installed) | Launch NSIS/DMG build from CI or local `tauri build` | Same as above without running uvicorn yourself. Windows first Start after NSIS may take up to two minutes (#190); fail if the window shows `timed out waiting for sidecar ready line` | Manual |
 | HTTP smoke | `npm run test:desktop:smoke` | Exit 0; `/health`, `/api/projects`, desktop Origin CORS, attacker `Host` → 403 | Yes (CI) |
 | Frozen sidecar `/health` | `npm run packaging:sidecar` then `npm run test:sidecar` | Exit 0; frozen `GET /health` with `PYTHONPATH` unset | Yes (CI) |
 | Playwright E2E | `npm run test:e2e` | Exit 0; mocked E2E plus `real-local-smoke` | Yes (CI) |
@@ -226,3 +226,17 @@ Same-job Path B (`packaging/scripts/desktop-quit-job-gui.sh`) after the just-bui
 | Quit + export | `pass` | `Export is still running`; stay / cancel_and_quit / quit_anyway |
 
 Same-job Path B (`packaging/scripts/desktop-quit-job-gui.sh`) after the just-built unsigned NSIS. First dispatch [34238830561](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34238830561) failed quit-clean leftover LISTEN (`tasklist | grep` UTF-16); harness waits via `Get-Process`. Same-run `macos-latest` quit-export flaked (`complete` before cancel); do not reopen #181. Linux/WSL2 remains exit 2 / skip is not pass. Stay / Quit anyway stay Rust unit-tested. No signing. No SmartScreen-clean or store listing claim. Issue: [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184).
+
+---
+
+## Leftover Windows packaged sidecar first-launch timeout
+
+**Verdict: code landed; do not invent a Windows GUI pass.** Issue [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190). Joe’s unsigned `v2.1.0-desktop` NSIS first Start on Windows 11 failed with `timed out waiting for sidecar ready line` (retry also failed). Warm `windows-latest` GUI leftovers (#179 / #184) did not catch a cold Defender + PyInstaller boot that exceeds 15s.
+
+| Check | Command / action | Pass |
+| ----- | ---------------- | ---- |
+| API sidecar CLI | `npm run test:api -- apps/api/tests/test_sidecar_cli.py` | Exit 0; ready marker + Windows 120s source assert |
+| Rust sidecar unit | `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` | Exit 0; preamble skip, ready-file fallback, spawn cwd / `PYTHONUNBUFFERED` |
+| Windows first Start | Fresh unsigned NSIS → Start menu **FramePilot** (do not pre-run `framepilot-api.exe`) | Window title `FramePilot`; project UI; no ready-line timeout within two minutes; optional `sidecar.ready` + `GET /health` on the allocated port |
+
+Do not reopen [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184). Do not touch tray / D3.06 / #41. No `APP_VERSION` bump. No signing. Manual path: [Unsigned desktop install tutorial](desktop_install.md).

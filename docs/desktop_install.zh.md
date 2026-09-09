@@ -74,6 +74,17 @@ GitHub Actions artifact 会过期。GitHub Release 资源不会随 Actions 保�
 2. 窗口标题为 `FramePilot`。你不必自己启动 uvicorn，也不必打开浏览器。
 3. Python sidecar 只绑定回环（`127.0.0.1`）。局域网其他设备打不开该 API。
 4. 默认数据目录：`%APPDATA%\FramePilot`。卸载不一定会删掉它。
+5. **安装后第一次启动** 可能要等大约两分钟，Windows 会扫描 `%LOCALAPPDATA%\FramePilot` 下的本地 API。等窗口出现。不要强杀后再立刻重试——以前那会杀掉仍在冷启动的 sidecar（#190）。
+
+### Sidecar 没起来（Windows）
+
+若窗口显示 **FramePilot could not start the local API** / `timed out waiting for sidecar ready line`：
+
+1. 确认打开的是已安装的 **FramePilot** 快捷方式，而不是再跑一遍 NSIS setup `.exe`。
+2. 全新安装先等满两分钟再判断失败。
+3. 打开 `%APPDATA%\FramePilot\logs\sidecar.log` 和 `%APPDATA%\FramePilot\logs\sidecar.ready`。日志为空通常表示还在 PyInstaller 引导 / Defender 扫描。有 ready 文件且随后 `/health` 可用，说明 API 已经起来。
+4. 退出后再开一次 **FramePilot** 并再等一次。第一次扫描之后，以后启动应快得多。
+5. 不要把这当成签名、SmartScreen 豁免或托盘问题。
 
 ### 退出
 
@@ -151,8 +162,9 @@ xattr -d com.apple.quarantine /Applications/FramePilot.app
 
 1. 从 [FramePilot 2.1.0-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases)（`v2.1.0-desktop`）下载 NSIS `.exe`。若 Release 还没有，再从一次绿色的 [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) 运行解压 `FramePilot-windows-nsis`。
 2. 按上文处理 SmartScreen / 未知发布者，然后走完 NSIS 向导。
-3. 从开始菜单启动 **FramePilot**。确认窗口标题为 `FramePilot`。
-4. 用 **File → Quit** 或窗口关闭按钮退出。确认窗口已消失（关窗口即退出，不是藏到托盘）。
+3. 从开始菜单启动 **FramePilot**。NSIS **第一次**启动最多等两分钟。确认窗口标题为 `FramePilot`，并且能看到项目列表（不是 “timed out waiting for sidecar ready line”）。
+4. 可选：只有在已经从 sidecar ready 文件（`%APPDATA%\FramePilot\logs\sidecar.ready`）读到分配端口时，才对 `GET http://127.0.0.1:<port>/health`。应看到 `version` + `service`。不要写死端口 `8000`。
+5. 用 **File → Quit** 或窗口关闭按钮退出。确认窗口已消失（关窗口即退出，不是藏到托盘）。
 
 ### macOS
 
