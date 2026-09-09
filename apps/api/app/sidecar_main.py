@@ -7,6 +7,7 @@ import contextvars
 import copy
 import os
 import socket
+import sys
 from pathlib import Path
 
 import uvicorn
@@ -88,6 +89,26 @@ def ready_line(host: str, port: int, data_dir: str | Path) -> str:
     return f"FRAMEPILOT_API ready host={host} port={port} data_dir={data_dir}"
 
 
+def ready_marker_path(data_dir: str | Path) -> Path:
+    return Path(data_dir) / "logs" / "sidecar.ready"
+
+
+def write_ready_marker(data_dir: str | Path, line: str) -> Path:
+    path = ready_marker_path(data_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"{line}\n", encoding="utf-8")
+    return path
+
+
+def announce_ready(host: str, port: int, data_dir: str | Path) -> str:
+    """Print the ready line to stdout (and stderr) and persist it for the desktop shell."""
+    line = ready_line(host, port, data_dir)
+    write_ready_marker(data_dir, line)
+    print(line, flush=True)
+    print(line, file=sys.stderr, flush=True)
+    return line
+
+
 def _stderr_log_config(log_level: str) -> dict:
     config = copy.deepcopy(uvicorn.config.LOGGING_CONFIG)
     config["handlers"]["default"]["stream"] = "ext://sys.stderr"
@@ -126,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
     sock = bind_listen_socket(args.host, args.port)
     try:
         bound_host, bound_port = sock.getsockname()[:2]
-        print(ready_line(bound_host, bound_port, args.data_dir), flush=True)
+        announce_ready(bound_host, bound_port, args.data_dir)
         serve(app, sock, args.log_level)
     finally:
         sock.close()

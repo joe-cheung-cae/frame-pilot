@@ -8,7 +8,17 @@ import pytest
 import uvicorn
 from fastapi import FastAPI
 
-from app.sidecar_main import apply_data_dir, bind_listen_socket, main, parse_args, ready_line, serve
+from app.sidecar_main import (
+    announce_ready,
+    apply_data_dir,
+    bind_listen_socket,
+    main,
+    parse_args,
+    ready_line,
+    ready_marker_path,
+    serve,
+    write_ready_marker,
+)
 
 
 def test_parse_args_rejects_non_loopback_host(tmp_path):
@@ -52,6 +62,20 @@ def test_bind_listen_socket_ephemeral_loopback():
 def test_ready_line_uses_actual_port(tmp_path):
     rendered = ready_line("127.0.0.1", 54321, tmp_path)
     assert rendered == f"FRAMEPILOT_API ready host=127.0.0.1 port=54321 data_dir={tmp_path}"
+
+
+def test_announce_ready_writes_marker_and_stderr(tmp_path, capsys):
+    line = announce_ready("127.0.0.1", 54321, tmp_path)
+    expected = f"FRAMEPILOT_API ready host=127.0.0.1 port=54321 data_dir={tmp_path}"
+    assert line == expected
+    marker = ready_marker_path(tmp_path)
+    assert marker.is_file()
+    assert marker.read_text(encoding="utf-8").strip() == expected
+    captured = capsys.readouterr()
+    assert captured.out.strip() == expected
+    assert expected in captured.err
+    written = write_ready_marker(tmp_path, "FRAMEPILOT_API ready host=127.0.0.1 port=9 data_dir=/tmp")
+    assert written == marker
 
 
 def test_apply_data_dir_before_settings_load(tmp_path, monkeypatch):
@@ -103,7 +127,8 @@ def test_main_passes_fastapi_object_and_ready_line(tmp_path, monkeypatch, capsys
     inner = configured.app if hasattr(configured, "app") and not isinstance(configured, FastAPI) else configured
     assert isinstance(inner, FastAPI)
 
-    output_lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+    captured = capsys.readouterr()
+    output_lines = [line for line in captured.out.splitlines() if line.strip()]
     assert len(output_lines) == 1
     line = output_lines[0]
     assert line.startswith("FRAMEPILOT_API ready host=127.0.0.1 port=")
@@ -111,6 +136,10 @@ def test_main_passes_fastapi_object_and_ready_line(tmp_path, monkeypatch, capsys
     port_token = line.split("port=", 1)[1].split(" ", 1)[0]
     assert port_token != "0"
     assert port_token.isdigit()
+    marker = ready_marker_path(tmp_path)
+    assert marker.is_file()
+    assert marker.read_text(encoding="utf-8").strip() == line
+    assert line in captured.err
 
 
 def _capture_serve_config(monkeypatch, os_name: str) -> dict[str, object]:
@@ -223,6 +252,9 @@ def test_tauri_spawn_strips_project_root_allowlist():
     next_item = text.find("\npub ", fn_start + 1)
     spawn_fn = text[fn_start:next_item]
     assert '.env("FRAMEPILOT_DESKTOP", "1")' in spawn_fn
+    assert '.env("PYTHONUNBUFFERED", "1")' in spawn_fn
+    assert "command.current_dir(dir)" in spawn_fn
+    assert "CREATE_NO_WINDOW" in spawn_fn
     assert 'env_remove("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST")' in spawn_fn
     allowlist_remove = spawn_fn.index('env_remove("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST")')
     frozen_branch = spawn_fn.index("} else {")
@@ -237,6 +269,24 @@ def test_tauri_spawn_strips_project_root_allowlist():
     assert "FRAMEPILOT_PROJECT_ROOT_ALLOWLIST" not in remainder
     assert 'env_remove("FRAMEPILOT_DESKTOP_QA")' in spawn_fn
     assert "FRAMEPILOT_DESKTOP_QA" in spawn_fn
+
+
+def test_windows_packaged_startup_timeout_is_two_minutes():
+    source = Path(__file__).resolve().parents[3] / "apps" / "desktop" / "src-tauri" / "src" / "sidecar.rs"
+    text = source.read_text(encoding="utf-8")
+    assert "pub const STARTUP_TIMEOUT_SECS: u64 = if cfg!(windows) { 120 } else { 15 };" in text
+    assert "wait_ready_with_data_dir" in text
+    assert "sidecar.ready" in text
+    lib = (
+        Path(__file__).resolve().parents[3]
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "src"
+        / "lib.rs"
+    ).read_text(encoding="utf-8")
+    assert "wait_ready_with_data_dir(port, STARTUP_TIMEOUT, Some(data_dir))" in lib
+    assert "clear_sidecar_ready_marker(data_dir)" in lib
 
 
 def test_sidecar_smoke_unsets_pythonpath_for_frozen_binary():

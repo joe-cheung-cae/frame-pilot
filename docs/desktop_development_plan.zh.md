@@ -2,9 +2,9 @@
 
 > 语言：[English](desktop_development_plan.md) | **中文**
 
-> **文档版本**：1.10  
+> **文档版本**：1.11  
 > **创建日期**：2026-08-18  
-> **最近审阅**：2026-09-09（残留未签名桌面 GitHub Release #188）  
+> **最近审阅**：2026-09-09（残留 Windows 包装 sidecar ready-line timeout #190）  
 > **目标**：将当前本地 Web 应用（v2.0.0-rc2）重新设计并打包为可安装的 Windows 与 macOS 桌面应用  
 > **仓库**：https://github.com/joe-cheung-cae/frame-pilot  
 > **相关已有规划**：`develop_plan.md` 已将 “Local desktop packaging with Tauri or Electron” 列为 stretch goal；本文件将其正式产品化。  
@@ -187,6 +187,7 @@ FramePilot Desktop
 | 包装 macOS GUI pass | 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) **安装并运行** DoD `[x]`（`2026-09-07T09:34:57Z`）；S9.12 skip 作为历史保留 | 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) `[x]` 安装并运行 |
 | 包装 macOS 退出+作业矩阵 | 残留 [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) 四行 Darwin `result=pass`（`2026-09-08T13:26:18Z`，[desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)） | 残留 [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) `[x]` |
 | 包装 Windows 退出+作业矩阵 | 残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) 四行 Windows `result=pass`（`2026-09-08T15:29:33Z`，[desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)） | 残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) `[x]` |
+| Windows 包装 sidecar 首启 timeout | 残留 [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) 冷 NSIS ready-line timeout；Windows 120 秒预算 + `sidecar.ready` 回退 | 残留 [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) `[x]` 代码 |
 
 以上项目若被跳过，必须写入 [docs/v2_known_limitations.md](v2_known_limitations.zh.md)（D5.05）。
 
@@ -475,6 +476,7 @@ frame-pilot/
 | 2026-09-08 | 1.8 | 残留 Windows 退出+作业矩阵 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)：勾 §5.6 Windows 行，证据 [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)；不要重勾 §2.2 / ≥500 / Darwin #181 |
 | 2026-09-09 | 1.9 | 残留未签名安装教程 [#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)：新增 [docs/desktop_install.md](desktop_install.zh.md)；不要重勾 §2.2 / 发明第十阶段 |
 | 2026-09-09 | 1.10 | 残留未签名桌面 GitHub Release [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188)：`desktop-release.yml` 发布未签名 NSIS + DMG；不要重勾 §2.2 / 发明第十阶段 |
+| 2026-09-09 | 1.11 | 残留 Windows 包装 sidecar ready-line timeout [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190)：Windows 120 秒预算 + ready 文件回退；不要重勾 §2.2 / 托盘 / 发明第十阶段 |
 
 ---
 

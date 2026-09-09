@@ -24,7 +24,7 @@ Windows NSIS 和 macOS DMG 安装包由 `.github/workflows/desktop.yml` 产出�
 - 开发：仓库 `.framepilot-desktop-dev`（已 gitignore）
 - 打包运行从不用相对 CWD 的 `.framepilot-data`
 
-用绝对路径的 `FRAMEPILOT_DATA_DIR` 覆盖。Sidecar stderr 追加到 `{data_dir}/logs/sidecar.log`。
+用绝对路径的 `FRAMEPILOT_DATA_DIR` 覆盖。Sidecar stderr 追加到 `{data_dir}/logs/sidecar.log`。sidecar 还会把同一条 ready 行写到 `{data_dir}/logs/sidecar.ready`，供桌面壳等待。包装后的 Windows 在 NSIS 安装后第一次启动最多大约两分钟（#190）。
 
 ## 验证
 

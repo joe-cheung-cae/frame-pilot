@@ -24,7 +24,7 @@ Windows NSIS and macOS DMG installers are produced by `.github/workflows/desktop
 - Dev: repo `.framepilot-desktop-dev` (gitignored)
 - Packaged runs never use CWD-relative `.framepilot-data`
 
-Override with absolute `FRAMEPILOT_DATA_DIR`. Sidecar stderr is appended to `{data_dir}/logs/sidecar.log`.
+Override with absolute `FRAMEPILOT_DATA_DIR`. Sidecar stderr is appended to `{data_dir}/logs/sidecar.log`. The sidecar also writes `{data_dir}/logs/sidecar.ready` with the same ready line the desktop shell waits for. Packaged Windows first launch after NSIS can take up to two minutes (#190).
 
 ## Verify
 

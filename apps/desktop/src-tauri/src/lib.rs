@@ -26,7 +26,8 @@ use sidecar::{
     initialization_script_for_window,
     parse_quit_choice, probe_health, quit_dialog_script, repo_root, request_cancel_then_wait,
     sidecar_spawn_spec,
-    sidecar_stderr_log, spawn_sidecar, staged_sidecar_resource_root, start_sidecar_unless_shutdown,
+    clear_sidecar_ready_marker, sidecar_stderr_log, spawn_sidecar, staged_sidecar_resource_root,
+    start_sidecar_unless_shutdown,
     supervisor_tick_after_probe, terminate_sidecar, wait_for_health, AppQuitAction, AppQuitEvent,
     CloseDecision, CloseJobKind, SidecarLaunchMode, SidecarStart, SidecarState, SpawnedSidecar,
     SupervisorTick, CANCEL_WAIT, STARTUP_TIMEOUT,
@@ -74,10 +75,11 @@ fn spawn_ready_sidecar(
     mode: &SidecarLaunchMode,
 ) -> Result<Child, String> {
     let spec = sidecar_spawn_spec(mode.clone(), port, data_dir).map_err(|err| err.to_string())?;
-    let spawned = SpawnedSidecar::new(
-        spawn_sidecar(&spec, &sidecar_stderr_log(data_dir)).map_err(|err| err.to_string())?,
-    );
-    let mut child = spawned.wait_ready(port, STARTUP_TIMEOUT)?;
+    clear_sidecar_ready_marker(data_dir);
+    let spawned = SpawnedSidecar::new(spawn_sidecar(&spec, &sidecar_stderr_log(data_dir)).map_err(
+        |err| format!("failed to spawn sidecar {}: {err}", spec.program.display()),
+    )?);
+    let mut child = spawned.wait_ready_with_data_dir(port, STARTUP_TIMEOUT, Some(data_dir))?;
     if !wait_for_health(port, STARTUP_TIMEOUT) {
         terminate_sidecar(&mut child);
         return Err("sidecar /health did not become ready".into());

@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 残留 — Windows 包装 sidecar ready line timeout
+
+- 根因：NSIS 安装后第一次启动只等 **15 秒** sidecar stdout ready 行，超时后**杀掉仍在冷启动的** PyInstaller one-dir 再重试（Defender + numpy/scipy/HEIF/RAW）。Joe 的 `v2.1.0-desktop` 两次都失败。
+- 修复：Windows 启动预算 **120 秒**；写入 `{data_dir}/logs/sidecar.ready`；跳过 stdout 前导输出；spawn 设置 `PYTHONUNBUFFERED`、sidecar 工作目录、`CREATE_NO_WINDOW`；超时错误带上 sidecar 日志尾部
+- 验收：`npm run test:api -- apps/api/tests/test_sidecar_cli.py` 与 `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`；未签名 NSIS 安装后第一次打开须出现项目 UI（不再是 “timed out waiting for sidecar ready line”）。手工步骤：[docs/desktop_install.zh.md](docs/desktop_install.zh.md)
+- 不改 `APP_VERSION`，不签名、不公证、不上架，不动托盘 / D3.06，无第十阶段
+- Issue：[#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190)
+
 ### 残留 — 未签名桌面 GitHub Release
 
 - `.github/workflows/desktop-release.yml` 从成功的 `desktop.yml` 运行发布一版**未签名** GitHub Release（`v2.1.0-desktop`），含 Windows NSIS + macOS DMG

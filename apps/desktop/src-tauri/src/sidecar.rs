@@ -10,7 +10,15 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
+/// Ready-line + `/health` budget after spawn.
+///
+/// Windows packaged first launch loads a large PyInstaller one-dir tree
+/// (numpy / scipy / HEIF / RAW) while Defender scans new files under
+/// `%LOCALAPPDATA%\FramePilot`. 15s was enough on a warm `windows-latest`
+/// runner and too short on a cold NSIS install (#190). Retry used to kill a
+/// still-booting process and start over, so both attempts failed.
+pub const STARTUP_TIMEOUT_SECS: u64 = if cfg!(windows) { 120 } else { 15 };
+pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(STARTUP_TIMEOUT_SECS);
 pub const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
 pub const CANCEL_WAIT: Duration = Duration::from_secs(10);
 
@@ -408,6 +416,51 @@ pub fn sidecar_stderr_log(data_dir: &Path) -> PathBuf {
     data_dir.join("logs").join("sidecar.log")
 }
 
+/// `{data_dir}/logs/sidecar.ready` — same ready line as stdout, for Windows
+/// GUI parents that can lose the stdout pipe during a cold packaged boot.
+pub fn sidecar_ready_marker(data_dir: &Path) -> PathBuf {
+    data_dir.join("logs").join("sidecar.ready")
+}
+
+pub fn clear_sidecar_ready_marker(data_dir: &Path) {
+    let _ = fs::remove_file(sidecar_ready_marker(data_dir));
+}
+
+fn sidecar_log_tail(data_dir: Option<&Path>, max_chars: usize) -> String {
+    let Some(dir) = data_dir else {
+        return String::new();
+    };
+    let path = sidecar_stderr_log(dir);
+    match fs::read_to_string(&path) {
+        Ok(text) if text.trim().is_empty() => {
+            format!("sidecar log empty ({})", path.display())
+        }
+        Ok(text) => {
+            let tail = if text.len() > max_chars {
+                &text[text.len().saturating_sub(max_chars)..]
+            } else {
+                &text
+            };
+            format!(
+                "sidecar log tail ({}): {}",
+                path.display(),
+                tail.replace('\n', " | ")
+            )
+        }
+        Err(_) => format!("sidecar log missing ({})", path.display()),
+    }
+}
+
+fn with_sidecar_diagnostics(message: impl Into<String>, data_dir: Option<&Path>) -> String {
+    let message = message.into();
+    let extra = sidecar_log_tail(data_dir, 800);
+    if extra.is_empty() {
+        message
+    } else {
+        format!("{message}; {extra}")
+    }
+}
+
 pub fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
@@ -513,6 +566,10 @@ pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<C
     command
         .args(&spec.args)
         .env("FRAMEPILOT_DESKTOP", "1")
+        // Unbuffered stdio so the ready line reaches the parent pipe on Windows
+        // even when the GUI parent has no console.
+        .env("PYTHONUNBUFFERED", "1")
+        .env("PYTHONIOENCODING", "utf-8")
         // Parent shells (e.g. `tauri dev`) must not leak a wide deployment
         // allowlist into the sidecar. D2.00 registration is the widen path.
         .env_remove("FRAMEPILOT_PROJECT_ROOT_ALLOWLIST")
@@ -522,6 +579,20 @@ pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<C
         .env_remove("FRAMEPILOT_DESKTOP_QA_EVIDENCE")
         .stdout(Stdio::piped())
         .stderr(Stdio::from(log));
+    if let Some(dir) = spec.program.parent() {
+        if !dir.as_os_str().is_empty() {
+            command.current_dir(dir);
+            #[cfg(windows)]
+            {
+                let mut path = dir.to_os_string();
+                if let Some(existing) = std::env::var_os("PATH") {
+                    path.push(";");
+                    path.push(existing);
+                }
+                command.env("PATH", path);
+            }
+        }
+    }
     for (key, _) in std::env::vars_os() {
         if env_key_starts_with_ignore_ascii_case(&key, "FRAMEPILOT_DESKTOP_QA") {
             command.env_remove(key);
@@ -538,7 +609,10 @@ pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<C
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
-        command.creation_flags(CREATE_NEW_PROCESS_GROUP);
+        // GUI parent + console child otherwise allocates a visible console and
+        // can detach stdout from the pipe we wait on for the ready line.
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
     }
     command.spawn()
 }
@@ -570,14 +644,60 @@ impl SpawnedSidecar {
             .expect("spawned sidecar child already taken")
     }
 
-    pub fn wait_ready(mut self, allocated_port: u16, timeout: Duration) -> Result<Child, String> {
+    pub fn wait_ready(self, allocated_port: u16, timeout: Duration) -> Result<Child, String> {
+        self.wait_ready_with_data_dir(allocated_port, timeout, None)
+    }
+
+    pub fn wait_ready_with_data_dir(
+        mut self,
+        allocated_port: u16,
+        timeout: Duration,
+        data_dir: Option<&Path>,
+    ) -> Result<Child, String> {
         let stdout = self
             .child_mut()
             .stdout
             .take()
             .ok_or_else(|| "sidecar stdout missing".to_string())?;
-        wait_for_ready_line(stdout, allocated_port, timeout).map_err(|err| err.to_string())?;
-        Ok(self.into_child())
+        let rx = spawn_ready_line_reader(stdout);
+        let deadline = Instant::now() + timeout;
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(with_sidecar_diagnostics(
+                    "timed out waiting for sidecar ready line",
+                    data_dir,
+                ));
+            }
+            match rx.recv_timeout(Duration::from_millis(50).min(remaining)) {
+                Ok(Ok(line)) if !line.trim().is_empty() => {
+                    return parse_ready_line(&line, allocated_port)
+                        .map(|_| self.into_child())
+                        .map_err(|err| with_sidecar_diagnostics(err.to_string(), data_dir));
+                }
+                Ok(Ok(_)) | Err(mpsc::RecvTimeoutError::Disconnected) => {}
+                Ok(Err(err)) => {
+                    return Err(with_sidecar_diagnostics(err.to_string(), data_dir));
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+            }
+            if let Some(dir) = data_dir {
+                if let Ok(text) = fs::read_to_string(sidecar_ready_marker(dir)) {
+                    if parse_ready_line(text.trim(), allocated_port).is_ok() {
+                        return Ok(self.into_child());
+                    }
+                }
+            }
+            if let Ok(Some(status)) = self.child_mut().try_wait() {
+                return Err(with_sidecar_diagnostics(
+                    format!("sidecar exited before ready line ({status})"),
+                    data_dir,
+                ));
+            }
+            if probe_health(allocated_port, Duration::from_millis(100)) {
+                return Ok(self.into_child());
+            }
+        }
     }
 }
 
@@ -592,21 +712,43 @@ impl Drop for SpawnedSidecar {
     }
 }
 
+fn spawn_ready_line_reader(stdout: impl Read + Send + 'static) -> mpsc::Receiver<io::Result<String>> {
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let mut sent = false;
+        for line in BufReader::new(stdout).lines() {
+            match line {
+                Ok(text) => {
+                    if text.contains(READY_PREFIX) {
+                        let _ = tx.send(Ok(text));
+                        sent = true;
+                        break;
+                    }
+                }
+                Err(err) => {
+                    let _ = tx.send(Err(err));
+                    sent = true;
+                    break;
+                }
+            }
+        }
+        if !sent {
+            let _ = tx.send(Ok(String::new()));
+        }
+    });
+    rx
+}
+
 pub fn wait_for_ready_line(
     stdout: impl Read + Send + 'static,
     allocated_port: u16,
     timeout: Duration,
 ) -> io::Result<ReadyLine> {
-    let (tx, rx) = mpsc::channel();
-    thread::spawn(move || {
-        let mut lines = BufReader::new(stdout).lines();
-        let result = lines
-            .next()
-            .transpose()
-            .map(|line| line.unwrap_or_default());
-        let _ = tx.send(result);
-    });
-    match rx.recv_timeout(timeout) {
+    match spawn_ready_line_reader(stdout).recv_timeout(timeout) {
+        Ok(Ok(line)) if line.trim().is_empty() => Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "sidecar stdout closed before ready line",
+        )),
         Ok(Ok(line)) => parse_ready_line(&line, allocated_port)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string())),
         Ok(Err(err)) => Err(err),
@@ -1099,6 +1241,15 @@ mod tests {
     }
 
     #[test]
+    fn wait_for_ready_line_skips_preamble_before_ready_prefix() {
+        let line = "PyInstaller boot\nFRAMEPILOT_API ready host=127.0.0.1 port=4242 data_dir=/tmp/framepilot-data\n";
+        let parsed = wait_for_ready_line(Cursor::new(line), 4242, Duration::from_secs(1))
+            .expect("ready line after preamble");
+        assert_eq!(parsed.port, 4242);
+        assert_eq!(parsed.data_dir, "/tmp/framepilot-data");
+    }
+
+    #[test]
     fn spawn_sidecar_strips_project_root_allowlist_from_child_env() {
         let dir = std::env::temp_dir().join(format!(
             "framepilot-sidecar-env-{}-{}",
@@ -1127,6 +1278,7 @@ mod tests {
                     "sys.stdout.write('DESKTOP=' + os.environ.get('FRAMEPILOT_DESKTOP', '') + '\\n')\n",
                     "sys.stdout.write('QA=' + repr(os.environ.get('FRAMEPILOT_DESKTOP_QA')) + '\\n')\n",
                     "sys.stdout.write('QA_PHOTOS=' + repr(os.environ.get('FRAMEPILOT_DESKTOP_QA_PHOTOS')) + '\\n')\n",
+                    "sys.stdout.write('UNBUFFERED=' + os.environ.get('PYTHONUNBUFFERED', '') + '\\n')\n",
                 )
                 .into(),
             ],
@@ -1175,6 +1327,65 @@ mod tests {
             stdout.contains("QA_PHOTOS=None"),
             "child must not inherit FRAMEPILOT_DESKTOP_QA_PHOTOS: {stdout}"
         );
+        assert!(
+            stdout.contains("UNBUFFERED=1"),
+            "child must receive PYTHONUNBUFFERED=1: {stdout}"
+        );
+    }
+
+    #[test]
+    fn spawn_sidecar_sets_current_dir_to_program_parent() {
+        let python = PathBuf::from("/usr/bin/python3");
+        if !python.is_file() {
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!(
+            "framepilot-sidecar-cwd-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).expect("temp dir");
+        let log = dir.join("sidecar.log");
+        let spec = SidecarSpawnSpec {
+            program: python.clone(),
+            args: vec![
+                "-c".into(),
+                "import os, sys; sys.stdout.write(os.getcwd() + '\\n')".into(),
+            ],
+            pythonpath: None,
+        };
+        let mut child = spawn_sidecar(&spec, &log).expect("spawn cwd probe");
+        let mut stdout = String::new();
+        child
+            .stdout
+            .take()
+            .expect("piped stdout")
+            .read_to_string(&mut stdout)
+            .expect("read stdout");
+        let status = child.wait().expect("wait cwd probe");
+        let _ = fs::remove_dir_all(&dir);
+        assert!(status.success(), "cwd probe failed ({status}): {stdout}");
+        assert_eq!(
+            stdout.trim(),
+            python.parent().expect("python parent").to_string_lossy()
+        );
+    }
+
+    #[test]
+    fn startup_timeout_is_two_minutes_on_windows_only() {
+        #[cfg(windows)]
+        {
+            assert_eq!(STARTUP_TIMEOUT_SECS, 120);
+            assert_eq!(STARTUP_TIMEOUT, Duration::from_secs(120));
+        }
+        #[cfg(not(windows))]
+        {
+            assert_eq!(STARTUP_TIMEOUT_SECS, 15);
+            assert_eq!(STARTUP_TIMEOUT, Duration::from_secs(15));
+        }
     }
 
     #[test]
@@ -1759,14 +1970,76 @@ while True:
     #[test]
     fn ready_line_parse_failure_terminates_listener_and_frees_port() {
         let port = allocate_loopback_port().expect("allocate loopback port");
-        let child = spawn_loopback_holder(port, Stdio::piped(), Some("not a ready line"));
+        let child = spawn_loopback_holder(
+            port,
+            Stdio::piped(),
+            Some("FRAMEPILOT_API ready host=10.0.0.1 port=1 data_dir=/tmp/framepilot-data"),
+        );
         let err = SpawnedSidecar::new(child)
             .wait_ready(port, Duration::from_secs(2))
             .expect_err("ready line must fail to parse");
         assert!(
-            err.contains("invalid") || err.contains("ready line"),
+            err.contains("invalid") || err.contains("ready line") || err.contains("loopback"),
             "{err}"
         );
+        assert_port_free(port);
+    }
+
+    fn spawn_ready_file_holder(port: u16, data_dir: &Path, ready_line: &str) -> Child {
+        let marker = sidecar_ready_marker(data_dir);
+        fs::create_dir_all(marker.parent().expect("logs dir")).expect("logs dir");
+        let script = r#"
+import pathlib, socket, sys, time
+port = int(sys.argv[1])
+marker = sys.argv[2]
+line = sys.argv[3]
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+sock.bind(("127.0.0.1", port))
+sock.listen(1)
+pathlib.Path(marker).write_text(line + "\n", encoding="utf-8")
+while True:
+    time.sleep(60)
+"#;
+        let child = Command::new("python3")
+            .args([
+                "-c",
+                script,
+                &port.to_string(),
+                &marker.to_string_lossy(),
+                ready_line,
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn python3 ready-file holder");
+        let spawned = SpawnedSidecar::new(child);
+        wait_until_listening(port, Duration::from_secs(2));
+        spawned.into_child()
+    }
+
+    #[test]
+    fn wait_ready_accepts_ready_marker_without_stdout() {
+        let port = allocate_loopback_port().expect("allocate loopback port");
+        let dir = std::env::temp_dir().join(format!(
+            "framepilot-ready-marker-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(dir.join("logs")).expect("temp logs");
+        let line = format!(
+            "FRAMEPILOT_API ready host=127.0.0.1 port={port} data_dir={}",
+            dir.display()
+        );
+        let child = spawn_ready_file_holder(port, &dir, &line);
+        let ready = SpawnedSidecar::new(child)
+            .wait_ready_with_data_dir(port, Duration::from_secs(2), Some(dir.as_path()))
+            .expect("ready from sidecar.ready marker");
+        drop(SpawnedSidecar::new(ready));
+        let _ = fs::remove_dir_all(&dir);
         assert_port_free(port);
     }
 
