@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — unsigned install tutorial
+
+- Bilingual [docs/desktop_install.md](docs/desktop_install.md) for unsigned Windows NSIS and macOS DMG: where to download (`FramePilot-windows-nsis` / `FramePilot-macos-dmg`), how to install, Gatekeeper / SmartScreen unknown publisher, start/stop
+- Linked from README, [Desktop User Guide](docs/desktop_user_guide.md), [Desktop Testing Matrix](docs/desktop_testing.md), and [Desktop Development Plan](docs/desktop_development_plan.md)
+- Clearly marked **unsigned**; no Gatekeeper-clean / SmartScreen-clean / store listing claim
+- No `APP_VERSION` bump, no packaging-script change, no signing, no release, no Phase 10
+- Issue: [#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)
+
 ### Leftover — packaged Windows quit+job matrix
 
 - Four Windows rows `result=pass` on [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942) (`37b710b`, `2026-09-08T15:29:33Z`): Quit clean, Quit+import, Quit+processing, Quit+export

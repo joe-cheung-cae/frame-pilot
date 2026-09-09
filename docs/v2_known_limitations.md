@@ -109,4 +109,4 @@ The installable desktop app (`2.1.0-desktop`) shares the same local API and cull
 - Desktop **Change data directory** copies the current app data directory into an empty D2.00-authorized folder and rewrites stored paths whose prefix is the old data dir. The old tree is not deleted. Camera cards and other source folders are not moved or modified. `FRAMEPILOT_DATA_DIR` still wins over `{anchor}/data_dir.json`. No extra `fs:` / `shell:` capabilities.
 - Optional **system tray** (D3.06) shows job progress in the tooltip. **Show** restores the main window; **Quit** uses the same running-job dialog as File → Quit. Window close is still quit, not hide-to-tray. Tray create may fail on headless or some Linux desktops and is non-fatal. No tray-related `fs:` / `shell:` capabilities were added.
 
-End-user steps: [Desktop User Guide](desktop_user_guide.md).
+Unsigned install walkthrough: [Unsigned desktop install tutorial](desktop_install.md). After install: [Desktop User Guide](desktop_user_guide.md).

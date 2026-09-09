@@ -2,9 +2,9 @@
 
 > 语言：[English](desktop_development_plan.md) | **中文**
 
-> **文档版本**：1.8  
+> **文档版本**：1.9  
 > **创建日期**：2026-08-18  
-> **最近审阅**：2026-09-08（残留 Windows 退出+作业 #184 通过）  
+> **最近审阅**：2026-09-09（残留未签名安装教程 #186）  
 > **目标**：将当前本地 Web 应用（v2.0.0-rc2）重新设计并打包为可安装的 Windows 与 macOS 桌面应用  
 > **仓库**：https://github.com/joe-cheung-cae/frame-pilot  
 > **相关已有规划**：`develop_plan.md` 已将 “Local desktop packaging with Tauri or Electron” 列为 stretch goal；本文件将其正式产品化。  
@@ -47,7 +47,7 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 - [x] 现有全部核心功能可用且行为与当前 v2 一致
 - [x] 原图安全规则与本地优先原则保持不变
 - [x] 大项目（≥500 张）不崩溃，内存占用可接受 — 残留 [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) 包装 WebView from-paths + 审片预览（**原生对话框 stub**）；Windows `2026-09-07T19:39:23Z` + macOS `2026-09-07T19:30:33Z`（[desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835)）。不是完整 S9.12 点击走查。Web Playwright `test:e2e:real-browser:large` 与 API `perf:api` 500 **不是**包装桌面 GUI 证据。
-- [x] 提供用户安装说明与开发者构建文档
+- [x] 提供用户安装说明与开发者构建文档 — 未签名走查：[docs/desktop_install.md](desktop_install.zh.md)（[#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)）；不要把本行当新 DoD 重勾
 - [x] CI 可自动构建双平台安装包（代码签名可后续完善）
 - [x] 桌面 sidecar 仅监听 127.0.0.1，且拒绝非回环 Host 与未授权 Origin
 - [x] 用户选择的项目根目录经过显式授权后才被接受（见实施计划 D2.00）
@@ -453,6 +453,9 @@ frame-pilot/
 - [docs/v2_known_limitations.md](v2_known_limitations.zh.md) — 已知限制
 - [docs/v2_milestones.md](v2_milestones.zh.md) — 里程碑
 - [docs/architecture.md](architecture.zh.md) — 实现级架构说明
+- [docs/desktop_install.md](desktop_install.zh.md) — 未签名 Windows NSIS / macOS DMG 安装教程（下载、Gatekeeper / SmartScreen、启动/退出）
+- [docs/desktop_user_guide.md](desktop_user_guide.zh.md) — 安装后的桌面工作流
+- [docs/desktop_testing.md](desktop_testing.zh.md) — 手工桌面矩阵
 
 ---
 
@@ -469,6 +472,7 @@ frame-pilot/
 | 2026-09-08 | 1.6 | 残留退出+作业矩阵 [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)：勾 §5.6 退出+作业行，证据 [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)；不要重勾 §2.2 |
 | 2026-09-08 | 1.7 | 残留 Windows 退出+作业矩阵 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)：增加 §5.6 Windows 行（未勾）；不要重勾 §2.2 / ≥500 / Darwin #181 |
 | 2026-09-08 | 1.8 | 残留 Windows 退出+作业矩阵 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)：勾 §5.6 Windows 行，证据 [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)；不要重勾 §2.2 / ≥500 / Darwin #181 |
+| 2026-09-09 | 1.9 | 残留未签名安装教程 [#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)：新增 [docs/desktop_install.md](desktop_install.zh.md)；不要重勾 §2.2 / 发明第十阶段 |
 
 ---
 

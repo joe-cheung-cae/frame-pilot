@@ -4,15 +4,19 @@
 
 FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，并在回环地址（`127.0.0.1`）启动 Python API **sidecar**。你不必自己跑 uvicorn。相机原图永不被修改；导入会**复制**到项目的 `originals/` 目录。
 
-**另见：** [桌面测试矩阵](desktop_testing.zh.md) · [签名手册](desktop_signing.zh.md) · [已知限制](v2_known_limitations.zh.md) · [架构](v2_architecture.zh.md) · [Phase 2 工作流清单](../tests/desktop/workflow.zh.md) · [桌面壳 README](../apps/desktop/README.zh.md)（开发者）
+**另见：** [未签名桌面安装教程](desktop_install.zh.md) · [桌面测试矩阵](desktop_testing.zh.md) · [签名手册](desktop_signing.zh.md) · [已知限制](v2_known_limitations.zh.md) · [架构](v2_architecture.zh.md) · [Phase 2 工作流清单](../tests/desktop/workflow.zh.md) · [桌面壳 README](../apps/desktop/README.zh.md)（开发者）
 
 ---
 
 ## 安装
 
-1. 从 GitHub Actions 的 **desktop** 工作流运行（或已打 tag 的发布）下载 Windows NSIS（`.exe`）或 macOS DMG。
-2. 安装并启动 **FramePilot**。
-3. 构建可能是**未签名**的。内部测试时可能看到 SmartScreen（Windows）或 Gatekeeper（macOS）警告。见 [桌面代码签名手册](desktop_signing.zh.md)。不要把未签名包当作商店级公开发布。
+当前 Actions 的 NSIS/DMG 包是**未签名**的（不是 Gatekeeper 干净、不是 SmartScreen 干净、不是商店上架）。从哪下载、怎么装、未知发布者 / 无法验证开发者怎么处理、怎么启动与退出，见 [未签名桌面安装教程](desktop_install.zh.md)。
+
+简要路径：
+
+1. 从 GitHub Actions 的 **desktop** 工作流运行（或已打 tag 的发布）下载 `FramePilot-windows-nsis` 或 `FramePilot-macos-dmg`。
+2. 安装并启动 **FramePilot**。请预期 SmartScreen（Windows）或 Gatekeeper（macOS）警告。见 [桌面代码签名手册](desktop_signing.zh.md)。
+3. 用 **File → Quit** 或关闭主窗口退出（关窗口即退出，不是藏到托盘）。
 
 卸载会移除应用二进制。应用数据目录可能仍留在磁盘上（见下文），以免项目被静默删掉。
 

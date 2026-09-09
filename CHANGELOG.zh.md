@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 残留 — 未签名安装教程
+
+- 中英 [docs/desktop_install.md](docs/desktop_install.zh.md)：未签名 Windows NSIS 与 macOS DMG 从哪下、怎么装、Gatekeeper / SmartScreen 未知发布者、启动与退出
+- 挂到 README、[桌面用户指南](docs/desktop_user_guide.zh.md)、[桌面测试矩阵](docs/desktop_testing.zh.md)、[桌面开发计划](docs/desktop_development_plan.zh.md)
+- 明确标注**未签名**；不声称 Gatekeeper 干净 / SmartScreen 干净 / 商店上架
+- 不改 `APP_VERSION`，不改打包脚本，不签名，不发 release，无第十阶段
+- Issue：[#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)
+
 ### 残留 — 包装 Windows 退出+作业矩阵
 
 - 四行 Windows `result=pass`（[desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)，`37b710b`，`2026-09-08T15:29:33Z`）：Quit clean、Quit+导入、Quit+分组排序、Quit+导出

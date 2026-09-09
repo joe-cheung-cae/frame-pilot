@@ -4,15 +4,19 @@
 
 FramePilot desktop is a local-first photo culling app. A Tauri window hosts the UI and starts a Python API **sidecar** on loopback (`127.0.0.1`). You do not run uvicorn yourself. Original camera files are never modified; imports **copy** into the project `originals/` folder.
 
-**Also see:** [Desktop testing matrix](desktop_testing.md) · [Signing runbook](desktop_signing.md) · [Known limitations](v2_known_limitations.md) · [Architecture](v2_architecture.md) · [Phase 2 workflow checklist](../tests/desktop/workflow.md) · [Desktop shell README](../apps/desktop/README.md) (developers)
+**Also see:** [Unsigned desktop install tutorial](desktop_install.md) · [Desktop testing matrix](desktop_testing.md) · [Signing runbook](desktop_signing.md) · [Known limitations](v2_known_limitations.md) · [Architecture](v2_architecture.md) · [Phase 2 workflow checklist](../tests/desktop/workflow.md) · [Desktop shell README](../apps/desktop/README.md) (developers)
 
 ---
 
 ## Install
 
-1. Download the Windows NSIS (`.exe`) or macOS DMG from a GitHub Actions **desktop** workflow run (or a release when tagged).
-2. Install and launch **FramePilot**.
-3. Builds may be **unsigned**. Expect SmartScreen (Windows) or Gatekeeper (macOS) warnings for internal testing. See [Desktop Code Signing Runbook](desktop_signing.md). Do not treat unsigned packages as a public store release.
+Current Actions NSIS/DMG packages are **unsigned** (not Gatekeeper-clean, not SmartScreen-clean, not a store listing). Follow the [Unsigned desktop install tutorial](desktop_install.md) for where to download, how to install, how to handle unknown-publisher / unidentified-developer dialogs, and how to start and quit.
+
+Short path:
+
+1. Download `FramePilot-windows-nsis` or `FramePilot-macos-dmg` from a GitHub Actions **desktop** workflow run (or a release when tagged).
+2. Install and launch **FramePilot**. Expect SmartScreen (Windows) or Gatekeeper (macOS) warnings. See [Desktop Code Signing Runbook](desktop_signing.md).
+3. Quit with **File → Quit** or by closing the main window (close is quit, not hide-to-tray).
 
 Uninstall removes the application binary. The app data directory may remain on disk (see below) so projects are not silently deleted.
 
