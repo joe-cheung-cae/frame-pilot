@@ -2,9 +2,9 @@
 
 > 语言：[English](desktop_development_plan.md) | **中文**
 
-> **文档版本**：1.11  
+> **文档版本**：1.12  
 > **创建日期**：2026-08-18  
-> **最近审阅**：2026-09-09（残留 Windows 包装 sidecar ready-line timeout #190）  
+> **最近审阅**：2026-09-09（残留含 sidecar 修的未签名桌面 Release #192）  
 > **目标**：将当前本地 Web 应用（v2.0.0-rc2）重新设计并打包为可安装的 Windows 与 macOS 桌面应用  
 > **仓库**：https://github.com/joe-cheung-cae/frame-pilot  
 > **相关已有规划**：`develop_plan.md` 已将 “Local desktop packaging with Tauri or Electron” 列为 stretch goal；本文件将其正式产品化。  
@@ -47,7 +47,7 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 - [x] 现有全部核心功能可用且行为与当前 v2 一致
 - [x] 原图安全规则与本地优先原则保持不变
 - [x] 大项目（≥500 张）不崩溃，内存占用可接受 — 残留 [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) 包装 WebView from-paths + 审片预览（**原生对话框 stub**）；Windows `2026-09-07T19:39:23Z` + macOS `2026-09-07T19:30:33Z`（[desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835)）。不是完整 S9.12 点击走查。Web Playwright `test:e2e:real-browser:large` 与 API `perf:api` 500 **不是**包装桌面 GUI 证据。
-- [x] 提供用户安装说明与开发者构建文档 — 未签名走查：[docs/desktop_install.md](desktop_install.zh.md)（[#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)）；未签名 GitHub Release 残留 [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188)；不要把本行当新 DoD 重勾
+- [x] 提供用户安装说明与开发者构建文档 — 未签名走查：[docs/desktop_install.md](desktop_install.zh.md)（[#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)）；未签名 GitHub Release 残留 [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188)；含 sidecar 修的未签名 Release 残留 [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192)；不要把本行当新 DoD 重勾
 - [x] CI 可自动构建双平台安装包（代码签名可后续完善）
 - [x] 桌面 sidecar 仅监听 127.0.0.1，且拒绝非回环 Host 与未授权 Origin
 - [x] 用户选择的项目根目录经过显式授权后才被接受（见实施计划 D2.00）
@@ -188,6 +188,7 @@ FramePilot Desktop
 | 包装 macOS 退出+作业矩阵 | 残留 [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) 四行 Darwin `result=pass`（`2026-09-08T13:26:18Z`，[desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)） | 残留 [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) `[x]` |
 | 包装 Windows 退出+作业矩阵 | 残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) 四行 Windows `result=pass`（`2026-09-08T15:29:33Z`，[desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)） | 残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) `[x]` |
 | Windows 包装 sidecar 首启 timeout | 残留 [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) 冷 NSIS ready-line timeout；Windows 120 秒预算 + `sidecar.ready` 回退 | 残留 [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) `[x]` 代码 |
+| 含 sidecar 修的未签名桌面 Release | 残留 [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) 发布含 #191 的**未签名** `v2.1.1-desktop` NSIS + DMG | 残留 [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) `[x]` 工作流 |
 
 以上项目若被跳过，必须写入 [docs/v2_known_limitations.md](v2_known_limitations.zh.md)（D5.05）。
 
@@ -408,7 +409,7 @@ frame-pilot/
 
 发布渠道建议：
 
-- GitHub Releases（主渠道）— 残留 [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188) 发布**未签名** `v2.1.0-desktop` NSIS + DMG。不是 Gatekeeper 干净 / SmartScreen 干净 / 商店上架。
+- GitHub Releases（主渠道）— 残留 [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) 发布含 #191 sidecar ready-line 修的**未签名** `v2.1.1-desktop` NSIS + DMG。残留 [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188) 曾发布 `v2.1.0-desktop`（修之前）。不是 Gatekeeper 干净 / SmartScreen 干净 / 商店上架。
 - 后续可考虑官网下载页
 
 ---
@@ -477,6 +478,7 @@ frame-pilot/
 | 2026-09-09 | 1.9 | 残留未签名安装教程 [#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)：新增 [docs/desktop_install.md](desktop_install.zh.md)；不要重勾 §2.2 / 发明第十阶段 |
 | 2026-09-09 | 1.10 | 残留未签名桌面 GitHub Release [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188)：`desktop-release.yml` 发布未签名 NSIS + DMG；不要重勾 §2.2 / 发明第十阶段 |
 | 2026-09-09 | 1.11 | 残留 Windows 包装 sidecar ready-line timeout [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190)：Windows 120 秒预算 + ready 文件回退；不要重勾 §2.2 / 托盘 / 发明第十阶段 |
+| 2026-09-09 | 1.12 | 残留含 sidecar 修的未签名桌面 Release [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192)：`desktop-release.yml` 发布 `v2.1.1-desktop`；不要重勾 §2.2 / 发明第十阶段 |
 
 ---
 

@@ -756,8 +756,12 @@ expect_success \
     /desktop_install\\.zh\\.md/ { zh = 1 }
     /Windows NSIS/ { nsis = 1 }
     /macOS DMG/ { dmg = 1 }
+    /sidecar ready-line/ { sidecar = 1 }
+    /120s/ { budget = 1 }
+    /#191/ { pr = 1 }
+    /v2\\.1\\.1-desktop/ { tag = 1 }
     /Gatekeeper-clean pass|SmartScreen-clean pass|notarized Mac pass/ { claim = 1 }
-    END { exit (unsigned && gk && ss && store && en && zh && nsis && dmg && !claim) ? 0 : 1 }
+    END { exit (unsigned && gk && ss && store && en && zh && nsis && dmg && sidecar && budget && pr && tag && !claim) ? 0 : 1 }
   ' '$repo_root/docs/desktop_unsigned_release_notes.md'"
 
 expect_success \
@@ -769,7 +773,11 @@ expect_success \
     /商店上架/ { store = 1 }
     /desktop_install\\.md/ { en = 1 }
     /desktop_install\\.zh\\.md/ { zh = 1 }
-    END { exit (unsigned && gk && ss && store && en && zh) ? 0 : 1 }
+    /sidecar ready-line/ { sidecar = 1 }
+    /120 秒/ { budget = 1 }
+    /#191/ { pr = 1 }
+    /v2\\.1\\.1-desktop/ { tag = 1 }
+    END { exit (unsigned && gk && ss && store && en && zh && sidecar && budget && pr && tag) ? 0 : 1 }
   ' '$repo_root/docs/desktop_unsigned_release_notes.zh.md'"
 
 expect_success \
@@ -777,9 +785,12 @@ expect_success \
   bash -c "awk '
     /name: desktop-release/ { named = 1 }
     /workflow_dispatch:/ { dispatch = 1 }
+    /workflow_run:/ { run_trigger = 1 }
     /desktop_unsigned_release_notes\\.md/ { notes = 1 }
-    /v2\\.1\\.0-desktop/ { tag = 1 }
-    /FramePilot 2.1.0-desktop \\(unsigned\\)/ { title = 1 }
+    /v2\\.1\\.1-desktop/ { tag = 1 }
+    /FramePilot 2.1.1-desktop \\(unsigned\\)/ { title = 1 }
+    /602c022b6842ca8c96f8cf6434a1bf750bfcb7b0/ { min_sha = 1 }
+    /sha_includes_sidecar_fix/ { guard = 1 }
     /FramePilot-windows-nsis/ { nsis = 1 }
     /FramePilot-macos-dmg/ { dmg = 1 }
     /softprops\\/action-gh-release/ { release = 1 }
@@ -789,7 +800,7 @@ expect_success \
     /secrets\\.(WINDOWS_CERTIFICATE|APPLE_CERTIFICATE)|TAURI_SIGNING_PRIVATE_KEY/ { sign = 1 }
     /macos-dmg-gui-smoke|desktop-500-gui\\.sh|desktop-quit-job-gui|npx tauri build/ { gui = 1 }
     END {
-      exit (named && dispatch && notes && tag && title && nsis && dmg && release && fail_missing && write_perm && !action && !sign && !gui) ? 0 : 1
+      exit (named && dispatch && run_trigger && notes && tag && title && min_sha && guard && nsis && dmg && release && fail_missing && write_perm && !action && !sign && !gui) ? 0 : 1
     }
   ' '$repo_root/.github/workflows/desktop-release.yml'"
 
@@ -820,7 +831,7 @@ expect_success \
 expect_success \
   "install tutorial prefers the unsigned GitHub Release" \
   bash -c "awk '
-    /v2\\.1\\.0-desktop/ { tag = 1 }
+    /v2\\.1\\.1-desktop/ { tag = 1 }
     /github.com\\/joe-cheung-cae\\/frame-pilot\\/releases/ { rel = 1 }
     /Gatekeeper-clean/ { gk = 1 }
     /SmartScreen-clean/ { ss = 1 }

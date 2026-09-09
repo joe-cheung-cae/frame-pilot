@@ -68,7 +68,7 @@ No extra npm alias is required for this matrix; use the scripts above directly.
 | Optional 500 | `npm run perf:api -- --output /tmp/fp-perf --counts 500` | Documented timing/RSS in performance notes when run; no crash. Multipart `/import` (scale) or add `--import-mode from-paths` | Yes (API) |
 | Optional 2000 | `npm run perf:api -- --output /tmp/fp-perf --counts 2000` | Same; GUI review of 2000 is **not** required by default | Yes (API) |
 | Full cull workflow | Follow [tests/desktop/workflow.md](../tests/desktop/workflow.md) | Import → process → keyboard cull → CSV/ZIP/folder export + reveal | Manual / API pytest for path-import→export |
-| Install / uninstall | Follow [Unsigned desktop install tutorial](desktop_install.md): download the unsigned GitHub Release (`v2.1.0-desktop`) NSIS `.exe` / macOS `.dmg` (Actions `FramePilot-windows-nsis` / `FramePilot-macos-dmg` fallback), handle SmartScreen / Gatekeeper, launch once, quit, uninstall | App binary removed; **data directory may remain** (document for users) — see app-support paths in [apps/desktop/README.md](../apps/desktop/README.md). Unsigned only; do not claim SmartScreen-clean / Gatekeeper-clean. | Manual |
+| Install / uninstall | Follow [Unsigned desktop install tutorial](desktop_install.md): download the unsigned GitHub Release (`v2.1.1-desktop`) NSIS `.exe` / macOS `.dmg` (Actions `FramePilot-windows-nsis` / `FramePilot-macos-dmg` fallback), handle SmartScreen / Gatekeeper, launch once, quit, uninstall | App binary removed; **data directory may remain** (document for users) — see app-support paths in [apps/desktop/README.md](../apps/desktop/README.md). Unsigned only; do not claim SmartScreen-clean / Gatekeeper-clean. | Manual |
 
 ---
 
@@ -237,6 +237,6 @@ Same-job Path B (`packaging/scripts/desktop-quit-job-gui.sh`) after the just-bui
 | ----- | ---------------- | ---- |
 | API sidecar CLI | `npm run test:api -- apps/api/tests/test_sidecar_cli.py` | Exit 0; ready marker + Windows 120s source assert |
 | Rust sidecar unit | `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` | Exit 0; preamble skip, ready-file fallback, spawn cwd / `PYTHONUNBUFFERED` |
-| Windows first Start | Fresh unsigned NSIS → Start menu **FramePilot** (do not pre-run `framepilot-api.exe`) | Window title `FramePilot`; project UI; no ready-line timeout within two minutes; optional `sidecar.ready` + `GET /health` on the allocated port |
+| Windows first Start | Fresh unsigned NSIS from `v2.1.1-desktop` → Start menu **FramePilot** (do not pre-run `framepilot-api.exe`) | Window title `FramePilot`; project UI; no ready-line timeout within two minutes; optional `sidecar.ready` + `GET /health` on the allocated port |
 
-Do not reopen [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184). Do not touch tray / D3.06 / #41. No `APP_VERSION` bump. No signing. Manual path: [Unsigned desktop install tutorial](desktop_install.md).
+Do not reopen [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184). Do not touch tray / D3.06 / #41. No `APP_VERSION` bump. No signing. Manual path: [Unsigned desktop install tutorial](desktop_install.md). Win11 cold first-start packages: leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) `v2.1.1-desktop` (do not invent a pass here).

@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — unsigned desktop Release with sidecar cold-start fix
+
+- `.github/workflows/desktop-release.yml` publishes **unsigned** GitHub Release `v2.1.1-desktop` (Windows NSIS + macOS DMG) from a `desktop.yml` run that includes [#191](https://github.com/joe-cheung-cae/frame-pilot/pull/191) (`602c022`+)
+- Release notes mark **unsigned**, name the sidecar ready-line / 120s fix, and link [docs/desktop_install.md](docs/desktop_install.md)
+- Windows `Path::to_os_string` compile break from #191 is fixed so NSIS can build (`as_os_str().to_os_string()`)
+- No `APP_VERSION` bump, no signing, notarization, store listing, tray / D3.06, or Phase 10
+- Issue: [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192)
+
 ### Leftover — Windows packaged sidecar ready-line timeout
 
 - Root cause: packaged Windows first launch after NSIS waits only **15s** for the sidecar stdout ready line, then **retries by killing** a still-booting PyInstaller one-dir process (Defender + numpy/scipy/HEIF/RAW). Joe’s `v2.1.0-desktop` first Start failed both attempts.
