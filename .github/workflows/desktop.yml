@@ -3,8 +3,9 @@
 # Trigger design:
 #   - workflow_dispatch: manual rebuilds without a merge.
 #   - push to main with path filters: after merge, installers appear when
-#     desktop/API/packaging/desktop workflow paths change. Docs-only merges
-#     skip this job. PRs use verify.yml (rust-free lint/test job, Playwright
+#     desktop/API/web/packaging/desktop workflow paths change. The web UI is
+#     bundled into NSIS/DMG, so leftover #196 watches apps/web/**. Docs-only
+#     merges skip this job. PRs use verify.yml (rust-free lint/test job, Playwright
 #     E2E via npm run test:e2e, 100-photo real-browser via
 #     npm run test:e2e:real-browser, independent frozen-sidecar /health, plus
 #     independent desktop HTTP smoke via npm run test:desktop:smoke). Never
@@ -33,6 +34,7 @@ on:
     paths:
       - "apps/desktop/**"
       - "apps/api/**"
+      - "apps/web/**"
       - "packaging/**"
       - ".github/workflows/desktop.yml"
       - "package.json"

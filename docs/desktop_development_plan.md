@@ -189,6 +189,7 @@ Leftover 2.2 items that Phase 9 shipped are retargeted to their S9 ids. Remainin
 | Packaged Windows quit+job matrix | leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) four Windows rows `result=pass` (`2026-09-08T15:29:33Z`, [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)) | leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) `[x]` |
 | Windows packaged sidecar first-launch timeout | leftover [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) cold NSIS ready-line timeout; 120s Windows budget + `sidecar.ready` fallback | leftover [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) `[x]` code |
 | Unsigned desktop Release with sidecar fix | leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) publishes **unsigned** `v2.1.1-desktop` NSIS + DMG including #191 | leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) `[x]` workflow |
+| Unsigned desktop Release with Import/Export fix | leftover [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) publishes **unsigned** `v2.1.2-desktop` NSIS + DMG including #195 | leftover [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) `[x]` workflow |
 
 If any of the above is skipped, it must be written into [docs/v2_known_limitations.md](v2_known_limitations.md) (D5.05).
 
@@ -409,7 +410,7 @@ On top of existing `npm run verify`, API pytest, frontend unit, and E2E, add:
 
 Suggested release channels:
 
-- GitHub Releases (primary) — leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) publishes **unsigned** `v2.1.1-desktop` NSIS + DMG including the #191 sidecar ready-line fix. Leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188) published `v2.1.0-desktop` (pre-fix). Not Gatekeeper-clean / SmartScreen-clean / store.
+- GitHub Releases (primary) — leftover [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) publishes **unsigned** `v2.1.2-desktop` NSIS + DMG including the #195 Import/Export fix and the earlier #191 sidecar ready-line fix. Leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) published `v2.1.1-desktop` (pre-#195). Leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188) published `v2.1.0-desktop` (pre-sidecar fix). Not Gatekeeper-clean / SmartScreen-clean / store.
 - A website download page later, if needed
 
 ---
@@ -479,6 +480,7 @@ Implementation-level task split and Goal Mode prompts (based on the 2026-08-18 r
 | 2026-09-09 | 1.10 | Leftover unsigned desktop GitHub Release [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188): `desktop-release.yml` publishes unsigned NSIS + DMG; do not re-tick §2.2 / invent Phase 10 |
 | 2026-09-09 | 1.11 | Leftover Windows packaged sidecar ready-line timeout [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190): 120s Windows budget + ready-file fallback; do not re-tick §2.2 / tray / invent Phase 10 |
 | 2026-09-09 | 1.12 | Leftover unsigned desktop Release with sidecar fix [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192): `desktop-release.yml` publishes `v2.1.1-desktop`; do not re-tick §2.2 / invent Phase 10 |
+| 2026-09-09 | 1.13 | Leftover unsigned desktop Release with Import/Export fix [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196): `desktop-release.yml` publishes `v2.1.2-desktop`; do not re-tick §2.2 / invent Phase 10 |
 
 ---
 

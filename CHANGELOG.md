@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — unsigned desktop Release with Import/Export fix
+
+- `.github/workflows/desktop-release.yml` publishes **unsigned** GitHub Release `v2.1.2-desktop` (Windows NSIS + macOS DMG) from a `desktop.yml` run that includes [#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195) (`6b147160`+)
+- Release notes mark **unsigned**, name the #194/#195 Import/Export fix plus the earlier #191 sidecar ready-line / 120s fix, and link [docs/desktop_install.md](docs/desktop_install.md)
+- `desktop.yml` watches `apps/web/**` so bundled UI leftovers rebuild NSIS/DMG
+- No `APP_VERSION` bump, no signing, notarization, store listing, tray / D3.06, or Phase 10
+- Issue: [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196)
+
 ### Leftover — Win11 new-project Import/Export no response
 
 - Root cause: File → Import/Export (and dashboard Export on an empty project) could no-op. Cold first-start has no last-opened project id, `/projects/new` is not a project id, create did not persist last-opened, and Export cards redirected back to Import.

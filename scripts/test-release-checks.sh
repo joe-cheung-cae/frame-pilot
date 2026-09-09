@@ -511,6 +511,13 @@ expect_success \
   ' '$repo_root/.github/workflows/desktop.yml'"
 
 expect_success \
+  "desktop.yml rebuilds installers when bundled web UI changes" \
+  bash -c "awk '
+    /apps\\/web\\/\\*\\*/ { web = 1 }
+    END { exit web ? 0 : 1 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
   "desktop.yml keeps unsigned fallback and does not use tauri-action" \
   bash -c "awk '
     /tauri-apps\\/tauri-action/ { action = 1 }
@@ -758,10 +765,12 @@ expect_success \
     /macOS DMG/ { dmg = 1 }
     /sidecar ready-line/ { sidecar = 1 }
     /120s/ { budget = 1 }
-    /#191/ { pr = 1 }
-    /v2\\.1\\.1-desktop/ { tag = 1 }
+    /#191/ { sidecar_pr = 1 }
+    /#195/ { ie_pr = 1 }
+    /Import\\/Export/ { ie = 1 }
+    /v2\\.1\\.2-desktop/ { tag = 1 }
     /Gatekeeper-clean pass|SmartScreen-clean pass|notarized Mac pass/ { claim = 1 }
-    END { exit (unsigned && gk && ss && store && en && zh && nsis && dmg && sidecar && budget && pr && tag && !claim) ? 0 : 1 }
+    END { exit (unsigned && gk && ss && store && en && zh && nsis && dmg && sidecar && budget && sidecar_pr && ie_pr && ie && tag && !claim) ? 0 : 1 }
   ' '$repo_root/docs/desktop_unsigned_release_notes.md'"
 
 expect_success \
@@ -775,9 +784,11 @@ expect_success \
     /desktop_install\\.zh\\.md/ { zh = 1 }
     /sidecar ready-line/ { sidecar = 1 }
     /120 秒/ { budget = 1 }
-    /#191/ { pr = 1 }
-    /v2\\.1\\.1-desktop/ { tag = 1 }
-    END { exit (unsigned && gk && ss && store && en && zh && sidecar && budget && pr && tag) ? 0 : 1 }
+    /#191/ { sidecar_pr = 1 }
+    /#195/ { ie_pr = 1 }
+    /导入\\/导出/ { ie = 1 }
+    /v2\\.1\\.2-desktop/ { tag = 1 }
+    END { exit (unsigned && gk && ss && store && en && zh && sidecar && budget && sidecar_pr && ie_pr && ie && tag) ? 0 : 1 }
   ' '$repo_root/docs/desktop_unsigned_release_notes.zh.md'"
 
 expect_success \
@@ -787,10 +798,10 @@ expect_success \
     /workflow_dispatch:/ { dispatch = 1 }
     /workflow_run:/ { run_trigger = 1 }
     /desktop_unsigned_release_notes\\.md/ { notes = 1 }
-    /v2\\.1\\.1-desktop/ { tag = 1 }
-    /FramePilot 2.1.1-desktop \\(unsigned\\)/ { title = 1 }
-    /602c022b6842ca8c96f8cf6434a1bf750bfcb7b0/ { min_sha = 1 }
-    /sha_includes_sidecar_fix/ { guard = 1 }
+    /v2\\.1\\.2-desktop/ { tag = 1 }
+    /FramePilot 2.1.2-desktop \\(unsigned\\)/ { title = 1 }
+    /6b147160e9dd46ca6eda1b9ad27f855b4d517852/ { min_sha = 1 }
+    /sha_includes_import_export_fix/ { guard = 1 }
     /FramePilot-windows-nsis/ { nsis = 1 }
     /FramePilot-macos-dmg/ { dmg = 1 }
     /softprops\\/action-gh-release/ { release = 1 }
@@ -831,7 +842,7 @@ expect_success \
 expect_success \
   "install tutorial prefers the unsigned GitHub Release" \
   bash -c "awk '
-    /v2\\.1\\.1-desktop/ { tag = 1 }
+    /v2\\.1\\.2-desktop/ { tag = 1 }
     /github.com\\/joe-cheung-cae\\/frame-pilot\\/releases/ { rel = 1 }
     /Gatekeeper-clean/ { gk = 1 }
     /SmartScreen-clean/ { ss = 1 }

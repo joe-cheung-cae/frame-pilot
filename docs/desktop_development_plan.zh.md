@@ -189,6 +189,7 @@ FramePilot Desktop
 | 包装 Windows 退出+作业矩阵 | 残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) 四行 Windows `result=pass`（`2026-09-08T15:29:33Z`，[desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)） | 残留 [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) `[x]` |
 | Windows 包装 sidecar 首启 timeout | 残留 [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) 冷 NSIS ready-line timeout；Windows 120 秒预算 + `sidecar.ready` 回退 | 残留 [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) `[x]` 代码 |
 | 含 sidecar 修的未签名桌面 Release | 残留 [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) 发布含 #191 的**未签名** `v2.1.1-desktop` NSIS + DMG | 残留 [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) `[x]` 工作流 |
+| 含导入/导出修的未签名桌面 Release | 残留 [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) 发布含 #195 的**未签名** `v2.1.2-desktop` NSIS + DMG | 残留 [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) `[x]` 工作流 |
 
 以上项目若被跳过，必须写入 [docs/v2_known_limitations.md](v2_known_limitations.zh.md)（D5.05）。
 
@@ -409,7 +410,7 @@ frame-pilot/
 
 发布渠道建议：
 
-- GitHub Releases（主渠道）— 残留 [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) 发布含 #191 sidecar ready-line 修的**未签名** `v2.1.1-desktop` NSIS + DMG。残留 [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188) 曾发布 `v2.1.0-desktop`（修之前）。不是 Gatekeeper 干净 / SmartScreen 干净 / 商店上架。
+- GitHub Releases（主渠道）— 残留 [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) 发布含 #195 导入/导出修以及此前 #191 sidecar ready-line 修的**未签名** `v2.1.2-desktop` NSIS + DMG。残留 [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) 曾发布 `v2.1.1-desktop`（#195 之前）。残留 [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188) 曾发布 `v2.1.0-desktop`（sidecar 修之前）。不是 Gatekeeper 干净 / SmartScreen 干净 / 商店上架。
 - 后续可考虑官网下载页
 
 ---
@@ -479,6 +480,7 @@ frame-pilot/
 | 2026-09-09 | 1.10 | 残留未签名桌面 GitHub Release [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188)：`desktop-release.yml` 发布未签名 NSIS + DMG；不要重勾 §2.2 / 发明第十阶段 |
 | 2026-09-09 | 1.11 | 残留 Windows 包装 sidecar ready-line timeout [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190)：Windows 120 秒预算 + ready 文件回退；不要重勾 §2.2 / 托盘 / 发明第十阶段 |
 | 2026-09-09 | 1.12 | 残留含 sidecar 修的未签名桌面 Release [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192)：`desktop-release.yml` 发布 `v2.1.1-desktop`；不要重勾 §2.2 / 发明第十阶段 |
+| 2026-09-09 | 1.13 | 残留含导入/导出修的未签名桌面 Release [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196)：`desktop-release.yml` 发布 `v2.1.2-desktop`；不要重勾 §2.2 / 发明第十阶段 |
 
 ---
 
