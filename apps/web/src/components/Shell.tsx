@@ -4,6 +4,8 @@ import { Camera, CircleHelp, FolderOpen, SlidersHorizontal } from "lucide-react"
 import { Link, usePathname } from "@/lib/navigation";
 import { isDesktopShell } from "@/lib/shell";
 
+import { MenuCommandListener } from "./MenuCommandListener";
+import { ProjectWorkflowNav } from "./ProjectWorkflowNav";
 import { StatusBar } from "./StatusBar";
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -11,6 +13,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const desktopShell = isDesktopShell();
   return (
     <main className={desktopShell ? "flex h-screen flex-col overflow-hidden bg-mist" : "min-h-screen bg-mist"}>
+      <MenuCommandListener />
       <header className="shrink-0 border-b border-line bg-surface">
         <div className="mx-auto grid max-w-7xl gap-3 px-5 py-4 sm:flex sm:items-center sm:justify-between">
           <Link href="/" className="flex items-center gap-3 font-semibold text-ink">
@@ -47,6 +50,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </header>
+      <ProjectWorkflowNav />
       <div className={desktopShell ? "flex min-h-0 flex-1 flex-col overflow-auto" : undefined}>{children}</div>
       <StatusBar pathname={pathname} />
     </main>

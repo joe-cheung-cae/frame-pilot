@@ -1400,6 +1400,32 @@ test("creates a project and opens the import step", async ({ page }) => {
   expect(projectCreatePayloads).toEqual([{ name: "New Local Shoot" }]);
 });
 
+test("opens Import and Export from a newly created empty project", async ({ page }) => {
+  await page.goto("/projects/new");
+  await page.evaluate(() => {
+    window.localStorage.removeItem("framepilot.lastOpenedProjectId");
+    window.dispatchEvent(new CustomEvent("framepilot-menu", { detail: "export" }));
+  });
+  await expect(page).toHaveURL(/\/projects\/new\?workflow=export$/);
+  await expect(page.getByText("Create a project before opening Export.")).toBeVisible();
+
+  await page.getByLabel("Project name").fill("New Local Shoot");
+  await page.getByRole("button", { name: "Create and Import" }).click();
+  await expect(page).toHaveURL(/\/projects\/project-1\/import$/);
+  await expect(page.getByRole("tab", { name: "Import" })).toHaveAttribute("aria-selected", "true");
+
+  await page.getByRole("tab", { name: "Export" }).click();
+  await expect(page).toHaveURL(/\/projects\/project-1\/export$/);
+  await expect(page.getByRole("heading", { name: "Export Selection" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Export" })).toHaveAttribute("aria-selected", "true");
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("framepilot-menu", { detail: "import" }));
+  });
+  await expect(page).toHaveURL(/\/projects\/project-1\/import$/);
+  await expect(page.getByRole("heading", { name: "Import Images" })).toBeVisible();
+});
+
 test("creates a project with a custom local data folder", async ({ page }) => {
   const customRootPath = "/tmp/framepilot/custom-e2e";
 

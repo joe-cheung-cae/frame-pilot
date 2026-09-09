@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 残留 — Win11 新建工程「导入/导出」无响应
+
+- 根因：File → Import/Export（以及空项目仪表盘 Export）可能没有任何反应。冷首启没有 last-opened 项目 id，`/projects/new` 不是项目 id，新建成功后没有记住项目，Export 卡片还会被重定向回 Import。
+- 修复：新建和每个项目页都记住项目；File → Import/Export 总会导航（到该项目，或到新建页并给出可见提示）；工作流选项卡始终打开导入和导出
+- 验收：新建工程后点导入/导出（选项卡、仪表盘卡片或 File 菜单）必须打开 Import Images / Export Selection。Playwright：`tests/e2e/local-workflow.spec.ts` 中的 `opens Import and Export from a newly created empty project`
+- 不改 `APP_VERSION`，不签名、不公证、不上架，不动托盘 / D3.06，无第十阶段
+- Issue：[#194](https://github.com/joe-cheung-cae/frame-pilot/issues/194)
+
 ### 残留 — 含 sidecar 冷首启修的未签名桌面 Release
 
 - `.github/workflows/desktop-release.yml` 从含 [#191](https://github.com/joe-cheung-cae/frame-pilot/pull/191)（`602c022`+）的 `desktop.yml` 运行发布**未签名** GitHub Release `v2.1.1-desktop`（Windows NSIS + macOS DMG）

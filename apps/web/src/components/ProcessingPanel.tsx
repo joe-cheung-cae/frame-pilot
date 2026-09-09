@@ -23,11 +23,13 @@ import {
   processingRecoveryMessage,
   processingStatusLabel,
 } from "@/lib/processingProgress";
+import { useRememberOpenedProject } from "@/lib/rememberOpenedProject";
 import { PROCESSING_FAILURE_FILTER } from "@/lib/reviewFilters";
 
 const RECENT_JOB_LIMIT = 50;
 
 export function ProcessingPanel({ projectId }: { projectId: string }) {
+  useRememberOpenedProject(projectId);
   const queryClient = useQueryClient();
   const [jobLimit, setJobLimit] = useState(RECENT_JOB_LIMIT);
   const project = useQuery({

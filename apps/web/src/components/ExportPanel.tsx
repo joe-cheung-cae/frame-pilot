@@ -33,6 +33,7 @@ import { invalidateProjectExportQueries } from "@/lib/queryInvalidation";
 import { projectExportRoot, revealFolder } from "@/lib/revealFolder";
 import { isDesktopShell } from "@/lib/shell";
 import { copyForShell } from "@/lib/shellCopy";
+import { useRememberOpenedProject } from "@/lib/rememberOpenedProject";
 import {
   DEFAULT_EXPORT_STATUS_PREFERENCE,
   exportPreferenceMessageTone,
@@ -54,6 +55,7 @@ function photoCountLabel(count: number) {
 }
 
 export function ExportPanel({ projectId }: { projectId: string }) {
+  useRememberOpenedProject(projectId);
   const nativeFs = getNativeFs();
   const desktopShell = isDesktopShell();
   const copy = copyForShell(desktopShell);

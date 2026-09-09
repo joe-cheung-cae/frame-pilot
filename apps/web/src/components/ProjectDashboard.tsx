@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Download, FolderOpen, Images, Loader2, Play, UploadCloud } from "lucide-react";
-import { useEffect } from "react";
 import { api } from "@/lib/api";
 import { getNativeFs } from "@/lib/nativeFs";
 import { Link } from "@/lib/navigation";
@@ -15,7 +14,7 @@ import {
   projectWorkflowStepHint,
   projectWorkflowStepHref,
 } from "@/lib/projectRouting";
-import { saveLastOpenedProjectId } from "@/lib/recentProjects";
+import { useRememberOpenedProject } from "@/lib/rememberOpenedProject";
 import { revealFolder } from "@/lib/revealFolder";
 
 const workflowLinks = [
@@ -26,6 +25,7 @@ const workflowLinks = [
 ] as const;
 
 export function ProjectDashboard({ projectId }: { projectId: string }) {
+  useRememberOpenedProject(projectId);
   const nativeFs = getNativeFs();
   const project = useQuery({
     queryKey: ["project", projectId],
@@ -33,10 +33,6 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
     retry: false,
     refetchInterval: (query) => (query.state.data && projectHasActiveImport(query.state.data) ? 1000 : false),
   });
-
-  useEffect(() => {
-    saveLastOpenedProjectId(projectId);
-  }, [projectId]);
 
   if (project.isLoading) {
     return (

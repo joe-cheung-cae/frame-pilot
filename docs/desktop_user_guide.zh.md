@@ -42,7 +42,7 @@ FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，
 1. 使用 **New project**（或桌面 File → New）。
 2. 输入名称。桌面上 **Browse** 会打开原生文件夹选择器，注册文件夹（`POST /api/desktop/project-roots`），再填入项目数据目录。
 3. 若文件夹已有文件，确认 FramePilot 会在其中创建项目子目录，且**不会**修改已有文件。
-4. **Create and Import** 进入导入页。仪表盘 **Open project folder** 会在系统文件管理器中揭示 `root_path`。
+4. **Create and Import** 进入导入页。**Import** / **Export** 工作流选项卡（以及 File → Import / File → Export）在空的新项目上也会切换到对应页。若还没有项目，这些命令会留在新建页并给出可见提示，而不是没有任何反应。仪表盘 **Open project folder** 会在系统文件管理器中揭示 `root_path`。
 
 ---
 
