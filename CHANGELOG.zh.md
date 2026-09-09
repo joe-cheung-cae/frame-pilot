@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 残留 — 含 sidecar 冷首启修的未签名桌面 Release
+
+- `.github/workflows/desktop-release.yml` 从含 [#191](https://github.com/joe-cheung-cae/frame-pilot/pull/191)（`602c022`+）的 `desktop.yml` 运行发布**未签名** GitHub Release `v2.1.1-desktop`（Windows NSIS + macOS DMG）
+- Release notes 标明 **unsigned / 未签名**，写明 sidecar ready-line / 120 秒修，并链到 [docs/desktop_install.md](docs/desktop_install.zh.md)
+- 修复 #191 引入的 Windows `Path::to_os_string` 编译错误，以便打出 NSIS（`as_os_str().to_os_string()`）
+- 不改 `APP_VERSION`，不签名、不公证、不上架，不动托盘 / D3.06，无第十阶段
+- Issue：[#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192)
+
 ### 残留 — Windows 包装 sidecar ready line timeout
 
 - 根因：NSIS 安装后第一次启动只等 **15 秒** sidecar stdout ready 行，超时后**杀掉仍在冷启动的** PyInstaller one-dir 再重试（Defender + numpy/scipy/HEIF/RAW）。Joe 的 `v2.1.0-desktop` 两次都失败。

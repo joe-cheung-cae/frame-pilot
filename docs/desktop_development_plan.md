@@ -2,9 +2,9 @@
 
 > Language: **English** | [中文](desktop_development_plan.zh.md)
 
-> **Document version**: 1.11  
+> **Document version**: 1.12  
 > **Created**: 2026-08-18  
-> **Last reviewed**: 2026-09-09 (leftover Windows packaged sidecar ready-line timeout #190)  
+> **Last reviewed**: 2026-09-09 (leftover unsigned desktop Release with sidecar fix #192)  
 > **Goal**: Redesign and package the current local web app (v2.0.0-rc2) as installable Windows and macOS desktop apps  
 > **Repository**: https://github.com/joe-cheung-cae/frame-pilot  
 > **Related existing plan**: `develop_plan.md` already lists “Local desktop packaging with Tauri or Electron” as a stretch goal; this document productizes it.  
@@ -47,7 +47,7 @@ The current architecture is already “local process + local HTTP”, so it is a
 - [x] All existing core features work and behave the same as current v2
 - [x] Original-file safety rules and local-first principles remain unchanged
 - [x] Large projects (≥500 photos) do not crash; memory use is acceptable — leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) packaged WebView from-paths + culling preview (**native dialog stubbed**); Windows `2026-09-07T19:39:23Z` + macOS `2026-09-07T19:30:33Z` ([desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835)). Not a full S9.12 click-through. Web Playwright `test:e2e:real-browser:large` and API `perf:api` 500 are not packaged-desktop GUI evidence.
-- [x] User install notes and developer build docs are provided — unsigned walkthrough: [docs/desktop_install.md](desktop_install.md) ([#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)); unsigned GitHub Release leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188); do not re-tick this row as a new DoD
+- [x] User install notes and developer build docs are provided — unsigned walkthrough: [docs/desktop_install.md](desktop_install.md) ([#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)); unsigned GitHub Release leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188); sidecar-fix unsigned Release leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192); do not re-tick this row as a new DoD
 - [x] CI can auto-build installers for both platforms (code signing can be completed later)
 - [x] The desktop sidecar listens only on 127.0.0.1 and rejects non-loopback Host and unauthorized Origin
 - [x] User-chosen project root directories are accepted only after explicit authorization (see implementation plan D2.00)
@@ -188,6 +188,7 @@ Leftover 2.2 items that Phase 9 shipped are retargeted to their S9 ids. Remainin
 | Packaged macOS quit+job matrix | leftover [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) four Darwin rows `result=pass` (`2026-09-08T13:26:18Z`, [desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)) | leftover [#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181) `[x]` |
 | Packaged Windows quit+job matrix | leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) four Windows rows `result=pass` (`2026-09-08T15:29:33Z`, [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)) | leftover [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184) `[x]` |
 | Windows packaged sidecar first-launch timeout | leftover [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) cold NSIS ready-line timeout; 120s Windows budget + `sidecar.ready` fallback | leftover [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190) `[x]` code |
+| Unsigned desktop Release with sidecar fix | leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) publishes **unsigned** `v2.1.1-desktop` NSIS + DMG including #191 | leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) `[x]` workflow |
 
 If any of the above is skipped, it must be written into [docs/v2_known_limitations.md](v2_known_limitations.md) (D5.05).
 
@@ -408,7 +409,7 @@ On top of existing `npm run verify`, API pytest, frontend unit, and E2E, add:
 
 Suggested release channels:
 
-- GitHub Releases (primary) — leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188) publishes **unsigned** `v2.1.0-desktop` NSIS + DMG. Not Gatekeeper-clean / SmartScreen-clean / store.
+- GitHub Releases (primary) — leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) publishes **unsigned** `v2.1.1-desktop` NSIS + DMG including the #191 sidecar ready-line fix. Leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188) published `v2.1.0-desktop` (pre-fix). Not Gatekeeper-clean / SmartScreen-clean / store.
 - A website download page later, if needed
 
 ---
@@ -477,6 +478,7 @@ Implementation-level task split and Goal Mode prompts (based on the 2026-08-18 r
 | 2026-09-09 | 1.9 | Leftover unsigned install tutorial [#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186): add [docs/desktop_install.md](desktop_install.md); do not re-tick §2.2 / invent Phase 10 |
 | 2026-09-09 | 1.10 | Leftover unsigned desktop GitHub Release [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188): `desktop-release.yml` publishes unsigned NSIS + DMG; do not re-tick §2.2 / invent Phase 10 |
 | 2026-09-09 | 1.11 | Leftover Windows packaged sidecar ready-line timeout [#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190): 120s Windows budget + ready-file fallback; do not re-tick §2.2 / tray / invent Phase 10 |
+| 2026-09-09 | 1.12 | Leftover unsigned desktop Release with sidecar fix [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192): `desktop-release.yml` publishes `v2.1.1-desktop`; do not re-tick §2.2 / invent Phase 10 |
 
 ---
 

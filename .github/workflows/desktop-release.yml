@@ -1,14 +1,22 @@
-# Leftover #188 — publish one unsigned GitHub Release (Windows NSIS + macOS DMG).
+# Leftover #192 — publish unsigned GitHub Release v2.1.1-desktop
+# (Windows NSIS + macOS DMG) from a desktop.yml run that includes the
+# #191 sidecar ready-line fix (SHA 602c022b6842ca8c96f8cf6434a1bf750bfcb7b0+).
 #
-# Reuses installer artifacts from a successful desktop.yml run. Does not build,
-# sign, notarize, staple, or launch packaged GUI. Do not download leftover
+# Reuses installer artifacts from desktop.yml. Does not build, sign,
+# notarize, staple, or launch packaged GUI. Do not download leftover
 # GUI-evidence zips. Do not use tauri-action.
 #
 # Trigger:
-#   - push to main when this workflow or the unsigned release notes change
-#     (first leftover publish after merge).
-#   - workflow_dispatch to republish from the latest successful desktop.yml
+#   - workflow_dispatch to publish from the latest qualifying desktop.yml
 #     run, or from an explicit run id.
+#   - workflow_run when desktop.yml completes on main (so a just-built
+#     installer set can publish without a second click).
+#   - push to main when this workflow or the unsigned release notes change.
+#
+# A qualifying run must include the #191 SHA and both installer artifacts.
+# Leftover GUI steps run after the uploads, so a red quit+job / 500 job is
+# allowed when FramePilot-windows-nsis and FramePilot-macos-dmg are present.
+# Do not republish pre-#191 v2.1.0-desktop packages.
 
 name: desktop-release
 
@@ -18,11 +26,15 @@ on:
       release_tag:
         description: Tag for the unsigned desktop GitHub Release
         type: string
-        default: v2.1.0-desktop
+        default: v2.1.1-desktop
       desktop_run_id:
-        description: desktop.yml run id (empty = latest successful main run)
+        description: desktop.yml run id (empty = latest qualifying main run)
         type: string
         default: ""
+  workflow_run:
+    workflows: ["desktop"]
+    types:
+      - completed
   push:
     branches:
       - main
@@ -41,49 +53,103 @@ permissions:
 jobs:
   publish-unsigned-release:
     name: Publish unsigned NSIS + DMG
+    if: >
+      github.event_name != 'workflow_run'
+      || github.event.workflow_run.conclusion == 'success'
+      || github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Resolve successful desktop.yml run
+      - name: Resolve desktop.yml run with #191 sidecar fix
         id: find
         env:
           GH_TOKEN: ${{ github.token }}
           REQUESTED_RUN_ID: ${{ github.event.inputs.desktop_run_id || '' }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id || '' }}
+          MIN_SHA: 602c022b6842ca8c96f8cf6434a1bf750bfcb7b0
         run: |
           set -euo pipefail
-          if [[ -n "${REQUESTED_RUN_ID}" ]]; then
+
+          sha_includes_sidecar_fix() {
+            local head_sha="$1"
+            local status
+            status="$(
+              gh api "repos/${GITHUB_REPOSITORY}/compare/${MIN_SHA}...${head_sha}" \
+                --jq .status
+            )"
+            case "${status}" in
+              identical|ahead) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
+          run_has_installer_artifacts() {
+            local run_id="$1"
+            local names
+            names="$(
+              gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" \
+                --jq '.artifacts[] | select(.expired == false) | .name'
+            )"
+            grep -qx 'FramePilot-windows-nsis' <<<"${names}" \
+              && grep -qx 'FramePilot-macos-dmg' <<<"${names}"
+          }
+
+          pick_qualifying_run() {
+            local only_success="$1"
+            local id sha conclusion status
+            while IFS=$'\t' read -r id sha conclusion status; do
+              [[ "${status}" == "completed" ]] || continue
+              if [[ "${only_success}" == "1" ]]; then
+                [[ "${conclusion}" == "success" ]] || continue
+              else
+                [[ "${conclusion}" == "success" || "${conclusion}" == "failure" ]] || continue
+              fi
+              sha_includes_sidecar_fix "${sha}" || continue
+              run_has_installer_artifacts "${id}" || continue
+              printf '%s' "${id}"
+              return 0
+            done <<<"${CANDIDATES}"
+            return 1
+          }
+
+          if [[ -n "${WORKFLOW_RUN_ID}" ]]; then
+            run_id="${WORKFLOW_RUN_ID}"
+          elif [[ -n "${REQUESTED_RUN_ID}" ]]; then
             run_id="${REQUESTED_RUN_ID}"
           else
-            run_id="$(
+            CANDIDATES="$(
               gh run list \
                 --workflow=desktop.yml \
                 --branch=main \
-                --status=success \
-                --limit=1 \
-                --json databaseId \
-                --jq '.[0].databaseId'
+                --limit=20 \
+                --json databaseId,headSha,conclusion,status \
+                --jq '.[] | [.databaseId, .headSha, (.conclusion // ""), .status] | @tsv'
             )"
+            run_id="$(pick_qualifying_run 1 || true)"
+            if [[ -z "${run_id}" ]]; then
+              run_id="$(pick_qualifying_run 0 || true)"
+            fi
           fi
+
           if [[ -z "${run_id}" ]]; then
-            echo "No successful desktop.yml run on main. Dispatch desktop.yml first." >&2
+            echo "No desktop.yml run on main includes ${MIN_SHA} and both installer artifacts." >&2
+            echo "Wait for desktop.yml to upload FramePilot-windows-nsis and FramePilot-macos-dmg, then re-run." >&2
             exit 1
           fi
-          names="$(
-            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" \
-              --jq '.artifacts[].name'
-          )"
-          if ! grep -qx 'FramePilot-windows-nsis' <<<"${names}"; then
-            echo "desktop.yml run ${run_id} is missing FramePilot-windows-nsis" >&2
-            exit 1
-          fi
-          if ! grep -qx 'FramePilot-macos-dmg' <<<"${names}"; then
-            echo "desktop.yml run ${run_id} is missing FramePilot-macos-dmg" >&2
-            exit 1
-          fi
+
           head_sha="$(gh run view "${run_id}" --json headSha --jq .headSha)"
+          if ! sha_includes_sidecar_fix "${head_sha}"; then
+            echo "desktop.yml run ${run_id} at ${head_sha} does not include sidecar fix ${MIN_SHA}" >&2
+            echo "Refuse to republish pre-#191 v2.1.0-desktop packages as v2.1.1-desktop." >&2
+            exit 1
+          fi
+          if ! run_has_installer_artifacts "${run_id}"; then
+            echo "desktop.yml run ${run_id} is missing FramePilot-windows-nsis or FramePilot-macos-dmg" >&2
+            exit 1
+          fi
           echo "Using desktop.yml run ${run_id} at ${head_sha}"
           echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
           echo "head_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
@@ -134,9 +200,9 @@ jobs:
       - name: Publish unsigned GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.release_tag || 'v2.1.0-desktop' }}
+          tag_name: ${{ github.event.inputs.release_tag || 'v2.1.1-desktop' }}
           target_commitish: ${{ steps.find.outputs.head_sha }}
-          name: FramePilot 2.1.0-desktop (unsigned)
+          name: FramePilot 2.1.1-desktop (unsigned)
           body_path: docs/desktop_unsigned_release_notes.md
           files: |
             dist/windows/*.exe

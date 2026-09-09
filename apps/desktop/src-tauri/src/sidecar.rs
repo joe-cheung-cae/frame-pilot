@@ -1,5 +1,6 @@
 //! Python sidecar lifecycle helpers. Unit tests do not start a live API.
 
+use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -554,6 +555,20 @@ fn env_key_starts_with_ignore_ascii_case(key: &std::ffi::OsStr, prefix: &str) ->
     })
 }
 
+/// Put the frozen sidecar directory first on PATH so adjacent DLLs resolve.
+///
+/// Always compiled (not `#[cfg(windows)]` only) so Linux `cargo test` catches
+/// Path/OsString mistakes that `verify.yml` cannot. `Path` has no
+/// `to_os_string`; use `as_os_str().to_os_string()`.
+fn prepend_dir_to_search_path(dir: &Path, existing: Option<OsString>) -> OsString {
+    let mut path = dir.as_os_str().to_os_string();
+    if let Some(existing) = existing {
+        path.push(if cfg!(windows) { ";" } else { ":" });
+        path.push(existing);
+    }
+    path
+}
+
 pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<Child> {
     if let Some(parent) = stderr_log.parent() {
         fs::create_dir_all(parent)?;
@@ -584,12 +599,10 @@ pub fn spawn_sidecar(spec: &SidecarSpawnSpec, stderr_log: &Path) -> io::Result<C
             command.current_dir(dir);
             #[cfg(windows)]
             {
-                let mut path = dir.to_os_string();
-                if let Some(existing) = std::env::var_os("PATH") {
-                    path.push(";");
-                    path.push(existing);
-                }
-                command.env("PATH", path);
+                command.env(
+                    "PATH",
+                    prepend_dir_to_search_path(dir, std::env::var_os("PATH")),
+                );
             }
         }
     }
@@ -1330,6 +1343,29 @@ mod tests {
         assert!(
             stdout.contains("UNBUFFERED=1"),
             "child must receive PYTHONUNBUFFERED=1: {stdout}"
+        );
+    }
+
+    #[test]
+    fn prepend_dir_to_search_path_puts_sidecar_dir_first() {
+        let dir = Path::new(if cfg!(windows) {
+            r"C:\FramePilot\framepilot-api"
+        } else {
+            "/opt/FramePilot/framepilot-api"
+        });
+        let existing = OsString::from(if cfg!(windows) {
+            r"C:\Windows\system32"
+        } else {
+            "/usr/bin"
+        });
+        let joined = prepend_dir_to_search_path(dir, Some(existing.clone()));
+        let mut expected = dir.as_os_str().to_os_string();
+        expected.push(if cfg!(windows) { ";" } else { ":" });
+        expected.push(&existing);
+        assert_eq!(joined, expected);
+        assert_eq!(
+            prepend_dir_to_search_path(dir, None),
+            dir.as_os_str().to_os_string()
         );
     }
 
