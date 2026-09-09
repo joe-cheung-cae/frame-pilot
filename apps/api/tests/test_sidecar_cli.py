@@ -277,14 +277,9 @@ def test_windows_packaged_startup_timeout_is_two_minutes():
     assert "pub const STARTUP_TIMEOUT_SECS: u64 = if cfg!(windows) { 120 } else { 15 };" in text
     assert "wait_ready_with_data_dir" in text
     assert "sidecar.ready" in text
-    lib = (
-        Path(__file__).resolve().parents[3]
-        / "apps"
-        / "desktop"
-        / "src-tauri"
-        / "src"
-        / "lib.rs"
-    ).read_text(encoding="utf-8")
+    lib = (Path(__file__).resolve().parents[3] / "apps" / "desktop" / "src-tauri" / "src" / "lib.rs").read_text(
+        encoding="utf-8"
+    )
     assert "wait_ready_with_data_dir(port, STARTUP_TIMEOUT, Some(data_dir))" in lib
     assert "clear_sidecar_ready_marker(data_dir)" in lib
 
