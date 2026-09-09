@@ -1402,8 +1402,12 @@ test("creates a project and opens the import step", async ({ page }) => {
 
 test("opens Import and Export from a newly created empty project", async ({ page }) => {
   await page.goto("/projects/new");
+  await expect(page.getByRole("heading", { name: "Create Project" })).toBeVisible();
   await page.evaluate(() => {
     window.localStorage.removeItem("framepilot.lastOpenedProjectId");
+  });
+  await expect.poll(() => page.evaluate(() => window.__FRAMEPILOT_MENU_READY__ === true)).toBe(true);
+  await page.evaluate(() => {
     window.dispatchEvent(new CustomEvent("framepilot-menu", { detail: "export" }));
   });
   await expect(page).toHaveURL(/\/projects\/new\?workflow=export$/);

@@ -28,6 +28,7 @@ describe("MenuCommandListener", () => {
   it("opens Export on the current project after create", () => {
     pathnameState.current = "/projects/project-1/import";
     render(<MenuCommandListener />);
+    expect(window.__FRAMEPILOT_MENU_READY__).toBe(true);
     window.dispatchEvent(new CustomEvent(MENU_EVENT, { detail: "export" }));
     expect(push).toHaveBeenCalledWith("/projects/project-1/export");
   });

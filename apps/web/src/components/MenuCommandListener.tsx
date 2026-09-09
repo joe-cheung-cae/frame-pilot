@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 
 import { MENU_EVENT, resolveMenuCommand } from "@/lib/menuRoutes";
 import { useNavigator, usePathname } from "@/lib/navigation";
 import { loadLastOpenedProjectId } from "@/lib/recentProjects";
 
+type MenuWindow = Window & { __FRAMEPILOT_MENU_READY__?: boolean };
+
 export function MenuCommandListener() {
   const navigator = useNavigator();
   const pathname = usePathname();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     function onMenu(event: Event) {
       const command = (event as CustomEvent<string>).detail;
       if (typeof command !== "string") {
@@ -22,8 +24,11 @@ export function MenuCommandListener() {
       }
     }
 
+    const menuWindow = window as MenuWindow;
+    menuWindow.__FRAMEPILOT_MENU_READY__ = true;
     window.addEventListener(MENU_EVENT, onMenu);
     return () => {
+      menuWindow.__FRAMEPILOT_MENU_READY__ = false;
       window.removeEventListener(MENU_EVENT, onMenu);
     };
   }, [navigator, pathname]);
