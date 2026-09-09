@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 残留 — 含导入/导出修的未签名桌面 Release
+
+- `.github/workflows/desktop-release.yml` 从含 [#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195)（`6b147160`+）的 `desktop.yml` 运行发布**未签名** GitHub Release `v2.1.2-desktop`（Windows NSIS + macOS DMG）
+- Release notes 标明 **unsigned / 未签名**，写明 #194/#195 导入/导出修以及此前 #191 sidecar ready-line / 120 秒修，并链到 [docs/desktop_install.md](docs/desktop_install.zh.md)
+- `desktop.yml` 监视 `apps/web/**`，以便捆绑的 UI 残留能重打 NSIS/DMG
+- 不改 `APP_VERSION`，不签名、不公证、不上架，不动托盘 / D3.06，无第十阶段
+- Issue：[#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196)
+
 ### 残留 — Win11 新建工程「导入/导出」无响应
 
 - 根因：File → Import/Export（以及空项目仪表盘 Export）可能没有任何反应。冷首启没有 last-opened 项目 id，`/projects/new` 不是项目 id，新建成功后没有记住项目，Export 卡片还会被重定向回 Import。

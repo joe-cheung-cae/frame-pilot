@@ -20,9 +20,9 @@ Windows 可能显示 **Windows 已保护你的电脑** / **未知发布者**。m
 
 ## 从哪下载
 
-优先从含 [#191](https://github.com/joe-cheung-cae/frame-pilot/pull/191) sidecar ready-line / 120 秒修的未签名 GitHub Release 下载。Release notes：[docs/desktop_unsigned_release_notes.md](desktop_unsigned_release_notes.zh.md)。Win11 冷首启**不要**用 `v2.1.0-desktop`。
+优先从含 [#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195) 导入/导出修与 [#191](https://github.com/joe-cheung-cae/frame-pilot/pull/191) sidecar ready-line / 120 秒修的未签名 GitHub Release 下载。Release notes：[docs/desktop_unsigned_release_notes.md](desktop_unsigned_release_notes.zh.md)。Win11 冷首启**不要**用 `v2.1.0-desktop`。验新建工程导入/导出**不要**用 `v2.1.1-desktop`。
 
-1. 打开 [Releases](https://github.com/joe-cheung-cae/frame-pilot/releases)，进入 **FramePilot 2.1.1-desktop (unsigned)**（`v2.1.1-desktop`）。
+1. 打开 [Releases](https://github.com/joe-cheung-cae/frame-pilot/releases)，进入 **FramePilot 2.1.2-desktop (unsigned)**（`v2.1.2-desktop`）。
 2. 只下载安装包资源：
    - Windows：`FramePilot_2.1.0-desktop_x64-setup.exe`（NSIS，x64）
    - macOS：`FramePilot_2.1.0-desktop_aarch64.dmg`（Apple Silicon / `aarch64`）
@@ -160,7 +160,7 @@ xattr -d com.apple.quarantine /Applications/FramePilot.app
 
 ### Windows
 
-1. 从 [FramePilot 2.1.1-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases)（`v2.1.1-desktop`）下载 NSIS `.exe`。若 Release 还没有，再从一次绿色的 [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) 运行解压 `FramePilot-windows-nsis`。本检查不要用 `v2.1.0-desktop`。
+1. 从 [FramePilot 2.1.2-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases)（`v2.1.2-desktop`）下载 NSIS `.exe`。若 Release 还没有，再从一次绿色的 [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) 运行解压 `FramePilot-windows-nsis`。本检查不要用 `v2.1.0-desktop`。验新建工程导入/导出不要用 `v2.1.1-desktop`。
 2. 按上文处理 SmartScreen / 未知发布者，然后走完 NSIS 向导。
 3. 从开始菜单启动 **FramePilot**。NSIS **第一次**启动最多等两分钟。确认窗口标题为 `FramePilot`，并且能看到项目列表（不是 “timed out waiting for sidecar ready line”）。
 4. 可选：只有在已经从 sidecar ready 文件（`%APPDATA%\FramePilot\logs\sidecar.ready`）读到分配端口时，才对 `GET http://127.0.0.1:<port>/health`。应看到 `version` + `service`。不要写死端口 `8000`。
@@ -168,7 +168,7 @@ xattr -d com.apple.quarantine /Applications/FramePilot.app
 
 ### macOS
 
-1. 从 [FramePilot 2.1.1-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases)（`v2.1.1-desktop`）下载 `.dmg`。若 Release 还没有，再从一次绿色的 [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) 运行解压 `FramePilot-macos-dmg`。
+1. 从 [FramePilot 2.1.2-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases)（`v2.1.2-desktop`）下载 `.dmg`。若 Release 还没有，再从一次绿色的 [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) 运行解压 `FramePilot-macos-dmg`。
 2. 挂载 DMG，把 **FramePilot** 拖到应用程序，推出映像。
 3. 按上文处理 Gatekeeper，然后打开 `/Applications/FramePilot.app`。确认窗口标题为 `FramePilot`。
 4. 用 **FramePilot → 退出 FramePilot**、**Cmd+Q** 或窗口关闭按钮退出。确认窗口已消失（关窗口即退出，不是藏到托盘）。

@@ -1,6 +1,6 @@
-# Leftover #192 — publish unsigned GitHub Release v2.1.1-desktop
+# Leftover #196 — publish unsigned GitHub Release v2.1.2-desktop
 # (Windows NSIS + macOS DMG) from a desktop.yml run that includes the
-# #191 sidecar ready-line fix (SHA 602c022b6842ca8c96f8cf6434a1bf750bfcb7b0+).
+# #195 Import/Export tab fix (SHA 6b147160e9dd46ca6eda1b9ad27f855b4d517852+).
 #
 # Reuses installer artifacts from desktop.yml. Does not build, sign,
 # notarize, staple, or launch packaged GUI. Do not download leftover
@@ -13,10 +13,10 @@
 #     installer set can publish without a second click).
 #   - push to main when this workflow or the unsigned release notes change.
 #
-# A qualifying run must include the #191 SHA and both installer artifacts.
+# A qualifying run must include the #195 SHA and both installer artifacts.
 # Leftover GUI steps run after the uploads, so a red quit+job / 500 job is
 # allowed when FramePilot-windows-nsis and FramePilot-macos-dmg are present.
-# Do not republish pre-#191 v2.1.0-desktop packages.
+# Do not republish pre-#195 v2.1.1-desktop packages.
 
 name: desktop-release
 
@@ -26,7 +26,7 @@ on:
       release_tag:
         description: Tag for the unsigned desktop GitHub Release
         type: string
-        default: v2.1.1-desktop
+        default: v2.1.2-desktop
       desktop_run_id:
         description: desktop.yml run id (empty = latest qualifying main run)
         type: string
@@ -63,17 +63,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Resolve desktop.yml run with #191 sidecar fix
+      - name: Resolve desktop.yml run with #195 Import/Export fix
         id: find
         env:
           GH_TOKEN: ${{ github.token }}
           REQUESTED_RUN_ID: ${{ github.event.inputs.desktop_run_id || '' }}
           WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id || '' }}
-          MIN_SHA: 602c022b6842ca8c96f8cf6434a1bf750bfcb7b0
+          MIN_SHA: 6b147160e9dd46ca6eda1b9ad27f855b4d517852
         run: |
           set -euo pipefail
 
-          sha_includes_sidecar_fix() {
+          sha_includes_import_export_fix() {
             local head_sha="$1"
             local status
             status="$(
@@ -107,7 +107,7 @@ jobs:
               else
                 [[ "${conclusion}" == "success" || "${conclusion}" == "failure" ]] || continue
               fi
-              sha_includes_sidecar_fix "${sha}" || continue
+              sha_includes_import_export_fix "${sha}" || continue
               run_has_installer_artifacts "${id}" || continue
               printf '%s' "${id}"
               return 0
@@ -141,9 +141,9 @@ jobs:
           fi
 
           head_sha="$(gh run view "${run_id}" --json headSha --jq .headSha)"
-          if ! sha_includes_sidecar_fix "${head_sha}"; then
-            echo "desktop.yml run ${run_id} at ${head_sha} does not include sidecar fix ${MIN_SHA}" >&2
-            echo "Refuse to republish pre-#191 v2.1.0-desktop packages as v2.1.1-desktop." >&2
+          if ! sha_includes_import_export_fix "${head_sha}"; then
+            echo "desktop.yml run ${run_id} at ${head_sha} does not include Import/Export fix ${MIN_SHA}" >&2
+            echo "Refuse to republish pre-#195 v2.1.1-desktop packages as v2.1.2-desktop." >&2
             exit 1
           fi
           if ! run_has_installer_artifacts "${run_id}"; then
@@ -200,9 +200,9 @@ jobs:
       - name: Publish unsigned GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.release_tag || 'v2.1.1-desktop' }}
+          tag_name: ${{ github.event.inputs.release_tag || 'v2.1.2-desktop' }}
           target_commitish: ${{ steps.find.outputs.head_sha }}
-          name: FramePilot 2.1.1-desktop (unsigned)
+          name: FramePilot 2.1.2-desktop (unsigned)
           body_path: docs/desktop_unsigned_release_notes.md
           files: |
             dist/windows/*.exe
