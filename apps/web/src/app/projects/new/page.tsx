@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { ProjectCreator } from "@/components/ProjectCreator";
 import { Shell } from "@/components/Shell";
 
@@ -10,7 +12,9 @@ export default function NewProjectPage() {
           <h1 className="mt-1 text-3xl font-semibold">Create Project</h1>
         </div>
         <div className="rounded border border-line bg-surface p-5">
-          <ProjectCreator />
+          <Suspense fallback={null}>
+            <ProjectCreator />
+          </Suspense>
         </div>
       </section>
     </Shell>
