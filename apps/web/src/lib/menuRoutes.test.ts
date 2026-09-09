@@ -40,6 +40,11 @@ test("TypeScript resolves only navigable menu commands", () => {
   assert.equal(MENU_EVENT, "framepilot-menu");
   assert.match(shellSource, /MenuCommandListener/);
   assert.match(shellSource, /ProjectWorkflowNav/);
+  const creatorSource = fs.readFileSync(new URL("../components/ProjectCreator.tsx", import.meta.url), "utf8");
+  const newProjectPage = fs.readFileSync(new URL("../app/projects/new/page.tsx", import.meta.url), "utf8");
+  assert.match(creatorSource, /<Suspense fallback=\{null\}>/);
+  assert.match(creatorSource, /CreateProjectWorkflowPrompt/);
+  assert.match(newProjectPage, /<Suspense fallback=\{null\}>/);
   for (const id of NAVIGABLE) {
     const resolved = resolveMenuCommand(id, "/projects/abc/cull", "abc");
     assert.equal(resolved.type, "navigate");

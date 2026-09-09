@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { MENU_WORKFLOW_QUERY, menuWorkflowPrompt } from "@/lib/menuRoutes";
@@ -18,14 +18,21 @@ import {
 } from "@/lib/projectCreation";
 import { saveLastOpenedProjectId } from "@/lib/recentProjects";
 
+function CreateProjectWorkflowPrompt() {
+  const queryParams = useQueryParams();
+  const workflowPrompt = menuWorkflowPrompt(queryParams.get(MENU_WORKFLOW_QUERY));
+  if (!workflowPrompt) {
+    return null;
+  }
+  return <p className="text-sm text-coral">{workflowPrompt}</p>;
+}
+
 export function ProjectCreator() {
   const nativeFs = getNativeFs();
   const [name, setName] = useState("");
   const [rootPath, setRootPath] = useState("");
   const [browseError, setBrowseError] = useState("");
   const navigator = useNavigator();
-  const queryParams = useQueryParams();
-  const workflowPrompt = menuWorkflowPrompt(queryParams.get(MENU_WORKFLOW_QUERY));
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: (draft: NormalizedProjectCreateDraft) =>
@@ -117,7 +124,9 @@ export function ProjectCreator() {
         Create and Import
       </button>
       {createBlockMessage ? <p className="text-sm text-muted">{createBlockMessage}</p> : null}
-      {workflowPrompt ? <p className="text-sm text-coral">{workflowPrompt}</p> : null}
+      <Suspense fallback={null}>
+        <CreateProjectWorkflowPrompt />
+      </Suspense>
       {errorMessage ? (
         <div className="grid gap-1 text-sm">
           <p className="text-coral">{errorMessage}</p>
