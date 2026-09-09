@@ -10,11 +10,11 @@ FramePilot desktop is a local-first photo culling app. A Tauri window hosts the 
 
 ## Install
 
-Current Actions NSIS/DMG packages are **unsigned** (not Gatekeeper-clean, not SmartScreen-clean, not a store listing). Follow the [Unsigned desktop install tutorial](desktop_install.md) for where to download, how to install, how to handle unknown-publisher / unidentified-developer dialogs, and how to start and quit.
+Current NSIS/DMG packages are **unsigned** (not Gatekeeper-clean, not SmartScreen-clean, not a store listing). Follow the [Unsigned desktop install tutorial](desktop_install.md) for where to download, how to install, how to handle unknown-publisher / unidentified-developer dialogs, and how to start and quit.
 
 Short path:
 
-1. Download `FramePilot-windows-nsis` or `FramePilot-macos-dmg` from a GitHub Actions **desktop** workflow run (or a release when tagged).
+1. Download the NSIS `.exe` or macOS `.dmg` from the [unsigned GitHub Release](https://github.com/joe-cheung-cae/frame-pilot/releases) (`v2.1.0-desktop`). Fall back to `FramePilot-windows-nsis` / `FramePilot-macos-dmg` on a GitHub Actions **desktop** run if that Release is missing.
 2. Install and launch **FramePilot**. Expect SmartScreen (Windows) or Gatekeeper (macOS) warnings. See [Desktop Code Signing Runbook](desktop_signing.md).
 3. Quit with **File → Quit** or by closing the main window (close is quit, not hide-to-tray).
 

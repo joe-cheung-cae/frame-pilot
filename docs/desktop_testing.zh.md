@@ -68,7 +68,7 @@ FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。�
 | 可选 500 | `npm run perf:api -- --output /tmp/fp-perf --counts 500` | 跑过后写入性能说明；不崩溃。multipart `/import`（规模）或加 `--import-mode from-paths` | 是（API） |
 | 可选 2000 | `npm run perf:api -- --output /tmp/fp-perf --counts 2000` | 同上；默认**不要求** 2000 GUI 审片 | 是（API） |
 | 完整筛选工作流 | 按 [tests/desktop/workflow.zh.md](../tests/desktop/workflow.zh.md) | 导入 → 处理 → 键盘筛选 → CSV/ZIP/文件夹导出 + reveal | 手工 / API pytest |
-| 安装 / 卸载 | 按 [未签名桌面安装教程](desktop_install.zh.md)：下载 `FramePilot-windows-nsis` / `FramePilot-macos-dmg`，处理 SmartScreen / Gatekeeper，启动一次，退出，卸载 | 应用二进制已移除；**数据目录可保留**（需告知用户）— 路径见 [apps/desktop/README.zh.md](../apps/desktop/README.zh.md)。仅未签名；不要声称 SmartScreen 干净 / Gatekeeper 干净。 | 手工 |
+| 安装 / 卸载 | 按 [未签名桌面安装教程](desktop_install.zh.md)：从未签名 GitHub Release（`v2.1.0-desktop`）下载 NSIS `.exe` / macOS `.dmg`（Actions `FramePilot-windows-nsis` / `FramePilot-macos-dmg` 为回退），处理 SmartScreen / Gatekeeper，启动一次，退出，卸载 | 应用二进制已移除；**数据目录可保留**（需告知用户）— 路径见 [apps/desktop/README.zh.md](../apps/desktop/README.zh.md)。仅未签名；不要声称 SmartScreen 干净 / Gatekeeper 干净。 | 手工 |
 
 ---
 

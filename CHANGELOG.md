@@ -6,6 +6,14 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — unsigned desktop GitHub Release
+
+- `.github/workflows/desktop-release.yml` publishes one **unsigned** GitHub Release (`v2.1.0-desktop`) with Windows NSIS + macOS DMG from a successful `desktop.yml` run
+- Release notes mark **unsigned** and link [docs/desktop_install.md](docs/desktop_install.md) / [docs/desktop_install.zh.md](docs/desktop_install.zh.md)
+- Install tutorial prefers that Release; Actions artifacts remain the fallback
+- No `APP_VERSION` bump, no signing, notarization, store listing, or Phase 10
+- Issue: [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188)
+
 ### Leftover — unsigned install tutorial
 
 - Bilingual [docs/desktop_install.md](docs/desktop_install.md) for unsigned Windows NSIS and macOS DMG: where to download (`FramePilot-windows-nsis` / `FramePilot-macos-dmg`), how to install, Gatekeeper / SmartScreen unknown publisher, start/stop

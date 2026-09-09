@@ -746,6 +746,89 @@ expect_failure \
   bash -c "cd '$cert_repo' && bash '$repo_root/scripts/check-release-artifacts.sh'"
 
 expect_success \
+  "unsigned desktop release notes mark unsigned and link install tutorial" \
+  bash -c "awk '
+    /\\*\\*unsigned\\*\\*/ { unsigned = 1 }
+    /Gatekeeper-clean/ { gk = 1 }
+    /SmartScreen-clean/ { ss = 1 }
+    /store listing/ { store = 1 }
+    /desktop_install\\.md/ { en = 1 }
+    /desktop_install\\.zh\\.md/ { zh = 1 }
+    /Windows NSIS/ { nsis = 1 }
+    /macOS DMG/ { dmg = 1 }
+    /Gatekeeper-clean pass|SmartScreen-clean pass|notarized Mac pass/ { claim = 1 }
+    END { exit (unsigned && gk && ss && store && en && zh && nsis && dmg && !claim) ? 0 : 1 }
+  ' '$repo_root/docs/desktop_unsigned_release_notes.md'"
+
+expect_success \
+  "unsigned desktop release notes Chinese counterpart matches" \
+  bash -c "awk '
+    /未签名/ { unsigned = 1 }
+    /Gatekeeper 干净/ { gk = 1 }
+    /SmartScreen 干净/ { ss = 1 }
+    /商店上架/ { store = 1 }
+    /desktop_install\\.md/ { en = 1 }
+    /desktop_install\\.zh\\.md/ { zh = 1 }
+    END { exit (unsigned && gk && ss && store && en && zh) ? 0 : 1 }
+  ' '$repo_root/docs/desktop_unsigned_release_notes.zh.md'"
+
+expect_success \
+  "desktop-release.yml publishes unsigned NSIS+DMG without signing or GUI" \
+  bash -c "awk '
+    /name: desktop-release/ { named = 1 }
+    /workflow_dispatch:/ { dispatch = 1 }
+    /desktop_unsigned_release_notes\\.md/ { notes = 1 }
+    /v2\\.1\\.0-desktop/ { tag = 1 }
+    /FramePilot 2.1.0-desktop \\(unsigned\\)/ { title = 1 }
+    /FramePilot-windows-nsis/ { nsis = 1 }
+    /FramePilot-macos-dmg/ { dmg = 1 }
+    /softprops\\/action-gh-release/ { release = 1 }
+    /fail_on_unmatched_files: true/ { fail_missing = 1 }
+    /contents: write/ { write_perm = 1 }
+    /tauri-apps\\/tauri-action/ { action = 1 }
+    /secrets\\.(WINDOWS_CERTIFICATE|APPLE_CERTIFICATE)|TAURI_SIGNING_PRIVATE_KEY/ { sign = 1 }
+    /macos-dmg-gui-smoke|desktop-500-gui\\.sh|desktop-quit-job-gui|npx tauri build/ { gui = 1 }
+    END {
+      exit (named && dispatch && notes && tag && title && nsis && dmg && release && fail_missing && write_perm && !action && !sign && !gui) ? 0 : 1
+    }
+  ' '$repo_root/.github/workflows/desktop-release.yml'"
+
+expect_success \
+  "desktop-release.yml does not download leftover GUI-evidence artifacts" \
+  bash -c "awk '
+    /name: FramePilot-windows-nsis/ { nsis = 1 }
+    /name: FramePilot-macos-dmg/ { dmg = 1 }
+    /name: FramePilot-desktop-500-gui/ { evidence = 1 }
+    /name: FramePilot-desktop-quit-job/ { evidence = 1 }
+    END { exit (nsis && dmg && !evidence) ? 0 : 1 }
+  ' '$repo_root/.github/workflows/desktop-release.yml'"
+
+expect_success \
+  "desktop.yml still does not publish GitHub Releases or use tauri-action" \
+  bash -c "awk '
+    /tauri-apps\\/tauri-action|softprops\\/action-gh-release/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/.github/workflows/desktop.yml'"
+
+expect_success \
+  "verify.yml does not publish unsigned desktop releases" \
+  bash -c "awk '
+    /desktop-release|action-gh-release|tauri-apps\\/tauri-action/ { found = 1 }
+    END { exit found ? 1 : 0 }
+  ' '$repo_root/.github/workflows/verify.yml'"
+
+expect_success \
+  "install tutorial prefers the unsigned GitHub Release" \
+  bash -c "awk '
+    /v2\\.1\\.0-desktop/ { tag = 1 }
+    /github.com\\/joe-cheung-cae\\/frame-pilot\\/releases/ { rel = 1 }
+    /Gatekeeper-clean/ { gk = 1 }
+    /SmartScreen-clean/ { ss = 1 }
+    /Publishing a GitHub Release/ { old = 1 }
+    END { exit (tag && rel && gk && ss && !old) ? 0 : 1 }
+  ' '$repo_root/docs/desktop_install.md'"
+
+expect_success \
   "repository validation decision is closed" \
   bash scripts/check-validation-decision.sh
 

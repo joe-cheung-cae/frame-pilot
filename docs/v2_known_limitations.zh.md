@@ -98,7 +98,7 @@ v2.0 不支持云图库、共享团队项目、自动删除原图、远程 AI �
 - 导入与处理任务在 sidecar 被杀或应用退出后**默认持久**：残留的导入/处理任务会标为 `interrupted`，并在下次启动时回收。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可退回旧行为，把过期任务标为失败以便用户重试（无论哪种方式，导出仍失败并清理）。
 - HEIC/HEIF 静帧以及带内嵌预览的 RAW 可本地导入（与 web 应用相同）。没有预览的 RAW 以本地提示跳过。
 - **检查更新**仅在 Help 菜单（启动时不联网）。它查询 GitHub Releases，不下载、不安装。清单缺失为非致命 no-op。未签名构建仍可启动。用户仍需手动安装新构建。
-- CI 已**签名就绪**：完整 GitHub Actions secret 集在场时会做 Authenticode / Developer ID + 公证。缺少 secrets 时保持**未签名**上传绿灯。见 [桌面代码签名手册](desktop_signing.zh.md)。
+- CI 已**签名就绪**：完整 GitHub Actions secret 集在场时会做 Authenticode / Developer ID + 公证。缺少 secrets 时保持**未签名**上传绿灯。残留未签名 GitHub Release（`v2.1.0-desktop`）仍然未签名。见 [桌面代码签名手册](desktop_signing.zh.md)。
 - 桌面计划里的 2.2 残留已由第九阶段交付（托盘 S9.06、独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10），加上残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)），除自动下载安装。双平台安装包 GUI DoD **安装并运行**已声称（[#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)，`2026-09-07T09:34:57Z`）。残留包装桌面 ≥500 GUI 已声称（[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)；包装 WebView from-paths + 审片预览，**原生对话框 stub**）。残留包装 macOS 退出+作业矩阵已声称（[#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)，`2026-09-08T13:26:18Z`，[desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)）。残留包装 Windows 退出+作业矩阵已声称（[#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)，`2026-09-08T15:29:33Z`，[desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)）。
 - **包装 macOS DMG GUI 生命周期 S9.12 为 skip，不是 pass**（[#172](https://github.com/joe-cheung-cae/frame-pilot/issues/172)，`2026-09-05T12:31:10Z`）并作为历史保留。残留安装并运行 DoD 在 Darwin `macos-latest` 上通过（`2026-09-07T09:34:57Z`，[desktop.yml run 34105891421](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34105891421)，`APP_VERSION=2.1.0-desktop`）。Windows NSIS GUI 生命周期记在 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144)（仅 Windows）。未签名 Gatekeeper 警告仍是预期。见 [桌面测试矩阵](desktop_testing.zh.md)。
 - **WSL 可能无法运行 GUI**（需要 rustc ≥1.88 与显示）；HTTP/API 冒烟仍可用。见 [桌面测试矩阵](desktop_testing.zh.md)。
@@ -109,4 +109,4 @@ v2.0 不支持云图库、共享团队项目、自动删除原图、远程 AI �
 - 桌面 **Change data directory** 把当前应用数据目录拷贝到已通过 D2.00 授权的空文件夹，并改写前缀为旧 data dir 的已存路径。旧树不删除。相机卡和其他源文件夹不移动、不修改。`FRAMEPILOT_DATA_DIR` 仍优先于 `{anchor}/data_dir.json`。未添加额外的 `fs:` / `shell:` capabilities。
 - 可选**系统托盘**（D3.06）在 tooltip 中显示作业进度。**Show** 恢复主窗口；**Quit** 走与 File → Quit 同一套进行中作业对话框。关窗口仍是退出，不是藏到托盘。无头或部分 Linux 桌面创建托盘可能失败，且为非致命。未添加与托盘相关的 `fs:` / `shell:` capabilities。
 
-未签名安装走查见 [未签名桌面安装教程](desktop_install.zh.md)。安装之后见 [桌面用户指南](desktop_user_guide.zh.md)。
+未签名安装走查见 [未签名桌面安装教程](desktop_install.zh.md)（优先未签名 GitHub Release）。安装之后见 [桌面用户指南](desktop_user_guide.zh.md)。
