@@ -6,6 +6,13 @@
 
 ## 未发布
 
+### 残留 — 含 NSIS 锁文件 hooks 的未签名桌面 Release
+
+- `.github/workflows/desktop-release.yml` 从含 [#199](https://github.com/joe-cheung-cae/frame-pilot/pull/199)（`d9d29e8e`+）的 `desktop.yml` 运行发布**未签名** GitHub Release `v2.1.3-desktop`（Windows NSIS + macOS DMG）
+- Release notes 标明 **unsigned / 未签名**，写明 #198 锁文件停住（Retry/Cancel，无 Ignore-through）以及此前 #194/#195 导入/导出与 #191 sidecar ready-line / 120 秒修，并链到 [docs/desktop_install.md](docs/desktop_install.zh.md)
+- 不改 `APP_VERSION`，不签名、不公证、不上架，不动托盘 / D3.06，无第十阶段
+- Issue：[#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200)
+
 ### 残留 — NSIS 升级在 sidecar `_internal` 被锁时停住
 
 - 根因：FramePilot 或 `framepilot-api` 仍在运行时升级/安装会锁住 `%LOCALAPPDATA%\FramePilot\framepilot-api\_internal` 下的 DLL（Joe：`MSVCP140.dll`）。自带 NSIS 提供**忽略**；忽略会留下残缺树，导入/导出空白。Tauri 只停 `framepilot-desktop.exe`。

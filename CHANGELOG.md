@@ -6,6 +6,13 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — unsigned desktop Release with NSIS locked-file hooks
+
+- `.github/workflows/desktop-release.yml` publishes **unsigned** GitHub Release `v2.1.3-desktop` (Windows NSIS + macOS DMG) from a `desktop.yml` run that includes [#199](https://github.com/joe-cheung-cae/frame-pilot/pull/199) (`d9d29e8e`+)
+- Release notes mark **unsigned**, name the #198 locked-file stop (Retry/Cancel, no Ignore-through) plus the earlier #194/#195 Import/Export and #191 sidecar ready-line / 120s fixes, and link [docs/desktop_install.md](docs/desktop_install.md)
+- No `APP_VERSION` bump, no signing, notarization, store listing, tray / D3.06, or Phase 10
+- Issue: [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200)
+
 ### Leftover — NSIS upgrade stop on locked sidecar `_internal`
 
 - Root cause: upgrade/install while FramePilot or `framepilot-api` is running locks `%LOCALAPPDATA%\FramePilot\framepilot-api\_internal` DLLs (Joe: `MSVCP140.dll`). Stock NSIS offers **Ignore**; Ignore leaves a half-written tree and blank Import/Export. Tauri only stops `framepilot-desktop.exe`.

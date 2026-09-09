@@ -767,10 +767,13 @@ expect_success \
     /120s/ { budget = 1 }
     /#191/ { sidecar_pr = 1 }
     /#195/ { ie_pr = 1 }
+    /#198/ { hooks_issue = 1 }
+    /Retry \\/ Cancel/ { retry = 1 }
+    /no Ignore-through|no Ignore/ { no_ignore = 1 }
     /Import\\/Export/ { ie = 1 }
-    /v2\\.1\\.2-desktop/ { tag = 1 }
+    /v2\\.1\\.3-desktop/ { tag = 1 }
     /Gatekeeper-clean pass|SmartScreen-clean pass|notarized Mac pass/ { claim = 1 }
-    END { exit (unsigned && gk && ss && store && en && zh && nsis && dmg && sidecar && budget && sidecar_pr && ie_pr && ie && tag && !claim) ? 0 : 1 }
+    END { exit (unsigned && gk && ss && store && en && zh && nsis && dmg && sidecar && budget && sidecar_pr && ie_pr && hooks_issue && retry && no_ignore && ie && tag && !claim) ? 0 : 1 }
   ' '$repo_root/docs/desktop_unsigned_release_notes.md'"
 
 expect_success \
@@ -786,9 +789,12 @@ expect_success \
     /120 秒/ { budget = 1 }
     /#191/ { sidecar_pr = 1 }
     /#195/ { ie_pr = 1 }
+    /#198/ { hooks_issue = 1 }
+    /Retry \\/ Cancel/ { retry = 1 }
+    /Ignore-through|不能一路 Ignore/ { no_ignore = 1 }
     /导入\\/导出/ { ie = 1 }
-    /v2\\.1\\.2-desktop/ { tag = 1 }
-    END { exit (unsigned && gk && ss && store && en && zh && sidecar && budget && sidecar_pr && ie_pr && ie && tag) ? 0 : 1 }
+    /v2\\.1\\.3-desktop/ { tag = 1 }
+    END { exit (unsigned && gk && ss && store && en && zh && sidecar && budget && sidecar_pr && ie_pr && hooks_issue && retry && no_ignore && ie && tag) ? 0 : 1 }
   ' '$repo_root/docs/desktop_unsigned_release_notes.zh.md'"
 
 expect_success \
@@ -798,10 +804,10 @@ expect_success \
     /workflow_dispatch:/ { dispatch = 1 }
     /workflow_run:/ { run_trigger = 1 }
     /desktop_unsigned_release_notes\\.md/ { notes = 1 }
-    /v2\\.1\\.2-desktop/ { tag = 1 }
-    /FramePilot 2.1.2-desktop \\(unsigned\\)/ { title = 1 }
-    /6b147160e9dd46ca6eda1b9ad27f855b4d517852/ { min_sha = 1 }
-    /sha_includes_import_export_fix/ { guard = 1 }
+    /v2\\.1\\.3-desktop/ { tag = 1 }
+    /FramePilot 2.1.3-desktop \\(unsigned\\)/ { title = 1 }
+    /d9d29e8e67fc9849f1878ba9f982b4211a94d76b/ { min_sha = 1 }
+    /sha_includes_locked_upgrade_hooks/ { guard = 1 }
     /FramePilot-windows-nsis/ { nsis = 1 }
     /FramePilot-macos-dmg/ { dmg = 1 }
     /softprops\\/action-gh-release/ { release = 1 }
@@ -846,7 +852,7 @@ expect_success \
 expect_success \
   "install tutorial prefers the unsigned GitHub Release" \
   bash -c "awk '
-    /v2\\.1\\.2-desktop/ { tag = 1 }
+    /v2\\.1\\.3-desktop/ { tag = 1 }
     /github.com\\/joe-cheung-cae\\/frame-pilot\\/releases/ { rel = 1 }
     /Gatekeeper-clean/ { gk = 1 }
     /SmartScreen-clean/ { ss = 1 }

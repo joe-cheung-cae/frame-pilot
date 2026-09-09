@@ -20,9 +20,9 @@ Signing-ready CI exists when secrets are provisioned; missing secrets keep the u
 
 ## Where to download
 
-Prefer the unsigned GitHub Release that includes the [#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195) Import/Export fix and the [#191](https://github.com/joe-cheung-cae/frame-pilot/pull/191) sidecar ready-line / 120s fix. Release notes: [docs/desktop_unsigned_release_notes.md](desktop_unsigned_release_notes.md). Do **not** use `v2.1.0-desktop` for a Win11 cold first Start. Do **not** use `v2.1.1-desktop` to verify new-project Import/Export.
+Prefer the unsigned GitHub Release that includes the [#199](https://github.com/joe-cheung-cae/frame-pilot/pull/199) / [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) NSIS locked-file hooks (Retry/Cancel, no Ignore-through), the [#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195) Import/Export fix, and the [#191](https://github.com/joe-cheung-cae/frame-pilot/pull/191) sidecar ready-line / 120s fix. Release notes: [docs/desktop_unsigned_release_notes.md](desktop_unsigned_release_notes.md). Do **not** use `v2.1.2-desktop` to verify upgrade-while-running. Do **not** use `v2.1.1-desktop` to verify new-project Import/Export. Do **not** use `v2.1.0-desktop` for a Win11 cold first Start.
 
-1. Open [Releases](https://github.com/joe-cheung-cae/frame-pilot/releases) and open **FramePilot 2.1.2-desktop (unsigned)** (`v2.1.2-desktop`).
+1. Open [Releases](https://github.com/joe-cheung-cae/frame-pilot/releases) and open **FramePilot 2.1.3-desktop (unsigned)** (`v2.1.3-desktop`).
 2. Download only the installer assets:
    - Windows: `FramePilot_2.1.0-desktop_x64-setup.exe` (NSIS, x64)
    - macOS: `FramePilot_2.1.0-desktop_aarch64.dmg` (Apple Silicon / `aarch64`)
@@ -58,7 +58,7 @@ Quit FramePilot **before** running a newer NSIS over an existing install. The Py
 2. Optional: Task Manager should show no `framepilot-desktop.exe` and no `framepilot-api.exe`.
 3. Then run the new setup `.exe`.
 
-Installers that include leftover [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) **stop** if those processes (or locked `_internal` files such as `MSVCP140.dll`) are still in use. The dialog is **Retry / Cancel** only — not Ignore. **Retry** after you quit (the installer may also force-close leftovers). **Cancel** aborts so the previous `_internal` tree is not half-overwritten.
+This Release (`v2.1.3-desktop`) includes leftover [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) hooks and **stops** if those processes (or locked `_internal` files such as `MSVCP140.dll`) are still in use. The dialog is **Retry / Cancel** only — not Ignore. **Retry** after you quit (the installer may also force-close leftovers). **Cancel** aborts so the previous `_internal` tree is not half-overwritten.
 
 `v2.1.2-desktop` and older NSIS builds can still show **Error opening file for writing** with Abort / Retry / **Ignore**. Click **Abort — not Ignore**. Then quit FramePilot and run the installer again.
 
@@ -66,7 +66,7 @@ If you already Ignore-through a broken install: quit FramePilot and `framepilot-
 
 ### Win11 acceptance: upgrade while the app is still running
 
-Use this after a #198+ NSIS exists (a `desktop.yml` artifact from this leftover, or a later unsigned Release — not the published `v2.1.2-desktop` setup). Do not invent a pass here.
+Use **this** Release (`v2.1.3-desktop`), not the published `v2.1.2-desktop` setup (that cut lacks the hooks). Do not invent a pass here.
 
 1. Install a previous unsigned NSIS (`v2.1.2-desktop` is a valid baseline).
 2. Start **FramePilot**. Wait until the project UI is up. Do **not** quit.
@@ -185,7 +185,7 @@ Use this as the written path for a manual unsigned install check. Record date, O
 
 ### Windows
 
-1. Download the NSIS `.exe` from [FramePilot 2.1.2-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases) (`v2.1.2-desktop`). Fall back to unzipping `FramePilot-windows-nsis` from a green [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) run if the Release is missing. Do not use `v2.1.0-desktop` for this check. Do not use `v2.1.1-desktop` to verify new-project Import/Export.
+1. Download the NSIS `.exe` from [FramePilot 2.1.3-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases) (`v2.1.3-desktop`). Fall back to unzipping `FramePilot-windows-nsis` from a green [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) run if the Release is missing. Do not use `v2.1.2-desktop` to verify upgrade-while-running. Do not use `v2.1.1-desktop` to verify new-project Import/Export. Do not use `v2.1.0-desktop` for a Win11 cold first Start.
 2. If FramePilot is already installed, quit it first (**Upgrade (close the app first)**). Handle SmartScreen / unknown publisher as above, then finish the NSIS wizard. If the wizard says the app is still running, Retry after **File → Quit**, or Cancel — do not Ignore locked-file errors.
 3. Start **FramePilot** from the Start menu. On a **first** launch after NSIS, wait up to two minutes. Confirm the window title is `FramePilot` and that you see the project list (not “timed out waiting for sidecar ready line”).
 4. Optional: from another terminal, `GET http://127.0.0.1:<port>/health` only if you already know the allocated loopback port from the sidecar ready file (`%APPDATA%\FramePilot\logs\sidecar.ready`). Expect `version` + `service`. Do not assume port `8000`.
@@ -193,7 +193,7 @@ Use this as the written path for a manual unsigned install check. Record date, O
 
 ### macOS
 
-1. Download the `.dmg` from [FramePilot 2.1.2-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases) (`v2.1.2-desktop`). Fall back to unzipping `FramePilot-macos-dmg` from a green [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) run if the Release is missing.
+1. Download the `.dmg` from [FramePilot 2.1.3-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases) (`v2.1.3-desktop`). Fall back to unzipping `FramePilot-macos-dmg` from a green [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) run if the Release is missing.
 2. Attach the DMG, drag **FramePilot** to Applications, eject the image.
 3. Handle Gatekeeper as above, then open `/Applications/FramePilot.app`. Confirm the window title is `FramePilot`.
 4. Quit with **FramePilot → Quit FramePilot**, **Cmd+Q**, or the window close button. Confirm the window is gone (close is quit, not hide-to-tray).
