@@ -74,6 +74,8 @@ Until the full Apple secret set exists, CI continues to upload **unsigned** DMGs
 
 Unsigned Windows and macOS artifacts from the `desktop` workflow are intended for **internal testers and developers only**, not for public download pages.
 
+Step-by-step download, Gatekeeper / SmartScreen, start, and quit: [Unsigned desktop install tutorial](desktop_install.md).
+
 Testers should:
 
 - Download artifacts only from the project’s GitHub Actions runs or other maintainer-controlled channels
@@ -95,6 +97,7 @@ The first desktop release candidate may ship or be validated with **unsigned** i
 - `.github/workflows/desktop.yml` — Windows/macOS installer CI (signing gated on secrets; unsigned fallback stays green)
 - `apps/desktop/src-tauri/tauri.conf.json` — `identifier`, NSIS, and DMG bundle config
 - `docs/plans/2026-08-18-desktop-packaging.md` — D4.05 task definition
+- [docs/desktop_install.md](desktop_install.md) — unsigned install tutorial for testers
 
 ## Public release checklist (Phase 5 follow-up)
 

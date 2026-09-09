@@ -109,4 +109,4 @@ v2.0 不支持云图库、共享团队项目、自动删除原图、远程 AI �
 - 桌面 **Change data directory** 把当前应用数据目录拷贝到已通过 D2.00 授权的空文件夹，并改写前缀为旧 data dir 的已存路径。旧树不删除。相机卡和其他源文件夹不移动、不修改。`FRAMEPILOT_DATA_DIR` 仍优先于 `{anchor}/data_dir.json`。未添加额外的 `fs:` / `shell:` capabilities。
 - 可选**系统托盘**（D3.06）在 tooltip 中显示作业进度。**Show** 恢复主窗口；**Quit** 走与 File → Quit 同一套进行中作业对话框。关窗口仍是退出，不是藏到托盘。无头或部分 Linux 桌面创建托盘可能失败，且为非致命。未添加与托盘相关的 `fs:` / `shell:` capabilities。
 
-终端用户步骤见 [桌面用户指南](desktop_user_guide.zh.md)。
+未签名安装走查见 [未签名桌面安装教程](desktop_install.zh.md)。安装之后见 [桌面用户指南](desktop_user_guide.zh.md)。
