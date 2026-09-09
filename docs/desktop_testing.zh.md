@@ -68,7 +68,7 @@ FramePilot 桌面（`2.1.0-desktop` 轨道）的手工与命令检查清单。�
 | 可选 500 | `npm run perf:api -- --output /tmp/fp-perf --counts 500` | 跑过后写入性能说明；不崩溃。multipart `/import`（规模）或加 `--import-mode from-paths` | 是（API） |
 | 可选 2000 | `npm run perf:api -- --output /tmp/fp-perf --counts 2000` | 同上；默认**不要求** 2000 GUI 审片 | 是（API） |
 | 完整筛选工作流 | 按 [tests/desktop/workflow.zh.md](../tests/desktop/workflow.zh.md) | 导入 → 处理 → 键盘筛选 → CSV/ZIP/文件夹导出 + reveal | 手工 / API pytest |
-| 安装 / 卸载 | 按 [未签名桌面安装教程](desktop_install.zh.md)：从未签名 GitHub Release（`v2.1.2-desktop`）下载 NSIS `.exe` / macOS `.dmg`（Actions `FramePilot-windows-nsis` / `FramePilot-macos-dmg` 为回退），处理 SmartScreen / Gatekeeper，启动一次，退出，卸载 | 应用二进制已移除；**数据目录可保留**（需告知用户）— 路径见 [apps/desktop/README.zh.md](../apps/desktop/README.zh.md)。仅未签名；不要声称 SmartScreen 干净 / Gatekeeper 干净。 | 手工 |
+| 安装 / 卸载 | 按 [未签名桌面安装教程](desktop_install.zh.md)：从未签名 GitHub Release（`v2.1.3-desktop`）下载 NSIS `.exe` / macOS `.dmg`（Actions `FramePilot-windows-nsis` / `FramePilot-macos-dmg` 为回退），处理 SmartScreen / Gatekeeper，启动一次，退出，卸载 | 应用二进制已移除；**数据目录可保留**（需告知用户）— 路径见 [apps/desktop/README.zh.md](../apps/desktop/README.zh.md)。仅未签名；不要声称 SmartScreen 干净 / Gatekeeper 干净。 | 手工 |
 
 ---
 
@@ -237,9 +237,9 @@ Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilo
 | ---- | ----------- | ---- |
 | API sidecar CLI | `npm run test:api -- apps/api/tests/test_sidecar_cli.py` | 退出码 0；ready 标记 + Windows 120 秒源码断言 |
 | Rust sidecar 单测 | `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` | 退出码 0；跳过前导输出、ready 文件回退、spawn cwd / `PYTHONUNBUFFERED` |
-| Windows 第一次启动 | 从 `v2.1.2-desktop` 装全新未签名 NSIS → 开始菜单 **FramePilot**（不要预先跑 `framepilot-api.exe`） | 窗口标题 `FramePilot`；项目 UI；两分钟内没有 ready-line timeout；可选 `sidecar.ready` + 对分配端口 `GET /health` |
+| Windows 第一次启动 | 从 `v2.1.3-desktop` 装全新未签名 NSIS → 开始菜单 **FramePilot**（不要预先跑 `framepilot-api.exe`） | 窗口标题 `FramePilot`；项目 UI；两分钟内没有 ready-line timeout；可选 `sidecar.ready` + 对分配端口 `GET /health` |
 
-不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)。不要动托盘 / D3.06 / #41。不改 `APP_VERSION`。不签名。手工路径：[未签名桌面安装教程](desktop_install.zh.md)。Win11 冷首启与导入/导出安装包：残留 [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) `v2.1.2-desktop`（不要在此编造通过）。
+不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)。不要动托盘 / D3.06 / #41。不改 `APP_VERSION`。不签名。手工路径：[未签名桌面安装教程](desktop_install.zh.md)。Win11 冷首启、导入/导出与锁文件升级安装包：残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) `v2.1.3-desktop`（不要在此编造通过）。
 
 ---
 
@@ -250,6 +250,6 @@ Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilo
 | 检查 | 命令 / 动作 | 通过 |
 | ---- | ----------- | ---- |
 | Hook 接线 | `bash scripts/check-nsis-locked-upgrade-hooks.sh` | 退出码 0；`installerHooks` → `windows/hooks.nsh`；只有 Retry/Cancel；没有忽略 |
-| Win11 应用仍在运行时升级 | 已装旧 NSIS + FramePilot UI 已起来 + 跑 **#198+** NSIS | 安装程序以 Retry/Cancel 停住；Cancel 保持旧树；File → Quit + Retry 后 `_internal\MSVCP140.dll` 存在；新建工程 → 导入/导出能打开 |
+| Win11 应用仍在运行时升级 | 已装旧 NSIS + FramePilot UI 已起来 + 跑 **`v2.1.3-desktop`** / #198+ NSIS | 安装程序以 Retry/Cancel 停住；Cancel 保持旧树；File → Quit + Retry 后 `_internal\MSVCP140.dll` 存在；新建工程 → 导入/导出能打开 |
 
-已发布的 `v2.1.2-desktop` NSIS **不含**这些 hook。若该向导弹出文件占用对话框，点 **Abort**，退出 FramePilot，再重试——永远不要点忽略。书面路径：[未签名桌面安装教程](desktop_install.zh.md#升级先关掉应用)。计划：[docs/plans/2026-09-09-nsis-locked-internal-upgrade.md](plans/2026-09-09-nsis-locked-internal-upgrade.zh.md)。不要重开 #194 / #196 / #190。不要动托盘 / D3.06 / #41。不改 `APP_VERSION`。不签名。
+锁文件升级检查请用残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) `v2.1.3-desktop`。已发布的 `v2.1.2-desktop` NSIS **不含**这些 hook。若旧向导弹出文件占用对话框，点 **Abort**，退出 FramePilot，再重试——永远不要点忽略。书面路径：[未签名桌面安装教程](desktop_install.zh.md#升级先关掉应用)。计划：[docs/plans/2026-09-09-unsigned-desktop-nsis-hooks-release.md](plans/2026-09-09-unsigned-desktop-nsis-hooks-release.zh.md)。不要重开 #194 / #196 / #190。不要动托盘 / D3.06 / #41。不改 `APP_VERSION`。不签名。

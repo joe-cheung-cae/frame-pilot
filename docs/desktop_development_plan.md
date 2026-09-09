@@ -2,9 +2,9 @@
 
 > Language: **English** | [中文](desktop_development_plan.zh.md)
 
-> **Document version**: 1.14  
+> **Document version**: 1.15  
 > **Created**: 2026-08-18  
-> **Last reviewed**: 2026-09-09 (leftover NSIS locked `_internal` upgrade #198)  
+> **Last reviewed**: 2026-09-09 (leftover unsigned desktop Release with NSIS locked-file hooks #200)  
 > **Goal**: Redesign and package the current local web app (v2.0.0-rc2) as installable Windows and macOS desktop apps  
 > **Repository**: https://github.com/joe-cheung-cae/frame-pilot  
 > **Related existing plan**: `develop_plan.md` already lists “Local desktop packaging with Tauri or Electron” as a stretch goal; this document productizes it.  
@@ -47,7 +47,7 @@ The current architecture is already “local process + local HTTP”, so it is a
 - [x] All existing core features work and behave the same as current v2
 - [x] Original-file safety rules and local-first principles remain unchanged
 - [x] Large projects (≥500 photos) do not crash; memory use is acceptable — leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) packaged WebView from-paths + culling preview (**native dialog stubbed**); Windows `2026-09-07T19:39:23Z` + macOS `2026-09-07T19:30:33Z` ([desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835)). Not a full S9.12 click-through. Web Playwright `test:e2e:real-browser:large` and API `perf:api` 500 are not packaged-desktop GUI evidence.
-- [x] User install notes and developer build docs are provided — unsigned walkthrough: [docs/desktop_install.md](desktop_install.md) ([#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)); unsigned GitHub Release leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188); sidecar-fix unsigned Release leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192); NSIS locked `_internal` leftover [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198); do not re-tick this row as a new DoD
+- [x] User install notes and developer build docs are provided — unsigned walkthrough: [docs/desktop_install.md](desktop_install.md) ([#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)); unsigned GitHub Release leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188); sidecar-fix unsigned Release leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192); NSIS locked `_internal` leftover [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198); NSIS-hooks unsigned Release leftover [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200); do not re-tick this row as a new DoD
 - [x] CI can auto-build installers for both platforms (code signing can be completed later)
 - [x] The desktop sidecar listens only on 127.0.0.1 and rejects non-loopback Host and unauthorized Origin
 - [x] User-chosen project root directories are accepted only after explicit authorization (see implementation plan D2.00)
@@ -191,6 +191,7 @@ Leftover 2.2 items that Phase 9 shipped are retargeted to their S9 ids. Remainin
 | Unsigned desktop Release with sidecar fix | leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) publishes **unsigned** `v2.1.1-desktop` NSIS + DMG including #191 | leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) `[x]` workflow |
 | Unsigned desktop Release with Import/Export fix | leftover [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) publishes **unsigned** `v2.1.2-desktop` NSIS + DMG including #195 | leftover [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) `[x]` workflow |
 | NSIS locked `_internal` upgrade | leftover [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) PREINSTALL/PREUNINSTALL block on running shell/sidecar and locked `_internal` DLLs (Retry/Cancel; no Ignore) | leftover [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) `[x]` code |
+| Unsigned desktop Release with NSIS locked-file hooks | leftover [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) publishes **unsigned** `v2.1.3-desktop` NSIS + DMG including #198 hooks | leftover [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) `[x]` workflow |
 
 If any of the above is skipped, it must be written into [docs/v2_known_limitations.md](v2_known_limitations.md) (D5.05).
 
@@ -411,7 +412,7 @@ On top of existing `npm run verify`, API pytest, frontend unit, and E2E, add:
 
 Suggested release channels:
 
-- GitHub Releases (primary) — leftover [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) publishes **unsigned** `v2.1.2-desktop` NSIS + DMG including the #195 Import/Export fix and the earlier #191 sidecar ready-line fix. Leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) published `v2.1.1-desktop` (pre-#195). Leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188) published `v2.1.0-desktop` (pre-sidecar fix). Not Gatekeeper-clean / SmartScreen-clean / store.
+- GitHub Releases (primary) — leftover [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) publishes **unsigned** `v2.1.3-desktop` NSIS + DMG including the #198 locked-file hooks, the #195 Import/Export fix, and the earlier #191 sidecar ready-line fix. Leftover [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) published `v2.1.2-desktop` (pre-#198 hooks). Leftover [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) published `v2.1.1-desktop` (pre-#195). Leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188) published `v2.1.0-desktop` (pre-sidecar fix). Not Gatekeeper-clean / SmartScreen-clean / store.
 - A website download page later, if needed
 
 ---
@@ -483,6 +484,7 @@ Implementation-level task split and Goal Mode prompts (based on the 2026-08-18 r
 | 2026-09-09 | 1.12 | Leftover unsigned desktop Release with sidecar fix [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192): `desktop-release.yml` publishes `v2.1.1-desktop`; do not re-tick §2.2 / invent Phase 10 |
 | 2026-09-09 | 1.13 | Leftover unsigned desktop Release with Import/Export fix [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196): `desktop-release.yml` publishes `v2.1.2-desktop`; do not re-tick §2.2 / invent Phase 10 |
 | 2026-09-09 | 1.14 | Leftover NSIS locked `_internal` upgrade [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198): installerHooks stop on locked sidecar DLLs; do not re-tick §2.2 / invent Phase 10 / invent a Win11 GUI pass |
+| 2026-09-09 | 1.15 | Leftover unsigned desktop Release with NSIS locked-file hooks [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200): `desktop-release.yml` publishes `v2.1.3-desktop`; do not re-tick §2.2 / invent Phase 10 |
 
 ---
 

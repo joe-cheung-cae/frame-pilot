@@ -14,7 +14,7 @@ Current NSIS/DMG packages are **unsigned** (not Gatekeeper-clean, not SmartScree
 
 Short path:
 
-1. Download the NSIS `.exe` or macOS `.dmg` from the [unsigned GitHub Release](https://github.com/joe-cheung-cae/frame-pilot/releases) (`v2.1.2-desktop`). Fall back to `FramePilot-windows-nsis` / `FramePilot-macos-dmg` on a GitHub Actions **desktop** run if that Release is missing. Do not use `v2.1.0-desktop` for a Win11 cold first Start. Do not use `v2.1.1-desktop` to verify new-project Import/Export.
+1. Download the NSIS `.exe` or macOS `.dmg` from the [unsigned GitHub Release](https://github.com/joe-cheung-cae/frame-pilot/releases) (`v2.1.3-desktop`). Fall back to `FramePilot-windows-nsis` / `FramePilot-macos-dmg` on a GitHub Actions **desktop** run if that Release is missing. Do not use `v2.1.2-desktop` to verify upgrade-while-running. Do not use `v2.1.1-desktop` to verify new-project Import/Export. Do not use `v2.1.0-desktop` for a Win11 cold first Start.
 2. If FramePilot is already installed on Windows, quit it first (**File → Quit**) before running a newer NSIS. Do not **Ignore** locked `_internal` file errors — see [Unsigned desktop install tutorial](desktop_install.md#upgrade-close-the-app-first) ([#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198)).
 3. Install and launch **FramePilot**. Expect SmartScreen (Windows) or Gatekeeper (macOS) warnings. See [Desktop Code Signing Runbook](desktop_signing.md).
 4. Quit with **File → Quit** or by closing the main window (close is quit, not hide-to-tray).

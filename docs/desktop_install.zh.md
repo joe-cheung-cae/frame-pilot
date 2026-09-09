@@ -20,9 +20,9 @@ Windows 可能显示 **Windows 已保护你的电脑** / **未知发布者**。m
 
 ## 从哪下载
 
-优先从含 [#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195) 导入/导出修与 [#191](https://github.com/joe-cheung-cae/frame-pilot/pull/191) sidecar ready-line / 120 秒修的未签名 GitHub Release 下载。Release notes：[docs/desktop_unsigned_release_notes.md](desktop_unsigned_release_notes.zh.md)。Win11 冷首启**不要**用 `v2.1.0-desktop`。验新建工程导入/导出**不要**用 `v2.1.1-desktop`。
+优先从含 [#199](https://github.com/joe-cheung-cae/frame-pilot/pull/199) / [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) NSIS 锁文件 hooks（Retry/Cancel，无 Ignore-through）、[#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195) 导入/导出修与 [#191](https://github.com/joe-cheung-cae/frame-pilot/pull/191) sidecar ready-line / 120 秒修的未签名 GitHub Release 下载。Release notes：[docs/desktop_unsigned_release_notes.md](desktop_unsigned_release_notes.zh.md)。验应用仍在运行时升级**不要**用 `v2.1.2-desktop`。验新建工程导入/导出**不要**用 `v2.1.1-desktop`。Win11 冷首启**不要**用 `v2.1.0-desktop`。
 
-1. 打开 [Releases](https://github.com/joe-cheung-cae/frame-pilot/releases)，进入 **FramePilot 2.1.2-desktop (unsigned)**（`v2.1.2-desktop`）。
+1. 打开 [Releases](https://github.com/joe-cheung-cae/frame-pilot/releases)，进入 **FramePilot 2.1.3-desktop (unsigned)**（`v2.1.3-desktop`）。
 2. 只下载安装包资源：
    - Windows：`FramePilot_2.1.0-desktop_x64-setup.exe`（NSIS，x64）
    - macOS：`FramePilot_2.1.0-desktop_aarch64.dmg`（Apple Silicon / `aarch64`）
@@ -58,7 +58,7 @@ GitHub Actions artifact 会过期。GitHub Release 资源不会随 Actions 保�
 2. 可选：任务管理器里不应再有 `framepilot-desktop.exe` 和 `framepilot-api.exe`。
 3. 再跑新的 setup `.exe`。
 
-含残留 [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) 的安装包若这些进程（或被锁的 `_internal` 文件，例如 `MSVCP140.dll`）仍在用，会**停住**。对话框只有 **Retry / Cancel**，没有忽略。你退出后再点 **Retry**（安装程序也可能强关残留进程）。**Cancel** 会中止，以免旧的 `_internal` 树被写到一半。
+本 Release（`v2.1.3-desktop`）含残留 [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) hooks；若这些进程（或被锁的 `_internal` 文件，例如 `MSVCP140.dll`）仍在用，会**停住**。对话框只有 **Retry / Cancel**，没有忽略。你退出后再点 **Retry**（安装程序也可能强关残留进程）。**Cancel** 会中止，以免旧的 `_internal` 树被写到一半。
 
 `v2.1.2-desktop` 及更旧的 NSIS 仍可能弹出 **Error opening file for writing**，带 Abort / Retry / **Ignore**。点 **Abort**，**不要点「忽略」**。然后退出 FramePilot，再跑安装程序。
 
@@ -66,7 +66,7 @@ GitHub Actions artifact 会过期。GitHub Release 资源不会随 Actions 保�
 
 ### Win11 验收：应用仍在运行时升级
 
-等有 #198+ NSIS 之后再走（本残留的 `desktop.yml` 产物，或之后的未签名 Release——不要用已发布的 `v2.1.2-desktop` setup）。不要在此编造通过。
+用**本** Release（`v2.1.3-desktop`），不要用已发布的 `v2.1.2-desktop` setup（那一版没有 hooks）。不要在此编造通过。
 
 1. 先装一份旧的未签名 NSIS（`v2.1.2-desktop` 可作为基线）。
 2. 启动 **FramePilot**。等到项目 UI 出来。**不要**退出。
@@ -185,7 +185,7 @@ xattr -d com.apple.quarantine /Applications/FramePilot.app
 
 ### Windows
 
-1. 从 [FramePilot 2.1.2-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases)（`v2.1.2-desktop`）下载 NSIS `.exe`。若 Release 还没有，再从一次绿色的 [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) 运行解压 `FramePilot-windows-nsis`。本检查不要用 `v2.1.0-desktop`。验新建工程导入/导出不要用 `v2.1.1-desktop`。
+1. 从 [FramePilot 2.1.3-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases)（`v2.1.3-desktop`）下载 NSIS `.exe`。若 Release 还没有，再从一次绿色的 [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) 运行解压 `FramePilot-windows-nsis`。验应用仍在运行时升级不要用 `v2.1.2-desktop`。验新建工程导入/导出不要用 `v2.1.1-desktop`。Win11 冷首启不要用 `v2.1.0-desktop`。
 2. 若已经装过 FramePilot，先退出（见 **升级（先关掉应用）**）。按上文处理 SmartScreen / 未知发布者，然后走完 NSIS 向导。若向导说应用仍在运行，退出后再点 Retry，或点 Cancel——不要点「忽略」锁定文件错误。
 3. 从开始菜单启动 **FramePilot**。NSIS **第一次**启动最多等两分钟。确认窗口标题为 `FramePilot`，并且能看到项目列表（不是 “timed out waiting for sidecar ready line”）。
 4. 可选：只有在已经从 sidecar ready 文件（`%APPDATA%\FramePilot\logs\sidecar.ready`）读到分配端口时，才对 `GET http://127.0.0.1:<port>/health`。应看到 `version` + `service`。不要写死端口 `8000`。
@@ -193,7 +193,7 @@ xattr -d com.apple.quarantine /Applications/FramePilot.app
 
 ### macOS
 
-1. 从 [FramePilot 2.1.2-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases)（`v2.1.2-desktop`）下载 `.dmg`。若 Release 还没有，再从一次绿色的 [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) 运行解压 `FramePilot-macos-dmg`。
+1. 从 [FramePilot 2.1.3-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases)（`v2.1.3-desktop`）下载 `.dmg`。若 Release 还没有，再从一次绿色的 [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) 运行解压 `FramePilot-macos-dmg`。
 2. 挂载 DMG，把 **FramePilot** 拖到应用程序，推出映像。
 3. 按上文处理 Gatekeeper，然后打开 `/Applications/FramePilot.app`。确认窗口标题为 `FramePilot`。
 4. 用 **FramePilot → 退出 FramePilot**、**Cmd+Q** 或窗口关闭按钮退出。确认窗口已消失（关窗口即退出，不是藏到托盘）。

@@ -4,7 +4,9 @@
 #   - workflow_dispatch: manual rebuilds without a merge.
 #   - push to main with path filters: after merge, installers appear when
 #     desktop/API/web/packaging/desktop workflow paths change. The web UI is
-#     bundled into NSIS/DMG, so leftover #196 watches apps/web/**. Docs-only
+#     bundled into NSIS/DMG, so leftover #196 watches apps/web/**. Leftover
+#     #200 publishes v2.1.3-desktop from #198+ (d9d29e8e+) installerHooks /
+#     hooks.nsh artifacts. Docs-only
 #     merges skip this job. PRs use verify.yml (rust-free lint/test job, Playwright
 #     E2E via npm run test:e2e, 100-photo real-browser via
 #     npm run test:e2e:real-browser, independent frozen-sidecar /health, plus
