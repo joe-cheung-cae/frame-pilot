@@ -10,11 +10,11 @@ FramePilot 桌面是本地优先的照片筛选应用。Tauri 窗口承载 UI，
 
 ## 安装
 
-当前 Actions 的 NSIS/DMG 包是**未签名**的（不是 Gatekeeper 干净、不是 SmartScreen 干净、不是商店上架）。从哪下载、怎么装、未知发布者 / 无法验证开发者怎么处理、怎么启动与退出，见 [未签名桌面安装教程](desktop_install.zh.md)。
+当前 NSIS/DMG 包是**未签名**的（不是 Gatekeeper 干净、不是 SmartScreen 干净、不是商店上架）。从哪下载、怎么装、未知发布者 / 无法验证开发者怎么处理、怎么启动与退出，见 [未签名桌面安装教程](desktop_install.zh.md)。
 
 简要路径：
 
-1. 从 GitHub Actions 的 **desktop** 工作流运行（或已打 tag 的发布）下载 `FramePilot-windows-nsis` 或 `FramePilot-macos-dmg`。
+1. 从[未签名 GitHub Release](https://github.com/joe-cheung-cae/frame-pilot/releases)（`v2.1.0-desktop`）下载 NSIS `.exe` 或 macOS `.dmg`。若该 Release 还没有，再从 GitHub Actions **desktop** 运行下载 `FramePilot-windows-nsis` / `FramePilot-macos-dmg`。
 2. 安装并启动 **FramePilot**。请预期 SmartScreen（Windows）或 Gatekeeper（macOS）警告。见 [桌面代码签名手册](desktop_signing.zh.md)。
 3. 用 **File → Quit** 或关闭主窗口退出（关窗口即退出，不是藏到托盘）。
 

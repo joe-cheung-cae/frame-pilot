@@ -12,27 +12,31 @@ How to download, install, start, and quit FramePilot from the current **unsigned
 
 These installers are **unsigned**. They are **not** a notarized Mac build, **not** Authenticode-signed, **not** Gatekeeper-clean, **not** SmartScreen-clean, and **not** a store listing.
 
-Windows may show **Windows protected your PC** / **Unknown publisher**. macOS may show **cannot be opened because the developer cannot be verified** / Apple cannot check the app for malicious software. Those dialogs are expected on this track. Do not treat an Actions artifact as a public release.
+Windows may show **Windows protected your PC** / **Unknown publisher**. macOS may show **cannot be opened because the developer cannot be verified** / Apple cannot check the app for malicious software. Those dialogs are expected on this track. Do not treat this Release as a signed public store build.
 
-Signing-ready CI exists when secrets are provisioned; missing secrets keep the unsigned upload green. See [Desktop Code Signing Runbook](desktop_signing.md). Do not ask this tutorial to sign, notarize, or ship a release.
+Signing-ready CI exists when secrets are provisioned; missing secrets keep the unsigned upload green. See [Desktop Code Signing Runbook](desktop_signing.md). Do not ask this tutorial to sign or notarize.
 
 ---
 
 ## Where to download
 
-Until a tagged GitHub Release publishes installer assets, download from this repository’s **desktop** GitHub Actions workflow only:
+Prefer the unsigned GitHub Release. Release notes: [docs/desktop_unsigned_release_notes.md](desktop_unsigned_release_notes.md).
+
+1. Open [Releases](https://github.com/joe-cheung-cae/frame-pilot/releases) and open **FramePilot 2.1.0-desktop (unsigned)** (`v2.1.0-desktop`).
+2. Download only the installer assets:
+   - Windows: `FramePilot_2.1.0-desktop_x64-setup.exe` (NSIS, x64)
+   - macOS: `FramePilot_2.1.0-desktop_aarch64.dmg` (Apple Silicon / `aarch64`)
+3. Do **not** install leftover GUI-evidence zips (`FramePilot-desktop-500-gui-*`, `FramePilot-desktop-quit-job-*`). Those are test logs, not installers.
+4. Do **not** download from third-party mirrors. Confirm the URL is `github.com/joe-cheung-cae/frame-pilot`.
+
+If that Release is not published yet, or you need a newer unsigned build before the next Release, use the **desktop** GitHub Actions workflow:
 
 1. Open [Actions → desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml).
 2. Open a **successful** run on `main` (green check). A maintainer can start a fresh build with **Run workflow** (`workflow_dispatch`) if the latest artifacts expired or you need a newer commit.
 3. Sign in to GitHub if the run asks you to. Artifact download usually requires a GitHub account that can see the run.
-4. In the run’s **Artifacts** list, download only:
-   - Windows: `FramePilot-windows-nsis`
-   - macOS: `FramePilot-macos-dmg`
-5. Unzip the downloaded artifact zip on the machine that will install FramePilot. Inside you should see a single NSIS `.exe` or a single `.dmg`. The file name includes `FramePilot` and the `2.1.0-desktop` version string. The Windows runner produces an x64 NSIS installer. The `macos-latest` DMG matches that runner’s CPU (currently Apple Silicon / `aarch64`).
-6. Do **not** install leftover GUI-evidence zips (`FramePilot-desktop-500-gui-*`, `FramePilot-desktop-quit-job-*`). Those are test logs, not installers.
-7. Do **not** download from third-party mirrors. Confirm the URL is `github.com/joe-cheung-cae/frame-pilot`.
+4. In the run’s **Artifacts** list, download only `FramePilot-windows-nsis` or `FramePilot-macos-dmg`, then unzip it. Inside you should see a single NSIS `.exe` or a single `.dmg`. The file name includes `FramePilot` and the `2.1.0-desktop` version string.
 
-GitHub Actions artifacts expire. If the Artifacts section is empty, the run is still in progress, failed, or the zip aged out — use another green `main` run or ask a maintainer to dispatch `desktop.yml`.
+GitHub Actions artifacts expire. GitHub Release assets do not expire with the Actions retention window. If the Artifacts section is empty, the run is still in progress, failed, or the zip aged out — use the unsigned Release, another green `main` run, or ask a maintainer to dispatch `desktop.yml` and then `desktop-release.yml`.
 
 **Help → Check for updates** does not download or install. Install a newer unsigned build the same way as this page.
 
@@ -42,7 +46,7 @@ GitHub Actions artifacts expire. If the Artifacts section is empty, the run is s
 
 ### Install
 
-1. Unzip `FramePilot-windows-nsis` and keep the `.exe` (typical name `FramePilot_2.1.0-desktop_x64-setup.exe`).
+1. Keep the NSIS `.exe` from the unsigned Release (typical name `FramePilot_2.1.0-desktop_x64-setup.exe`). If you used the Actions fallback, unzip `FramePilot-windows-nsis` first.
 2. Double-click the installer. NSIS is configured for **current user** (`installMode: currentUser`), so a normal install does not need an Administrator UAC prompt.
 3. Complete the NSIS wizard. The app lands under the per-user install directory (typically `%LOCALAPPDATA%\FramePilot`). The wizard adds a Start menu shortcut named **FramePilot**.
 
@@ -53,7 +57,7 @@ Unsigned NSIS builds often trigger Microsoft Defender SmartScreen.
 If Windows shows **Windows protected your PC** (unrecognized app / **Unknown publisher**):
 
 1. Click **More info**.
-2. Confirm the file name is the FramePilot setup `.exe` you just unzipped from this repo’s Actions artifact.
+2. Confirm the file name is the FramePilot setup `.exe` you just downloaded from this repo’s unsigned Release (or unzipped Actions artifact).
 3. Click **Run anyway**.
 
 Optional unblock before the first run (same trusted artifact only):
@@ -62,7 +66,7 @@ Optional unblock before the first run (same trusted artifact only):
 2. If Windows shows **This file came from another computer and might be blocked to help protect this computer**, check **Unblock** → **Apply** → **OK**.
 3. Run the installer again.
 
-Bypass SmartScreen only when you trust that Actions run. This page does **not** claim SmartScreen will stay quiet, and it does not document a SmartScreen exemption.
+Bypass SmartScreen only when you trust that Release or Actions run. This page does **not** claim SmartScreen will stay quiet, and it does not document a SmartScreen exemption.
 
 ### Start
 
@@ -87,7 +91,7 @@ Use **Settings → Apps → Installed apps → FramePilot → Uninstall**, or th
 
 ### Install
 
-1. Unzip `FramePilot-macos-dmg` and keep the `.dmg` (typical name `FramePilot_2.1.0-desktop_aarch64.dmg` on current `macos-latest`).
+1. Keep the `.dmg` from the unsigned Release (typical name `FramePilot_2.1.0-desktop_aarch64.dmg` on current `macos-latest`). If you used the Actions fallback, unzip `FramePilot-macos-dmg` first.
 2. Double-click the DMG to attach it.
 3. Drag **FramePilot** to **Applications** (or copy `FramePilot.app` there).
 4. Eject the DMG. Launch from `/Applications/FramePilot.app`, not from the disk image.
@@ -98,7 +102,7 @@ An Intel Mac cannot use an Apple Silicon–only DMG. If you need a different arc
 
 Unsigned DMGs are quarantined after download. First open often fails with **“FramePilot” cannot be opened because the developer cannot be verified** or Apple cannot check it for malicious software.
 
-Use one of these, only for a DMG you downloaded from this repo’s Actions:
+Use one of these, only for a DMG you downloaded from this repo’s unsigned Release or Actions:
 
 **Control-click → Open (preferred)**
 
@@ -141,18 +145,18 @@ Drag `/Applications/FramePilot.app` to the Trash and empty it if you want the ap
 
 ## QA path: get the package → install → open → close
 
-Use this as the written path for a manual unsigned install check. Record date, OS, Actions run URL, and `APP_VERSION` from `GET /health` when you can reach the sidecar. Do not invent a pass.
+Use this as the written path for a manual unsigned install check. Record date, OS, Release URL (or Actions run URL), and `APP_VERSION` from `GET /health` when you can reach the sidecar. Do not invent a pass.
 
 ### Windows
 
-1. Download `FramePilot-windows-nsis` from a green [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) run and unzip the NSIS `.exe`.
+1. Download the NSIS `.exe` from [FramePilot 2.1.0-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases) (`v2.1.0-desktop`). Fall back to unzipping `FramePilot-windows-nsis` from a green [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) run if the Release is missing.
 2. Handle SmartScreen / unknown publisher as above, then finish the NSIS wizard.
 3. Start **FramePilot** from the Start menu. Confirm the window title is `FramePilot`.
 4. Quit with **File → Quit** or the window close button. Confirm the window is gone (close is quit, not hide-to-tray).
 
 ### macOS
 
-1. Download `FramePilot-macos-dmg` from a green [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) run and unzip the `.dmg`.
+1. Download the `.dmg` from [FramePilot 2.1.0-desktop (unsigned)](https://github.com/joe-cheung-cae/frame-pilot/releases) (`v2.1.0-desktop`). Fall back to unzipping `FramePilot-macos-dmg` from a green [desktop](https://github.com/joe-cheung-cae/frame-pilot/actions/workflows/desktop.yml) run if the Release is missing.
 2. Attach the DMG, drag **FramePilot** to Applications, eject the image.
 3. Handle Gatekeeper as above, then open `/Applications/FramePilot.app`. Confirm the window title is `FramePilot`.
 4. Quit with **FramePilot → Quit FramePilot**, **Cmd+Q**, or the window close button. Confirm the window is gone (close is quit, not hide-to-tray).
@@ -165,6 +169,6 @@ After this path works, follow the [Desktop User Guide](desktop_user_guide.md) fo
 
 - Code signing, notarization, SmartScreen exemption, or store listing
 - Changing packaging scripts or `APP_VERSION`
-- Publishing a GitHub Release
+- Claiming Gatekeeper-clean, SmartScreen-clean, or a store listing
 - Tray hide-to-background behavior (window close is still quit)
 - Phase 10 / new desktop feature gates

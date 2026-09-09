@@ -6,6 +6,14 @@
 
 ## 未发布
 
+### 残留 — 未签名桌面 GitHub Release
+
+- `.github/workflows/desktop-release.yml` 从成功的 `desktop.yml` 运行发布一版**未签名** GitHub Release（`v2.1.0-desktop`），含 Windows NSIS + macOS DMG
+- Release notes 标明 **unsigned / 未签名**，并链到 [docs/desktop_install.md](docs/desktop_install.zh.md)
+- 安装教程优先该 Release；Actions 产物仍作回退
+- 不改 `APP_VERSION`，不签名、不公证、不上架，无第十阶段
+- Issue：[#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188)
+
 ### 残留 — 未签名安装教程
 
 - 中英 [docs/desktop_install.md](docs/desktop_install.zh.md)：未签名 Windows NSIS 与 macOS DMG 从哪下、怎么装、Gatekeeper / SmartScreen 未知发布者、启动与退出

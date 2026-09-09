@@ -2,9 +2,9 @@
 
 > Language: **English** | [中文](desktop_development_plan.zh.md)
 
-> **Document version**: 1.9  
+> **Document version**: 1.10  
 > **Created**: 2026-08-18  
-> **Last reviewed**: 2026-09-09 (leftover unsigned install tutorial #186)  
+> **Last reviewed**: 2026-09-09 (leftover unsigned desktop GitHub Release #188)  
 > **Goal**: Redesign and package the current local web app (v2.0.0-rc2) as installable Windows and macOS desktop apps  
 > **Repository**: https://github.com/joe-cheung-cae/frame-pilot  
 > **Related existing plan**: `develop_plan.md` already lists “Local desktop packaging with Tauri or Electron” as a stretch goal; this document productizes it.  
@@ -47,7 +47,7 @@ The current architecture is already “local process + local HTTP”, so it is a
 - [x] All existing core features work and behave the same as current v2
 - [x] Original-file safety rules and local-first principles remain unchanged
 - [x] Large projects (≥500 photos) do not crash; memory use is acceptable — leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) packaged WebView from-paths + culling preview (**native dialog stubbed**); Windows `2026-09-07T19:39:23Z` + macOS `2026-09-07T19:30:33Z` ([desktop.yml run 34155284835](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34155284835)). Not a full S9.12 click-through. Web Playwright `test:e2e:real-browser:large` and API `perf:api` 500 are not packaged-desktop GUI evidence.
-- [x] User install notes and developer build docs are provided — unsigned walkthrough: [docs/desktop_install.md](desktop_install.md) ([#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)); do not re-tick this row as a new DoD
+- [x] User install notes and developer build docs are provided — unsigned walkthrough: [docs/desktop_install.md](desktop_install.md) ([#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186)); unsigned GitHub Release leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188); do not re-tick this row as a new DoD
 - [x] CI can auto-build installers for both platforms (code signing can be completed later)
 - [x] The desktop sidecar listens only on 127.0.0.1 and rejects non-loopback Host and unauthorized Origin
 - [x] User-chosen project root directories are accepted only after explicit authorization (see implementation plan D2.00)
@@ -407,7 +407,7 @@ On top of existing `npm run verify`, API pytest, frontend unit, and E2E, add:
 
 Suggested release channels:
 
-- GitHub Releases (primary)
+- GitHub Releases (primary) — leftover [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188) publishes **unsigned** `v2.1.0-desktop` NSIS + DMG. Not Gatekeeper-clean / SmartScreen-clean / store.
 - A website download page later, if needed
 
 ---
@@ -453,7 +453,8 @@ Implementation-level task split and Goal Mode prompts (based on the 2026-08-18 r
 - [docs/v2_known_limitations.md](v2_known_limitations.md) — known limitations
 - [docs/v2_milestones.md](v2_milestones.md) — milestones
 - [docs/architecture.md](architecture.md) — implementation-level architecture notes
-- [docs/desktop_install.md](desktop_install.md) — unsigned Windows NSIS / macOS DMG install tutorial (download, Gatekeeper / SmartScreen, start/stop)
+- [docs/desktop_install.md](desktop_install.md) — unsigned Windows NSIS / macOS DMG install tutorial (Release download, Gatekeeper / SmartScreen, start/stop)
+- [docs/desktop_unsigned_release_notes.md](desktop_unsigned_release_notes.md) — unsigned GitHub Release body
 - [docs/desktop_user_guide.md](desktop_user_guide.md) — after-install desktop workflow
 - [docs/desktop_testing.md](desktop_testing.md) — manual desktop matrix
 
@@ -473,6 +474,7 @@ Implementation-level task split and Goal Mode prompts (based on the 2026-08-18 r
 | 2026-09-08 | 1.7 | Leftover Windows quit+job matrix [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184): add §5.6 Windows row (unticked); do not re-tick §2.2 / ≥500 / Darwin #181 |
 | 2026-09-08 | 1.8 | Leftover Windows quit+job matrix [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184): tick §5.6 Windows row with [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942); do not re-tick §2.2 / ≥500 / Darwin #181 |
 | 2026-09-09 | 1.9 | Leftover unsigned install tutorial [#186](https://github.com/joe-cheung-cae/frame-pilot/issues/186): add [docs/desktop_install.md](desktop_install.md); do not re-tick §2.2 / invent Phase 10 |
+| 2026-09-09 | 1.10 | Leftover unsigned desktop GitHub Release [#188](https://github.com/joe-cheung-cae/frame-pilot/issues/188): `desktop-release.yml` publishes unsigned NSIS + DMG; do not re-tick §2.2 / invent Phase 10 |
 
 ---
 

@@ -1,0 +1,147 @@
+# Leftover #188 — publish one unsigned GitHub Release (Windows NSIS + macOS DMG).
+#
+# Reuses installer artifacts from a successful desktop.yml run. Does not build,
+# sign, notarize, staple, or launch packaged GUI. Do not download leftover
+# GUI-evidence zips. Do not use tauri-action.
+#
+# Trigger:
+#   - push to main when this workflow or the unsigned release notes change
+#     (first leftover publish after merge).
+#   - workflow_dispatch to republish from the latest successful desktop.yml
+#     run, or from an explicit run id.
+
+name: desktop-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Tag for the unsigned desktop GitHub Release
+        type: string
+        default: v2.1.0-desktop
+      desktop_run_id:
+        description: desktop.yml run id (empty = latest successful main run)
+        type: string
+        default: ""
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/desktop-release.yml"
+      - "docs/desktop_unsigned_release_notes.md"
+
+concurrency:
+  group: desktop-release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish-unsigned-release:
+    name: Publish unsigned NSIS + DMG
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve successful desktop.yml run
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_RUN_ID: ${{ github.event.inputs.desktop_run_id || '' }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${REQUESTED_RUN_ID}" ]]; then
+            run_id="${REQUESTED_RUN_ID}"
+          else
+            run_id="$(
+              gh run list \
+                --workflow=desktop.yml \
+                --branch=main \
+                --status=success \
+                --limit=1 \
+                --json databaseId \
+                --jq '.[0].databaseId'
+            )"
+          fi
+          if [[ -z "${run_id}" ]]; then
+            echo "No successful desktop.yml run on main. Dispatch desktop.yml first." >&2
+            exit 1
+          fi
+          names="$(
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" \
+              --jq '.artifacts[].name'
+          )"
+          if ! grep -qx 'FramePilot-windows-nsis' <<<"${names}"; then
+            echo "desktop.yml run ${run_id} is missing FramePilot-windows-nsis" >&2
+            exit 1
+          fi
+          if ! grep -qx 'FramePilot-macos-dmg' <<<"${names}"; then
+            echo "desktop.yml run ${run_id} is missing FramePilot-macos-dmg" >&2
+            exit 1
+          fi
+          head_sha="$(gh run view "${run_id}" --json headSha --jq .headSha)"
+          echo "Using desktop.yml run ${run_id} at ${head_sha}"
+          echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+          echo "head_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download unsigned Windows NSIS
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ steps.find.outputs.run_id }}
+          github-token: ${{ github.token }}
+          name: FramePilot-windows-nsis
+          path: dist/windows
+
+      - name: Download unsigned macOS DMG
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ steps.find.outputs.run_id }}
+          github-token: ${{ github.token }}
+          name: FramePilot-macos-dmg
+          path: dist/macos
+
+      - name: Verify installer files only
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          exes=(dist/windows/*.exe)
+          dmgs=(dist/macos/*.dmg)
+          if [[ "${#exes[@]}" -ne 1 ]]; then
+            echo "Expected exactly one NSIS .exe under dist/windows, found ${#exes[@]}" >&2
+            ls -la dist/windows || true
+            exit 1
+          fi
+          if [[ "${#dmgs[@]}" -ne 1 ]]; then
+            echo "Expected exactly one DMG under dist/macos, found ${#dmgs[@]}" >&2
+            ls -la dist/macos || true
+            exit 1
+          fi
+          evidence="$(
+            find dist \( -name 'FramePilot-desktop-500-gui-*' -o -name 'FramePilot-desktop-quit-job-*' \) -print
+          )"
+          if [[ -n "${evidence}" ]]; then
+            echo "Refusing leftover GUI-evidence artifacts in the release staging tree" >&2
+            printf '%s\n' "${evidence}" >&2
+            exit 1
+          fi
+          echo "Windows NSIS: ${exes[0]}"
+          echo "macOS DMG: ${dmgs[0]}"
+
+      - name: Publish unsigned GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || 'v2.1.0-desktop' }}
+          target_commitish: ${{ steps.find.outputs.head_sha }}
+          name: FramePilot 2.1.0-desktop (unsigned)
+          body_path: docs/desktop_unsigned_release_notes.md
+          files: |
+            dist/windows/*.exe
+            dist/macos/*.dmg
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
+          make_latest: true

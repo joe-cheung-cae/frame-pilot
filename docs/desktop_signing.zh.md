@@ -72,13 +72,13 @@ Authenticode 对 Windows 安装包（以及可选的应用内二进制）签名�
 
 ## 内部测试者：未签名安装包
 
-来自 `desktop` 工作流的未签名 Windows / macOS 产物仅供**内部测试者与开发者**使用，不面向公开下载页。
+来自 `desktop` 工作流的未签名 Windows / macOS 产物仅供**内部测试者与开发者**使用，不是已签名公开商店上架。残留未签名 GitHub Release（`v2.1.0-desktop`）是持久下载入口；它仍然**未签名**。
 
 逐步下载、Gatekeeper / SmartScreen、启动与退出见 [未签名桌面安装教程](desktop_install.zh.md)。
 
 测试者应当：
 
-- 仅从项目的 GitHub Actions 运行或其他维护者可控渠道下载产物
+- 从未签名 GitHub Release 或项目的 GitHub Actions `desktop` 运行下载安装包，不要从第三方镜像下载
 - 预期未签名包会出现 OS 信任警告（SmartScreen / Gatekeeper）
 - 尽可能使用一次性或专用测试机/账户
 - 不要把未签名安装包当作「正式」版本对外分发
@@ -95,9 +95,11 @@ Authenticode 对 Windows 安装包（以及可选的应用内二进制）签名�
 ## 相关文件
 
 - `.github/workflows/desktop.yml` — Windows/macOS 安装包 CI（签名按 secrets 门控；未签名回退保持绿灯）
+- `.github/workflows/desktop-release.yml` — 从这些产物发布未签名 GitHub Release（`v2.1.0-desktop`）
 - `apps/desktop/src-tauri/tauri.conf.json` — `identifier`、NSIS 与 DMG 打包配置
 - `docs/plans/2026-08-18-desktop-packaging.zh.md` — D4.05 任务定义
 - [docs/desktop_install.md](desktop_install.zh.md) — 面向测试者的未签名安装教程
+- [docs/desktop_unsigned_release_notes.md](desktop_unsigned_release_notes.zh.md) — 未签名 Release 正文
 
 ## 公开发布清单（Phase 5 跟进）
 
