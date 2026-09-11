@@ -966,7 +966,6 @@ def process_registered_import_photo(
     thumbnail_path: Path | None = None
     preview_path: Path | None = None
     try:
-        _raise_if_import_cancelled(session, project.id)
         if progress_callback:
             progress_callback("image_open")
         with import_timing_stage(timing, "image_open"):
@@ -1064,7 +1063,7 @@ def _cancel_import_job(session: Session, job: ProcessingJob, processed_count: in
 
 
 class _ImportCancellationRequested(Exception):
-    """Stop import work before expensive RAW postprocess."""
+    """Stop queued import photos after cancel, before opening the next file."""
 
 
 def _import_job_cancellation_requested(session: Session, job: ProcessingJob) -> bool:
@@ -1380,9 +1379,6 @@ def run_import_derivative_job(
                     if _import_job_cancellation_requested(session, job):
                         _cancel_import_job(session, job, processed_count, failed_count)
                         return
-                except _ImportCancellationRequested:
-                    _cancel_import_job(session, job, processed_count, failed_count)
-                    return
                 except ValueError as error:
                     _mark_import_photo_failed(session, photo, str(error))
                     skipped.append({"filename": photo.filename, "reason": str(error)})
