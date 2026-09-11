@@ -38,8 +38,8 @@ Do **not** invent Phase 10 / S10 / 2.3. Product string stays `2.1.0-desktop`. Do
 Leftover Win11 File menu invoke does not navigate
 
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue [#204](https://github.com/joe-cheung-cae/frame-pilot/issues/204)
-- [ ] 开发 — `menu.rs` Tauri emit; desktop `NativeMenuListener` listen + `resolveMenuCommand`
-- [ ] 测试 — `npm run test:web`; desktop `nativeMenu` unit tests; `typecheck:desktop` / `lint:desktop`. `cargo test --lib` blocked on this WSL host (pkg-config / GTK missing); rustc 1.98.0 is present. Do not invent a cargo pass.
+- [x] 开发 — `menu.rs` Tauri emit; desktop `NativeMenuListener` listen + `resolveMenuCommand`
+- [x] 测试 — `npm run test:web`; desktop `nativeMenu` unit tests; `typecheck:desktop` / `lint:desktop`. `cargo test --lib` blocked on this WSL host (pkg-config / GTK missing); rustc 1.98.0 is present. Do not invent a cargo pass.
 - [ ] 上线 — merge + follow-on unsigned Release leftover for packaged Win11 (implementer does not merge)
 - [ ] DoD-ticked — leftover-plan 上线 after a #204+ NSIS exists; do **not** invent a dated Win11 GUI pass / Phase 10 / re-tick §2.2
 

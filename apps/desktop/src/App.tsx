@@ -1,11 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import { MemoryRouter } from "react-router-dom";
 import { CullingWorkspace } from "@/components/CullingWorkspace";
 import { DetachedPreviewPane } from "@/components/DetachedPreviewPane";
 import { isPreviewWindow } from "@/lib/detachedPreview";
+import { MENU_EVENT } from "@/lib/menuRoutes";
 import { useNavigator, usePathname } from "@/lib/navigation";
+import { loadLastOpenedProjectId } from "@/lib/recentProjects";
 import { applyShellDataset } from "@/lib/shell";
 import { Shell } from "@/components/Shell";
 import {
@@ -15,6 +18,7 @@ import {
   setDesktopQaRoute,
   writeCullWorkspaceMounted,
 } from "./lib/desktopQaRunner";
+import { hrefForNativeMenuCommand } from "./lib/nativeMenu";
 import { AppRoutes } from "./router";
 
 const QA_NAVIGATE_EVENT = "framepilot-qa-navigate";
@@ -36,6 +40,30 @@ function NativeMenuListener() {
       window.removeEventListener(QA_NAVIGATE_EVENT, onQaNavigate);
     };
   }, [navigator]);
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void listen<string>(MENU_EVENT, (event) => {
+      const href = hrefForNativeMenuCommand(event.payload, pathname, loadLastOpenedProjectId());
+      if (href) {
+        navigator.push(href);
+      }
+    })
+      .then((stop) => {
+        if (disposed) {
+          stop();
+          return;
+        }
+        unlisten = stop;
+      })
+      .catch((error: unknown) => {
+        console.error("FramePilot native menu listen failed", error);
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [navigator, pathname]);
   return null;
 }
 

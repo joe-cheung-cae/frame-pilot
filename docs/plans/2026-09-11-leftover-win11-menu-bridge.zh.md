@@ -38,8 +38,8 @@
 残留 Win11 File 菜单 invoke 不跳页
 
 - [x] 需求拆解 — 中英残留计划 + GitHub 议题 [#204](https://github.com/joe-cheung-cae/frame-pilot/issues/204)
-- [ ] 开发 — `menu.rs` 改 Tauri emit；桌面 `NativeMenuListener` listen + `resolveMenuCommand`
-- [ ] 测试 — `npm run test:web`；桌面 `nativeMenu` 单元测试；`typecheck:desktop` / `lint:desktop`。本机 WSL 缺 pkg-config / GTK，`cargo test --lib` 无法链接；rustc 1.98.0 在场。不要编造 cargo pass。
+- [x] 开发 — `menu.rs` 改 Tauri emit；桌面 `NativeMenuListener` listen + `resolveMenuCommand`
+- [x] 测试 — `npm run test:web`；桌面 `nativeMenu` 单元测试；`typecheck:desktop` / `lint:desktop`。本机 WSL 缺 pkg-config / GTK，`cargo test --lib` 无法链接；rustc 1.98.0 在场。不要编造 cargo pass。
 - [ ] 上线 — 合入 + 后续未签名 Release 残留做包装 Win11 验收（实现者不合入）
 - [ ] DoD-ticked — 有 #204+ NSIS 之后再勾残留计划上线；**不要**编造带日期的 Win11 GUI pass / 第十阶段 / 重勾 §2.2
 
