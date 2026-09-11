@@ -17,13 +17,13 @@ v2.0 支持以下格式的本地导入与处理：
 - WebP
 - HEIC / HEIF 静帧（本地 `pillow-heif` 解码；WebP 衍生件；导出原始字节）
 - AVIF 静帧（仅 `.avif`；Pillow 自带 `AvifImagePlugin`；WebP 衍生件；导出原始字节）
-- 带内嵌预览的 RAW（`.dng`、`.arw`、`.cr3`、`.nef`；原样拷贝；只走 LibRaw `extract_thumb`；用预览 RGB 生成 WebP 衍生件；导出原始字节）
+- RAW（`.dng`、`.arw`、`.cr3`、`.nef`；原样拷贝；有内嵌预览时走 LibRaw `extract_thumb`，否则走残留 [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) 锁定 `postprocess` 回退；用该 RGB 生成 WebP 衍生件；导出原始字节）
 
 不受支持的文件会在本地报告，而不是远程上传或解码。
 
 ## 延后的格式
 
-完整 RAW 显影（demosaic / `postprocess`）仍延后。没有内嵌预览的 RAW 以 `RAW file has no embedded preview; FramePilot does not demosaic` 跳过，不会拷进 `originals/`。不接受 `.cr2`、`.raf`、`.orf`、`.rw2` 等额外 RAW 扩展名。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、`.avifs` 序列或 HDR/gain-map 色调映射。导入、`originals/`、相机文件旁和图像字节都不会写入 XMP。
+色彩管理 RAW 显影和额外 RAW 扩展名仍延后（未排期）。残留 [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) 在 `extract_thumb` 失败时回退 LibRaw `postprocess`（`use_camera_wb=True`、`no_auto_bright=True`、`output_bps=8`、`half_size=True`）。FramePilot 不是 RAW 编辑器：无曝光 / 白平衡 UI。`extract_raw_preview_image` 仍只抽 thumb。thumb 与 demosaic 都失败时以 `RAW file could not be developed; no embedded preview and demosaic failed` 跳过，不会拷进 `originals/`。不接受 `.cr2`、`.raf`、`.orf`、`.rw2` 等额外 RAW 扩展名。HEIC/HEIF 与 AVIF 静帧可本地导入；不实现 Live Photo 配套 `.mov`、`.avifs` 序列或 HDR/gain-map 色调映射。导入、`originals/`、相机文件旁和图像字节都不会写入 XMP。
 
 `pillow-heif` 为 BSD-3-Clause。其 wheel 在 API/sidecar 运行时内带有 **LGPL** 的 `libheif`（及编码器）。FramePilot 不把 libheif 源码塞进本 MIT 树。
 
@@ -96,7 +96,7 @@ v2.0 不支持云图库、共享团队项目、自动删除原图、远程 AI �
 可安装桌面应用（`2.1.0-desktop`）共用同一套本地 API 与筛选 UI，并带有额外壳层约束：
 
 - 导入与处理任务在 sidecar 被杀或应用退出后**默认持久**：残留的导入/处理任务会标为 `interrupted`，并在下次启动时回收。设置 `FRAMEPILOT_JOB_RECLAIM_ON_STARTUP=0` 可退回旧行为，把过期任务标为失败以便用户重试（无论哪种方式，导出仍失败并清理）。
-- HEIC/HEIF 静帧以及带内嵌预览的 RAW 可本地导入（与 web 应用相同）。没有预览的 RAW 以本地提示跳过。
+- HEIC/HEIF 静帧以及 RAW（`.dng`、`.arw`、`.cr3`、`.nef`）可本地导入（与 web 应用相同）。有内嵌预览时走 `extract_thumb`；没有预览时走残留 [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) 回退 demosaic。两条路径都失败时以本地提示跳过。
 - **检查更新**仅在 Help 菜单（启动时不联网）。它查询 GitHub Releases，不下载、不安装。清单缺失为非致命 no-op。未签名构建仍可启动。用户仍需手动安装新构建。
 - CI 已**签名就绪**：完整 GitHub Actions secret 集在场时会做 Authenticode / Developer ID + 公证。缺少 secrets 时保持**未签名**上传绿灯。残留未签名 GitHub Release（`v2.1.3-desktop`，含 [#199](https://github.com/joe-cheung-cae/frame-pilot/pull/199) / [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) 锁文件 hooks、[#195](https://github.com/joe-cheung-cae/frame-pilot/pull/195) 导入/导出与 [#191](https://github.com/joe-cheung-cae/frame-pilot/pull/191) sidecar ready-line / 120 秒）仍然未签名。验应用仍在运行时升级不要用 `v2.1.2-desktop`。验新建工程导入/导出不要用 `v2.1.1-desktop`。Win11 冷首启不要用 `v2.1.0-desktop`。见 [桌面代码签名手册](desktop_signing.zh.md)。
 - 桌面计划里的 2.2 残留已由第九阶段交付（托盘 S9.06、独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10），加上残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)），除自动下载安装。双平台安装包 GUI DoD **安装并运行**已声称（[#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177)，`2026-09-07T09:34:57Z`）。残留包装桌面 ≥500 GUI 已声称（[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)；包装 WebView from-paths + 审片预览，**原生对话框 stub**）。残留包装 macOS 退出+作业矩阵已声称（[#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)，`2026-09-08T13:26:18Z`，[desktop.yml run 34230112750](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34230112750)）。残留包装 Windows 退出+作业矩阵已声称（[#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)，`2026-09-08T15:29:33Z`，[desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)）。残留 Windows 包装 sidecar 首启 ready-line timeout 已在代码中修复（[#190](https://github.com/joe-cheung-cae/frame-pilot/issues/190)；Windows 120 秒预算 + `sidecar.ready`）；残留 NSIS `_internal` 被锁升级已在 installer hooks 中修复（[#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198)；只有 Retry/Cancel，不能一路 Ignore）。验应用仍在运行时升级请用残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) [`v2.1.3-desktop`](https://github.com/joe-cheung-cae/frame-pilot/releases/tag/v2.1.3-desktop)（`2026-09-09T09:01:01Z`）。已发布的 `v2.1.2-desktop` NSIS 不含这些 hook——用该包升级前先退出 FramePilot，永远不要忽略文件占用错误。不要在此编造新的带日期 Windows GUI pass。

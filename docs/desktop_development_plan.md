@@ -2,9 +2,9 @@
 
 > Language: **English** | [中文](desktop_development_plan.zh.md)
 
-> **Document version**: 1.16  
+> **Document version**: 1.18  
 > **Created**: 2026-08-18  
-> **Last reviewed**: 2026-09-11 (leftover #200 上线: unsigned `v2.1.3-desktop` Release)  
+> **Last reviewed**: 2026-09-11 (leftover #202 上线: RAW fallback develop shipped on `feature/leftover-raw-develop`)  
 > **Goal**: Redesign and package the current local web app (v2.0.0-rc2) as installable Windows and macOS desktop apps  
 > **Repository**: https://github.com/joe-cheung-cae/frame-pilot  
 > **Related existing plan**: `develop_plan.md` already lists “Local desktop packaging with Tauri or Electron” as a stretch goal; this document productizes it.  
@@ -52,7 +52,7 @@ The current architecture is already “local process + local HTTP”, so it is a
 - [x] The desktop sidecar listens only on 127.0.0.1 and rejects non-loopback Host and unauthorized Origin
 - [x] User-chosen project root directories are accepted only after explicit authorization (see implementation plan D2.00)
 
-Out of scope for `2.1.0-desktop` (see §5.6): leftover 2.2 items Phase 9 shipped (detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10, tray S9.06) plus leftover cache knobs ([#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)), leftover packaged-desktop ≥500 GUI ([#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)), and leftover packaged macOS quit+job matrix ([#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)), and leftover packaged Windows quit+job matrix ([#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184), `2026-09-08T15:29:33Z`, [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)). Do not re-tick this install+run / ≥500 / Darwin #181. Still deferred (unscheduled): auto-download/install, processing pool, full RAW develop, SmartScreen/store listing. Do not invent Phase 10 / 2.3.
+Out of scope for `2.1.0-desktop` (see §5.6): leftover 2.2 items Phase 9 shipped (detached preview S9.07, import workers S9.08, data-dir S9.09, check-for-updates S9.10, tray S9.06) plus leftover cache knobs ([#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)), leftover packaged-desktop ≥500 GUI ([#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)), and leftover packaged macOS quit+job matrix ([#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)), and leftover packaged Windows quit+job matrix ([#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184), `2026-09-08T15:29:33Z`, [desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)). Do not re-tick this install+run / ≥500 / Darwin #181. Still deferred (unscheduled): auto-download/install, processing pool, color-managed RAW / extra extensions, SmartScreen/store listing. Leftover RAW fallback demosaic ([#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202)) shipped on `feature/leftover-raw-develop` (not Phase 10). Do not invent Phase 10 / 2.3.
 
 ---
 
@@ -181,7 +181,8 @@ Leftover 2.2 items that Phase 9 shipped are retargeted to their S9 ids. Remainin
 | System tray (§5.4) | Optional D3.06; tooltip job progress | S9.06 [x] |
 | Changing the data directory (§5.4) | Copy + rewrite stored paths under the old data dir | S9.09 [x] |
 | Processing pool | One processing job per project remains | deferred (unscheduled) |
-| Full RAW develop | Embedded preview only (S9.04); no demosaic | deferred (unscheduled) |
+| RAW fallback develop (no embedded preview) | leftover [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) LibRaw `postprocess` only when `extract_thumb` fails; not a RAW editor; S9.04 [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162) stays thumb-only | leftover [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) `[x]` 上线 (`2026-09-11T03:25:56Z`) |
+| Color-managed RAW / extra extensions | No color-managed pipeline; no `.cr2` / `.raf` / `.orf` / `.rw2` | deferred (unscheduled) |
 | SmartScreen / store listing | Signing-ready CI is S9.11; not a store release | deferred (unscheduled) |
 | Packaged-desktop ≥500 GUI | leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) packaged WebView from-paths + culling preview (**native dialog stubbed**); both-OS 500 `result=pass` | leftover [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) `[x]` |
 | Packaged macOS GUI pass | leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) **install+run** DoD `[x]` (`2026-09-07T09:34:57Z`); S9.12 skip stays history | leftover [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) `[x]` install+run |
@@ -408,7 +409,8 @@ On top of existing `npm run verify`, API pytest, frontend unit, and E2E, add:
 | 2.1.0-desktop | First official desktop installer release (locked) |
 | Phase 8 | HEIC/HEIF still preview (shipped) |
 | Phase 9 | Remaining stretch S9.00–S9.13 (closed): AVIF, RAW embedded preview, XMP export, tray, detached preview, import workers, data-dir, check-for-updates, signing-ready CI, macOS QA skip, docs leftover repair |
-| Unscheduled | Auto-download/install, processing pool, full RAW develop, SmartScreen/store listing. Do not invent Phase 10 / 2.3 |
+| Leftover #202 | RAW fallback demosaic when no embedded preview (shipped on `feature/leftover-raw-develop`; not Phase 10). Plan: [docs/plans/2026-09-11-leftover-raw-develop.md](plans/2026-09-11-leftover-raw-develop.md) |
+| Unscheduled | Auto-download/install, processing pool, color-managed RAW / extra extensions, SmartScreen/store listing. Do not invent Phase 10 / 2.3 |
 
 Suggested release channels:
 
@@ -486,6 +488,8 @@ Implementation-level task split and Goal Mode prompts (based on the 2026-08-18 r
 | 2026-09-09 | 1.14 | Leftover NSIS locked `_internal` upgrade [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198): installerHooks stop on locked sidecar DLLs; do not re-tick §2.2 / invent Phase 10 / invent a Win11 GUI pass |
 | 2026-09-09 | 1.15 | Leftover unsigned desktop Release with NSIS locked-file hooks [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200): `desktop-release.yml` publishes `v2.1.3-desktop`; do not re-tick §2.2 / invent Phase 10 |
 | 2026-09-11 | 1.16 | Leftover [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) 上线: [v2.1.3-desktop](https://github.com/joe-cheung-cae/frame-pilot/releases/tag/v2.1.3-desktop) NSIS + DMG (`2026-09-09T09:01:01Z`); do not re-tick §2.2 / invent Phase 10 |
+| 2026-09-11 | 1.17 | Leftover [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) 需求拆解: split §5.6 Full RAW develop into fallback demosaic leftover `[ ]` vs color-managed still unscheduled; §10 must not call this leftover Phase 10 |
+| 2026-09-11 | 1.18 | Leftover [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) 上线: fallback demosaic shipped on `feature/leftover-raw-develop`; §5.6 leftover row `[x]`; color-managed RAW still unscheduled; §10 Unscheduled without calling this Phase 10 |
 
 ---
 

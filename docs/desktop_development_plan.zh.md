@@ -2,9 +2,9 @@
 
 > 语言：[English](desktop_development_plan.md) | **中文**
 
-> **文档版本**：1.16  
+> **文档版本**：1.18  
 > **创建日期**：2026-08-18  
-> **最近审阅**：2026-09-11（残留 #200 上线：未签名 `v2.1.3-desktop` Release）  
+> **最近审阅**：2026-09-11（残留 #202 上线：RAW 回退显影已在 `feature/leftover-raw-develop` 交付）  
 > **目标**：将当前本地 Web 应用（v2.0.0-rc2）重新设计并打包为可安装的 Windows 与 macOS 桌面应用  
 > **仓库**：https://github.com/joe-cheung-cae/frame-pilot  
 > **相关已有规划**：`develop_plan.md` 已将 “Local desktop packaging with Tauri or Electron” 列为 stretch goal；本文件将其正式产品化。  
@@ -52,7 +52,7 @@ FramePilot 是一款**本地优先**的 AI 辅助照片筛选（photo culling）
 - [x] 桌面 sidecar 仅监听 127.0.0.1，且拒绝非回环 Host 与未授权 Origin
 - [x] 用户选择的项目根目录经过显式授权后才被接受（见实施计划 D2.00）
 
-不在 `2.1.0-desktop` 范围内（见 §5.6）：第九阶段已交付的 2.2 残留（独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10、托盘 S9.06），加上残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）、残留包装桌面 ≥500 GUI（[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)）与残留包装 macOS 退出+作业矩阵（[#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)），以及残留包装 Windows 退出+作业矩阵（[#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)，`2026-09-08T15:29:33Z`，[desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)）。不要重勾本安装并运行 / ≥500 / Darwin #181。仍延后（未排期）：自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架。不要发明第十阶段 / 2.3。
+不在 `2.1.0-desktop` 范围内（见 §5.6）：第九阶段已交付的 2.2 残留（独立预览 S9.07、导入 worker S9.08、数据目录 S9.09、检查更新 S9.10、托盘 S9.06），加上残留 cache 旋钮（[#175](https://github.com/joe-cheung-cae/frame-pilot/issues/175)）、残留包装桌面 ≥500 GUI（[#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179)）与残留包装 macOS 退出+作业矩阵（[#181](https://github.com/joe-cheung-cae/frame-pilot/issues/181)），以及残留包装 Windows 退出+作业矩阵（[#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)，`2026-09-08T15:29:33Z`，[desktop.yml run 34242430942](https://github.com/joe-cheung-cae/frame-pilot/actions/runs/34242430942)）。不要重勾本安装并运行 / ≥500 / Darwin #181。仍延后（未排期）：自动下载安装、处理池、色彩管理 RAW / 额外扩展名、SmartScreen/商店上架。残留 RAW 回退 demosaic（[#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202)）已在 `feature/leftover-raw-develop` 交付（不是第十阶段）。不要发明第十阶段 / 2.3。
 
 ---
 
@@ -181,7 +181,8 @@ FramePilot Desktop
 | 系统托盘（§5.4） | 可选 D3.06；tooltip 作业进度 | S9.06 [x] |
 | 更换数据目录（§5.4） | 拷贝并改写旧 data dir 下的已存路径 | S9.09 [x] |
 | 处理池 | 仍是每个项目一个处理作业 | 延后（未排期） |
-| 完整 RAW 显影 | 只抽内嵌预览（S9.04）；不 demosaic | 延后（未排期） |
+| RAW 回退显影（无内嵌预览） | 残留 [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) 仅在 `extract_thumb` 失败时 LibRaw `postprocess`；不是 RAW 编辑器；S9.04 [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162) 仍只抽 thumb | 残留 [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) `[x]` 上线（`2026-09-11T03:25:56Z`） |
+| 色彩管理 RAW / 额外扩展名 | 无色彩管理管线；不接受 `.cr2` / `.raf` / `.orf` / `.rw2` | 延后（未排期） |
 | SmartScreen / 商店上架 | 签名就绪 CI 是 S9.11；不是商店发行 | 延后（未排期） |
 | 包装桌面 ≥500 GUI | 残留 [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) 包装 WebView from-paths + 审片预览（**原生对话框 stub**）；双平台 500 `result=pass` | 残留 [#179](https://github.com/joe-cheung-cae/frame-pilot/issues/179) `[x]` |
 | 包装 macOS GUI pass | 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) **安装并运行** DoD `[x]`（`2026-09-07T09:34:57Z`）；S9.12 skip 作为历史保留 | 残留 [#177](https://github.com/joe-cheung-cae/frame-pilot/issues/177) `[x]` 安装并运行 |
@@ -408,7 +409,8 @@ frame-pilot/
 | 2.1.0-desktop | 首个正式桌面安装包发布（已锁定） |
 | 第八阶段 | HEIC/HEIF 静帧预览（已交付） |
 | 第九阶段 | 剩余 stretch S9.00–S9.13（已关闭）：AVIF、RAW 内嵌预览、XMP 导出、托盘、独立预览、导入 worker、数据目录、检查更新、签名就绪 CI、macOS QA skip、文档残留修复 |
-| 未排期 | 自动下载安装、处理池、完整 RAW 显影、SmartScreen/商店上架。不要发明第十阶段 / 2.3 |
+| 残留 #202 | 无内嵌预览时的 RAW 回退 demosaic（已在 `feature/leftover-raw-develop` 交付；不是第十阶段）。计划：[docs/plans/2026-09-11-leftover-raw-develop.md](plans/2026-09-11-leftover-raw-develop.zh.md) |
+| 未排期 | 自动下载安装、处理池、色彩管理 RAW / 额外扩展名、SmartScreen/商店上架。不要发明第十阶段 / 2.3 |
 
 发布渠道建议：
 
@@ -486,6 +488,8 @@ frame-pilot/
 | 2026-09-09 | 1.14 | 残留 NSIS `_internal` 被锁升级 [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198)：installerHooks 在 sidecar DLL 被锁时停住；不要重勾 §2.2 / 发明第十阶段 / 编造 Win11 GUI pass |
 | 2026-09-09 | 1.15 | 残留含 NSIS 锁文件 hooks 的未签名桌面 Release [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200)：`desktop-release.yml` 发布 `v2.1.3-desktop`；不要重勾 §2.2 / 发明第十阶段 |
 | 2026-09-11 | 1.16 | 残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) 上线：[v2.1.3-desktop](https://github.com/joe-cheung-cae/frame-pilot/releases/tag/v2.1.3-desktop) NSIS + DMG（`2026-09-09T09:01:01Z`）；不要重勾 §2.2 / 发明第十阶段 |
+| 2026-09-11 | 1.17 | 残留 [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) 需求拆解：§5.6 把完整 RAW 显影拆成回退 demosaic 残留 `[ ]` vs 色彩管理仍未排期；§10 不得把本残留叫第十阶段 |
+| 2026-09-11 | 1.18 | 残留 [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) 上线：回退 demosaic 已在 `feature/leftover-raw-develop` 交付；§5.6 残留行 `[x]`；色彩管理 RAW 仍未排期；§10 未排期且不把本残留叫第十阶段 |
 
 ---
 

@@ -6,6 +6,15 @@ All notable FramePilot releases are listed here. Version strings for the API com
 
 ## Unreleased
 
+### Leftover — RAW fallback develop (no embedded preview)
+
+- Import `.dng`, `.arw`, `.cr3`, and `.nef` without an embedded preview via locked LibRaw `postprocess` (`use_camera_wb=True`, `no_auto_bright=True`, `output_bps=8`, `half_size=True`) after `extract_thumb` fails
+- `extract_raw_preview_image` stays thumb-only; import uses `open_raw_import_image`
+- Both-path failure skips with `RAW file could not be developed; no embedded preview and demosaic failed`; cleanup `originals/` copy; no leftover bytes
+- Not a RAW editor; no exposure / white-balance UI; no extra extensions (`.cr2` `.raf` `.orf` `.rw2`); color-managed develop remains unscheduled
+- No `APP_VERSION` bump, signing, `desktop.yml` dispatch, tray / D3.06, or Phase 10
+- Issue: [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202)
+
 ### Leftover — unsigned desktop Release with NSIS locked-file hooks
 
 - `.github/workflows/desktop-release.yml` publishes **unsigned** GitHub Release `v2.1.3-desktop` (Windows NSIS + macOS DMG) from a `desktop.yml` run that includes [#199](https://github.com/joe-cheung-cae/frame-pilot/pull/199) (`d9d29e8e`+)

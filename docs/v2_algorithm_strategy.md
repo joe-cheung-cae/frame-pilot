@@ -6,7 +6,7 @@ FramePilot v2 uses deterministic, local, explainable algorithms as the baseline.
 
 ## Baseline Signals
 
-Each imported JPEG, PNG, WebP, HEIC/HEIF, AVIF, or RAW-with-embedded-preview file records local metadata and derived analysis values:
+Each imported JPEG, PNG, WebP, HEIC/HEIF, AVIF, or RAW (`.dng`, `.arw`, `.cr3`, `.nef`) file records local metadata and derived analysis values:
 
 - capture time, camera model, lens model, focal length, aperture, shutter speed, and ISO when available
 - dimensions, file size, file mtime, SHA-256 content hash, and source identity
@@ -16,7 +16,7 @@ Each imported JPEG, PNG, WebP, HEIC/HEIF, AVIF, or RAW-with-embedded-preview fil
 - sharpness, blur risk, exposure, contrast, noise risk, aesthetic balance
 - experimental face, face sharpness, eye-open, and face quality signals
 
-HEIC stills are Phase 8 (decode to RGB, then the same scoring/grouping path) and already shipped. RAW embedded-preview import is S9.04: copy original bytes, extract LibRaw `extract_thumb` only, score and group on that preview RGB. FramePilot does not demosaic. RAW without a preview is skipped with an explicit local message.
+HEIC stills are Phase 8 (decode to RGB, then the same scoring/grouping path) and already shipped. RAW embedded-preview import is S9.04 (`extract_thumb` only). Leftover [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) fallback demosaic runs only when thumb fails (locked `postprocess`; not a RAW editor). Score and group on that RGB. Files that fail both paths are skipped with an explicit local message.
 
 ## Similarity Grouping
 

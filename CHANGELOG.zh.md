@@ -6,6 +6,15 @@
 
 ## 未发布
 
+### 残留 — 无内嵌预览时的 RAW 回退显影
+
+- 没有内嵌预览的 `.dng`、`.arw`、`.cr3`、`.nef` 在 `extract_thumb` 失败后走锁定 LibRaw `postprocess`（`use_camera_wb=True`、`no_auto_bright=True`、`output_bps=8`、`half_size=True`）导入
+- `extract_raw_preview_image` 仍只抽 thumb；导入走 `open_raw_import_image`
+- 两条路径都失败时以 `RAW file could not be developed; no embedded preview and demosaic failed` 跳过；清理 `originals/` 拷贝；不留残余字节
+- 不是 RAW 编辑器；无曝光 / 白平衡 UI；无额外扩展名（`.cr2` `.raf` `.orf` `.rw2`）；色彩管理显影仍未排期
+- 不改 `APP_VERSION`，不签名，不调度 `desktop.yml`，不动托盘 / D3.06，无第十阶段
+- Issue：[#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202)
+
 ### 残留 — 含 NSIS 锁文件 hooks 的未签名桌面 Release
 
 - `.github/workflows/desktop-release.yml` 从含 [#199](https://github.com/joe-cheung-cae/frame-pilot/pull/199)（`d9d29e8e`+）的 `desktop.yml` 运行发布**未签名** GitHub Release `v2.1.3-desktop`（Windows NSIS + macOS DMG）
