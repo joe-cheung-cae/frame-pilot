@@ -48,7 +48,7 @@
 - [x] 需求拆解 — 中英残留计划 + GitHub issue [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202)
 - [x] 评审 — 对照现行 RAW 导入路径做对抗审阅
 - [x] 归档 — 已记录 开发 交接（本次提交）；开发 保持 `[ ]`
-- [ ] 开发 — 测试先行；`open_raw_import_image` 先 thumb 再 postprocess；反转跳过测试；同一提交勾残留计划 开发 `[x]`（**不要**勾 上线）
+- [x] 开发 — 测试先行；`open_raw_import_image` 先 thumb 再 postprocess；反转跳过测试；同一提交勾残留计划 开发 `[x]`（**不要**勾 上线）
 - [ ] 测试 — 点名 pytest + `lint:api`；无相机文件
 - [ ] 上线 — 活文档 + issue 评论；**不要**合并；**不要**发明第十阶段
 

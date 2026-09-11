@@ -48,7 +48,7 @@ Leftover RAW fallback develop (no embedded preview)
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202)
 - [x] 评审 — adversarial review against live RAW import path
 - [x] 归档 — 开发 handoff recorded (this commit); 开发 stays `[ ]`
-- [ ] 开发 — tests first; `open_raw_import_image` thumb-then-postprocess; invert skip tests; tick leftover-plan 开发 `[x]` in that same commit (do **not** tick 上线)
+- [x] 开发 — tests first; `open_raw_import_image` thumb-then-postprocess; invert skip tests; tick leftover-plan 开发 `[x]` in that same commit (do **not** tick 上线)
 - [ ] 测试 — named pytest + `lint:api`; no camera files
 - [ ] 上线 — living docs + issue comment; do **not** merge; do **not** invent Phase 10
 

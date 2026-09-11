@@ -25,7 +25,12 @@ from app.core.app_settings import load_import_workers
 from app.core.local_paths import normalize_user_path
 from app.db.session import get_engine
 from app.image.heif_support import ensure_heif_opener
-from app.image.raw_preview import RAW_NO_PREVIEW_REASON, RawPreviewError, extract_raw_preview_image
+from app.image.raw_preview import RAW_DEVELOP_FAILED_REASON as RAW_DEVELOP_FAILED_REASON
+from app.image.raw_preview import (
+    RAW_NO_PREVIEW_REASON,
+    RawPreviewError,
+    open_raw_import_image,
+)
 from app.image.scoring import compute_quality_scores_for_image
 from app.models.entities import Photo, PhotoGroup, ProcessingJob, Project, utc_now
 from app.services.jobs import (
@@ -140,13 +145,6 @@ def expand_import_paths(paths: list[str], project_root: Path) -> ExpandedImportP
         if not is_supported_image(resolved.name):
             skipped.append({"filename": resolved.name, "reason": unsupported_image_reason(resolved.name)})
             return
-        if resolved.suffix.lower() in RAW_EXTENSIONS:
-            try:
-                preview = extract_raw_preview_image(resolved)
-            except RawPreviewError:
-                skipped.append({"filename": resolved.name, "reason": RAW_NO_PREVIEW_REASON})
-                return
-            preview.close()
         collected.append(resolved)
         if len(collected) > PATH_IMPORT_MAX_EXPANDED_FILES:
             raise ValueError(f"Expansion exceeded {PATH_IMPORT_MAX_EXPANDED_FILES} files")
@@ -450,7 +448,7 @@ def unsupported_image_reason(filename: str) -> str:
 
 def _open_imported_image(path: Path) -> Image.Image:
     if path.suffix.lower() in RAW_EXTENSIONS:
-        return extract_raw_preview_image(path)
+        return open_raw_import_image(path)
     return Image.open(path)
 
 
@@ -908,7 +906,7 @@ def register_import_file(
 
     if Path(safe_name).suffix.lower() in RAW_EXTENSIONS:
         try:
-            preview = extract_raw_preview_image(source_path)
+            preview = open_raw_import_image(source_path)
         except RawPreviewError:
             _cleanup_paths(source_path)
             raise
@@ -968,6 +966,7 @@ def process_registered_import_photo(
     thumbnail_path: Path | None = None
     preview_path: Path | None = None
     try:
+        _raise_if_import_cancelled(session, project.id)
         if progress_callback:
             progress_callback("image_open")
         with import_timing_stage(timing, "image_open"):
@@ -1064,9 +1063,24 @@ def _cancel_import_job(session: Session, job: ProcessingJob, processed_count: in
     return job
 
 
+class _ImportCancellationRequested(Exception):
+    """Stop import work before expensive RAW postprocess."""
+
+
 def _import_job_cancellation_requested(session: Session, job: ProcessingJob) -> bool:
     session.refresh(job)
     return job.cancellation_requested and job.status not in TERMINAL_JOB_STATUSES
+
+
+def _raise_if_import_cancelled(session: Session, project_id: str) -> None:
+    jobs = session.exec(
+        select(ProcessingJob)
+        .where(ProcessingJob.project_id == project_id)
+        .where(ProcessingJob.job_type == "import")
+    ).all()
+    for job in jobs:
+        if _import_job_cancellation_requested(session, job):
+            raise _ImportCancellationRequested()
 
 
 def _mark_import_photo_failed(session: Session, photo: Photo, reason: str) -> None:
@@ -1130,8 +1144,11 @@ def _run_one_import_derivative_task(project_id: str, photo_id: str, index: int) 
             session.commit()
             return _ImportDerivativeTaskResult(index=index, photo_id=photo.id, kind="already")
         try:
+            _raise_if_import_cancelled(session, project.id)
             process_registered_import_photo(session, project, photo)
             return _ImportDerivativeTaskResult(index=index, photo_id=photo.id, kind="processed")
+        except _ImportCancellationRequested:
+            return _ImportDerivativeTaskResult(index=index, photo_id=photo.id, kind="cancelled")
         except ValueError as error:
             _mark_import_photo_failed(session, photo, str(error))
             return _ImportDerivativeTaskResult(
@@ -1189,6 +1206,9 @@ def _run_import_derivatives_parallel(
             in_flight = set(pending)
             for future in done:
                 result = future.result()
+                if result.kind == "cancelled":
+                    cancelled = True
+                    continue
                 if result.kind in {"processed", "already"}:
                     processed_count += 1
                     record_progress(
@@ -1360,6 +1380,9 @@ def run_import_derivative_job(
                     if _import_job_cancellation_requested(session, job):
                         _cancel_import_job(session, job, processed_count, failed_count)
                         return
+                except _ImportCancellationRequested:
+                    _cancel_import_job(session, job, processed_count, failed_count)
+                    return
                 except ValueError as error:
                     _mark_import_photo_failed(session, photo, str(error))
                     skipped.append({"filename": photo.filename, "reason": str(error)})
