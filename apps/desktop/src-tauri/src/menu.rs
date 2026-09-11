@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use tauri::menu::{AboutMetadata, Menu, MenuBuilder, MenuEvent, MenuItemBuilder, SubmenuBuilder};
-use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow};
 use tauri_plugin_opener::OpenerExt;
 
 pub const MENU_EVENT: &str = "framepilot-menu";
@@ -50,14 +50,13 @@ fn about_metadata() -> AboutMetadata<'static> {
 }
 
 fn emit_menu_command<R: Runtime>(app: &AppHandle<R>, command: &str) {
-    let Some(window) = app.get_webview_window("main") else {
+    if app.get_webview_window("main").is_none() {
+        eprintln!("FramePilot menu command `{command}` dropped: main window is missing");
         return;
-    };
-    let payload = serde_json::to_string(command).unwrap_or_else(|_| "\"\"".into());
-    let script = format!(
-        "window.dispatchEvent(new CustomEvent('{MENU_EVENT}', {{ detail: {payload} }}));"
-    );
-    let _ = window.eval(&script);
+    }
+    if let Err(err) = app.emit(MENU_EVENT, command) {
+        eprintln!("FramePilot menu command `{command}` emit failed: {err}");
+    }
 }
 
 fn toggle_fullscreen<R: Runtime>(window: &WebviewWindow<R>) {
@@ -219,6 +218,30 @@ mod tests {
         assert_eq!(crate::preview::DETACHED_PREVIEW_MENU_ID, "detached-preview");
         assert!(crate::preview::DETACHED_PREVIEW_ACCELERATOR.is_none());
         assert!(!CUSTOM_ACCELERATORS.iter().any(|accel| accel.contains("detached")));
+    }
+
+    #[test]
+    fn emit_menu_command_uses_tauri_emit_not_eval() {
+        let catalog = include_str!("menu.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("menu catalog");
+        assert!(
+            catalog.contains("app.emit(MENU_EVENT, command)"),
+            "menu commands must use Tauri emit: {catalog}"
+        );
+        assert!(
+            catalog.contains("eprintln!"),
+            "missing main window or emit failure must eprintln: {catalog}"
+        );
+        assert!(
+            !catalog.contains("window.eval"),
+            "menu commands must not window.eval CustomEvent: {catalog}"
+        );
+        assert!(
+            !catalog.contains("dispatchEvent"),
+            "menu commands must not dispatch DOM CustomEvent from Rust: {catalog}"
+        );
     }
 
     #[test]

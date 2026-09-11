@@ -130,4 +130,8 @@ test("rust menu source remains the native catalog and avoids reserved bare-key a
   assert.notEqual(updateIndex, -1);
   const updateSlice = source.slice(updateIndex, updateIndex + 180);
   assert.doesNotMatch(updateSlice, /accelerator/);
+  const catalog = source.split("#[cfg(test)]")[0] ?? source;
+  assert.match(catalog, /app\.emit\(MENU_EVENT, command\)/);
+  assert.doesNotMatch(catalog, /window\.eval/);
+  assert.doesNotMatch(catalog, /dispatchEvent/);
 });
