@@ -9,6 +9,7 @@ All notable FramePilot releases are listed here. Version strings for the API com
 ### Leftover — unsigned desktop Release with NSIS locked-file hooks
 
 - `.github/workflows/desktop-release.yml` publishes **unsigned** GitHub Release `v2.1.3-desktop` (Windows NSIS + macOS DMG) from a `desktop.yml` run that includes [#199](https://github.com/joe-cheung-cae/frame-pilot/pull/199) (`d9d29e8e`+)
+- Published: [v2.1.3-desktop](https://github.com/joe-cheung-cae/frame-pilot/releases/tag/v2.1.3-desktop) (`2026-09-09T09:01:01Z`; NSIS + DMG assets `2026-09-09T09:29:22Z`)
 - Release notes mark **unsigned**, name the #198 locked-file stop (Retry/Cancel, no Ignore-through) plus the earlier #194/#195 Import/Export and #191 sidecar ready-line / 120s fixes, and link [docs/desktop_install.md](docs/desktop_install.md)
 - No `APP_VERSION` bump, no signing, notarization, store listing, tray / D3.06, or Phase 10
 - Issue: [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200)

@@ -41,8 +41,8 @@
 - [x] 需求拆解 — 中英残留计划 + GitHub issue [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200)
 - [x] 开发 — `desktop-release.yml` 从含 #198 的安装包运行发布 `v2.1.3-desktop`；教程优先该 Release
 - [x] 测试 — release notes + 工作流脚本检查；`npm run test:scripts`
-- [ ] 上线 — 合入后得到带 NSIS + DMG 的 GitHub Release `v2.1.3-desktop`（实现者不合入）
-- [ ] DoD-ticked — Release URL 存在后再勾残留计划上线；**不要**重勾 §2.2 / 发明第十阶段 / 编造 Win11 GUI pass
+- [x] 上线 — GitHub Release [`v2.1.3-desktop`](https://github.com/joe-cheung-cae/frame-pilot/releases/tag/v2.1.3-desktop)（`2026-09-09T09:01:01Z`；NSIS + DMG 资源 `2026-09-09T09:29:22Z`），合入 [#201](https://github.com/joe-cheung-cae/frame-pilot/pull/201)（`2b506d0`）之后
+- [x] DoD-ticked — 残留计划上线 + §1.1 本残留已交付；**不要**重勾 §2.2 / 发明第十阶段 / 编造 Win11 GUI pass
 
 ---
 

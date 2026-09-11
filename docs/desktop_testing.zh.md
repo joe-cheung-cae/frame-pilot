@@ -239,7 +239,7 @@ Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilo
 | Rust sidecar 单测 | `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` | 退出码 0；跳过前导输出、ready 文件回退、spawn cwd / `PYTHONUNBUFFERED` |
 | Windows 第一次启动 | 从 `v2.1.3-desktop` 装全新未签名 NSIS → 开始菜单 **FramePilot**（不要预先跑 `framepilot-api.exe`） | 窗口标题 `FramePilot`；项目 UI；两分钟内没有 ready-line timeout；可选 `sidecar.ready` + 对分配端口 `GET /health` |
 
-不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)。不要动托盘 / D3.06 / #41。不改 `APP_VERSION`。不签名。手工路径：[未签名桌面安装教程](desktop_install.zh.md)。Win11 冷首启、导入/导出与锁文件升级安装包：残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) `v2.1.3-desktop`（不要在此编造通过）。
+不要重开 [#144](https://github.com/joe-cheung-cae/frame-pilot/issues/144) / [#184](https://github.com/joe-cheung-cae/frame-pilot/issues/184)。不要动托盘 / D3.06 / #41。不改 `APP_VERSION`。不签名。手工路径：[未签名桌面安装教程](desktop_install.zh.md)。Win11 冷首启、导入/导出与锁文件升级安装包：残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) [`v2.1.3-desktop`](https://github.com/joe-cheung-cae/frame-pilot/releases/tag/v2.1.3-desktop)（`2026-09-09T09:01:01Z`）（不要在此编造通过）。
 
 ---
 
@@ -252,4 +252,4 @@ Windows NSIS GUI pass 仍是 [#144](https://github.com/joe-cheung-cae/frame-pilo
 | Hook 接线 | `bash scripts/check-nsis-locked-upgrade-hooks.sh` | 退出码 0；`installerHooks` → `windows/hooks.nsh`；只有 Retry/Cancel；没有忽略 |
 | Win11 应用仍在运行时升级 | 已装旧 NSIS + FramePilot UI 已起来 + 跑 **`v2.1.3-desktop`** / #198+ NSIS | 安装程序以 Retry/Cancel 停住；Cancel 保持旧树；File → Quit + Retry 后 `_internal\MSVCP140.dll` 存在；新建工程 → 导入/导出能打开 |
 
-锁文件升级检查请用残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) `v2.1.3-desktop`。已发布的 `v2.1.2-desktop` NSIS **不含**这些 hook。若旧向导弹出文件占用对话框，点 **Abort**，退出 FramePilot，再重试——永远不要点忽略。书面路径：[未签名桌面安装教程](desktop_install.zh.md#升级先关掉应用)。计划：[docs/plans/2026-09-09-unsigned-desktop-nsis-hooks-release.md](plans/2026-09-09-unsigned-desktop-nsis-hooks-release.zh.md)。不要重开 #194 / #196 / #190。不要动托盘 / D3.06 / #41。不改 `APP_VERSION`。不签名。
+锁文件升级检查请用残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) [`v2.1.3-desktop`](https://github.com/joe-cheung-cae/frame-pilot/releases/tag/v2.1.3-desktop)（`2026-09-09T09:01:01Z`）。已发布的 `v2.1.2-desktop` NSIS **不含**这些 hook。若旧向导弹出文件占用对话框，点 **Abort**，退出 FramePilot，再重试——永远不要点忽略。书面路径：[未签名桌面安装教程](desktop_install.zh.md#升级先关掉应用)。计划：[docs/plans/2026-09-09-unsigned-desktop-nsis-hooks-release.md](plans/2026-09-09-unsigned-desktop-nsis-hooks-release.zh.md)。不要重开 #194 / #196 / #190。不要动托盘 / D3.06 / #41。不改 `APP_VERSION`。不签名。

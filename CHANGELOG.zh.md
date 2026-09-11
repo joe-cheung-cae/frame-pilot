@@ -9,6 +9,7 @@
 ### 残留 — 含 NSIS 锁文件 hooks 的未签名桌面 Release
 
 - `.github/workflows/desktop-release.yml` 从含 [#199](https://github.com/joe-cheung-cae/frame-pilot/pull/199)（`d9d29e8e`+）的 `desktop.yml` 运行发布**未签名** GitHub Release `v2.1.3-desktop`（Windows NSIS + macOS DMG）
+- 已发布：[v2.1.3-desktop](https://github.com/joe-cheung-cae/frame-pilot/releases/tag/v2.1.3-desktop)（`2026-09-09T09:01:01Z`；NSIS + DMG 资源 `2026-09-09T09:29:22Z`）
 - Release notes 标明 **unsigned / 未签名**，写明 #198 锁文件停住（Retry/Cancel，无 Ignore-through）以及此前 #194/#195 导入/导出与 #191 sidecar ready-line / 120 秒修，并链到 [docs/desktop_install.md](docs/desktop_install.zh.md)
 - 不改 `APP_VERSION`，不签名、不公证、不上架，不动托盘 / D3.06，无第十阶段
 - Issue：[#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200)

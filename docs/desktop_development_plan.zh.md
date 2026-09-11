@@ -2,9 +2,9 @@
 
 > 语言：[English](desktop_development_plan.md) | **中文**
 
-> **文档版本**：1.15  
+> **文档版本**：1.16  
 > **创建日期**：2026-08-18  
-> **最近审阅**：2026-09-09（残留含 NSIS 锁文件 hooks 的未签名桌面 Release #200）  
+> **最近审阅**：2026-09-11（残留 #200 上线：未签名 `v2.1.3-desktop` Release）  
 > **目标**：将当前本地 Web 应用（v2.0.0-rc2）重新设计并打包为可安装的 Windows 与 macOS 桌面应用  
 > **仓库**：https://github.com/joe-cheung-cae/frame-pilot  
 > **相关已有规划**：`develop_plan.md` 已将 “Local desktop packaging with Tauri or Electron” 列为 stretch goal；本文件将其正式产品化。  
@@ -191,7 +191,7 @@ FramePilot Desktop
 | 含 sidecar 修的未签名桌面 Release | 残留 [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) 发布含 #191 的**未签名** `v2.1.1-desktop` NSIS + DMG | 残留 [#192](https://github.com/joe-cheung-cae/frame-pilot/issues/192) `[x]` 工作流 |
 | 含导入/导出修的未签名桌面 Release | 残留 [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) 发布含 #195 的**未签名** `v2.1.2-desktop` NSIS + DMG | 残留 [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196) `[x]` 工作流 |
 | NSIS 升级时 `_internal` 被锁 | 残留 [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) PREINSTALL/PREUNINSTALL 在壳/sidecar 仍运行或 `_internal` DLL 被锁时拦住（Retry/Cancel；不能 Ignore） | 残留 [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198) `[x]` 代码 |
-| 含 NSIS 锁文件 hooks 的未签名桌面 Release | 残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) 发布含 #198 hooks 的**未签名** `v2.1.3-desktop` NSIS + DMG | 残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) `[x]` 工作流 |
+| 含 NSIS 锁文件 hooks 的未签名桌面 Release | 残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) 已发布含 #198 hooks 的**未签名** [`v2.1.3-desktop`](https://github.com/joe-cheung-cae/frame-pilot/releases/tag/v2.1.3-desktop) NSIS + DMG（`2026-09-09T09:01:01Z`） | 残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) `[x]` 上线 |
 
 以上项目若被跳过，必须写入 [docs/v2_known_limitations.md](v2_known_limitations.zh.md)（D5.05）。
 
@@ -485,6 +485,7 @@ frame-pilot/
 | 2026-09-09 | 1.13 | 残留含导入/导出修的未签名桌面 Release [#196](https://github.com/joe-cheung-cae/frame-pilot/issues/196)：`desktop-release.yml` 发布 `v2.1.2-desktop`；不要重勾 §2.2 / 发明第十阶段 |
 | 2026-09-09 | 1.14 | 残留 NSIS `_internal` 被锁升级 [#198](https://github.com/joe-cheung-cae/frame-pilot/issues/198)：installerHooks 在 sidecar DLL 被锁时停住；不要重勾 §2.2 / 发明第十阶段 / 编造 Win11 GUI pass |
 | 2026-09-09 | 1.15 | 残留含 NSIS 锁文件 hooks 的未签名桌面 Release [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200)：`desktop-release.yml` 发布 `v2.1.3-desktop`；不要重勾 §2.2 / 发明第十阶段 |
+| 2026-09-11 | 1.16 | 残留 [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200) 上线：[v2.1.3-desktop](https://github.com/joe-cheung-cae/frame-pilot/releases/tag/v2.1.3-desktop) NSIS + DMG（`2026-09-09T09:01:01Z`）；不要重勾 §2.2 / 发明第十阶段 |
 
 ---
 

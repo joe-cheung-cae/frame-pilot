@@ -41,8 +41,8 @@ Leftover unsigned desktop Release with NSIS locked-file hooks
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue [#200](https://github.com/joe-cheung-cae/frame-pilot/issues/200)
 - [x] 开发 — `desktop-release.yml` publishes `v2.1.3-desktop` from a #198+ installer run; tutorial prefers that Release
 - [x] 测试 — release-notes + workflow script checks; `npm run test:scripts`
-- [ ] 上线 — GitHub Release `v2.1.3-desktop` with NSIS + DMG after merge (implementer does not merge)
-- [ ] DoD-ticked — leftover-plan 上线 after the Release URL exists; do **not** re-tick §2.2 / invent Phase 10 / invent a Win11 GUI pass
+- [x] 上线 — GitHub Release [`v2.1.3-desktop`](https://github.com/joe-cheung-cae/frame-pilot/releases/tag/v2.1.3-desktop) (`2026-09-09T09:01:01Z`; NSIS + DMG assets `2026-09-09T09:29:22Z`) after [#201](https://github.com/joe-cheung-cae/frame-pilot/pull/201) (`2b506d0`)
+- [x] DoD-ticked — leftover-plan 上线 + §1.1 leftover shipped; do **not** re-tick §2.2 / invent Phase 10 / invent a Win11 GUI pass
 
 ---
 
