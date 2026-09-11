@@ -49,10 +49,10 @@ Leftover RAW fallback develop (no embedded preview)
 - [x] 评审 — adversarial review against live RAW import path
 - [x] 归档 — 开发 handoff recorded (this commit); 开发 stays `[ ]`
 - [x] 开发 — tests first; `open_raw_import_image` thumb-then-postprocess; invert skip tests; tick leftover-plan 开发 `[x]` in that same commit (do **not** tick 上线)
-- [ ] 测试 — named pytest + `lint:api`; no camera files
-- [ ] 上线 — living docs + issue comment; do **not** merge; do **not** invent Phase 10
+- [x] 测试 — named pytest + `lint:api`; no camera files
+- [x] 上线 — living docs + issue comment; do **not** merge; do **not** invent Phase 10
 
-This 归档 commit ticks **归档** only. Leave 开发 `[ ]`. Do not tick 上线. Do not claim color-managed RAW.
+This 上线 commit ticks **测试** `[x]` (named pytest already green) and **上线** `[x]`. Do not merge to `main`. Do not invent Phase 10. Do not claim color-managed RAW.
 
 ---
 
@@ -171,3 +171,13 @@ Reviewed plan is locked for 开发. Status: 需求拆解 `[x]`, 评审 `[x]`, �
 Do not implement production Python in this 归档 commit. Follow **this reviewed plan** (§2, §5, §6).
 
 Pointers: leftover [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202); draft PR [#203](https://github.com/joe-cheung-cae/frame-pilot/pull/203); S9.04 [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162) stays shipped `extract_thumb` only.
+
+---
+
+## 10. 上线 (上线, 2026-09-11T03:25:56Z)
+
+Named pytest + `lint:api` already green on 测试. This commit records leftover RAW fallback develop in living docs. Status: 需求拆解 `[x]`, 评审 `[x]`, 归档 `[x]`, 开发 `[x]`, 测试 `[x]`, 上线 `[x]`.
+
+Shipped on `feature/leftover-raw-develop` (not merged to `main`): `open_raw_import_image` tries `extract_thumb` first, then locked `postprocess` only when thumb fails. `extract_raw_preview_image` stays thumb-only. Skip when both fail: `RAW file could not be developed; no embedded preview and demosaic failed`. Cleanup `originals/` copy.
+
+Draft PR [#203](https://github.com/joe-cheung-cae/frame-pilot/pull/203) `Refs #202`. Do **not** merge. Do **not** invent Phase 10 / S10 / 2.3. Do not reopen S9.04 [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162). Color-managed RAW / extra extensions stay unscheduled. No `APP_VERSION` bump.

@@ -49,10 +49,10 @@
 - [x] 评审 — 对照现行 RAW 导入路径做对抗审阅
 - [x] 归档 — 已记录 开发 交接（本次提交）；开发 保持 `[ ]`
 - [x] 开发 — 测试先行；`open_raw_import_image` 先 thumb 再 postprocess；反转跳过测试；同一提交勾残留计划 开发 `[x]`（**不要**勾 上线）
-- [ ] 测试 — 点名 pytest + `lint:api`；无相机文件
-- [ ] 上线 — 活文档 + issue 评论；**不要**合并；**不要**发明第十阶段
+- [x] 测试 — 点名 pytest + `lint:api`；无相机文件
+- [x] 上线 — 活文档 + issue 评论；**不要**合并；**不要**发明第十阶段
 
-本次 归档 提交只勾 **归档**。开发 保持 `[ ]`。不要勾 上线。不要声称色彩管理 RAW。
+本次 上线 提交勾 **测试** `[x]`（点名 pytest 已绿）和 **上线** `[x]`。不要合并进 `main`。不要发明第十阶段。不要声称色彩管理 RAW。
 
 ---
 
@@ -171,3 +171,13 @@
 本次 归档 提交不要实现生产 Python。以**本评审后的计划**（§2、§5、§6）为准。
 
 指针：残留 [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202)；草稿 PR [#203](https://github.com/joe-cheung-cae/frame-pilot/pull/203)；S9.04 [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162) 保持已交付、只走 `extract_thumb`。
+
+---
+
+## 10. 上线（上线，2026-09-11T03:25:56Z）
+
+点名 pytest + `lint:api` 已在 测试 绿灯。本提交把残留 RAW 回退显影写入活文档。状态：需求拆解 `[x]`，评审 `[x]`，归档 `[x]`，开发 `[x]`，测试 `[x]`，上线 `[x]`。
+
+已在 `feature/leftover-raw-develop` 交付（未合并进 `main`）：`open_raw_import_image` 先 `extract_thumb`，仅当 thumb 失败才走锁定 `postprocess`。`extract_raw_preview_image` 仍只抽 thumb。两条路径都失败时跳过：`RAW file could not be developed; no embedded preview and demosaic failed`。清理 `originals/` 拷贝。
+
+草稿 PR [#203](https://github.com/joe-cheung-cae/frame-pilot/pull/203) 写 `Refs #202`。**不要**合并。**不要**发明第十阶段 / S10 / 2.3。不要把 S9.04 [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162) 当未完成重开。色彩管理 RAW / 额外扩展名仍未排期。不改 `APP_VERSION`。

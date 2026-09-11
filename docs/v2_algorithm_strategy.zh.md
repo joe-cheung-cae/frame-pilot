@@ -6,7 +6,7 @@ FramePilot v2 以确定性、本地、可解释的算法为基线。可选模型
 
 ## 基线信号
 
-每个导入的 JPEG、PNG、WebP、HEIC/HEIF、AVIF 或带内嵌预览的 RAW 文件记录本地元数据和派生分析值：
+每个导入的 JPEG、PNG、WebP、HEIC/HEIF、AVIF 或 RAW（`.dng`、`.arw`、`.cr3`、`.nef`）文件记录本地元数据和派生分析值：
 
 - 可用时的拍摄时间、相机型号、镜头型号、焦距、光圈、快门和 ISO
 - 尺寸、文件大小、文件 mtime、SHA-256 内容哈希和来源身份
@@ -16,7 +16,7 @@ FramePilot v2 以确定性、本地、可解释的算法为基线。可选模型
 - 锐度、模糊风险、曝光、对比度、噪声风险、美感平衡
 - 实验性人脸、脸部锐度、睁眼和人脸质量信号
 
-HEIC 静帧是第八阶段（解码到 RGB，再走同一套评分/分组路径）并且已经交付。RAW 内嵌预览导入是 S9.04：原样拷贝字节，只抽 LibRaw `extract_thumb`，在该预览 RGB 上评分和分组。FramePilot 不 demosaic。没有预览的 RAW 以明确本地消息跳过。
+HEIC 静帧是第八阶段（解码到 RGB，再走同一套评分/分组路径）并且已经交付。RAW 内嵌预览导入是 S9.04（只抽 `extract_thumb`）。残留 [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202) 仅在 thumb 失败时回退 demosaic（锁定 `postprocess`；不是 RAW 编辑器）。在该 RGB 上评分和分组。两条路径都失败的文件以明确本地消息跳过。
 
 ## 相似分组
 
