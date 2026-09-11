@@ -8,6 +8,8 @@
 
 **相关：** `develop_plan.md` §1.1；[docs/desktop_development_plan.md](../desktop_development_plan.zh.md) §5.6 / §10；[docs/v2_known_limitations.md](../v2_known_limitations.zh.md) 延后的格式；[docs/api.md](../api.zh.md) RAW 段；`apps/api/app/image/raw_preview.py`；`apps/api/app/services/importing.py`。
 
+需求拆解 只写文档合同。评审 已按现行 RAW 导入路径修正规格漏洞。本次 归档 提交只记录 开发 交接。不要实现生产 Python。不要勾 开发 或 上线。不要声称色彩管理 RAW。不要发明第十阶段 / S10 / 2.3。
+
 ---
 
 ## 1. 为什么是残留，不是第十阶段
@@ -45,10 +47,12 @@
 
 - [x] 需求拆解 — 中英残留计划 + GitHub issue [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202)
 - [x] 评审 — 对照现行 RAW 导入路径做对抗审阅
-- [ ] 归档 — 残留板可进入开发
-- [ ] 开发 — `open_raw_import_image` 在 thumb 失败时回退 `postprocess`
+- [x] 归档 — 已记录 开发 交接（本次提交）；开发 保持 `[ ]`
+- [ ] 开发 — 测试先行；`open_raw_import_image` 先 thumb 再 postprocess；反转跳过测试；同一提交勾残留计划 开发 `[x]`（**不要**勾 上线）
 - [ ] 测试 — 点名 pytest + `lint:api`；无相机文件
 - [ ] 上线 — 活文档 + issue 评论；**不要**合并；**不要**发明第十阶段
+
+本次 归档 提交只勾 **归档**。开发 保持 `[ ]`。不要勾 上线。不要声称色彩管理 RAW。
 
 ---
 
@@ -148,3 +152,22 @@
 5. 双重 demosaic（register 探测 + 随后 `_open_imported_image`）在 `half_size=True` 下可接受。不要加缓存或编辑器 UI。
 
 非漏洞：kwargs 未收紧；额外扩展名仍排除；不改 `APP_VERSION`；开发 / 上线保持 `[ ]`。
+
+---
+
+## 9. 归档交接（归档，2026-09-11）
+
+评审后的计划已锁定给 开发。状态：需求拆解 `[x]`，评审 `[x]`，归档 `[x]`。开发 仍是 `[ ]`（本分支还没有 `feat: demosaic RAW without embedded preview` 提交）。
+
+**开发必须**在主题为 `feat: demosaic RAW without embedded preview` 的同一提交里：
+
+1. **测试先行。** 按 §6 反转跳过测试。用 `tiny_dng_without_preview_bytes()` 作为无预览 CFA 的正向夹具。垃圾字节两条路径都失败。对**有**预览的文件保持 `test_extract_raw_preview_does_not_call_postprocess` 为绿。不要提交相机 RAW。
+2. 新增 `open_raw_import_image`：先 `extract_thumb`，仅当 thumb 失败才走锁定 `postprocess`（`use_camera_wb=True`、`no_auto_bright=True`、`output_bps=8`、`half_size=True`）。`extract_raw_preview_image` 仍只抽 thumb，绝不能调用 `postprocess`。在 `with rawpy.imread` 内部拷贝 RGB。
+3. 反转导入：`expand_import_paths` 按后缀收集 RAW（不做 `extract_thumb` / `postprocess` 探测）。`register_import_file` 仍是跳过且不留拷贝的闸门。`_open_imported_image` 调用 `open_raw_import_image`。双路径跳过原因：`RAW file could not be developed; no embedded preview and demosaic failed`。清理 `originals/` 拷贝；不留残余字节。
+4. **同一提交**勾残留计划 开发 `[x]`（英+中）。
+5. `git push -u origin HEAD`。不要开第二个 PR（草稿 PR 是 [#203](https://github.com/joe-cheung-cae/frame-pilot/pull/203)）。
+6. **不要**勾 上线。**不要**声称色彩管理 RAW、额外扩展名（`.cr2` `.raf` `.orf` `.rw2`）或 RAW 编辑器。不改 `APP_VERSION`。不要发明第十阶段 / S10 / 2.3。不要把 S9.04 [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162) 当未完成重开。
+
+本次 归档 提交不要实现生产 Python。以**本评审后的计划**（§2、§5、§6）为准。
+
+指针：残留 [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202)；草稿 PR [#203](https://github.com/joe-cheung-cae/frame-pilot/pull/203)；S9.04 [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162) 保持已交付、只走 `extract_thumb`。

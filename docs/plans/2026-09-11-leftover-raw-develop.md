@@ -8,6 +8,8 @@
 
 **Related:** `develop_plan.md` §1.1; [docs/desktop_development_plan.md](../desktop_development_plan.md) §5.6 / §10; [docs/v2_known_limitations.md](../v2_known_limitations.md) Deferred Formats; [docs/api.md](../api.md) RAW paragraph; `apps/api/app/image/raw_preview.py`; `apps/api/app/services/importing.py`.
 
+需求拆解 was documentation contract only. 评审 corrected spec holes against the live RAW import path. This 归档 commit records the 开发 handoff only. Do not implement production Python. Do not tick 开发 or 上线. Do not claim color-managed RAW. Do not invent Phase 10 / S10 / 2.3.
+
 ---
 
 ## 1. Why leftover, not Phase 10
@@ -45,10 +47,12 @@ Leftover RAW fallback develop (no embedded preview)
 
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202)
 - [x] 评审 — adversarial review against live RAW import path
-- [ ] 归档 — leftover board ready for 开发
-- [ ] 开发 — `open_raw_import_image` fallback `postprocess` when thumb fails
+- [x] 归档 — 开发 handoff recorded (this commit); 开发 stays `[ ]`
+- [ ] 开发 — tests first; `open_raw_import_image` thumb-then-postprocess; invert skip tests; tick leftover-plan 开发 `[x]` in that same commit (do **not** tick 上线)
 - [ ] 测试 — named pytest + `lint:api`; no camera files
 - [ ] 上线 — living docs + issue comment; do **not** merge; do **not** invent Phase 10
+
+This 归档 commit ticks **归档** only. Leave 开发 `[ ]`. Do not tick 上线. Do not claim color-managed RAW.
 
 ---
 
@@ -148,3 +152,22 @@ Holes fixed in this commit (live tree made the 需求拆解 spec incomplete):
 5. Double demosaic (register probe + later `_open_imported_image`) is accepted with `half_size=True`. Do not add a cache or editor UI.
 
 Non-holes: kwargs not tightened; extra extensions still out; no `APP_VERSION` bump; 开发 / 上线 stay `[ ]`.
+
+---
+
+## 9. Archive handoff (归档, 2026-09-11)
+
+Reviewed plan is locked for 开发. Status: 需求拆解 `[x]`, 评审 `[x]`, 归档 `[x]`. 开发 is still `[ ]` (no `feat: demosaic RAW without embedded preview` commit on this branch).
+
+**开发 MUST**, in one commit with subject `feat: demosaic RAW without embedded preview`:
+
+1. **Tests first.** Invert skip tests per §6. Use `tiny_dng_without_preview_bytes()` as the positive CFA-without-preview fixture. Garbage bytes still fail both paths. Keep `test_extract_raw_preview_does_not_call_postprocess` green for files **with** a preview. Do not commit camera RAW.
+2. Add `open_raw_import_image` that tries `extract_thumb` first, then locked `postprocess` only when thumb fails (`use_camera_wb=True`, `no_auto_bright=True`, `output_bps=8`, `half_size=True`). `extract_raw_preview_image` stays thumb-only and must never call `postprocess`. Copy RGB inside the `with rawpy.imread` block.
+3. Invert import: `expand_import_paths` collects RAW by suffix (no `extract_thumb` / `postprocess` probe). `register_import_file` remains the skip-without-copy gate. `_open_imported_image` calls `open_raw_import_image`. Both-path skip reason: `RAW file could not be developed; no embedded preview and demosaic failed`. Cleanup `originals/` copy; no leftover bytes.
+4. Tick leftover-plan 开发 `[x]` (en+zh) in **that same commit**.
+5. `git push -u origin HEAD`. Do not open a second PR (draft PR is [#203](https://github.com/joe-cheung-cae/frame-pilot/pull/203)).
+6. **Must not** tick 上线. **Must not** claim color-managed RAW, extra extensions (`.cr2` `.raf` `.orf` `.rw2`), or a RAW editor. Do not bump `APP_VERSION`. Do not invent Phase 10 / S10 / 2.3. Do not reopen S9.04 [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162).
+
+Do not implement production Python in this 归档 commit. Follow **this reviewed plan** (§2, §5, §6).
+
+Pointers: leftover [#202](https://github.com/joe-cheung-cae/frame-pilot/issues/202); draft PR [#203](https://github.com/joe-cheung-cae/frame-pilot/pull/203); S9.04 [#162](https://github.com/joe-cheung-cae/frame-pilot/issues/162) stays shipped `extract_thumb` only.
