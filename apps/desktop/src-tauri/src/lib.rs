@@ -18,7 +18,7 @@ use std::time::Duration;
 use data_dir::{
     default_anchor_dir, ensure_data_dir, resolve_runtime_data_dir, write_data_dir_pointer,
 };
-use menu::{build_app_menu, handle_menu_event, DesktopPaths};
+use menu::{build_app_menu, handle_menu_event, take_menu_command, DesktopPaths, PendingMenuCommand};
 use sidecar::{
     allocate_loopback_port, api_pythonpath, app_quit_action, blocking_error_script,
     close_choice_from_handshake, close_decision, close_decision_requests_shutdown, close_job_kind,
@@ -348,12 +348,14 @@ pub fn run() {
             preview::toggle_detached_preview,
             preview::close_detached_preview,
             apply_data_directory,
+            take_menu_command,
             qa::qa_write_evidence,
             qa::qa_bootstrap,
             qa_request_close,
         ])
         .manage(Arc::clone(&state))
         .manage(DesktopPaths::new(data_dir.clone()))
+        .manage(PendingMenuCommand::new())
         .manage(preview::PreviewHost { port })
         .manage(qa::load_desktop_qa_state(Some(api_base_url(port))))
         .on_menu_event(|app, event| handle_menu_event(app, event))

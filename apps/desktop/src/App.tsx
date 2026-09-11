@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { MemoryRouter } from "react-router-dom";
 import { CullingWorkspace } from "@/components/CullingWorkspace";
@@ -18,7 +19,11 @@ import {
   setDesktopQaRoute,
   writeCullWorkspaceMounted,
 } from "./lib/desktopQaRunner";
-import { hrefForNativeMenuCommand } from "./lib/nativeMenu";
+import {
+  hrefForNativeMenuCommand,
+  TAKE_MENU_COMMAND,
+  TAKE_MENU_COMMAND_INTERVAL_MS,
+} from "./lib/nativeMenu";
 import { AppRoutes } from "./router";
 
 const QA_NAVIGATE_EVENT = "framepilot-qa-navigate";
@@ -26,28 +31,39 @@ const QA_NAVIGATE_EVENT = "framepilot-qa-navigate";
 function NativeMenuListener() {
   const navigator = useNavigator();
   const pathname = usePathname();
+  const navigatorRef = useRef(navigator);
+  const pathnameRef = useRef(pathname);
+  navigatorRef.current = navigator;
+  pathnameRef.current = pathname;
   setDesktopQaNavigate((href) => navigator.push(href));
   setDesktopQaRoute(pathname);
   useEffect(() => {
     const onQaNavigate = (event: Event) => {
       const href = (event as CustomEvent<string>).detail;
       if (typeof href === "string" && href) {
-        navigator.push(href);
+        navigatorRef.current.push(href);
       }
     };
     window.addEventListener(QA_NAVIGATE_EVENT, onQaNavigate);
     return () => {
       window.removeEventListener(QA_NAVIGATE_EVENT, onQaNavigate);
     };
-  }, [navigator]);
+  }, []);
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    void listen<string>(MENU_EVENT, (event) => {
-      const href = hrefForNativeMenuCommand(event.payload, pathname, loadLastOpenedProjectId());
+    const applyCommand = (payload: unknown) => {
+      const href = hrefForNativeMenuCommand(
+        payload,
+        pathnameRef.current,
+        loadLastOpenedProjectId(),
+      );
       if (href) {
-        navigator.push(href);
+        navigatorRef.current.push(href);
       }
+    };
+    void listen<string>(MENU_EVENT, (event) => {
+      applyCommand(event.payload);
     })
       .then((stop) => {
         if (disposed) {
@@ -59,11 +75,23 @@ function NativeMenuListener() {
       .catch((error: unknown) => {
         console.error("FramePilot native menu listen failed", error);
       });
+    const poll = window.setInterval(() => {
+      void invoke<string | null>(TAKE_MENU_COMMAND)
+        .then((command) => {
+          if (!disposed && command) {
+            applyCommand(command);
+          }
+        })
+        .catch((error: unknown) => {
+          console.error("FramePilot native menu take failed", error);
+        });
+    }, TAKE_MENU_COMMAND_INTERVAL_MS);
     return () => {
       disposed = true;
+      window.clearInterval(poll);
       unlisten?.();
     };
-  }, [navigator, pathname]);
+  }, []);
   return null;
 }
 
