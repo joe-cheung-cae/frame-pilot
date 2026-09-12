@@ -1044,6 +1044,10 @@ mod tests {
             "NativeMenuListener must register React navigate on window: {app}"
         );
         assert!(
+            app.contains("take_menu_command") || app.contains("TAKE_MENU_COMMAND"),
+            "NativeMenuListener must poll take_menu_command over IPC: {app}"
+        );
+        assert!(
             app.contains("setDesktopQaMountCull"),
             "CullOverlay must register React setState on window during render: {app}"
         );

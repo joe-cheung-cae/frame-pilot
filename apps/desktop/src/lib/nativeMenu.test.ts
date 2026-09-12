@@ -20,7 +20,8 @@ mock.module("@tauri-apps/api/event", {
   },
 });
 
-const { hrefForNativeMenuCommand, subscribeNativeMenu } = await import("./nativeMenu.ts");
+const { hrefForNativeMenuCommand, menuCommandFromPayload, subscribeNativeMenu, TAKE_MENU_COMMAND } =
+  await import("./nativeMenu.ts");
 
 test("home without lastOpened Import goes to create-project workflow", () => {
   assert.equal(hrefForNativeMenuCommand("import", "/", null), "/projects/new?workflow=import");
@@ -47,6 +48,18 @@ test("native menu listen on home without lastOpened navigates Import", async () 
   }
   assert.deepEqual(hrefs, ["/projects/new?workflow=import"]);
   unlisten();
+});
+
+test("wrapped emit payload still navigates Import", () => {
+  assert.equal(menuCommandFromPayload({ payload: "import" }), "import");
+  assert.equal(
+    hrefForNativeMenuCommand({ payload: "import" }, "/", null),
+    "/projects/new?workflow=import",
+  );
+});
+
+test("take_menu_command is the packaged IPC name", () => {
+  assert.equal(TAKE_MENU_COMMAND, "take_menu_command");
 });
 
 test("native menu listen with lastOpened navigates Import", async () => {

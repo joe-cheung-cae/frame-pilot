@@ -1,10 +1,11 @@
 //! Native application menu for the FramePilot desktop shell.
 
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
 use tauri::menu::{AboutMetadata, Menu, MenuBuilder, MenuEvent, MenuItemBuilder, SubmenuBuilder};
-use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State, WebviewWindow};
 use tauri_plugin_opener::OpenerExt;
 
 pub const MENU_EVENT: &str = "framepilot-menu";
@@ -41,6 +42,42 @@ impl DesktopPaths {
     }
 }
 
+/// File menu commands queued for the packaged shell.
+///
+/// Tauri 2 `app.emit` still delivers to the webview through `webview.eval`
+/// (`emit_js`). On Joe's packaged Win11 WebView that path can stay silent
+/// after leftover #204. `invoke("take_menu_command")` uses IPC instead.
+pub struct PendingMenuCommand {
+    commands: Mutex<VecDeque<String>>,
+}
+
+impl PendingMenuCommand {
+    pub fn new() -> Self {
+        Self {
+            commands: Mutex::new(VecDeque::new()),
+        }
+    }
+
+    pub fn push(&self, command: impl Into<String>) {
+        match self.commands.lock() {
+            Ok(mut guard) => guard.push_back(command.into()),
+            Err(poisoned) => poisoned.into_inner().push_back(command.into()),
+        }
+    }
+
+    pub fn take(&self) -> Option<String> {
+        match self.commands.lock() {
+            Ok(mut guard) => guard.pop_front(),
+            Err(poisoned) => poisoned.into_inner().pop_front(),
+        }
+    }
+}
+
+#[tauri::command]
+pub fn take_menu_command(pending: State<'_, PendingMenuCommand>) -> Option<String> {
+    pending.take()
+}
+
 fn about_metadata() -> AboutMetadata<'static> {
     AboutMetadata {
         name: Some("FramePilot".into()),
@@ -50,6 +87,9 @@ fn about_metadata() -> AboutMetadata<'static> {
 }
 
 fn emit_menu_command<R: Runtime>(app: &AppHandle<R>, command: &str) {
+    if let Some(pending) = app.try_state::<PendingMenuCommand>() {
+        pending.push(command);
+    }
     if app.get_webview_window("main").is_none() {
         eprintln!("FramePilot menu command `{command}` dropped: main window is missing");
         return;
@@ -231,6 +271,14 @@ mod tests {
             "menu commands must use Tauri emit: {catalog}"
         );
         assert!(
+            catalog.contains("pending.push(command)"),
+            "menu commands must queue for invoke take_menu_command: {catalog}"
+        );
+        assert!(
+            catalog.contains("pub fn take_menu_command"),
+            "packaged Win11 must take menu commands over IPC: {catalog}"
+        );
+        assert!(
             catalog.contains("eprintln!"),
             "missing main window or emit failure must eprintln: {catalog}"
         );
@@ -242,6 +290,17 @@ mod tests {
             !catalog.contains("dispatchEvent"),
             "menu commands must not dispatch DOM CustomEvent from Rust: {catalog}"
         );
+    }
+
+    #[test]
+    fn pending_menu_command_is_fifo() {
+        let pending = PendingMenuCommand::new();
+        assert_eq!(pending.take(), None);
+        pending.push("import");
+        pending.push("export");
+        assert_eq!(pending.take().as_deref(), Some("import"));
+        assert_eq!(pending.take().as_deref(), Some("export"));
+        assert_eq!(pending.take(), None);
     }
 
     #[test]
