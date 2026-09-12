@@ -41,8 +41,8 @@ Leftover Win11 File menu emit still does not navigate
 - [x] 需求拆解 — bilingual leftover plan + GitHub issue [#206](https://github.com/joe-cheung-cae/frame-pilot/issues/206)
 - [x] 开发 — `PendingMenuCommand` + `take_menu_command`; desktop poll
 - [x] 测试 — desktop `nativeMenu` / `desktopQaRunner` unit tests; `typecheck:desktop`; web unit 272 + vitest 73. Do not invent a cargo pass on this WSL host.
-- [ ] 上线 — merge + follow-on unsigned NSIS for packaged Win11 (implementer does not merge)
-- [ ] DoD-ticked — leftover-plan 上线 after a #206+ NSIS exists; do **not** invent a dated Win11 GUI pass / Phase 10 / re-tick §2.2
+- [ ] 上线 — #207 merged (`5d15588`); Joe’s #206 overlay (`2026-09-12T08:56:28+08:00`) still stayed on the three-list poll. Follow-on leftover [#208](https://github.com/joe-cheung-cae/frame-pilot/issues/208). Do not tick.
+- [ ] DoD-ticked — do **not** invent a dated Win11 GUI pass / Phase 10 / re-tick §2.2
 
 ---
 

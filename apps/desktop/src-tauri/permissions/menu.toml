@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-take-menu-command"
+description = "Allow the packaged shell to take queued File menu commands over IPC"
+commands.allow = ["take_menu_command"]

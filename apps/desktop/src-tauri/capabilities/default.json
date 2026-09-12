@@ -8,6 +8,7 @@
     "core:window:allow-set-focus",
     "window-state:default",
     "dialog:default",
-    "opener:allow-reveal-item-in-dir"
+    "opener:allow-reveal-item-in-dir",
+    "allow-take-menu-command"
   ]
 }
