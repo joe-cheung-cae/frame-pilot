@@ -24,8 +24,11 @@ const {
   ALLOW_TAKE_MENU_COMMAND,
   hrefForNativeMenuCommand,
   menuCommandFromPayload,
+  menuCommandFromSidecarPayload,
+  SIDECAR_MENU_COMMAND_PATH,
   subscribeNativeMenu,
   TAKE_MENU_COMMAND,
+  takeSidecarMenuCommand,
 } = await import("./nativeMenu.ts");
 
 test("home without lastOpened Import goes to create-project workflow", () => {
@@ -66,6 +69,32 @@ test("wrapped emit payload still navigates Import", () => {
 test("take_menu_command is the packaged IPC name", () => {
   assert.equal(TAKE_MENU_COMMAND, "take_menu_command");
   assert.equal(ALLOW_TAKE_MENU_COMMAND, "allow-take-menu-command");
+});
+
+test("sidecar menu command path is the packaged HTTP take", () => {
+  assert.equal(SIDECAR_MENU_COMMAND_PATH, "/api/desktop/menu-command");
+  assert.equal(menuCommandFromSidecarPayload({ command: "import" }), "import");
+  assert.equal(menuCommandFromSidecarPayload({ command: null }), null);
+  assert.equal(menuCommandFromSidecarPayload({}), null);
+});
+
+test("takeSidecarMenuCommand reads Import from loopback GET", async () => {
+  const previousFetch = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    urls.push(String(input));
+    return {
+      ok: true,
+      json: async () => ({ command: "import" }),
+    } as Response;
+  }) as typeof fetch;
+  try {
+    const command = await takeSidecarMenuCommand("http://127.0.0.1:4192");
+    assert.equal(command, "import");
+    assert.deepEqual(urls, ["http://127.0.0.1:4192/api/desktop/menu-command"]);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
 });
 
 test("native menu listen with lastOpened navigates Import", async () => {

@@ -142,8 +142,10 @@ test("runner module calls production registerDesktopProjectRoot and importPhotos
   assert.match(appSource, /flushSync/);
   assert.match(appSource, /CullOverlay/);
   assert.match(appSource, /TAKE_MENU_COMMAND/);
+  assert.match(appSource, /takeSidecarMenuCommand/);
   const menuSource = readFileSync(new URL("./nativeMenu.ts", import.meta.url), "utf8");
   assert.match(menuSource, /allow-take-menu-command/);
+  assert.match(menuSource, /\/api\/desktop\/menu-command/);
   assert.equal(appSource.includes("BrowserRouter"), false);
   assert.equal(appSource.includes("HashRouter"), false);
   assert.equal(appSource.includes("useSyncExternalStore"), false);

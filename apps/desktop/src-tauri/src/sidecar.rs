@@ -25,6 +25,7 @@ pub const CANCEL_WAIT: Duration = Duration::from_secs(10);
 
 const READY_PREFIX: &str = "FRAMEPILOT_API ready ";
 const LOOPBACK_HOST: &str = "127.0.0.1";
+pub const MENU_COMMAND_PATH: &str = "/api/desktop/menu-command";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadyLine {
@@ -971,10 +972,43 @@ impl Drop for SidecarState {
     }
 }
 
+fn build_http_request(
+    method: &str,
+    path: &str,
+    port: u16,
+    body: &[u8],
+    content_type: Option<&str>,
+) -> Vec<u8> {
+    let mut header = format!(
+        "{method} {path} HTTP/1.1\r\nHost: {LOOPBACK_HOST}:{port}\r\nConnection: close\r\nContent-Length: {}\r\n",
+        body.len()
+    );
+    if let Some(value) = content_type {
+        header.push_str("Content-Type: ");
+        header.push_str(value);
+        header.push_str("\r\n");
+    }
+    header.push_str("\r\n");
+    let mut request = header.into_bytes();
+    request.extend_from_slice(body);
+    request
+}
+
 fn http_exchange(
     port: u16,
     method: &str,
     path: &str,
+    timeout: Duration,
+) -> io::Result<(u16, String)> {
+    http_exchange_with_body(port, method, path, &[], None, timeout)
+}
+
+fn http_exchange_with_body(
+    port: u16,
+    method: &str,
+    path: &str,
+    body: &[u8],
+    content_type: Option<&str>,
     timeout: Duration,
 ) -> io::Result<(u16, String)> {
     let addr = format!("{LOOPBACK_HOST}:{port}")
@@ -983,13 +1017,29 @@ fn http_exchange(
     let mut stream = TcpStream::connect_timeout(&addr, timeout)?;
     let _ = stream.set_read_timeout(Some(timeout));
     let _ = stream.set_write_timeout(Some(timeout));
-    let request = format!(
-        "{method} {path} HTTP/1.1\r\nHost: {LOOPBACK_HOST}:{port}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
-    );
-    stream.write_all(request.as_bytes())?;
+    stream.write_all(&build_http_request(
+        method,
+        path,
+        port,
+        body,
+        content_type,
+    ))?;
     let mut raw = Vec::new();
     let _ = stream.read_to_end(&mut raw);
     parse_http_response(&String::from_utf8_lossy(&raw))
+}
+
+pub fn post_menu_command(port: u16, command: &str) -> io::Result<u16> {
+    let body = serde_json::json!({ "command": command }).to_string();
+    let (status, _) = http_exchange_with_body(
+        port,
+        "POST",
+        MENU_COMMAND_PATH,
+        body.as_bytes(),
+        Some("application/json"),
+        Duration::from_millis(400),
+    )?;
+    Ok(status)
 }
 
 pub fn parse_http_response(text: &str) -> io::Result<(u16, String)> {
@@ -1170,6 +1220,28 @@ mod tests {
         args.windows(2)
             .find(|pair| pair[0] == "--port")
             .map(|pair| pair[1].as_str())
+    }
+
+    #[test]
+    fn menu_command_http_request_posts_json_body() {
+        let body = br#"{"command":"import"}"#;
+        let request = build_http_request(
+            "POST",
+            MENU_COMMAND_PATH,
+            4192,
+            body,
+            Some("application/json"),
+        );
+        let text = String::from_utf8(request).expect("utf8 request");
+        assert!(text.starts_with("POST /api/desktop/menu-command HTTP/1.1\r\n"));
+        assert!(text.contains("Host: 127.0.0.1:4192\r\n"));
+        assert!(text.contains("Content-Type: application/json\r\n"));
+        assert!(text.contains(&format!("Content-Length: {}\r\n", body.len())));
+        assert!(
+            text.ends_with("\r\n\r\n{\"command\":\"import\"}"),
+            "menu POST must include JSON body: {text}"
+        );
+        assert_eq!(MENU_COMMAND_PATH, "/api/desktop/menu-command");
     }
 
     #[test]
