@@ -23,6 +23,7 @@ import {
   hrefForNativeMenuCommand,
   TAKE_MENU_COMMAND,
   TAKE_MENU_COMMAND_INTERVAL_MS,
+  takeSidecarMenuCommand,
 } from "./lib/nativeMenu";
 import { AppRoutes } from "./router";
 
@@ -76,6 +77,15 @@ function NativeMenuListener() {
         console.error("FramePilot native menu listen failed", error);
       });
     const poll = window.setInterval(() => {
+      void takeSidecarMenuCommand()
+        .then((command) => {
+          if (!disposed && command) {
+            applyCommand(command);
+          }
+        })
+        .catch((error: unknown) => {
+          console.error("FramePilot sidecar menu take failed", error);
+        });
       void invoke<string | null>(TAKE_MENU_COMMAND)
         .then((command) => {
           if (!disposed && command) {

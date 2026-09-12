@@ -3,6 +3,7 @@
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::thread;
 
 use tauri::menu::{AboutMetadata, Menu, MenuBuilder, MenuEvent, MenuItemBuilder, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, WebviewWindow};
@@ -47,6 +48,8 @@ impl DesktopPaths {
 /// Tauri 2 `app.emit` still delivers to the webview through `webview.eval`
 /// (`emit_js`). On Joe's packaged Win11 WebView that path can stay silent
 /// after leftover #204. `invoke("take_menu_command")` uses IPC instead.
+/// Leftover #210 posts the same command to the sidecar over loopback HTTP
+/// because that fetch already works on the packaged Win11 WebView.
 pub struct PendingMenuCommand {
     commands: Mutex<VecDeque<String>>,
 }
@@ -86,10 +89,31 @@ fn about_metadata() -> AboutMetadata<'static> {
     }
 }
 
+fn enqueue_sidecar_menu_command<R: Runtime>(app: &AppHandle<R>, command: &str) {
+    let Some(host) = app.try_state::<crate::preview::PreviewHost>() else {
+        eprintln!(
+            "FramePilot menu command `{command}` sidecar post skipped: preview host is missing"
+        );
+        return;
+    };
+    let port = host.port;
+    let command = command.to_string();
+    thread::spawn(move || match crate::sidecar::post_menu_command(port, &command) {
+        Ok(status) if status == 204 || status == 200 => {}
+        Ok(status) => {
+            eprintln!("FramePilot menu command `{command}` sidecar post status {status}");
+        }
+        Err(err) => {
+            eprintln!("FramePilot menu command `{command}` sidecar post failed: {err}");
+        }
+    });
+}
+
 fn emit_menu_command<R: Runtime>(app: &AppHandle<R>, command: &str) {
     if let Some(pending) = app.try_state::<PendingMenuCommand>() {
         pending.push(command);
     }
+    enqueue_sidecar_menu_command(app, command);
     if app.get_webview_window("main").is_none() {
         eprintln!("FramePilot menu command `{command}` dropped: main window is missing");
         return;
@@ -273,6 +297,14 @@ mod tests {
         assert!(
             catalog.contains("pending.push(command)"),
             "menu commands must queue for invoke take_menu_command: {catalog}"
+        );
+        assert!(
+            catalog.contains("enqueue_sidecar_menu_command"),
+            "menu commands must POST to sidecar loopback HTTP: {catalog}"
+        );
+        assert!(
+            catalog.contains("post_menu_command"),
+            "packaged Win11 must post menu commands over sidecar HTTP: {catalog}"
         );
         assert!(
             catalog.contains("pub fn take_menu_command"),

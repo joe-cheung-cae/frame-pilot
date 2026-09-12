@@ -29,6 +29,8 @@ DELETE /api/projects/{project_id}
 GET    /api/desktop/project-roots
 POST   /api/desktop/project-roots
 POST   /api/desktop/data-dir
+POST   /api/desktop/menu-command
+GET    /api/desktop/menu-command
 
 POST   /api/projects/{project_id}/imports
 POST   /api/projects/{project_id}/imports/from-paths
@@ -85,6 +87,8 @@ GET /api/assets/{project_id}/{thumbnails|previews}/{filename}
 当 `POST /api/projects` 省略 `root_path` 或将其发送为空时，FramePilot 使用默认的托管项目目录。项目创建 UI 将其作为可选的本地项目数据文件夹字段暴露。自定义 `root_path` 必须是 `{data_dir}/projects` 下可用的本地目录、`FRAMEPILOT_PROJECT_ROOT_ALLOWLIST` 条目，或通过 `POST /api/desktop/project-roots` 注册的文件夹。无效存储路径会在创建项目元数据之前返回 `422`。环境 allowlist 条目会用与 `register_root` 相同的 helpers 过滤：`$HOME`、`/`、盘符根、数据目录及其父目录，以及其他被拦截的系统路径会被忽略。
 
 `GET` 和 `POST /api/desktop/project-roots` 仅在 `FRAMEPILOT_DESKTOP=1` 时存在；否则返回 `404`。`POST` 接受 `{"path": "/absolute/folder"}`，要求该目录已存在；会拒绝被拦截的系统路径、文件系统锚点、当前家目录（按名拒绝 `Path.home()` / `$HOME`）、数据目录以及数据目录的父目录，并在 `{data_dir}/desktop_project_roots.json` 中最多存储 50 条解析后的路径。`GET` 返回 `{"roots": [...]}`。该注册表以文件为后端，不存储在 Settings 中。
+
+`POST /api/desktop/menu-command` 和 `GET /api/desktop/menu-command` 仅在 `FRAMEPILOT_DESKTOP=1` 时存在；否则返回 `404`。`POST` 接受可跳页的 File 菜单命令 `{"command": "import"}`（`new`、`shortcuts`、`import`、`export`、`process`、`cull`），返回 `204`。其他 id 返回 `422`。`GET` 取出队列最旧的一条，返回 `{"command": "import"}` 或 `{"command": null}`，并带 `Cache-Control: no-store`。包装 Win11 壳在 File 菜单点击时 POST，再 poll 这个 GET，跳页不依赖 Tauri `eval` / `invoke`。队列在内存里，FIFO，最多 16 条。
 
 `POST /api/desktop/data-dir` 仅在 `FRAMEPILOT_DESKTOP=1` 时存在；否则返回 `404`。请求体为 `{"path": "/absolute/empty-folder"}`。目标必须已通过 `POST /api/desktop/project-roots` 注册。被拦截、未注册、嵌套、缺失和非空目标返回 `422`。作业处于 `BLOCKING_JOB_STATUSES` 时返回 `409`。成功时把当前数据目录树（含 SQLite `-wal`/`-shm`）拷贝到目标，只在**目标**数据库里改写前缀为旧数据目录的已存项目/照片/导出路径，旧树保持字节不变，永不改写 `Project.source_root_path`，也不拷贝或改写相机卡上的原片。拷贝出的 `desktop_project_roots.json` 会去掉新数据目录（它现在就是 data dir）。响应为 `{"data_dir": "<new>"}`。随后桌面壳写入 `{anchor}/data_dir.json`，并用新的 `--data-dir` 重新拉起 sidecar。
 

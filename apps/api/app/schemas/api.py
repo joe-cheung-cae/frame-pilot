@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.services.desktop_menu import normalize_menu_command
+
 
 class AppSettingsRead(BaseModel):
     import_workers: int = Field(ge=1, le=4)
@@ -39,6 +41,18 @@ class DesktopDataDirChange(BaseModel):
 
 class DesktopDataDirRead(BaseModel):
     data_dir: str
+
+
+class DesktopMenuCommandWrite(BaseModel):
+    command: str = Field(min_length=1)
+
+    @field_validator("command")
+    @classmethod
+    def command_must_be_navigable(cls, value: str) -> str:
+        normalized = normalize_menu_command(value)
+        if normalized is None:
+            raise ValueError("Unsupported menu command")
+        return normalized
 
 
 class ProjectCreate(BaseModel):

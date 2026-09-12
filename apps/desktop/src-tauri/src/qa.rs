@@ -1052,6 +1052,10 @@ mod tests {
             "NativeMenuListener must poll take_menu_command over IPC: {app}"
         );
         assert!(
+            app.contains("takeSidecarMenuCommand"),
+            "NativeMenuListener must poll sidecar menu-command over HTTP: {app}"
+        );
+        assert!(
             app.contains("setDesktopQaMountCull"),
             "CullOverlay must register React setState on window during render: {app}"
         );

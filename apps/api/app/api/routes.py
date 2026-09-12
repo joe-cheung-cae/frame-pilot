@@ -21,6 +21,7 @@ from app.schemas.api import (
     DerivativeCacheRead,
     DesktopDataDirChange,
     DesktopDataDirRead,
+    DesktopMenuCommandWrite,
     DesktopProjectRootCreate,
     ExportCreate,
     ExportRead,
@@ -41,6 +42,7 @@ from app.services.derivative_cache import (
     clear_derivative_cache,
     measure_derivative_cache,
 )
+from app.services.desktop_menu import push_menu_command, take_menu_command
 from app.services.exporting import (
     EXPORT_CANCEL_REASON,
     ExportCancelled,
@@ -348,6 +350,20 @@ def _require_desktop_mode() -> None:
 def list_desktop_project_roots() -> dict[str, list[str]]:
     _require_desktop_mode()
     return {"roots": [str(path) for path in registered_roots()]}
+
+
+@router.post("/desktop/menu-command", status_code=status.HTTP_204_NO_CONTENT)
+def post_desktop_menu_command(payload: DesktopMenuCommandWrite) -> Response:
+    _require_desktop_mode()
+    push_menu_command(payload.command)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/desktop/menu-command")
+def take_desktop_menu_command(response: Response) -> dict[str, str | None]:
+    _require_desktop_mode()
+    response.headers["Cache-Control"] = "no-store"
+    return {"command": take_menu_command()}
 
 
 @router.post("/desktop/project-roots", status_code=status.HTTP_201_CREATED)
