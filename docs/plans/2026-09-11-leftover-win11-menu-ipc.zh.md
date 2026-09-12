@@ -41,8 +41,8 @@
 - [x] 需求拆解 — 双语残留计划 + GitHub issue [#206](https://github.com/joe-cheung-cae/frame-pilot/issues/206)
 - [x] 开发 — `PendingMenuCommand` + `take_menu_command`；桌面 poll
 - [x] 测试 — desktop `nativeMenu` / `desktopQaRunner` 单元测试；`typecheck:desktop`；web unit 272 + vitest 73。不要在这台缺 GTK 的 WSL 上编造 cargo 通过。
-- [ ] 上线 — 合并 + 后续未签名 NSIS 给包装 Win11（实现者不合并）
-- [ ] DoD-ticked — 有 #206+ NSIS 后再勾 上线；**不要**编造带日期的 Win11 GUI 通过 / 第十阶段 / 重勾 §2.2
+- [ ] 上线 — #207 已合入（`5d15588`）；Joe 的 #206 overlay（`2026-09-12T08:56:28+08:00`）仍停在三列表轮询。后续残留 [#208](https://github.com/joe-cheung-cae/frame-pilot/issues/208)。不要勾。
+- [ ] DoD-ticked — **不要**编造带日期的 Win11 GUI 通过 / 第十阶段 / 重勾 §2.2
 
 ---
 

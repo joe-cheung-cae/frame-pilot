@@ -293,6 +293,36 @@ mod tests {
     }
 
     #[test]
+    fn default_capabilities_allow_take_menu_command() {
+        let caps = include_str!("../capabilities/default.json");
+        assert!(
+            caps.contains("allow-take-menu-command"),
+            "packaged Win11 invoke take_menu_command needs ACL: {caps}"
+        );
+        assert!(!caps.contains("fs:"), "default capabilities must not add fs:");
+        assert!(!caps.contains("shell:"), "default capabilities must not add shell:");
+        assert!(
+            !caps.contains("allow-qa-write-evidence"),
+            "QA ACL must stay off default: {caps}"
+        );
+        let permission = include_str!("../permissions/menu.toml");
+        assert!(permission.contains("identifier = \"allow-take-menu-command\""));
+        assert!(
+            permission.contains("take_menu_command"),
+            "menu ACL must allow only take_menu_command: {permission}"
+        );
+        assert!(
+            !permission.contains("qa_"),
+            "menu ACL must not grant QA commands: {permission}"
+        );
+        let qa = include_str!("../permissions/qa.toml");
+        assert!(
+            !qa.contains("take_menu_command"),
+            "QA ACL must not grow take_menu_command: {qa}"
+        );
+    }
+
+    #[test]
     fn pending_menu_command_is_fifo() {
         let pending = PendingMenuCommand::new();
         assert_eq!(pending.take(), None);

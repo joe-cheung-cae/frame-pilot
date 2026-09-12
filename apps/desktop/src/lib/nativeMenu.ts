@@ -4,6 +4,7 @@ import { MENU_EVENT, resolveMenuCommand } from "../../../web/src/lib/menuRoutes.
 export { MENU_EVENT };
 
 export const TAKE_MENU_COMMAND = "take_menu_command";
+export const ALLOW_TAKE_MENU_COMMAND = "allow-take-menu-command";
 export const TAKE_MENU_COMMAND_INTERVAL_MS = 200;
 
 export function menuCommandFromPayload(payload: unknown): string | null {

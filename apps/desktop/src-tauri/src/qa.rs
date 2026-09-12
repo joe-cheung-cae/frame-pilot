@@ -871,6 +871,10 @@ mod tests {
             !text.contains("allow-qa-write-evidence"),
             "QA ACL must not be on default/preview: {text}"
         );
+        assert!(
+            text.contains("allow-take-menu-command"),
+            "packaged take_menu_command must be on default: {text}"
+        );
         assert!(!text.contains("fs:"));
         assert!(!text.contains("shell:"));
         let qa_text = include_str!("../capabilities/qa.json");
